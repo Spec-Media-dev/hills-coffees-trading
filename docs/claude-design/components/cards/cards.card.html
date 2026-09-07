@@ -1,0 +1,29 @@
+<!-- @dsCard group="Components" viewport="700x400" name="Cards" subtitle="Card, KpiCard, ListingCard, OrderCard, ShipmentCard, KybCard, DocumentCard" -->
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><link rel="stylesheet" href="../../styles.css">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/lucide@0.454.0/dist/umd/lucide.js"></script>
+<script src="../../_ds_bundle.js"></script>
+<style>html,body{margin:0;background:var(--surface-page)}#root{padding:20px 24px}.grid{display:flex;flex-wrap:wrap;gap:14px;align-items:flex-start}.lbl{font-family:var(--font-ui);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--text-muted);font-weight:700;width:100%;margin:4px 0 2px}</style></head>
+<body><div id="root"></div>
+<script type="text/babel">
+const { Card, KpiCard, ListingCard, OrderCard, ShipmentCard, KybCard, DocumentCard, StatusBadge, Button, IconButton, Icon } = window.HillsCoffeeDesignSystem_ca006d;
+function Demo(){return (<div style={{display:'flex',flexDirection:'column',gap:14}}>
+<div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12}}>
+<KpiCard icon={<Icon name="coffee" size={22}/>} value="3" label="Products"/>
+<KpiCard icon={<Icon name="package" size={22}/>} value="865" label="Available bags"/>
+<KpiCard icon={<Icon name="triangle-alert" size={22}/>} value="1" label="Low-stock offers"/>
+<KpiCard icon={<Icon name="clipboard-list" size={22}/>} value="51" label="Open inquiries"/></div>
+<div style={{display:'grid',gridTemplateColumns:'260px 1fr',gap:12,alignItems:'start'}}>
+<ListingCard title="Yirgacheffe Kochere Lot 14" origin="Ethiopia" region="Yirgacheffe" grade="G1" process="Washed" harvest="2025/26" quantity="320 bags" price="USD 4.80 / kg" seller="hills" onOpen={()=>{}}/>
+<div style={{display:'flex',flexDirection:'column',gap:12}}>
+<OrderCard reference="HC-2026-0418" date="4 Sep 2026" counterparty="Abyssinia Exports" items="2 lots · 480 bags" amount="USD 138,240" status={<StatusBadge status="paymentPending" size="sm"/>} action={<Button size="sm" variant="outline">Upload payment proof</Button>}/>
+<ShipmentCard shipmentId="SHP-4471" orderReference="HC-2026-0418" eta="18 Sep 2026" destination="Jebel Ali, Dubai" quantity="480 bags" incoterm="CIF" status={<StatusBadge status="dispatched" size="sm"/>} actionRequired="Confirm handover quantity before pickup"/>
+<KybCard companyName="Nile Traders LLC" role="Buyer" progress={80} status={<StatusBadge status="moreInfo" size="sm"/>} missingItems={['Certified trade licence — uploaded copy expired','Authorised signatory passport']} action={<Button size="sm">Continue application</Button>}/>
+<DocumentCard name="trade-licence-2026.pdf" kind="Trade licence" size="1.4 MB" uploadedOn="2 Sep 2026" icon={<Icon name="file-text" size={20}/>} status={<StatusBadge status="approved" size="sm"/>} actions={<IconButton icon={<Icon name="download" size={16}/>} label="Download" size="sm" variant="outline"/>}/>
+<Card header={<span className="hc-label">Recent activity</span>}><span style={{fontFamily:'var(--font-ui)',fontSize:14,color:'var(--text-muted)'}}>Base Card — white surface, 1px warm border, 14px radius.</span></Card>
+</div></div></div>);}
+ReactDOM.createRoot(document.getElementById('root')).render(<Demo/>);
+setTimeout(()=>window.lucide&&window.lucide.createIcons({nameAttr:'data-lucide'}),60);
+</script></body></html>

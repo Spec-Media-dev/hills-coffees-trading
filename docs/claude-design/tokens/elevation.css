@@ -1,0 +1,25 @@
+/* Shadows are warm and forest-tinted — never neutral grey. Light mode leans on
+   1px borders first, shadow second; dark mode uses depth of surface, not shadow. */
+:root{
+  --shadow-none:none;
+  --shadow-xs:0 1px 2px rgba(23,60,50,.06);
+  --shadow-sm:0 1px 3px rgba(23,60,50,.08),0 1px 2px rgba(23,60,50,.04);
+  --shadow-md:0 4px 12px rgba(23,60,50,.08),0 1px 3px rgba(23,60,50,.05);
+  --shadow-lg:0 12px 32px rgba(23,60,50,.12),0 2px 8px rgba(23,60,50,.06);
+  --shadow-xl:0 24px 64px rgba(23,60,50,.18);
+  --shadow-inset:inset 0 1px 0 rgba(255,255,255,.5);
+  --shadow-focus:0 0 0 3px rgba(23,60,50,.22);
+  --scrim-bottom:linear-gradient(to top,rgba(14,38,32,.82) 0%,rgba(14,38,32,.45) 42%,rgba(14,38,32,0) 100%); /* @kind other */
+  --scrim-top:linear-gradient(to bottom,rgba(14,38,32,.7) 0%,rgba(14,38,32,0) 100%); /* @kind other */
+  --gradient-editorial:linear-gradient(135deg,#173C32 0%,#1E4E41 46%,#A44819 100%); /* @kind other */
+  --blur-panel:saturate(140%) blur(14px); /* @kind other */
+}
+[data-theme="dark"]{
+  --shadow-xs:0 1px 2px rgba(0,0,0,.3);
+  --shadow-sm:0 1px 3px rgba(0,0,0,.4);
+  --shadow-md:0 4px 14px rgba(0,0,0,.42);
+  --shadow-lg:0 16px 40px rgba(0,0,0,.5);
+  --shadow-xl:0 28px 72px rgba(0,0,0,.6);
+  --shadow-inset:inset 0 1px 0 rgba(255,255,255,.04);
+  --shadow-focus:0 0 0 3px rgba(232,168,78,.32);
+}

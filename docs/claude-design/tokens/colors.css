@@ -1,0 +1,133 @@
+/* Base palette — exact values from the Hills Coffee Brand Guidelines (Aug 2026)
+   as transcribed in the B2B Trading UI/UX Design Master Guide, §02. */
+:root{
+  --brand-forest:#173C32;      /* Deep Forest Green */
+  --brand-cream:#EEE4D1;       /* Warm Cream */
+  --brand-gold:#CE8A39;        /* Golden Ochre */
+  --brand-burnt:#A44819;       /* Burnt Orange */
+  --brand-light-page:#F7F1E6;  /* Light Page */
+  --brand-dark-bg:#1A2420;     /* Dark Background */
+
+  /* Contrast-safe gold variants mandated by §02: never set small gold text on cream. */
+  --gold-on-light:#75450D;
+  --gold-on-dark:#E8A84E;
+
+  /* Forest ramp — derived tints/shades of --brand-forest for surfaces and hover states. */
+  --forest-900:#0E2620;
+  --forest-800:#12332B;
+  --forest-700:#173C32;
+  --forest-600:#1E4E41;
+  --forest-500:#2A5C3E;
+  --forest-400:#3C7A5C;
+  --forest-300:#5E9C7E;
+  --forest-200:#9DC4B0;
+  --forest-100:#D5E6DC;
+
+  /* Cream / sand neutral ramp — derived from --brand-cream. */
+  --sand-50:#FDFAF4;
+  --sand-100:#F7F1E6;
+  --sand-200:#EEE4D1;
+  --sand-300:#E2D4BB;
+  --sand-400:#D7C8AD;
+  --sand-500:#B9A889;
+  --sand-600:#8E7F63;
+  --sand-700:#6A5C45;
+
+  /* Semantic colours. Burnt Orange is a brand highlight, NOT the error colour (§02),
+     so danger/success/info are derived to sit inside the same warm-natural family. */
+  --success:#2F7D5D;
+  --success-surface:#E4F0E9;
+  --warning:#CE8A39;
+  --warning-surface:#FAEBD6;
+  --danger:#9E2A1B;
+  --danger-surface:#F7E1DC;
+  --info:#2C5B6B;
+  --info-surface:#E2EDF0;
+  --highlight:#A44819;
+  --highlight-surface:#F8E5D8;
+}
+
+/* ---- Light theme (default) — exact values from the Master Guide §02 mapping table ---- */
+:root{
+  color-scheme:light;
+  --bg:#EEE4D1;
+  --surface-page:#F7F1E6;
+  --surface-card:#FFFFFF;
+  --surface-raised:#FFFFFF;
+  --surface-subtle:#F7F1E6;
+  --surface-inverse:#173C32;
+  --primary:#173C32;
+  --primary-hover:#12332B;
+  --primary-active:#0E2620;
+  --primary-contrast:#F7F1E6;
+  --accent:#CE8A39;
+  --accent-hover:#B87A2F;
+  --accent-text:#75450D;
+  --text-strong:#173C32;
+  --text-body:#173C32;
+  --text-muted:#6A5C45;
+  --text-inverse:#EEE8DC;
+  --text-on-accent:#FFFFFF;
+  --border:#D7C8AD;
+  --border-strong:#B9A889;
+  --border-subtle:#E2D4BB;
+  --focus-ring:#173C32;
+  --overlay:rgba(23,60,50,.55);
+}
+
+/* ---- Dark theme — derived from the live project theme, Master Guide §02 ---- */
+[data-theme="dark"]{
+  color-scheme:dark;
+  --bg:#1A2420;
+  --surface-page:#192420;
+  --surface-card:#1E2C26;
+  --surface-raised:#243530;
+  --surface-subtle:#1E2C26;
+  --surface-inverse:#EEE4D1;
+  --primary:#2A5C3E;
+  --primary-hover:#316B49;
+  --primary-active:#245033;
+  --primary-contrast:#EEE8DC;
+  --accent:#C8893A;
+  --accent-hover:#D89A4A;
+  --accent-text:#E8A84E;
+  --text-strong:#EEE8DC;
+  --text-body:#EEE8DC;
+  --text-muted:#9DB0A6;
+  --text-inverse:#173C32;
+  --text-on-accent:#17211D;
+  --border:#2E3E38;
+  --border-strong:#3D5249;
+  --border-subtle:#26332E;
+  --focus-ring:#E8A84E;
+  --overlay:rgba(9,15,13,.66);
+  --success-surface:#1D3A2E;
+  --warning-surface:#3A2E1B;
+  --danger-surface:#3A211C;
+  --info-surface:#1C3238;
+  --highlight-surface:#38231A;
+  --success:#4FA37B;
+  --danger:#D4614C;
+  --info:#6FA3B4;
+}
+
+/* ---- Status colours — one shared system for Order, Shipment, KYB and Listing (§12, §13) ---- */
+:root{
+  --status-draft:var(--sand-700);            --status-draft-surface:var(--sand-200);
+  /* Small gold text needs the dark variant on light surfaces (§02). */
+  --status-pending:var(--gold-on-light);     --status-pending-surface:var(--warning-surface);
+  --status-review:var(--info);               --status-review-surface:var(--info-surface);
+  --status-paid:var(--success);              --status-paid-surface:var(--success-surface);
+  --status-transit:var(--highlight);         --status-transit-surface:var(--highlight-surface);
+  --status-complete:var(--forest-500);       --status-complete-surface:var(--forest-100);
+  --status-cancelled:var(--sand-700);        --status-cancelled-surface:var(--sand-200);
+  --status-danger:var(--danger);             --status-danger-surface:var(--danger-surface);
+}
+[data-theme="dark"]{
+  --status-draft:var(--text-muted);
+  --status-cancelled:var(--text-muted);
+  --status-pending:var(--gold-on-dark);
+  --status-draft-surface:#26332E;
+  --status-cancelled-surface:#26332E;
+  --status-complete-surface:#1D3A2E;
+}

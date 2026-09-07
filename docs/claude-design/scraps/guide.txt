@@ -1,0 +1,550 @@
+
+الدليل الرئيسي لتصميم منصة هيلز كوفي للتداول بين الشركات
+Hills Coffee B2B Trading Platform
+UI/UX Design Master Guide
+Guest • Buyer • Seller • Admin
+النطاق الحالي: التصميم والـUser Experience والـDesign System والصفحات والحالات فقط
+مستبعد حاليًا: Database Schema • API Architecture • RLS • Backend Implementation
+الإصدار: Design Baseline v1.0 - سبتمبر 2026
+
+01
+الهدف والنطاق الحالي
+هذه الوثيقة تحوّل الـBrand Guidelines والـSEO الحالي ومتطلبات المنصة الجديدة إلى Brief تصميم واحد يمكن التنفيذ عليه في Figma أو مباشرة في الواجهة، بدون الدخول في تصميم قاعدة البيانات أو الـBackend في هذه المرحلة.
+قرار نطاق مهم
+المنصة الحالية في هذا التصميم تحتوي على أربع حالات وصول فقط: Guest، Buyer، Seller، Admin. لا يوجد دور Seller/Buyer مشترك في هذا الإصدار. الـBuyer والـSeller مساران منفصلان، وكل منهما يحتاج إلى KYB قبل تفعيل الوظائف التجارية.
+
+• Guest: يتصفح المحتوى العام والـListings المسموح بعرضها، ولا يستطيع تنفيذ شراء أو بيع.
+• Buyer: بعد التسجيل والتحقق ونجاح KYB يستطيع الشراء، متابعة الطلبات، المدفوعات، الفواتير والشحنات.
+• Seller: بعد التسجيل والتحقق ونجاح KYB يستطيع إنشاء وإدارة Listings ومتابعة الطلبات التي تم شراؤها منه والتسويات والشحنات.
+• Admin: يدير الموافقات، KYB، Listings، Orders، Payments/Finance، Shipments، المحتوى العام وإعدادات الموقع والهوية القابلة للتعديل.
+• كل الواجهات يجب أن تدعم English / Arabic، وLTR / RTL، وLight / Dark، وDesktop / Tablet / Mobile.
+الأساس الذي لا يتم تغييره
+• الموقع Public يظل B2B Green Coffee Sourcing / Trading وليس متجر قهوة Retail.
+• الهوية البصرية Hills Coffee كما هي: الألوان، الشعار، روح الصور، والتوجه التحريري Premium / Natural / Traceability-focused.
+• الصفحات العامة تستمر في احترام الـSEO الحالي، بينما صفحات الحسابات والطلبات والـAdmin تبقى Private / App-oriented.
+02
+هوية Hills Coffee البصرية
+الهوية الرسمية تعتمد على Deep Forest Green وWarm Cream مع Golden Ochre وBurnt Orange، ويستخدم Benito كخط أساسي للهوية وManrope كخط ثانوي. التصميم الحالي يضيف Dark Mode مشتقًا من نفس الهوية، وليس هوية لونية مستقلة.
+العينة
+الاسم
+HEX
+الاستخدام المقترح
+ 
+Deep Forest Green
+‎#173C32‎
+اللون الأساسي للهوية، العناوين القوية، العناصر الرئيسية، وبعض الأسطح الداكنة
+ 
+Warm Cream
+‎#EEE4D1‎
+الخلفية الأساسية الدافئة للموقع والهوية
+ 
+Golden Ochre
+‎#CE8A39‎
+Accent ثانوي، أزرار محددة، أرقام مهمة، زخارف وحالات مختارة
+ 
+Burnt Orange
+‎#A44819‎
+Highlight للعناصر المهمة والتنبيهات البصرية غير الخطرة
+ 
+Light Page
+‎#F7F1E6‎
+سطح صفحة فاتح مشتق من التنفيذ الحالي
+ 
+Dark Background
+‎#1A2420‎
+Dark Mode مشتق من المشروع الحالي وليس لونًا أصليًا منفصلًا في الـBrand Guide
+
+قاعدة الاستخدام اللوني
+• الـCream والـneutral surfaces هي المساحة الأكبر. الأخضر يستخدم للهوية، الـnavigation، العناوين القوية والأسطح المهمة. الـGold Accent يستخدم بانتقائية وليس لكل CTA.
+• لا يستخدم Golden Ochre كنص صغير فوق Cream بسبب ضعف التباين؛ النصوص الذهبية الصغيرة على الخلفيات الفاتحة تستخدم variant أغمق مثل ‎#75450D‎، وعلى الخلفيات الداكنة يستخدم Gold أفتح مثل ‎#E8A84E‎.
+• Burnt Orange لون Highlight في الهوية، وليس بالضرورة Error color. حالات الخطأ يفضل لها semantic danger واضح مع الحفاظ على الروح البصرية.
+Dark Mode - مشتق من التنفيذ الحالي
+العنصر
+Light
+Dark
+Background
+‎#EEE4D1‎
+‎#1A2420‎
+Page
+‎#F7F1E6‎
+‎#192420‎
+Card
+‎#FFFFFF‎
+‎#1E2C26‎
+Primary
+‎#173C32‎
+‎#2A5C3E‎
+Accent
+‎#CE8A39‎
+‎#C8893A‎
+Text
+‎#173C32‎
+‎#EEE8DC‎
+Border
+‎#D7C8AD‎
+‎#2E3E38‎
+
+03
+الخطوط والـTypography Hierarchy
+يتم الفصل بين الخطوط التحريرية الخاصة بالهوية وبين خطوط الـUI العملية. الهدف أن تظل الصفحات العامة ذات شخصية Hills، بينما الـDashboards تبقى مقروءة وسريعة.
+السياق
+English
+Arabic
+الاستخدام
+Display / Editorial
+Benito
+Readex Pro
+Hero، العناوين الكبيرة، Marketing sections، الأرقام البارزة
+UI / Body
+Manrope
+Cairo
+Navigation، Cards، Forms، Tables، Dashboards، النصوص الطويلة
+Dashboard Page Titles
+Manrope Bold / Benito selectively
+Cairo Bold / Readex selectively
+العناوين الوظيفية؛ لا نبالغ في الخط التحريري داخل الجداول والعمليات
+
+مقياس Typography المقترح للواجهة
+Token
+Desktop
+Mobile
+ملاحظات
+Hero Display
+72-112px
+44-64px
+Benito / Readex؛ للصفحات العامة فقط
+Page H1
+48-72px
+36-48px
+Public pages؛ Dashboard title أصغر
+Section H2
+36-52px
+28-36px
+يستخدم مع مساحة تنفس واضحة
+Card / H3
+24-32px
+21-26px
+Listing cards، panels، section blocks
+Dashboard Title
+32-44px
+28-34px
+Manrope/Cairo Bold غالبًا
+Body Large
+18px
+17px
+Intro / key explanation
+Body
+16px
+16px
+الحد الأدنى للنص الأساسي
+Small / Meta
+13-14px
+13-14px
+حالات، تواريخ، labels؛ لا يقل عن 12px
+
+• الـBrand Guide يعرض عينات ضخمة 177 / 110 / 68 / 42 / 16px؛ في الويب نترجمها إلى fluid scale باستخدام clamp بدل تثبيت أرقام Desktop حرفيًا.
+• في RTL يتم تقليل letter-spacing السالب وزيادة line-height قليلًا لضمان وضوح العربية.
+04
+الشعار والصور والـVisual Language
+استخدام الشعار والصور يجب أن يظل مطابقًا للـBrand Guidelines، مع اعتماد الشعار الرسمي المرفق وعدم إعادة رسمه أو تغيير نسبه.
+الشعار
+• النسخة Horizontal هي الأنسب للـHeader والـDashboard Sidebar عند وجود مساحة.
+• الحد الأدنى المقترح وفق الدليل: Horizontal 150px، وStacked 100px عند الاستخدام الرقمي.
+• احترام Clear Space وعدم ضغط أو Stretch أو Rotate أو تغيير العلاقة بين عناصر الشعار.
+• على الأسطح الداكنة يستخدم Variant رسمي مناسب/Monochrome أو Secondary؛ لا يتم اختراع recolor يدوي.
+Photography Direction
+• الصور الأساسية: Origin، Harvest، Processing، Green Coffee، Warehouses، Quality inspection، Bags/Lots، logistics.
+• الأسلوب: Documentary editorial، ضوء طبيعي، خامات حقيقية، premium وموثوق، بدون إحساس stock-photo مصطنع.
+• تجنب صور الكافيه واللاتيه والبن المحمص كهوية رئيسية لأن المشروع B2B Green Coffee.
+Graphic System
+• استخدام pattern المستوحى من أيقونة Hills بشكل خفيف، وتدرج Forest-to-Burnt Orange في اللحظات التحريرية فقط.
+• الأيقونات Line/Outline وبسمك ثابت، بلون Forest أو Cream على Dark surfaces، مع عدم خلط أكثر من أسلوب أيقونات.
+05
+قواعد الـDesign System والمكوّنات
+يجب أن تكون الواجهة Product UI حقيقية وليست مجرد صفحات Marketing. كل Component يحتاج حالات واضحة ومتوافقة مع Light/Dark وRTL/LTR.
+• Header / Public Navigation / Mobile Drawer / Language switcher / Theme toggle
+• Dashboard Sidebar / Topbar / Breadcrumbs / Workspace switch context
+• Buttons: Primary, Secondary, Outline, Text, Destructive, Icon Button
+• Inputs, Select, Combobox, Search, Date picker, File upload, Phone field, Country field
+• Cards: Listing card, KPI card, Order card, Shipment card, KYB card, Document card
+• Tables + responsive card-list alternative على الموبايل
+• Tabs, Filter chips, Sort, Pagination, Status badges
+• Dialog, Drawer, Confirmation modal, Toast, Inline alert
+• Timeline / Stepper للـKYB والـOrder والـShipment
+• Skeleton, Empty state, Error state, Unauthorized, Suspended, Pending review
+• Document preview/download row، Invoice card، Payment proof card
+حالات إلزامية لكل Component
+• Default • Hover • Focus-visible • Active • Selected • Disabled • Loading • Success • Error.
+• Touch target لا يقل عن 44x44px للعناصر الأساسية، مع focus ring واضح.
+• Motion خفيف يخدم hierarchy: 160-420ms، بدون إخفاء المحتوى أو تأخير action؛ ويحترم prefers-reduced-motion.
+06
+خريطة الأدوار والوصول
+الـUX يبدأ من فصل واضح بين التصفح العام وبين العمليات الخاصة. اختيار Buyer أو Seller يتم عند التسجيل/التقديم، ولا يوجد مسار Seller-Buyer مشترك في هذا الإصدار.
+الدور
+قبل KYB
+بعد KYB / Approval
+أهم ما يراه
+Guest
+تصفح فقط
+-
+Home، Origins، Knowledge، Listings عامة، About، Contact، Shipping/Policies، Login/Register
+Buyer
+Account + KYB Application
+شراء وتنفيذ Orders
+Marketplace، Cart، Checkout، Orders، Payments/Invoices، Shipments، KYB، Settings
+Seller
+Account + KYB Application
+إدارة البيع
+My Listings، Create/Edit، Sales Orders، Settlements/Payouts view، Shipments، KYB، Settings
+Admin
+Admin authentication
+Full operational access
+Approvals، KYB، Listings، Orders، Finance، Shipments، CMS/Site settings، Activity/Audit
+
+سلوك الـGuest
+الـGuest يمكنه مشاهدة المعلومات العامة والـListings المسموح بنشرها، لكن أي Buy/Add to Cart/Commercial action يجب أن يوجّهه إلى Login / Buyer application. يفضّل إبقاء السعر التعاقدي محميًا حتى اعتماد الـBuyer إذا لم يصدر قرار تجاري مختلف.
+
+07
+صفحات الـPublic Website والـSEO
+الـPublic layer يحتفظ بهوية Hills Coffee الحالية وبنية الـSEO الأساسية، لكنه يصبح بوابة واضحة للـMarketplace وللتسجيل كـBuyer أو Seller.
+الصفحة
+وظيفتها التصميمية
+Home
+قيمة Hills + أبرز الـListings + Origins + Trust + CTA للشراء/البيع
+Marketplace / Green Coffee Offer List
+فلترة وبحث ومقارنة الـListings؛ Hills listings وVerified Seller listings
+Listing Detail
+صور، المواصفات، origin، grade/process، availability، documents العامة، seller type badge، CTA
+Coffee Origins Hub
+الدول والأصول وعلاقتها بالـListings الحالية
+Origin Detail
+Profile، regions، harvest، grades، lots/listings المرتبطة
+Knowledge Hub
+محتوى تعليمي وتجاري موجّه لـB2B
+Knowledge Article
+مقال + روابط لمصادر/Marketplace/RFQ
+About Hills Coffee
+Brand story، trust، sourcing/trading positioning
+Contact
+Dubai / Egypt، phone، WhatsApp، email، maps
+Shipping
+سياسات وخيارات الشحن والتخزين العامة
+Help / FAQ
+دعم المستخدمين وشرح الخطوات
+Returns / Refunds
+سياسة معلنة حسب القرار القانوني النهائي
+Terms / Privacy / Cookies
+صفحات قانونية
+
+• يجب تمييز Listings التابعة لـHills Coffee بصريًا عن Listings الخاصة بالـVerified Sellers بدون خلق إحساس Marketplace استهلاكي رخيص.
+• حالات السعر: Price available للـBuyer المعتمد، أو Locked price / Sign in to view حسب السياسة النهائية.
+08
+Authentication وKYB
+الـBuyer والـSeller كلاهما يحتاجان إلى مسار KYB قبل تفعيل الشراء أو البيع. الـDesign يجب أن يجعل العملية واضحة ومقسمة إلى خطوات، مع حفظ حالة الطلب وإظهار ما ينقص المستخدم.
+الشاشة
+المحتوى/السلوك
+Login
+Email + Password، Forgot password، verification state
+Register / Choose Role
+اختيار Buyer أو Seller فقط، مع شرح الفرق قبل المتابعة
+Email Verification
+حالة إرسال/إعادة إرسال وتأكيد البريد
+KYB - Company
+Legal name، registration، jurisdiction، trade licence، address، tax/VAT، activity
+KYB - Ownership & Signatories
+UBO/directors/authorized signatory حسب المتطلبات
+KYB - Contact/User
+Work email، phone، role/authority
+KYB - Banking / Evidence
+بيانات ومستندات مطلوبة حسب نوع الحساب
+KYB - Agreements
+Terms / marketplace / privacy / delivery acknowledgment
+KYB Review Summary
+مراجعة كل البيانات قبل Submit
+Application Status
+Draft، Submitted، Under Review، More Info، Approved، Rejected، Suspended/Expired
+
+قاعدة UX
+المستخدم لا يُلقى أمام Form طويل. استخدم Stepper واضح، autosave visual state، document checklist، validation فوري، ونسبة تقدم. عند More Information Required يجب تحديد المطلوب بالضبط مع CTA مباشر للجزء الناقص.
+
+09
+Buyer Portal - الصفحات والـDashboard
+تجربة الـBuyer تركز على الاكتشاف، الشراء، متابعة الدفع، الطلبات والشحنات. الواجهة يجب أن تعطيه إجابة سريعة: ماذا اشتريت؟ دفعت كام؟ الطلب فين؟ وما الخطوة المطلوبة مني؟
+الصفحة
+المحتوى الرئيسي
+Buyer Dashboard
+KPIs: Active Orders، Pending Payment، In Transit، Completed + Recent orders + actions
+Marketplace
+عرض الـListings بعد التحقق، filters/search/sort، price/availability حسب الصلاحية
+Listing Detail
+تفاصيل كاملة + quantity selection + Add to Cart / Buy action
+Cart
+Items، quantities، unit price، subtotal، estimated fees/tax placeholders، remove/update
+Checkout / Order Review
+بيانات الشركة، delivery/storage choice، summary، terms، Place Order
+Proforma / Payment Step
+عرض/تحميل Proforma، bank transfer instructions، payment reference، upload proof إن تم اعتماده
+My Orders
+قائمة + filters by status/date + amount + seller/Hills source
+Order Detail
+Timeline، line items، totals، payment status، invoices، shipment، activity
+Shipments
+قائمة الشحنات + ETA/status + tracking/reference + documents
+Shipment Detail
+Timeline من Requested إلى Delivered + address/incoterm + documents + POD
+Invoices & Documents
+Proforma، Final/Tax invoice، shipping docs، downloadable history
+Notifications
+Updates المهمة: KYB، order، payment، shipment، document requests
+KYB & Company Profile
+Status، documents، expiry، requested updates
+Settings
+Profile، image، password/security، language، notification preferences
+
+10
+Seller Portal - الصفحات والـDashboard
+الـSeller لديه نفس الأساس المشترك للحساب والإعدادات، لكن مساحة العمل الأساسية هي إدارة الـListings والطلبات التي تمت عليه والتسليم/الشحن والتسويات المالية المعروضة.
+الصفحة
+المحتوى الرئيسي
+Seller Dashboard
+KPIs: Live Listings، Pending Review، Orders Received، Revenue/Settlement Pending + recent activity
+My Listings
+جدول/بطاقات لكل Listings مع status، quantity، price، orders، last updated
+Create Listing
+Wizard/sections: coffee identity، origin، specs، quantity، pricing، location/warehouse، media/docs، review
+Edit Listing
+تعديل البيانات المسموح بها مع توضيح ما يحتاج re-approval إن وجد
+Listing Detail / Preview
+Preview كما يراه Buyer + admin review status + activity
+Sales Orders
+الطلبات التي اشترت من هذا Seller: Buyer ref، quantity، amount، payment/fulfilment status
+Sales Order Detail
+Order timeline، sold items، settlement summary، shipment، documents
+Settlements / Payouts
+Gross sale، Hills fee/commission، net seller amount، payout status؛ معلومات فقط إذا التحويل Manual
+Shipments
+طلبات التسليم المرتبطة بالمبيعات + status/action required
+Shipment Detail
+handover / pickup / dispatch / proof docs حسب العملية النهائية
+Notifications
+Listing review، order received، payment confirmed، shipment action، KYB/document expiry
+KYB & Company Profile
+Status، documents، banking verification status
+Settings
+Profile، image، password/security، language، notifications
+
+قواعد الـListing Design
+لا تجعل Create Listing شاشة واحدة ضخمة. استخدم Sections/Wizard مع Preview دائم، document/media upload واضح، Draft state، Submit for Review، Approved/Live، Rejected/Needs changes، Suspended، Sold/Closed.
+
+11
+Admin / Operations Workspace
+الـAdmin يجب أن يكون أقرب إلى Operations Console احترافي: Sidebar واضح، KPIs، queues، tables قوية، filters، bulk-safe actions، مع صلاحيات حساسة وتأكيدات واضحة. الصورة الحالية للـAdmin تُستخدم كمرجع بصري للاتجاه العام لا كقيد حرفي.
+
+مرجع بصري: أسلوب الـOperations Dashboard الحالي - Sidebar داكن + Cards + Recent Activity.
+المساحة
+المحتوى الرئيسي
+Overview
+Products/Listings، available quantity، low stock، open orders/inquiries، revenue/payment summaries، activity
+Buyer & Seller Approvals
+Queue منفصلة أو موحدة مع role filters، status، submitted date، risk/notes
+KYB Application Detail
+company data، documents، reviewer notes، More Info، Approve/Reject/Suspend
+Users / Organizations
+Buyer/Seller accounts، status، KYB، contact، activity، safe account actions
+All Listings
+Hills + Seller listings، review status، owner type، quantity، price، lifecycle
+Create Hills Listing
+Admin ينشئ Listing باسم Hills Coffee بنفس نظام البيانات البصري
+Listing Review
+Preview + documents + approve/reject/request changes + audit trail
+Orders
+كل الطلبات مع buyer/seller/source، amount، payment، fulfilment، shipment
+Order Detail
+commercial summary، payment timeline، invoices، shipment، seller settlement، notes/activity
+Finance / Payments
+incoming payments، pending verification، confirmed، refunds/disputes، totals by period
+Seller Settlements
+gross، Hills fee، seller net، payout pending/paid، payment reference
+Shipments
+queue: Requested/Confirmed/Picking/Dispatched/Delivered + exceptions
+Shipment Detail
+carrier/warehouse، dates، documents، tracking، proof of delivery، status updates
+Catalog / Coffee Data
+Origins، regions، varieties، warehouses، taxonomy حسب احتياج الموقع
+Content / CMS
+Pages، articles، media، help/legal content، banners/announcement
+Site Appearance / Brand
+رفع/تغيير logo assets المعتمدة، favicon، hero media، contact/social links؛ لا يُسمح بتغيير core brand colors/font rules عشوائيًا
+Activity / Audit
+من فعل ماذا ومتى على KYB/listing/order/payment/shipment
+Admin Settings
+Profile/security، language/theme، notification preferences
+
+12
+Order / Cart / Payment Experience
+حتى قبل حسم القرار المالي النهائي، يجب تصميم جميع الحالات بحيث يمكن تبديل منطق التنفيذ بدون إعادة تصميم المنصة من الصفر.
+Flow تصميمي أساسي
+• 1. Buyer يضيف Listing إلى Cart أو يبدأ Buy مباشرة.
+• 2. Order Review يعرض الكمية والسعر والوحدة وأي tax/fees معروضة وفق القرار النهائي.
+• 3. Place Order ينشئ حالة Order واضحة؛ Proforma قد تكون automatic أو تحتاج approval وفق القرار النهائي.
+• 4. Payment step يعرض تعليمات التحويل البنكي/طريقة الدفع المعتمدة مع reference واضح.
+• 5. Buyer يرى Payment Pending، ويمكن عرض Upload Payment Proof إذا تم اعتماده.
+• 6. بعد Confirm Payment تتحول الحالة إلى Paid ثم Fulfilment/Shipment.
+• 7. إذا كان الطلب من Seller، يعرض Admin/Seller settlement summary منفصلًا عن Buyer total.
+Order Status UI
+الحالة
+المعنى البصري المقترح
+Draft
+لم يتم الإرسال بعد
+Quoted / Awaiting Confirmation
+تم تحديد السعر/الشروط وتنتظر الإجراء التالي
+Payment Pending
+الطلب ينتظر وصول/تأكيد المبلغ
+Paid
+تم تأكيد الدفع
+Processing / Allocated
+يتم تجهيز الكمية/التنفيذ
+In Transit
+تم الشحن
+Completed
+تم التسليم/إتمام الصفقة
+Cancelled
+ملغي
+Refunded
+تمت معالجة الاسترجاع
+Disputed
+هناك نزاع يحتاج تدخل
+
+قرارات Business Pending
+التصميم يجهز حالات Proforma approval، VAT display، bank transfer/escrow wording، refund/dispute، وتوقيت seller payout كحالات قابلة للتبديل. لا يتم تثبيت نص قانوني أو محاسبي نهائي قبل اعتماد الـOwner/Finance/Legal.
+
+13
+Shipment / Delivery Module
+الشحن جزء مستقل وواضح في تجربة Buyer وSeller وAdmin. يجب أن يحتوي على Status Timeline، المستندات، التواريخ، المكان/الوجهة، ومن يحتاج لاتخاذ إجراء.
+الحالة
+ما يظهر في الواجهة
+Draft
+تم إنشاء طلب شحن ولم يُرسل
+Requested
+تم إرسال طلب الشحن/التسليم
+Confirmed
+تمت الموافقة على السعة/الترتيب
+Reserved
+الكمية محجوزة للتسليم
+Picking
+يتم تجهيز الكمية
+Dispatched
+خرجت الشحنة / In Transit
+Delivered
+تم التسليم + Proof of Delivery
+Cancelled
+تم الإلغاء مع السبب
+Failed
+تعثر التنفيذ + next action
+Disputed
+نزاع أو مشكلة في التسليم
+
+Buyer Shipment View
+• Order reference، shipment ID، current status، ETA/confirmed date، destination، quantity، carrier/reference إن توفر، documents، timeline، support CTA.
+Seller Shipment View
+• الشحنات المرتبطة بالطلبات المباعة منه، المطلوب منه حاليًا، handover/warehouse info، documents، confirmed quantity، timeline.
+Admin Shipment Workspace
+• Queue وFilters حسب status/date/warehouse/order، update status، assign/confirm logistics information، upload docs، record exceptions، proof of delivery.
+• إذا استمر خيار Store with Hills / Scheduled Delivery في المنتج النهائي، يجب تصميمه كخيار Fulfilment واضح وليس كـHidden setting.
+14
+Settings المشتركة وAccount Experience
+Buyer وSeller وAdmin لديهم أساس مشترك للملف الشخصي والأمان، لكن المعلومات التجارية الحساسة تظهر حسب الدور.
+القسم
+المحتوى
+Profile
+الاسم، الصورة، الهاتف، البريد، اللغة
+Company
+بيانات الشركة المسموح للمستخدم عرضها/تعديلها حسب KYB status
+Security
+Change password، MFA placeholder، sessions/devices عند التنفيذ
+Notifications
+Email / in-app preferences، order/listing/shipment alerts
+Documents
+مستندات KYB، expiry/status، requested updates
+Banking - Seller/Admin relevant
+عرض حالة التحقق فقط، مع حماية التعديل وإظهار step-up approval عند التنفيذ
+Theme & Language
+Light/Dark، EN/AR
+
+15
+Responsive وRTL وAccessibility
+التصميم لا يعتبر Desktop هو النسخة الأساسية الوحيدة. كل شاشة رئيسية تحتاج Desktop + Mobile، مع Tablet للـTables والـDashboards المعقدة.
+• Desktop: Sidebar ثابت للـDashboards، tables كاملة، multi-column layouts.
+• Tablet: Sidebar collapsible، filters في drawer، tables تتحول إلى horizontal-safe أو card-list حسب المحتوى.
+• Mobile: Bottom/Drawer navigation حسب الدور، cards بدل الجداول الثقيلة، actions ثابتة عند الحاجة بدون حجب المحتوى.
+• RTL: عكس اتجاه sidebar، breadcrumbs، icons directional، timelines، drawers، paddings؛ لكن الأرقام/العملات/IDs تبقى مقروءة بشكل صحيح.
+• WCAG 2.2 AA target: contrast، keyboard، focus، labels، error messages، semantic status لا يعتمد على اللون وحده.
+• Empty/Loading/Error/Unauthorized/Suspended/Offline retry states جزء من التصميم وليس مرحلة لاحقة.
+16
+هيكلة ملف التصميم المقترحة
+لمنع الفوضى، يُنظم ملف Figma/Design Workspace إلى Pages واضحة، وكل شاشة تحمل اسم Role + Feature + State + Breakpoint.
+Page
+المحتوى
+00 - Cover & Decisions
+الهدف، version، scope، approved/pending decisions
+01 - Brand Foundations
+Logo، colors، typography، imagery، iconography
+02 - Tokens & Components
+Buttons، inputs، cards، tables، badges، modals، states
+03 - Public Website
+Home، Marketplace، Details، Origins، Knowledge، Trust/Support
+04 - Auth & KYB
+Login، Register، role select، KYB wizard، status
+05 - Buyer Portal
+Dashboard، Cart، Checkout، Orders، Payments، Shipments، Settings
+06 - Seller Portal
+Dashboard، Listings CRUD، Sales Orders، Settlements، Shipments، Settings
+07 - Admin Workspace
+Approvals، KYB، Listings، Orders، Finance، Shipments، CMS، Settings
+08 - Responsive & RTL
+Mobile/Tablet variants، EN/AR
+09 - States & Prototypes
+Loading، Empty، Error، Pending، Rejected، Suspended، flows
+10 - Handoff Notes
+spacing، tokens، component behavior، content rules، unresolved business decisions
+
+17
+Checklist قبل اعتبار التصميم مكتملًا
+هذه القائمة هي Gate للتصميم قبل بدء الـBackend/Database work.
+• ☐ كل صفحات Public الأساسية موجودة ومتوافقة مع هوية Hills والـSEO الحالي.
+• ☐ Guest / Buyer / Seller / Admin flows منفصلة وواضحة، ولا يوجد Seller-Buyer hybrid role.
+• ☐ Buyer وSeller لديهم KYB كامل مع جميع الحالات including More Info / Rejected / Suspended.
+• ☐ Buyer لديه Cart، Checkout/Order Review، Orders، Payment/Invoices، Shipments، Settings.
+• ☐ Seller لديه Listings CRUD، Sales Orders، Settlement/Payout view، Shipments، Settings.
+• ☐ Admin يستطيع approve/review Buyer/Seller، إدارة Listings/Hills Listings، Orders، Finance، Shipments، Content وSite assets.
+• ☐ كل شاشة رئيسية لها Light + Dark وEN + AR وDesktop + Mobile.
+• ☐ RTL مصمم فعليًا وليس مجرد text-align right.
+• ☐ كل tables المعقدة لها Mobile fallback واضح.
+• ☐ Status system موحد للأوامر، KYB، Listings، Payments، Shipments.
+• ☐ Loading / Empty / Error / Unauthorized / Suspended states موجودة.
+• ☐ Brand logo usage صحيح، لا stretch/recolor، والألوان/الخطوط متوافقة مع الدليل.
+• ☐ Typography responsive؛ لا يتم استخدام 177px fixed على الموبايل.
+• ☐ Accessibility: contrast، focus، touch targets، labels، status not-color-only.
+• ☐ Business decisions pending (VAT/Proforma/settlement/refunds/payout timing) موثقة كـdesign variants وليست assumptions مخفية.
+18
+المراجع والحدود
+اعتمد هذا الـDesign Brief على الملفات والمرجع البصري المرسل للمشروع، مع اعتبار توجيهاتك الحالية هي الأحدث في حالة تعارضها مع توصيف أقدم للدور Seller/Buyer.
+المرجع
+ما تم أخذه منه
+Hills Coffee Brand Guidelines - Aug 2026
+Logo، colors، Benito/Manrope، type hierarchy، iconography، imagery، layout direction
+HillsCoffee SEO Development Specification
+Public page model، Offer List، Origins، Knowledge، Shipping/Support، B2B positioning
+Hills Coffee Product & Engineering SRS
+KYB، role restrictions، order/delivery states، Admin operations، shipment/custody UX requirements
+Current project CSS theme
+Exact current light/dark semantic colors، Arabic Cairo/Readex mapping، motion/RTL behavior
+Current Admin screenshot
+Operations workspace visual direction: sidebar، KPI cards، activity table، dark premium admin feel
+Current user decisions - Sep 2026
+Only Buyer + Seller + Guest + Admin; no Seller/Buyer combined role; both Buyer/Seller require KYB; Seller Listings CRUD; Buyer orders/payment tracking; Admin approvals/finance/site settings
+
+Out of Scope الآن
+لا تتضمن هذه الوثيقة Database tables، ERD، Supabase schema، RLS policies، API endpoints، settlement calculations، أو backend state machine implementation. الهدف أن نغلق الـDesign والـUX أولًا، ثم نبني الـStructure والـDatabase على قرارات العمل النهائية.
+
+HILLS COFFEE - BEYOND THE ORIGIN

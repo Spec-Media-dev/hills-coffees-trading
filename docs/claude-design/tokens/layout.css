@@ -1,0 +1,25 @@
+/* Layout frame — §15 breakpoints and dashboard chrome. */
+:root{
+  --bp-mobile:480px; /* @kind spacing */
+  --bp-tablet:768px; /* @kind spacing */
+  --bp-laptop:1024px; /* @kind spacing */
+  --bp-desktop:1280px; /* @kind spacing */
+  --bp-wide:1600px; /* @kind spacing */
+
+  --container-max:1280px; /* @kind spacing */
+  --container-narrow:760px; /* @kind spacing */   /* knowledge article measure */
+  --container-wide:1600px; /* @kind spacing */
+
+  --header-h:76px; /* @kind spacing */
+  --topbar-h:64px; /* @kind spacing */
+  --sidebar-w:264px; /* @kind spacing */
+  --sidebar-w-collapsed:76px; /* @kind spacing */
+  --drawer-w:min(420px,88vw); /* @kind spacing */
+
+  --z-base:0; /* @kind other */
+  --z-sticky:100; /* @kind other */
+  --z-drawer:200; /* @kind other */
+  --z-overlay:300; /* @kind other */
+  --z-dialog:400; /* @kind other */
+  --z-toast:500; /* @kind other */
+}

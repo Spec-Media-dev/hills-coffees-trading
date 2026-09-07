@@ -1,0 +1,20 @@
+<!-- @dsCard group="Components" viewport="700x340" name="Stepper & Timeline" subtitle="KYB wizard progress and order / shipment chronology" -->
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><link rel="stylesheet" href="../../styles.css">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/lucide@0.454.0/dist/umd/lucide.js"></script>
+<script src="../../_ds_bundle.js"></script>
+<style>html,body{margin:0;background:var(--surface-page)}#root{padding:20px 24px}.grid{display:flex;flex-wrap:wrap;gap:14px;align-items:flex-start}.lbl{font-family:var(--font-ui);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--text-muted);font-weight:700;width:100%;margin:4px 0 2px}</style></head>
+<body><div id="root"></div>
+<script type="text/babel">
+const { Stepper, Timeline, StatusBadge } = window.HillsCoffeeDesignSystem_ca006d;
+function Demo(){return (<div style={{display:'flex',flexDirection:'column',gap:22}}>
+<Stepper current={2} steps={[{label:'Company',hint:'Complete'},{label:'Ownership',hint:'Complete'},{label:'Banking & evidence',hint:'Passport copy expired',state:'error'},{label:'Agreements'},{label:'Review & submit'}]}/>
+<div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:20}}>
+<Timeline items={[{label:'Order placed',timestamp:'4 Sep 2026, 11:20'},{label:'Proforma issued',timestamp:'4 Sep 2026, 11:24'},{label:'Payment confirmed',timestamp:'5 Sep 2026, 09:04',meta:<StatusBadge status="paid" size="sm"/>},{label:'Dispatched',state:'current',timestamp:'6 Sep 2026, 14:41'},{label:'Delivered',state:'todo'}]}/>
+<Stepper orientation="vertical" current={1} steps={[{label:'Requested',hint:'6 Sep 2026'},{label:'Confirmed',hint:'Awaiting warehouse slot'},{label:'Picking'},{label:'Dispatched'},{label:'Delivered'}]}/>
+</div></div>);}
+ReactDOM.createRoot(document.getElementById('root')).render(<Demo/>);
+setTimeout(()=>window.lucide&&window.lucide.createIcons({nameAttr:'data-lucide'}),60);
+</script></body></html>

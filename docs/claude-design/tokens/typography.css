@@ -1,0 +1,50 @@
+/* Fluid middle terms, kept out of the --text-* names so they read as lengths. */
+:root{
+  --fluid-hero:calc(1.6rem + 5.6vw); /* @kind spacing */
+  --fluid-h1:calc(1.6rem + 3vw); /* @kind spacing */
+  --fluid-h2:calc(1.35rem + 1.9vw); /* @kind spacing */
+  --fluid-h3:calc(1.15rem + .8vw); /* @kind spacing */
+  --fluid-dash-title:calc(1.55rem + 1vw); /* @kind spacing */
+}
+
+/* Type scale — Master Guide §03. Desktop/mobile pairs are expressed as clamp()
+   per the guide's instruction to translate the Brand Guide's fixed samples into a fluid scale. */
+:root{
+  --text-hero:clamp(2.75rem,var(--fluid-hero),7rem); /* @kind font */        /* 44 → 112px, Benito/Readex, public only */
+  --text-h1:clamp(2.25rem,var(--fluid-h1),4.5rem); /* @kind font */          /* 36 → 72px */
+  --text-h2:clamp(1.75rem,var(--fluid-h2),3.25rem); /* @kind font */      /* 28 → 52px */
+  --text-h3:clamp(1.3125rem,var(--fluid-h3),2rem); /* @kind font */        /* 21 → 32px */
+  --text-dash-title:clamp(1.75rem,var(--fluid-dash-title),2.75rem); /* @kind font *//* 28 → 44px, dashboard page titles */
+  --text-body-lg:1.0625rem;                              /* 17 → 18px */
+  --text-body:1rem;                                      /* 16px — minimum for body copy */
+  --text-small:.875rem;                                  /* 14px */
+  --text-meta:.8125rem;                                  /* 13px — never below 12px */
+  --text-micro:.75rem;                                   /* 12px, uppercase labels only */
+
+  --lh-display:1.02; /* @kind font */
+  --lh-heading:1.14; /* @kind font */
+  --lh-snug:1.35; /* @kind font */
+  --lh-body:1.6; /* @kind font */
+  --lh-relaxed:1.75; /* @kind font */
+
+  --tracking-display:-.03em; /* @kind font */
+  --tracking-heading:-.015em; /* @kind font */
+  --tracking-body:0; /* @kind font */
+  --tracking-label:.14em; /* @kind font */   /* uppercase eyebrow / section labels */
+
+  --weight-light:300; /* @kind font */
+  --weight-regular:400; /* @kind font */
+  --weight-medium:500; /* @kind font */
+  --weight-semibold:600; /* @kind font */
+  --weight-bold:700; /* @kind font */
+  --weight-black:900; /* @kind font */
+}
+/* §03: in RTL reduce negative tracking and open up the line-height for Arabic. */
+[dir="rtl"],[lang="ar"]{
+  --tracking-display:-.005em; /* @kind font */
+  --tracking-heading:0; /* @kind font */
+  --tracking-label:.04em; /* @kind font */
+  --lh-display:1.18; /* @kind font */
+  --lh-heading:1.32; /* @kind font */
+  --lh-body:1.8; /* @kind font */
+}

@@ -1,0 +1,28 @@
+/* 4px base spacing scale. */
+:root{
+  --space-0:0;
+  --space-1:4px;
+  --space-2:8px;
+  --space-3:12px;
+  --space-4:16px;
+  --space-5:20px;
+  --space-6:24px;
+  --space-8:32px;
+  --space-10:40px;
+  --space-12:48px;
+  --space-16:64px;
+  --space-20:80px;
+  --space-24:96px;
+  --space-32:128px;
+
+  --gutter-page:clamp(16px,4vw,48px); /* @kind spacing */
+  --section-y:clamp(48px,7vw,120px); /* @kind spacing */
+  --stack-tight:var(--space-2); /* @kind spacing */
+  --stack:var(--space-4); /* @kind spacing */
+  --stack-loose:var(--space-8); /* @kind spacing */
+
+  --control-h-sm:36px; /* @kind spacing */
+  --control-h:44px; /* @kind spacing */   /* §05: minimum touch target is 44×44 */
+  --control-h-lg:52px; /* @kind spacing */
+  --touch-min:44px; /* @kind spacing */
+}

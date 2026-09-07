@@ -1,0 +1,31 @@
+<!-- @dsCard group="Components" viewport="700x400" name="Feedback & states" subtitle="InlineAlert, Toast, Skeleton, EmptyState, Dialog, Drawer, ConfirmationModal, StateScreen" -->
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><link rel="stylesheet" href="../../styles.css">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/lucide@0.454.0/dist/umd/lucide.js"></script>
+<script src="../../_ds_bundle.js"></script>
+<style>html,body{margin:0;background:var(--surface-page)}#root{padding:20px 24px}.grid{display:flex;flex-wrap:wrap;gap:14px;align-items:flex-start}.lbl{font-family:var(--font-ui);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--text-muted);font-weight:700;width:100%;margin:4px 0 2px}</style></head>
+<body><div id="root"></div>
+<script type="text/babel">
+const { InlineAlert, Toast, Skeleton, EmptyState, Dialog, Drawer, ConfirmationModal, StateScreen, Button, Field, Textarea, Icon } = window.HillsCoffeeDesignSystem_ca006d;
+function Demo(){const [dlg,setDlg]=React.useState(false);const [cfm,setCfm]=React.useState(false);const [drw,setDrw]=React.useState(false);
+return (<div style={{display:'flex',flexDirection:'column',gap:14}}>
+<InlineAlert tone="warning" title="Verification in review" icon={<Icon name="clock" size={18}/>} action={<Button size="sm" variant="outline">View application</Button>}>You can browse listings, but ordering unlocks once your KYB is approved.</InlineAlert>
+<div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,alignItems:'start'}}>
+<Toast tone="success" title="Payment confirmed" message="Order HC-2026-0418 moved to Processing." icon={<Icon name="check" size={16}/>} onDismiss={()=>{}}/>
+<Toast tone="error" title="Upload failed" message="The file exceeded 10 MB. Try a compressed PDF." icon={<Icon name="triangle-alert" size={16}/>} onDismiss={()=>{}}/>
+</div>
+<div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,alignItems:'start'}}>
+<EmptyState compact icon={<Icon name="package-open" size={24}/>} title="No listings yet" message="Create your first lot and submit it for review." action={<Button size="sm">Create listing</Button>}/>
+<div style={{display:'flex',flexDirection:'column',gap:10,padding:16,background:'var(--surface-card)',border:'1px solid var(--border)',borderRadius:14}}><Skeleton variant="block" height={20} width="45%"/><Skeleton lines={3}/></div>
+</div>
+<div className="grid"><Button variant="outline" onClick={()=>setDlg(true)}>Open dialog</Button><Button variant="outline" onClick={()=>setCfm(true)}>Confirmation</Button><Button variant="outline" onClick={()=>setDrw(true)}>Drawer</Button></div>
+<Dialog open={dlg} onClose={()=>setDlg(false)} title="Request more information" description="Name exactly what the applicant must provide." footer={<><Button variant="text" onClick={()=>setDlg(false)}>Cancel</Button><Button>Send request</Button></>}><Field label="Message to applicant"><Textarea rows={4} defaultValue="Please upload a valid trade licence — the copy on file expired in June."/></Field></Dialog>
+<ConfirmationModal open={cfm} onClose={()=>setCfm(false)} tone="danger" title="Suspend this seller?" message="Live listings will be hidden immediately." consequence="6 live listings will be unpublished and 2 open orders flagged for review." confirmLabel="Suspend seller"/>
+<Drawer open={drw} onClose={()=>setDrw(false)} title="Filters" footer={<><Button variant="text">Reset</Button><Button>Show 42 lots</Button></>}><span style={{fontFamily:'var(--font-ui)',fontSize:14,color:'var(--text-muted)'}}>Filter facets live here on tablet and mobile.</span></Drawer>
+<StateScreen state="unauthorized" icon={<Icon name="shield-alert" size={28}/>} action={<Button>Back to dashboard</Button>} style={{minHeight:220,border:'1px dashed var(--border-strong)',borderRadius:14,background:'var(--surface-card)'}}/>
+</div>);}
+ReactDOM.createRoot(document.getElementById('root')).render(<Demo/>);
+setTimeout(()=>window.lucide&&window.lucide.createIcons({nameAttr:'data-lucide'}),60);
+</script></body></html>

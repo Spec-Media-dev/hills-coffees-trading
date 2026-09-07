@@ -1,0 +1,12 @@
+/* Radii — the Brand Guide does not fix numeric radii; these are read off the
+   live Hills Coffee admin build (arched logo container, KPI cards, sidebar items). */
+:root{
+  --radius-xs:6px;
+  --radius-sm:8px;
+  --radius-md:12px;
+  --radius-lg:14px;
+  --radius-xl:20px;
+  --radius-2xl:28px;
+  --radius-pill:999px;
+  --radius-arch:50% 50% 0 0 / 42% 42% 0 0; /* @kind radius */ /* the logo's arch silhouette, for editorial media */
+}

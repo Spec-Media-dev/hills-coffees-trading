@@ -1,0 +1,194 @@
+[
+  {
+    "area": "AUDIT",
+    "check_name": "Account status history trigger missing",
+    "status": "PASS",
+    "issue_count": 0
+  },
+  {
+    "area": "AUTHORIZATION",
+    "check_name": "Broad inventory member write policy",
+    "status": "PASS",
+    "issue_count": 0
+  },
+  {
+    "area": "AUTHORIZATION",
+    "check_name": "Broad organization member UPDATE policy",
+    "status": "PASS",
+    "issue_count": 0
+  },
+  {
+    "area": "AUTHORIZATION",
+    "check_name": "Broad storage member write policy",
+    "status": "PASS",
+    "issue_count": 0
+  },
+  {
+    "area": "INVENTORY",
+    "check_name": "Expired reservation still ACTIVE",
+    "status": "PASS",
+    "issue_count": 0
+  },
+  {
+    "area": "INVENTORY",
+    "check_name": "Invalid inventory balance",
+    "status": "PASS",
+    "issue_count": 0
+  },
+  {
+    "area": "INVENTORY",
+    "check_name": "Inventory reservation mismatch",
+    "status": "PASS",
+    "issue_count": 0
+  },
+  {
+    "area": "INVENTORY",
+    "check_name": "Inventory without warehouse",
+    "status": "PASS",
+    "issue_count": 0
+  },
+  {
+    "area": "INVENTORY",
+    "check_name": "Offer reservation mismatch",
+    "status": "PASS",
+    "issue_count": 0
+  },
+  {
+    "area": "KYB",
+    "check_name": "Active organization without approved KYB",
+    "status": "PASS",
+    "issue_count": 0
+  },
+  {
+    "area": "LISTINGS",
+    "check_name": "Invalid listing quantity",
+    "status": "PASS",
+    "issue_count": 0
+  },
+  {
+    "area": "LISTINGS",
+    "check_name": "Member listing without purchase source",
+    "status": "PASS",
+    "issue_count": 0
+  },
+  {
+    "area": "LISTINGS",
+    "check_name": "Offer without warehouse",
+    "status": "PASS",
+    "issue_count": 0
+  },
+  {
+    "area": "PRICING",
+    "check_name": "Missing pricing model",
+    "status": "PASS",
+    "issue_count": 0
+  },
+  {
+    "area": "ROLES",
+    "check_name": "Invalid Buyer/Seller capabilities",
+    "status": "PASS",
+    "issue_count": 0
+  },
+  {
+    "area": "SECURITY",
+    "check_name": "Anon private trading SELECT",
+    "status": "PASS",
+    "issue_count": 0
+  },
+  {
+    "area": "SECURITY",
+    "check_name": "Anon sensitive function execute",
+    "status": "PASS",
+    "issue_count": 0
+  },
+  {
+    "area": "SECURITY",
+    "check_name": "Anon write grants",
+    "status": "PASS",
+    "issue_count": 0
+  },
+  {
+    "area": "SECURITY",
+    "check_name": "RLS tables without policies",
+    "status": "PASS",
+    "issue_count": 0
+  },
+  {
+    "area": "SECURITY",
+    "check_name": "Tables without RLS",
+    "status": "PASS",
+    "issue_count": 0
+  },
+  {
+    "area": "SECURITY",
+    "check_name": "Unsafe SECURITY DEFINER search_path",
+    "status": "PASS",
+    "issue_count": 0
+  },
+  {
+    "area": "SRS",
+    "check_name": "Agreement version model missing",
+    "status": "PASS",
+    "issue_count": 0
+  },
+  {
+    "area": "SRS",
+    "check_name": "Correlation ID model missing",
+    "status": "PASS",
+    "issue_count": 0
+  },
+  {
+    "area": "SRS",
+    "check_name": "Dispute evidence model missing",
+    "status": "PASS",
+    "issue_count": 0
+  },
+  {
+    "area": "SRS",
+    "check_name": "Full delivery state model missing",
+    "status": "PASS",
+    "issue_count": 0
+  },
+  {
+    "area": "SRS",
+    "check_name": "Idempotency model missing",
+    "status": "PASS",
+    "issue_count": 0
+  },
+  {
+    "area": "SRS",
+    "check_name": "Operational roles missing",
+    "status": "PASS",
+    "issue_count": 0
+  },
+  {
+    "area": "SRS",
+    "check_name": "Partial-fill model missing",
+    "status": "PASS",
+    "issue_count": 0
+  },
+  {
+    "area": "STRUCTURE",
+    "check_name": "Missing required tables",
+    "status": "PASS",
+    "issue_count": 0
+  },
+  {
+    "area": "TITLE",
+    "check_name": "Duplicate title-transfer event",
+    "status": "PASS",
+    "issue_count": 0
+  },
+  {
+    "area": "TITLE",
+    "check_name": "Ownership mutation guard missing",
+    "status": "PASS",
+    "issue_count": 0
+  },
+  {
+    "area": "FINAL",
+    "check_name": "DATABASE GO / NO-GO",
+    "status": "PASS",
+    "issue_count": 0
+  }
+]

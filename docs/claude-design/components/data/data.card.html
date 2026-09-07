@@ -1,0 +1,29 @@
+<!-- @dsCard group="Components" viewport="700x400" name="Data display" subtitle="StatusBadge, Tabs, FilterChip, SortControl, DataTable, Pagination" -->
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><link rel="stylesheet" href="../../styles.css">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/lucide@0.454.0/dist/umd/lucide.js"></script>
+<script src="../../_ds_bundle.js"></script>
+<style>html,body{margin:0;background:var(--surface-page)}#root{padding:20px 24px}.grid{display:flex;flex-wrap:wrap;gap:14px;align-items:flex-start}.lbl{font-family:var(--font-ui);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--text-muted);font-weight:700;width:100%;margin:4px 0 2px}</style></head>
+<body><div id="root"></div>
+<script type="text/babel">
+const { StatusBadge, Tabs, FilterChip, SortControl, DataTable, Pagination, Icon } = window.HillsCoffeeDesignSystem_ca006d;
+const rows=[{id:1,ref:'HC-2026-0418',buyer:'Nile Traders LLC',qty:'480 bags',amount:'USD 138,240',status:'paymentPending'},
+{id:2,ref:'HC-2026-0417',buyer:'Levant Roasters',qty:'120 bags',amount:'USD 34,560',status:'inTransit'},
+{id:3,ref:'HC-2026-0415',buyer:'Gulf Coffee Co.',qty:'300 bags',amount:'USD 86,400',status:'completed'}];
+function Demo(){const [tab,setTab]=React.useState('all');const [chip,setChip]=React.useState(true);const [page,setPage]=React.useState(2);
+return (<div style={{display:'flex',flexDirection:'column',gap:14}}>
+<div className="grid" style={{gap:8}}><StatusBadge status="draft"/><StatusBadge status="review"/><StatusBadge status="moreInfo"/><StatusBadge status="paymentPending"/><StatusBadge status="paid"/><StatusBadge status="inTransit"/><StatusBadge status="delivered"/><StatusBadge status="suspended"/><StatusBadge status="disputed" size="sm"/></div>
+<Tabs value={tab} onChange={setTab} tabs={[{value:'all',label:'All orders',count:42},{value:'pay',label:'Payment pending',count:6},{value:'transit',label:'In transit',count:11}]}/>
+<div className="grid" style={{gap:8,alignItems:'center'}}>
+<FilterChip label="Washed" count={12} selected={chip} onToggle={()=>setChip(!chip)} onRemove={()=>setChip(false)}/>
+<FilterChip label="Natural" count={7} onToggle={()=>{}}/>
+<FilterChip label="Hills lots" icon={<Icon name="shield-check" size={14}/>} onToggle={()=>{}}/>
+<span style={{marginInlineStart:'auto'}}><SortControl value="newest" direction="desc" options={[{value:'newest',label:'Newest'},{value:'price',label:'Price / kg'}]} onChange={()=>{}} onDirectionChange={()=>{}}/></span></div>
+<DataTable rows={rows} columns={[{key:'ref',header:'Order',nowrap:true},{key:'buyer',header:'Buyer'},{key:'qty',header:'Quantity'},{key:'amount',header:'Amount',align:'end',numeric:true},{key:'status',header:'Status',render:r=><StatusBadge status={r.status} size="sm"/>}]}/>
+<Pagination page={page} pageCount={8} onPageChange={setPage} totalLabel="Showing 21–40 of 148 orders"/>
+</div>);}
+ReactDOM.createRoot(document.getElementById('root')).render(<Demo/>);
+setTimeout(()=>window.lucide&&window.lucide.createIcons({nameAttr:'data-lucide'}),60);
+</script></body></html>

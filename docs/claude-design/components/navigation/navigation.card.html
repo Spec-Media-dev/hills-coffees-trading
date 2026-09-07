@@ -1,0 +1,30 @@
+<!-- @dsCard group="Components" viewport="700x400" name="Navigation" subtitle="Header, Sidebar, Topbar, Breadcrumbs, LanguageSwitcher, ThemeToggle, MobileDrawer" -->
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><link rel="stylesheet" href="../../styles.css">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/lucide@0.454.0/dist/umd/lucide.js"></script>
+<script src="../../_ds_bundle.js"></script>
+<style>html,body{margin:0;background:var(--surface-page)}#root{padding:20px 24px}.grid{display:flex;flex-wrap:wrap;gap:14px;align-items:flex-start}.lbl{font-family:var(--font-ui);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--text-muted);font-weight:700;width:100%;margin:4px 0 2px}</style></head>
+<body><div id="root"></div>
+<script type="text/babel">
+const { Header, Sidebar, Topbar, Breadcrumbs, LanguageSwitcher, ThemeToggle, MobileDrawer, Button, Icon } = window.HillsCoffeeDesignSystem_ca006d;
+const groups=[{label:'Overview',items:[{key:'dashboard',label:'Dashboard',icon:<Icon name="layout-grid" size={18}/>}]},
+{label:'Catalog',items:[{key:'products',label:'Products',icon:<Icon name="coffee" size={18}/>},{key:'offers',label:'Offers',icon:<Icon name="package" size={18}/>,badge:3},{key:'pricing',label:'Pricing',icon:<Icon name="circle-dollar-sign" size={18}/>}]},
+{label:'Coffee data',items:[{key:'origins',label:'Origins',icon:<Icon name="map-pin" size={18}/>},{key:'warehouses',label:'Warehouses',icon:<Icon name="warehouse" size={18}/>},{key:'taxonomy',label:'Taxonomy',description:'Types, processing, certifications',icon:<Icon name="tag" size={18}/>}]}];
+function Demo(){const [active,setActive]=React.useState('offers');const [open,setOpen]=React.useState(false);
+return (<div style={{display:'flex',flexDirection:'column',gap:14}}>
+<Header logoSrc="../../assets/logo-horizontal.png" activeKey="marketplace" onNavigate={()=>{}} links={[{key:'marketplace',label:'Green coffee'},{key:'origins',label:'Origins'},{key:'knowledge',label:'Knowledge'},{key:'about',label:'About'}]} actions={<><LanguageSwitcher variant="onLight" lang="en"/><ThemeToggle variant="onLight" theme="light"/><Button size="sm" variant="text">Sign in</Button><Button size="sm">Apply as buyer</Button></>} style={{border:'1px solid var(--border)',borderRadius:14}}/>
+<div style={{display:'grid',gridTemplateColumns:'264px 1fr',gap:14,height:290}}>
+<div style={{borderRadius:14,overflow:'hidden'}}><Sidebar logoSrc="../../assets/logo-horizontal.png" groups={groups} activeKey={active} onNavigate={setActive} footerNote="Administrator access is verified on the server."/></div>
+<div style={{display:'flex',flexDirection:'column',gap:12}}>
+<div style={{background:'var(--brand-dark-bg)',borderRadius:14}}><Topbar workspaceLabel="Admin workspace" subtitle="adminhills@gmail.com" style={{color:'var(--brand-cream)'}} actions={<><ThemeToggle theme="dark"/><LanguageSwitcher lang="en"/></>}/></div>
+<div style={{background:'var(--surface-card)',border:'1px solid var(--border)',borderRadius:14,padding:16,display:'flex',flexDirection:'column',gap:12}}>
+<Breadcrumbs items={[{key:'orders',label:'Orders'},{key:'o',label:'HC-2026-0418'},{label:'Shipment SHP-4471'}]}/>
+<Button size="sm" variant="outline" onClick={()=>setOpen(true)}>Open mobile drawer</Button>
+</div></div></div>
+<MobileDrawer open={open} onClose={()=>setOpen(false)} activeKey="origins" links={[{key:'marketplace',label:'Green coffee',icon:<Icon name="package" size={18}/>},{key:'origins',label:'Origins',icon:<Icon name="map-pin" size={18}/>},{key:'knowledge',label:'Knowledge',icon:<Icon name="book-open" size={18}/>}]} footer={<><Button fullWidth>Apply as buyer</Button><LanguageSwitcher variant="onLight" lang="en"/></>}/>
+</div>);}
+ReactDOM.createRoot(document.getElementById('root')).render(<Demo/>);
+setTimeout(()=>window.lucide&&window.lucide.createIcons({nameAttr:'data-lucide'}),60);
+</script></body></html>

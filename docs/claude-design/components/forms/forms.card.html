@@ -1,0 +1,31 @@
+<!-- @dsCard group="Components" viewport="700x400" name="Forms" subtitle="Field, Input, Select, Combobox, Search, Date, File upload, Phone, Country, Checkbox, Radio, Switch" -->
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><link rel="stylesheet" href="../../styles.css">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/lucide@0.454.0/dist/umd/lucide.js"></script>
+<script src="../../_ds_bundle.js"></script>
+<style>html,body{margin:0;background:var(--surface-page)}#root{padding:20px 24px}.grid{display:flex;flex-wrap:wrap;gap:14px;align-items:flex-start}.lbl{font-family:var(--font-ui);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--text-muted);font-weight:700;width:100%;margin:4px 0 2px}</style></head>
+<body><div id="root"></div>
+<script type="text/babel">
+const { Field, Input, Select, Combobox, SearchField, DatePicker, FileUpload, PhoneField, CountryField, Checkbox, RadioGroup, Switch, Textarea, Icon } = window.HillsCoffeeDesignSystem_ca006d;
+function Demo(){const [q,setQ]=React.useState('Yirgacheffe');const [c,setC]=React.useState('');const [ck,setCk]=React.useState(true);const [role,setRole]=React.useState('buyer');const [sw,setSw]=React.useState(true);
+return (<div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:18}}>
+<Field label="Legal company name" required hint="Exactly as printed on the trade licence"><Input placeholder="Hills Coffee Trading FZ-LLC"/></Field>
+<Field label="Contract price" hint="Per kilogram, ex-warehouse"><Input prefix="USD" suffix="/ kg" defaultValue="4.80"/></Field>
+<Field label="Processing"><Select placeholder="Any process" options={['Washed','Natural','Honey','Anaerobic']}/></Field>
+<Field label="Origin"><Combobox value={c} onChange={setC} options={[{value:'et',label:'Ethiopia',meta:'12 lots'},{value:'co',label:'Colombia',meta:'8 lots'},{value:'ke',label:'Kenya',meta:'3 lots'}]}/></Field>
+<Field label="Search"><SearchField value={q} onChange={setQ} icon={<Icon name="search" size={16}/>} placeholder="Search listings"/></Field>
+<Field label="Licence expiry"><DatePicker icon={<Icon name="calendar" size={16}/>} defaultValue="2027-04-30"/></Field>
+<Field label="Work phone" required><PhoneField dialCode="+971" placeholder="50 123 4567"/></Field>
+<Field label="Jurisdiction" required><CountryField value="United Arab Emirates"/></Field>
+<Field label="Email" error="Enter a valid work email address"><Input error defaultValue="buyer@"/></Field>
+<Field label="Disabled"><Input disabled defaultValue="Locked after submission"/></Field>
+<div style={{gridColumn:'1 / -1'}}><Field label="Trade licence" required><FileUpload icon={<Icon name="upload" size={18}/>} label="Drop the licence PDF or browse" hint="PDF · up to 10 MB" files={[{name:'trade-licence-2026.pdf',size:'1.4 MB',progress:100}]} onRemove={()=>{}}/></Field></div>
+<div style={{gridColumn:'1 / -1'}}><RadioGroup name="role" layout="row" value={role} onChange={setRole} options={[{value:'buyer',label:'Buy green coffee',description:'Source lots, place orders, track payments and shipments'},{value:'seller',label:'Sell green coffee',description:'List lots, manage sales orders and settlements'}]}/></div>
+<Checkbox checked={ck} onChange={setCk} label="I accept the marketplace terms" description="Required before submitting the application"/>
+<Switch checked={sw} onChange={setSw} label="Email alerts" description="Order, payment and shipment updates"/>
+</div>);}
+ReactDOM.createRoot(document.getElementById('root')).render(<Demo/>);
+setTimeout(()=>window.lucide&&window.lucide.createIcons({nameAttr:'data-lucide'}),60);
+</script></body></html>

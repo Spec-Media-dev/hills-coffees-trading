@@ -1,0 +1,15 @@
+/* Minimal element defaults so specimens, cards and kits share one baseline. */
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text-body);font-family:var(--font-ui);font-size:var(--text-body);line-height:var(--lh-body);-webkit-font-smoothing:antialiased}
+h1,h2,h3,h4{font-family:var(--font-display);color:var(--text-strong);letter-spacing:var(--tracking-heading);line-height:var(--lh-heading);margin:0}
+p{margin:0}
+a{color:var(--primary);text-decoration-color:color-mix(in oklab,var(--primary) 40%,transparent);text-underline-offset:3px}
+a:hover{color:var(--accent-text);text-decoration-color:currentColor}
+[data-theme="dark"] a{color:var(--gold-on-dark)}
+[data-theme="dark"] a:hover{color:#F2C27E}
+button,input,select,textarea{font:inherit;color:inherit}
+:where(button,a,input,select,textarea,[tabindex]):focus-visible{outline:2px solid var(--focus-ring);outline-offset:2px}
+table{border-collapse:collapse}
+::selection{background:var(--forest-200);color:var(--forest-900)}
+.hc-label{font-family:var(--font-ui);font-size:var(--text-micro);font-weight:var(--weight-bold);letter-spacing:var(--tracking-label);text-transform:uppercase;color:var(--accent-text)}
+.hc-eyebrow{font-family:var(--font-ui);font-size:var(--text-meta);font-weight:var(--weight-semibold);letter-spacing:var(--tracking-label);text-transform:uppercase;color:var(--text-muted)}
