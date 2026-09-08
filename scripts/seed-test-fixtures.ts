@@ -183,6 +183,279 @@ const FIXTURES: readonly Fixture[] = [
 ];
 
 // ---------------------------------------------------------------------------
+// Catalogue fixtures — Feature 002 (T006a)
+// ---------------------------------------------------------------------------
+
+/**
+ * Deterministic public-catalogue rows for Feature 002's runtime checks (status gating, canary
+ * leakage, and later metadata/sitemap/JSON-LD/cache assertions).
+ *
+ * This EXTENDS the fixture architecture above rather than forking it: same script, same privileged
+ * boundary, same `npm run test:seed` / `test:seed:teardown` entry points, same discipline of fixed
+ * ids, idempotent upsert and exact teardown. There is deliberately no second seed system.
+ *
+ * WHAT IS CREATED — nothing beyond the approved public catalogue surface:
+ *   - one row in each reference table (`UNIQUE (slug)` is the idempotency key);
+ *   - one `PUBLISHED` coffee linked to the active origin and to all five reference rows;
+ *   - one `DRAFT` and one `ARCHIVED` coffee — the only other values the `coffees` CHECK allows;
+ *   - one `ACTIVE` origin, plus one `INACTIVE` and one `ARCHIVED` origin — likewise the only other
+ *     values the `origins` CHECK allows;
+ *   - one certification on the published coffee, with the file reference left NULL.
+ *
+ * WHAT IS DELIBERATELY NOT CREATED: media rows (their file reference is NOT NULL, so a row would
+ * require inventing an asset — forbidden while MEDIA-01 stands; placeholders cover this instead),
+ * member listings, lots, member prices, warehouse rows, reference-price rows, inquiry records, and
+ * any commission configuration. None of that is needed to prove the public boundary, and creating it
+ * would contradict the public DTO contract.
+ *
+ * `created_by` / `updated_by` are left NULL throughout, so the catalogue introduces no coupling to a
+ * profile row and teardown order stays independent of the identity fixtures.
+ */
+const CATALOGUE_IDS = {
+  region: "f0000000-0000-4000-8000-000000000021",
+  coffeeType: "f0000000-0000-4000-8000-000000000022",
+  variety: "f0000000-0000-4000-8000-000000000023",
+  processingMethod: "f0000000-0000-4000-8000-000000000024",
+  packagingType: "f0000000-0000-4000-8000-000000000025",
+  tag: "f0000000-0000-4000-8000-000000000026",
+  originActive: "f0000000-0000-4000-8000-000000000031",
+  originInactive: "f0000000-0000-4000-8000-000000000032",
+  originArchived: "f0000000-0000-4000-8000-000000000033",
+  coffeePublished: "f0000000-0000-4000-8000-000000000041",
+  coffeeDraft: "f0000000-0000-4000-8000-000000000042",
+  coffeeArchived: "f0000000-0000-4000-8000-000000000043",
+  certification: "f0000000-0000-4000-8000-000000000051",
+} as const;
+
+const CATALOGUE_SLUGS = {
+  region: "public-test-region",
+  coffeeType: "public-test-type",
+  variety: "public-test-variety",
+  processingMethod: "public-test-process",
+  packagingType: "public-test-packaging",
+  tag: "public-test-tag",
+  originActive: "public-test-origin-active",
+  originInactive: "public-test-origin-inactive",
+  originArchived: "public-test-origin-archived",
+  coffeePublished: "public-test-coffee-published",
+  coffeeDraft: "public-test-coffee-draft",
+  coffeeArchived: "public-test-coffee-archived",
+} as const;
+
+/**
+ * PRIVATE CANARY VALUES.
+ *
+ * Each sentinel is placed ONLY in a value that must never reach a public surface, so a leakage test
+ * can follow the *value* rather than trusting a field *name*:
+ *
+ *   - the description of every non-public coffee and origin — proves status gating;
+ *   - the certification identifier — proves field-level allowlisting of a column RLS *does* expose
+ *     but the public DTO contract withholds by default.
+ *
+ * The owner-organization canary is already provided by the identity fixtures' display names above,
+ * so no extra row is created for it.
+ *
+ * These strings are non-secret test sentinels: they carry no credential, no personal data and no
+ * commercial value. They exist to fail loudly if the boundary breaks.
+ */
+const CATALOGUE_CANARIES = {
+  coffeeDraft: "HILLSCANARY-COFFEE-DRAFT-4F1A93C7",
+  coffeeArchived: "HILLSCANARY-COFFEE-ARCHIVED-8B2E57D0",
+  originInactive: "HILLSCANARY-ORIGIN-INACTIVE-1C6D40AB",
+  originArchived: "HILLSCANARY-ORIGIN-ARCHIVED-5E9F82B4",
+  certificateNumber: "HILLSCANARY-CERTNUMBER-2A7C63EF",
+} as const;
+
+/** Creates or reconciles the catalogue fixtures. Safe to run repeatedly. */
+async function seedCatalogue(admin: SupabaseClient): Promise<void> {
+  console.log("\nSeeding 002-public-website catalogue fixtures…\n");
+
+  const upsert = async (
+    table: string,
+    row: Record<string, unknown>
+  ): Promise<void> => {
+    const { error } = await admin.from(table).upsert(row, { onConflict: "id" });
+    if (error) throw new SafeFixtureError(`${table} upsert failed.`);
+  };
+
+  // 1. Reference/taxonomy. Each needs only name + slug; the fixed id keeps upsert idempotent.
+  await upsert("regions", {
+    id: CATALOGUE_IDS.region,
+    name: "Public Test Region",
+    slug: CATALOGUE_SLUGS.region,
+    country_code: "ET",
+  });
+  await upsert("coffee_types", {
+    id: CATALOGUE_IDS.coffeeType,
+    name: "Public Test Type",
+    slug: CATALOGUE_SLUGS.coffeeType,
+  });
+  await upsert("coffee_varieties", {
+    id: CATALOGUE_IDS.variety,
+    coffee_type_id: CATALOGUE_IDS.coffeeType,
+    name: "Public Test Variety",
+    slug: CATALOGUE_SLUGS.variety,
+  });
+  await upsert("processing_methods", {
+    id: CATALOGUE_IDS.processingMethod,
+    name: "Public Test Process",
+    slug: CATALOGUE_SLUGS.processingMethod,
+  });
+  await upsert("packaging_types", {
+    id: CATALOGUE_IDS.packagingType,
+    name: "Public Test Packaging",
+    slug: CATALOGUE_SLUGS.packagingType,
+  });
+  await upsert("tags", {
+    id: CATALOGUE_IDS.tag,
+    name: "Public Test Tag",
+    slug: CATALOGUE_SLUGS.tag,
+  });
+
+  // 2. Origins. One ACTIVE (public) plus the two non-public statuses the CHECK constraint allows,
+  //    each carrying its own canary in the description.
+  await upsert("origins", {
+    id: CATALOGUE_IDS.originActive,
+    region_id: CATALOGUE_IDS.region,
+    name: "Public Test Origin Active",
+    slug: CATALOGUE_SLUGS.originActive,
+    country_code: "ET",
+    description: "Active public test origin. Safe to publish.",
+    status: "ACTIVE",
+  });
+  await upsert("origins", {
+    id: CATALOGUE_IDS.originInactive,
+    region_id: CATALOGUE_IDS.region,
+    name: "Public Test Origin Inactive",
+    slug: CATALOGUE_SLUGS.originInactive,
+    country_code: "ET",
+    description: CATALOGUE_CANARIES.originInactive,
+    status: "INACTIVE",
+  });
+  await upsert("origins", {
+    id: CATALOGUE_IDS.originArchived,
+    region_id: CATALOGUE_IDS.region,
+    name: "Public Test Origin Archived",
+    slug: CATALOGUE_SLUGS.originArchived,
+    country_code: "ET",
+    description: CATALOGUE_CANARIES.originArchived,
+    status: "ARCHIVED",
+  });
+
+  // 3. Coffees. The PUBLISHED row is linked to every reference row so the public DTO renders its
+  //    full shape; the two non-public rows carry canaries.
+  await upsert("coffees", {
+    id: CATALOGUE_IDS.coffeePublished,
+    origin_id: CATALOGUE_IDS.originActive,
+    coffee_type_id: CATALOGUE_IDS.coffeeType,
+    variety_id: CATALOGUE_IDS.variety,
+    processing_method_id: CATALOGUE_IDS.processingMethod,
+    packaging_type_id: CATALOGUE_IDS.packagingType,
+    name: "Public Test Coffee Published",
+    slug: CATALOGUE_SLUGS.coffeePublished,
+    description: "Published public test coffee. Safe to publish.",
+    status: "PUBLISHED",
+  });
+  await upsert("coffees", {
+    id: CATALOGUE_IDS.coffeeDraft,
+    origin_id: CATALOGUE_IDS.originActive,
+    name: "Public Test Coffee Draft",
+    slug: CATALOGUE_SLUGS.coffeeDraft,
+    description: CATALOGUE_CANARIES.coffeeDraft,
+    status: "DRAFT",
+  });
+  await upsert("coffees", {
+    id: CATALOGUE_IDS.coffeeArchived,
+    origin_id: CATALOGUE_IDS.originActive,
+    name: "Public Test Coffee Archived",
+    slug: CATALOGUE_SLUGS.coffeeArchived,
+    description: CATALOGUE_CANARIES.coffeeArchived,
+    status: "ARCHIVED",
+  });
+
+  // 4. One tag link on the published coffee. Composite primary key, so that is the conflict target.
+  const { error: linkError } = await admin
+    .from("coffee_tags")
+    .upsert(
+      { coffee_id: CATALOGUE_IDS.coffeePublished, tag_id: CATALOGUE_IDS.tag },
+      { onConflict: "coffee_id,tag_id" }
+    );
+  if (linkError) throw new SafeFixtureError("coffee_tags upsert failed.");
+
+  // 5. Certification on the published coffee. The file reference stays NULL (it is nullable), so no
+  //    asset is invented. Its identifier carries a canary because the DTO contract withholds that
+  //    column by default even though RLS exposes it.
+  await upsert("coffee_certifications", {
+    id: CATALOGUE_IDS.certification,
+    coffee_id: CATALOGUE_IDS.coffeePublished,
+    name: "Public Test Certification",
+    certificate_number: CATALOGUE_CANARIES.certificateNumber,
+    file_asset_id: null,
+    expires_at: "2030-01-01",
+  });
+
+  console.log(
+    `  published coffee   ${CATALOGUE_SLUGS.coffeePublished}\n` +
+      `  non-public coffees ${CATALOGUE_SLUGS.coffeeDraft}, ${CATALOGUE_SLUGS.coffeeArchived}\n` +
+      `  active origin      ${CATALOGUE_SLUGS.originActive}\n` +
+      `  non-public origins ${CATALOGUE_SLUGS.originInactive}, ${CATALOGUE_SLUGS.originArchived}\n` +
+      `  reference rows     region, type, variety, process, packaging, tag\n` +
+      `  certification      1 (file reference NULL)`
+  );
+}
+
+/**
+ * Deletes exactly the catalogue rows `seedCatalogue()` creates, in foreign-key-safe order.
+ *
+ * Not deleted, deliberately: the `audit_logs` rows appended by `trg_audit_coffees` when a `coffees`
+ * row is inserted or deleted. Those belong to the approved baseline's append-only audit trail, which
+ * this script must never remove — the same rule the identity teardown already follows.
+ */
+async function teardownCatalogue(admin: SupabaseClient): Promise<void> {
+  console.log("\nTearing down 002-public-website catalogue fixtures…\n");
+
+  const coffeeIds = [
+    CATALOGUE_IDS.coffeePublished,
+    CATALOGUE_IDS.coffeeDraft,
+    CATALOGUE_IDS.coffeeArchived,
+  ];
+  const originIds = [
+    CATALOGUE_IDS.originActive,
+    CATALOGUE_IDS.originInactive,
+    CATALOGUE_IDS.originArchived,
+  ];
+
+  const deleteByIds = async (
+    table: string,
+    column: string,
+    ids: readonly string[]
+  ): Promise<void> => {
+    const { error } = await admin.from(table).delete().in(column, ids);
+    if (error) throw new SafeFixtureError(`${table} delete failed.`);
+  };
+
+  // Children first, then the rows they reference.
+  await deleteByIds("coffee_certifications", "id", [CATALOGUE_IDS.certification]);
+  await deleteByIds("coffee_tags", "coffee_id", coffeeIds);
+  await deleteByIds("coffees", "id", coffeeIds);
+  await deleteByIds("origins", "id", originIds);
+  await deleteByIds("tags", "id", [CATALOGUE_IDS.tag]);
+  await deleteByIds("packaging_types", "id", [CATALOGUE_IDS.packagingType]);
+  await deleteByIds("processing_methods", "id", [
+    CATALOGUE_IDS.processingMethod,
+  ]);
+  // Varieties reference types, so varieties go first.
+  await deleteByIds("coffee_varieties", "id", [CATALOGUE_IDS.variety]);
+  await deleteByIds("coffee_types", "id", [CATALOGUE_IDS.coffeeType]);
+  await deleteByIds("regions", "id", [CATALOGUE_IDS.region]);
+
+  console.log(
+    `  removed ${coffeeIds.length} coffee(s), ${originIds.length} origin(s), ` +
+      `1 certification, 1 tag link and 6 reference row(s).`
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Supabase admin access
 // ---------------------------------------------------------------------------
 
@@ -490,11 +763,14 @@ async function main(): Promise<void> {
   }
 
   if (isTeardown) {
+    // Catalogue first: it is the leaf of the dependency order and never references an identity row.
+    await teardownCatalogue(admin);
     await teardown(admin);
     return;
   }
 
   await seed(admin, requireEnv("TEST_FIXTURE_PASSWORD"));
+  await seedCatalogue(admin);
 }
 
 main().catch((error: unknown) => {

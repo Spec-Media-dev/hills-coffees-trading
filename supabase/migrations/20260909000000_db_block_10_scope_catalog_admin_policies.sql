@@ -1,0 +1,73 @@
+-- DB-BLOCK-10 — scope the catalogue admin policies to `authenticated`.
+--
+-- ============================================================================
+-- WHY
+-- ============================================================================
+--
+-- `public.is_platform_admin()` is granted EXECUTE to `authenticated` and `service_role` only —
+-- never to `anon`. Every catalogue table also carries a `catalog_admin_*` policy declared
+-- `FOR ALL TO public USING (is_platform_admin())`, and `TO public` includes `anon`.
+--
+-- PostgreSQL OR-s permissive policies and checks function EXECUTE when the expression is actually
+-- evaluated. Where the sibling `public_read_*` predicate is a literal `true`, the planner folds the
+-- OR to a constant and the function is never invoked. Where it is anything else — `status =
+-- 'PUBLISHED'`, `status = 'ACTIVE'`, or an EXISTS subquery — the admin branch IS evaluated, the ACL
+-- check fires, and the whole statement aborts:
+--
+--     42501  permission denied for function is_platform_admin
+--
+-- A permissive policy the caller cannot evaluate does not degrade to "false"; it raises an error and
+-- kills the query. The result is that the platform's only anonymous surface cannot read the public
+-- catalogue at all. Verified live: `coffees`, `origins`, `coffee_tags`, `coffee_certifications` and
+-- `coffee_media` all fail for `anon` and all succeed for an authenticated member.
+--
+-- ============================================================================
+-- WHAT THIS CHANGES — AND WHAT IT DELIBERATELY DOES NOT
+-- ============================================================================
+--
+-- Changes: the ROLE SCOPE of five `catalog_admin_*` policies, and nothing else.
+--
+-- A policy whose TO clause excludes the current role is never applied, so it is never evaluated and
+-- the helper is never invoked. Anonymous reads then fall through to `public_read_*` alone — exactly
+-- the intended boundary.
+--
+--   * Anonymous users gain NO new capability. `is_platform_admin()` can never return true for
+--     `anon` anyway (`auth.uid()` is NULL), so this policy was granting anonymous callers precisely
+--     nothing before. Removing its applicability removes only an error.
+--   * Platform-admin behaviour is unchanged. Every platform admin is authenticated by definition —
+--     the function keys off `auth.uid()` — so `TO authenticated` covers the entire real admin
+--     population, and the `FOR ALL` write path is preserved intact.
+--   * The `public_read_*` policies are NOT touched. They keep doing the actual gating:
+--     `status = 'PUBLISHED'` on coffees, `status = 'ACTIVE'` on origins, and parent-is-published
+--     EXISTS checks on the three child tables.
+--   * No EXECUTE grant is added to `anon`. That preserves least privilege and keeps the approved
+--     audit check "Anon sensitive function execute" passing.
+--
+-- Also fixed transitively, with no statement of their own: `coffee_translations` and
+-- `origin_translations`. They carry no admin policy but their EXISTS predicates read `coffees` /
+-- `origins` under RLS, so they inherited the fault and are released by the same change.
+--
+-- ============================================================================
+-- SCOPE BOUNDARY
+-- ============================================================================
+--
+-- Restricted to the five tables in Feature 002's public DTO allowlist. Deliberately NOT included:
+--
+--   * `regions`, `coffee_types`, `coffee_varieties`, `processing_methods`, `packaging_types`,
+--     `tags` — these read correctly today because their `public_read_*` predicate is literal `true`.
+--     They carry the same latent fragility, but they are not currently broken, and this migration
+--     does not touch unrelated policies.
+--   * `warehouses` — anonymously readable but deliberately never queried by Feature 002.
+--   * `price_sources`, `price_observations`, `price_differentials` — same failure mode, but they
+--     belong to Feature 011 and its own public-exposure decision.
+--
+-- These are recorded as a follow-up, not silently bundled in here.
+--
+-- No schema, column, constraint, index, function, trigger or Storage object is altered. No data is
+-- written. Rollback: see the paired `.rollback.sql`.
+
+alter policy catalog_admin_coffees            on public.coffees               to authenticated;
+alter policy catalog_admin_origins            on public.origins               to authenticated;
+alter policy catalog_admin_coffee_tags        on public.coffee_tags           to authenticated;
+alter policy catalog_admin_certifications     on public.coffee_certifications to authenticated;
+alter policy catalog_admin_coffee_media       on public.coffee_media          to authenticated;

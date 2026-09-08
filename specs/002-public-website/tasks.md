@@ -5,7 +5,9 @@
 `docs/requirements/Hills-Coffee-SRS-v1.md`,
 `docs/design-guidance/Hills-Coffee-Website-Recommendations.md`, `docs/claude-design/`.
 
-**Status**: all tasks unchecked — implementation NOT started.
+**Status**: Block A (Phases 1–2) **COMPLETE — 12 / 12 verified**. Phases 3–13 not started.
+**DB-BLOCK-10 is RESOLVED** — the approved policy-scoping migration is applied and the anonymous
+public catalogue boundary is verified live.
 **Prerequisite**: 001-platform-foundation **implemented and verified** (Hills tokens, `StateScreen`,
 i18n foundation, Supabase client boundary, `unstable_cache` + `revalidateTag` decision, Server Action
 contract, Vitest tooling, test fixtures).
@@ -43,7 +45,7 @@ edits a file another task owns is never `[P]`, even if it feels small.
 **Purpose**: establish the chrome and URL rules everything else renders inside. Deliberately first
 because the homepage and the route group must share one shell.
 
-- [ ] T000 Create the **public copy dictionary** `lib/public/copy/` — the single typed English
+- [x] T000 Create the **public copy dictionary** `lib/public/copy/` — the single typed English
   source for every user-facing string on this surface, per
   [`contracts/public-copy-architecture.md`](./contracts/public-copy-architecture.md).
   **Server-safe by construction**: plain `.ts`, **no `"use client"` directive**, no `react` import, no
@@ -62,7 +64,7 @@ because the homepage and the route group must share one shell.
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — High
   - Why: small, but getting the server-safety property wrong (one stray `"use client"`) would silently pull every public page into the client bundle — the exact opposite of FR-020.
 
-- [ ] T001 Build `components/public/public-shell.tsx` — the single shared public chrome (header +
+- [x] T001 Build `components/public/public-shell.tsx` — the single shared public chrome (header +
   footer slots, landmarks, skip link) that both the locked root homepage and the `(public)` route
   group consume. Server Component; no client JS unless a genuine interaction requires it.
   - Req: FR-023, FR-020, FR-030 | Depends: T000
@@ -70,7 +72,7 @@ because the homepage and the route group must share one shell.
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — Medium
   - Why: ordinary component work, but it is the structural fix for the homepage/route-group split so its shape matters more than its size.
 
-- [ ] T002 Build `components/public/site-header.tsx` and `site-footer.tsx` — crawlable HTML anchors
+- [x] T002 Build `components/public/site-header.tsx` and `site-footer.tsx` — crawlable HTML anchors
   for every priority destination, primary "Request an offer" CTA, secondary Trading Portal / sign-in
   entry. Footer links only to routes that actually exist (no `/knowledge`, no `/legal` — CONTENT-01).
   - Req: FR-016, FR-021, PS2, PS4 | Depends: T000, T001
@@ -79,14 +81,14 @@ because the homepage and the route group must share one shell.
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — Medium
   - Why: navigation correctness plus the discipline of not linking to blocked routes; the verification is deliberately structural because the targets do not exist yet.
 
-- [ ] T003 Create `src/app/(public)/layout.tsx` wrapping children in `PublicShell`. Confirm it is a
+- [x] T003 Create `src/app/(public)/layout.tsx` wrapping children in `PublicShell`. Confirm it is a
   route *group* (URL unchanged) and that the three locked root files are not moved.
   - Req: FR-001, FR-002, FR-023 | Depends: T001
-  - Verify: `/coffee/` resolves with no `(public)` segment in the URL; `git status` shows no rename/move of `page.tsx`, `layout.tsx`, `globals.css`
+  - Verify (**structural, provable in Phase 1** — the first real route inside the group is created in Phase 4, so the runtime URL assertion belongs to T014): `src/app/(public)/layout.tsx` exists and wraps `children` in `PublicShell`; a route placed inside the group resolves **without** a `(public)` URL segment while the literal `/(public)/…` path returns 404 — a temporary probe route may be used for this and **must be removed before the task is complete** (do not ship a stub); the production build's route list contains no `(public)` segment; `git diff --summary` shows **no rename** of `src/app/page.tsx`, `src/app/layout.tsx` or `src/app/globals.css`
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — Medium
   - Why: route-group semantics against a Constitution-locked constraint.
 
-- [ ] T004 Enable canonical trailing-slash URLs: add **`trailingSlash: true`** to `next.config.ts`
+- [x] T004 Enable canonical trailing-slash URLs: add **`trailingSlash: true`** to `next.config.ts`
   (the only change to that file — no cache flag), then **run a Feature 001 authorization regression
   check**: anonymous and cross-surface denial still hold on `/dashboard/` and `/dashboard-admin/`,
   and `src/proxy.ts`'s matcher still matches.
@@ -95,7 +97,7 @@ because the homepage and the route group must share one shell.
   - Codex: GPT-5.6 Sol — High · Claude: Opus — High
   - Why: a one-line config change that silently alters every URL in the app, including a security boundary Feature 001 already verified — the highest-blast-radius edit in this feature.
 
-- [ ] T006 [P] Build `components/public/media-placeholder.tsx` — a stable, labelled placeholder with
+- [x] T006 [P] Build `components/public/media-placeholder.tsx` — a stable, labelled placeholder with
   explicit dimensions/aspect ratio for every public media slot. **MEDIA-01**: no Storage bucket is
   created, and no file URL is constructed, guessed or proxied.
   - Req: FR-028, SC-005 | Depends: T000
@@ -118,7 +120,7 @@ entry**, a computation stamp (`computedAt` + a per-computation token) exposed on
 visitor. This is what makes the T031 revalidation proof observable without mutating catalogue data
 (`contracts/public-cache-policy.md` §5.2). It is diagnostic provenance, not page content.
 
-- [ ] T006a **Catalogue test fixtures** — **extend** Feature 001's existing fixture infrastructure;
+- [x] T006a **Catalogue test fixtures** — **extend** Feature 001's existing fixture infrastructure;
   do **not** build a parallel seed system.
   **Where the work goes**: add a catalogue section to `scripts/seed-test-fixtures.ts` (the one and
   only place the service-role key is ever constructed) reached through the existing
@@ -167,7 +169,7 @@ visitor. This is what makes the T031 revalidation proof observable without mutat
   - Codex: GPT-5.6 Sol — High · Claude: Opus — High
   - Why: every runtime assertion in Phases 2, 4, 8 and 11–13 rests on this data being deterministic and correctly gated; a fixture that is publicly readable when it should not be would silently invalidate the leakage and status-gating proofs rather than fail loudly.
 
-- [ ] T007 [P] Create `lib/public/coffees.ts` — `unstable_cache` reads (tags `public-coffees`,
+- [x] T007 [P] Create `lib/public/coffees.ts` — `unstable_cache` reads (tags `public-coffees`,
   `public-coffee:{slug}`, `revalidate: 3600`) of `coffees` (PUBLISHED only) joined to
   type/variety/processing/packaging/tags/certifications/media-metadata, using **explicit column
   allowlists**, returning a named public DTO.
@@ -176,7 +178,7 @@ visitor. This is what makes the T031 revalidation proof observable without mutat
   - Codex: GPT-5.6 Sol — High · Claude: Opus — High
   - Why: the most leak-prone module on the platform's only anonymous surface — the DTO shape defined here is what every public page can ever expose.
 
-- [ ] T008 [P] Create `lib/public/origins.ts` — `unstable_cache` reads (tags `public-origins`,
+- [x] T008 [P] Create `lib/public/origins.ts` — `unstable_cache` reads (tags `public-origins`,
   `public-origin:{slug}`, `revalidate: 3600`) of `origins` (ACTIVE) + `regions`, allowlisted columns,
   returning a public DTO; parent/region resolved to `name`+`slug`, never raw FKs.
   - Req: FR-003, FR-005, FR-010 | Depends: T006a
@@ -184,7 +186,7 @@ visitor. This is what makes the T031 revalidation proof observable without mutat
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — High
   - Why: same discipline as T007 over a smaller table set.
 
-- [ ] T009 [P] Create `lib/public/taxonomy.ts` — `unstable_cache` reads (tag `public-taxonomy`,
+- [x] T009 [P] Create `lib/public/taxonomy.ts` — `unstable_cache` reads (tag `public-taxonomy`,
   `revalidate: 86400`) of `coffee_types`, `coffee_varieties`, `processing_methods`,
   `packaging_types`, `tags` — `name`/`slug` only.
   - Req: FR-003, FR-010 | Depends: —
@@ -192,7 +194,7 @@ visitor. This is what makes the T031 revalidation proof observable without mutat
   - Codex: GPT-5.6 Sol — Low · Claude: Sonnet — Low
   - Why: small reference reads with an unambiguous allowlist.
 
-- [ ] T010 Write `tests/public/canary-leakage.test.ts` — the **primary** boundary proof. Assert that
+- [x] T010 Write `tests/public/canary-leakage.test.ts` — the **primary** boundary proof. Assert that
   **no canary value reaches the public DTO output**, using only canaries this feature may legitimately
   obtain (`contracts/public-dto-allowlist.md` §5):
   (a) the **non-public row sentinels** seeded by T006a — the `description` of each `DRAFT`/`ARCHIVED`
@@ -211,7 +213,7 @@ visitor. This is what makes the T031 revalidation proof observable without mutat
   - Codex: GPT-5.6 Sol — High · Claude: Opus — High
   - Why: this test, not the field-name check, is what actually guarantees the public/private boundary — it follows values rather than labels, and its canary set must stay within what 002 is allowed to create.
 
-- [ ] T011 Write `tests/public/dto-structure.test.ts` — the **secondary** structural check: no
+- [x] T011 Write `tests/public/dto-structure.test.ts` — the **secondary** structural check: no
   denylisted field *name* in any `lib/public/*` export, no `select("*")`/implicit-all select, and no
   denylisted table name anywhere under `lib/public/`.
   - Req: FR-003, SEC-005, SC-002 | Depends: T007, T008, T009
@@ -249,7 +251,7 @@ visitor. This is what makes the T031 revalidation proof observable without mutat
   coffees **including its `generateMetadata`** (title, description, canonical, OG). Filters must not
   create indexable weak combinations.
   - Req: FR-002, FR-004, FR-006, FR-010, SC-001 | Depends: T000, T006a, T007, T003
-  - Verify: repeat request serves the cached value; a `DRAFT` coffee never appears; initial HTML contains title, description and canonical in trailing-slash form
+  - Verify: repeat request serves the cached value; a `DRAFT` coffee never appears; initial HTML contains title, description and canonical in trailing-slash form; **`/coffee/` resolves and its URL contains no `(public)` segment** (the runtime route-group assertion deferred here from T003, which cannot run it before this route exists)
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — Medium
   - Why: standard listing page; metadata is folded in because it edits the same file (it was incorrectly a separate parallel task before).
 
@@ -719,6 +721,7 @@ Direct task coverage — no requirement relies on implicit coverage.
 | **LIFE-01** | No alias/redirect/tombstone capability | BLOCKS SUB-FLOW | 301/308/410 lifecycle | T029's 200/404 behaviour |
 | **ABUSE-01** | No durable multi-instance abuse protection | PRE-PRODUCTION BLOCKER | production-grade abuse defence | T022's endpoint-local safeguards |
 | **MEDIA-01** | No Storage bucket / public file delivery (DB-BLOCK-01) | BLOCKS SUB-FLOW | real public imagery | T006, T044 |
+| **DB-BLOCK-10** | **RESOLVED 2026-09-09.** The `anon` role could not read the public catalogue: `is_platform_admin()` is executable only by `authenticated`/`service_role`, yet every catalogue table carried `catalog_admin_* FOR ALL TO public USING (is_platform_admin())`, so an anonymous `SELECT` aborted with `42501` instead of the policy evaluating false. Fixed by scoping those five policies to `authenticated` — least privilege preserved, no grant added to `anon`. Verified live: anonymous reads succeed on all Feature-002 catalogue tables, `DRAFT`/`ARCHIVED` and `INACTIVE`/`ARCHIVED` stay hidden, and anon gains no admin or write capability. | **RESOLVED** — no longer blocks | nothing | T006a, T007, T008, T010 all verified and complete |
 
 **COMMISSION-OPEN-01** is **not** a Feature 002 blocker. It is a Business/Finance decision owned by
 Feature 008 and must not be addressed here.

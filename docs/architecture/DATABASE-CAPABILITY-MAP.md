@@ -92,6 +92,52 @@ Transitions are policed by triggers: `validate_order_transition`, `validate_offe
 Everything else requires authentication and, in most cases, organization membership or an
 operational role.
 
+> ### RLS permits it — but check which role can actually evaluate the policy (**DB-BLOCK-10**, resolved)
+>
+> The list above describes the **RLS predicates**. It does not automatically describe what an
+> anonymous client gets. Measured live against the running database on 2026-09-09, **after** the
+> DB-BLOCK-10 migration:
+>
+> | Anonymous `SELECT` | Tables |
+> |---|---|
+> | **Succeeds** (13) | `coffees` (`PUBLISHED`), `origins` (`ACTIVE`), `coffee_tags`, `coffee_certifications`, `coffee_media`, `coffee_translations`, `origin_translations`, `regions`, `coffee_types`, `coffee_varieties`, `processing_methods`, `packaging_types`, `tags` |
+> | **Still fails `42501`** (4) | `warehouses`, `price_sources`, `price_observations`, `price_differentials` — deliberately **out of the migration's scope**; Feature 002 queries none of them. Feature 011 must resolve the price tables the same way before it can publish reference prices |
+>
+> Status gating is intact: `DRAFT`/`ARCHIVED` coffees and `INACTIVE`/`ARCHIVED` origins remain
+> invisible anonymously, `anon` still cannot execute `is_platform_admin()`, cannot read any private
+> table, and cannot insert, update or delete on any catalogue table.
+>
+> **The original cause, kept because the trap is easy to reintroduce.**
+> `is_platform_admin()` is granted `EXECUTE` to `authenticated` and `service_role` only,
+> never to `anon`. Every catalogue table also carries a `catalog_admin_*` policy declared
+> `FOR ALL TO public USING (is_platform_admin())`, and `TO public` includes `anon`. PostgreSQL OR-s
+> permissive policies and checks function `EXECUTE` when the expression is evaluated: where the
+> sibling `public_read_*` predicate is a literal `true` the planner folds the OR away and the
+> function is never called; where it is anything else — `status = 'PUBLISHED'`,
+> `status = 'ACTIVE'`, or an `EXISTS` subquery — the admin branch is evaluated and the whole
+> statement aborts with `42501 permission denied for function is_platform_admin`. **A permissive
+> policy the caller cannot evaluate does not degrade to "false"; it raises an error.**
+> `coffee_translations` and `origin_translations` carry no admin policy of their own — they inherit
+> the fault through an `EXISTS` subquery that reads `coffees` / `origins` under RLS.
+>
+> The approved audit did not catch this: its three `anon` checks are all *negative*
+> ("anon must **not** …"), and none asserts the positive capability that anonymous visitors can read
+> published catalogue rows.
+>
+> **Status: RESOLVED for Feature 002's surface (2026-09-09).**
+> `supabase/migrations/20260909000000_db_block_10_scope_catalog_admin_policies.sql` re-scoped the
+> five `catalog_admin_*` policies on `coffees`, `origins`, `coffee_tags`, `coffee_certifications`
+> and `coffee_media` from `TO public` to `TO authenticated`. A policy whose `TO` clause excludes the
+> current role is never applied, so the helper is never invoked and anonymous reads fall through to
+> `public_read_*` alone — the intended boundary. No `EXECUTE` grant was added to `anon`, so least
+> privilege is preserved and the audit's "Anon sensitive function execute" check still passes. The
+> two translation tables were released by the same change, with no statement of their own. A paired
+> `.rollback.sql` restores `TO public`. See §9 → **DB-BLOCK-10**.
+>
+> **The lesson to carry forward:** when adding a `TO public` policy that calls a helper, confirm the
+> `anon` role can execute that helper — or scope the policy to `authenticated`. Verify by *reading
+> as `anon`*, never by reading the policy text.
+
 **Two cautions for public surfaces** (both enforced by Feature 002's
 `contracts/public-dto-allowlist.md`):
 
@@ -197,6 +243,7 @@ review → re-audit) before the dependent feature can be fully implemented.
 | **DB-OPEN-08** | **No FX / conversion storage.** PX-03 requires unit/currency conversions (cents/lb → USD/MT → USD/kg) to be auditable with FX source, timestamp and defined rounding, but the schema has no FX/rate table and `price_observations` stores only the raw observation. Auditable conversion is therefore impossible; only raw source values may be displayed. | PX-03 | table inventory contains no FX/rate/conversion table | 011 (pricing), 002 (public price presentation) |
 | **DB-OPEN-09** | **Dispute "freeze" has no mechanism, and compliance cannot apply it.** MKT-07 says a dispute can freeze affected quantity, settlement and trading. But (a) no trigger exists on `disputes`, so opening one has no automatic effect; (b) a freeze would have to come from setting the affected order/shipment to `DISPUTED`; and (c) `orders` UPDATE is restricted to the buyer (DRAFT/CONFIRMED only) or `is_platform_admin()` — so a **COMPLIANCE operator cannot set an order to `DISPUTED`** even though compliance owns dispute resolution. | MKT-07 | `disputes` trigger inventory (none); `orders_update_buyer_or_admin` policy | 012 (disputes), 010 (compliance console) |
 | **DB-BLOCK-07** | **A delivery request does not reserve inventory.** The only triggers on `order_shipments` are `sync_shipment_ready` (sets `ready_at`/`orders.shipping_ready_at`), `validate_shipment_transition` and `set_updated_at` — none touches `inventory_positions.reserved_quantity_kg` — and no delivery-reservation function exists. Quantity requested for delivery therefore remains available for listing and sale, and there is no restore-on-cancellation path. **This means release-blocking AC-04 cannot pass.** | DEL-01 ("approved delivery request atomically reserves quantity"; "once reserved… unavailable for new listing, new sale, another delivery reservation"; "cancellation must restore quantity exactly once"), **AC-04** | `order_shipments` triggers; function list contains no delivery-reservation function | 009 (delivery), 005/006 (availability truth) |
+| **DB-BLOCK-10** *(RESOLVED 2026-09-09)* | **The `anon` role could not read the public catalogue.** `is_platform_admin()` is granted `EXECUTE` to `authenticated`/`service_role` only, never `anon`, while every catalogue table carried `catalog_admin_* FOR ALL TO public USING (is_platform_admin())`. PostgreSQL evaluated that permissive branch alongside `public_read_*`, so an anonymous `SELECT` aborted with `42501 permission denied for function is_platform_admin` instead of the policy simply evaluating false — 11 of the 17 tables §4 lists as anonymously readable were not. **Fixed** by scoping the five Feature-002 `catalog_admin_*` policies to `authenticated` (`supabase/migrations/20260909000000_db_block_10_scope_catalog_admin_policies.sql`); no grant was added to `anon`. `warehouses` and the three `price_*` tables were out of scope and still fail — Feature 011 must resolve those before publishing reference prices. | §5.1 (public catalogue must be crawlable/anonymously readable), SEO-APP-01, AC-07 | Live 2026-09-09 post-migration: anon reads all 13 in-scope tables; status gating, admin denial and write denial all re-verified | 002 (resolved), 011 (price tables still open) |
 
 **How a feature handles these**: plan the surrounding UI/flow, mark the blocked step explicitly in
 that feature's spec/tasks as depending on the blocker, and stop at the boundary. Do not invent a
