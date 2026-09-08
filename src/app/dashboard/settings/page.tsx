@@ -3,6 +3,7 @@ import { getRequestIdentity } from "@/lib/auth/dal";
 import { createClient } from "@/lib/supabase/server";
 
 import { ProfileSettingsForm } from "./profile-settings-form";
+import { SettingsFoundationShell } from "./settings-foundation-shell";
 
 /**
  * Minimal Foundation settings surface — proves the FR-012/FR-018 Server Action + validation
@@ -38,14 +39,10 @@ export default async function SettingsPage() {
     .maybeSingle();
 
   return (
-    <div className="max-w-xl">
-      <h1 className="text-xl font-semibold tracking-tight text-foreground">
-        Profile settings
-      </h1>
-      <p className="mt-2 text-sm text-muted-foreground">
-        This is the platform foundation&apos;s Server Action proof surface. Full member settings
-        arrive with later features.
-      </p>
+    <SettingsFoundationShell
+      title="Profile settings"
+      description="This is the platform foundation's Server Action proof surface. Full member settings arrive with later features."
+    >
       <ProfileSettingsForm
         initialValues={{
           fullName: profile?.full_name ?? "",
@@ -54,6 +51,6 @@ export default async function SettingsPage() {
           avatarPath: profile?.avatar_path ?? "",
         }}
       />
-    </div>
+    </SettingsFoundationShell>
   );
 }

@@ -533,7 +533,7 @@ shadcn styling, and holds up under `dir="rtl"` with a longer placeholder string.
 **Independent Test**: Render the proof surface, confirm Hills colors/type, force `dir="rtl"` with a
 long string, confirm no layout breakage, per quickstart.md Story 5.
 
-- [ ] T024 Remap `src/app/globals.css`'s `:root` and `.dark` block **variable values** (not names,
+- [x] T024 Remap `src/app/globals.css`'s `:root` and `.dark` block **variable values** (not names,
   not structure) to the Hills Coffee palette from `docs/claude-design/tokens/colors.css`
   (`--background`, `--foreground`, `--primary`, `--primary-foreground`, `--card`, `--border`,
   `--ring`, etc. — every existing `components/ui/*` primitive already reads these names via
@@ -547,7 +547,7 @@ long string, confirm no layout breakage, per quickstart.md Story 5.
   - Why: Touches the one shared, Constitution-locked global stylesheet every component in the
     project depends on — an error here has repository-wide visual blast radius.
 
-- [ ] T025 Wire the Hills fonts (Benito, Manrope from `docs/claude-design/tokens/fonts.css`/
+- [x] T025 Wire the Hills fonts (Benito, Manrope from `docs/claude-design/tokens/fonts.css`/
   `uploads/`) for the one proof surface only, via `next/font/local` or scoped `@font-face` rules —
   not a full typographic system rollout (depends on T024).
   - Requirements: FR-020
@@ -556,7 +556,7 @@ long string, confirm no layout breakage, per quickstart.md Story 5.
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — Medium
   - Why: Requires judgment to scope font-loading narrowly rather than a blanket project-wide swap.
 
-- [ ] T026 [US5] On the `src/app/dashboard/settings/page.tsx` surface (T019), use existing
+- [x] T026 [US5] On the `src/app/dashboard/settings/page.tsx` surface (T019), use existing
   `components/ui/*` primitives (e.g., `Button`, `Card`) styled by the T024 tokens, and use logical
   CSS utilities (`ps-*`/`pe-*`/`text-start`/`text-end`) instead of `pl-*`/`pr-*`/`text-left`/
   `text-right` throughout (depends on T024, T025, T019).
@@ -567,7 +567,7 @@ long string, confirm no layout breakage, per quickstart.md Story 5.
   - Why: Requires correctly distinguishing logical-vs-physical CSS properties across a real page,
     not just following a fixed template.
 
-- [ ] T027 [P] [US5] Add `tests/design/hills-tokens.test.tsx`: render the T026 surface with
+- [x] T027 [P] [US5] Add `tests/design/hills-tokens.test.tsx`: render the T026 surface with
   `@testing-library/react`, assert its computed styles reference Hills token values (not shadcn
   defaults); render it again with `dir="rtl"` and a long placeholder string, assert no overlap/
   clipping signal (e.g., scrollWidth vs clientWidth check); assert an animated element (if any)
