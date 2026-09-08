@@ -688,7 +688,7 @@ structural change, migration, Phase 10/11 work, commit, or push was introduced.
 **Goal**: A future agent with no chat history can locate the conventions this feature introduced
 from repository artifacts alone (Constitution Multi-Agent Continuity & Handoff; spec FR-031–FR-033).
 
-- [ ] T033 [P] [US6] Add a short, durable reference (e.g.,
+- [x] T033 [P] [US6] Add a short, durable reference (e.g.,
   `specs/001-platform-foundation/AGENT-HANDOFF.md` or a new `docs/foundation/README.md` — choose
   the location that best fits existing `docs/` conventions) pointing to: the route-protection
   pattern (`contracts/route-surface-contract.md`), the Server Action pattern
@@ -706,7 +706,7 @@ from repository artifacts alone (Constitution Multi-Agent Continuity & Handoff; 
   - Why: Requires editorial judgment about what a future agent actually needs discoverable vs. what
     would just duplicate an authoritative source.
 
-- [ ] T034 [P] Add a short "Platform Foundation" pointer section to the repository's root
+- [x] T034 [P] Add a short "Platform Foundation" pointer section to the repository's root
   `README.md` linking to `specs/001-platform-foundation/` and listing the four verification
   commands (`lint`, `typecheck`, `test`, `build`).
   - Requirements: FR-031
@@ -715,6 +715,12 @@ from repository artifacts alone (Constitution Multi-Agent Continuity & Handoff; 
   - Why: Mechanical documentation addition with an explicit, small scope.
 
 **Checkpoint**: Story 6 complete — a new agent can now self-orient from repository artifacts alone.
+
+**Phase 10 status 2026-09-08 — COMPLETE — VERIFIED.** The 527-word handoff is discoverable from
+the root README, both ordered extension walkthroughs pass the cold-reader check, and every local
+link resolves. Typecheck, all 13 tests, and the production build pass; the unchanged
+`docs/claude-design` lint baseline remains 124 errors / 148 warnings. No runtime/application or
+database file changed, Phase 11 was not started, and no commit or push was performed.
 
 ---
 

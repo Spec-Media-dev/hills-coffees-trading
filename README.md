@@ -1,5 +1,21 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+## Platform Foundation
+
+Feature 001 provides shared platform infrastructure only. See the
+[Platform Foundation artifacts](specs/001-platform-foundation/), its
+[specification](specs/001-platform-foundation/spec.md), and the concise
+[agent handoff](specs/001-platform-foundation/AGENT-HANDOFF.md) before extending protected routes or
+Server Actions. Buyer, Seller, Admin, and production-trading functionality is not complete or
+authorized by this foundation.
+
+```bash
+npm run lint
+npm run typecheck
+npm test
+npm run build
+```
+
 ## Getting Started
 
 First, run the development server:
