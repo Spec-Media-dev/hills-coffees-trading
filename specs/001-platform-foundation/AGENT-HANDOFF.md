@@ -73,7 +73,18 @@ npm test
 npm run build
 ```
 
+`npm run lint` intentionally exposes the unchanged T001-captured `docs/claude-design` baseline
+(124 errors / 148 warnings); Phase 11 requires that exact count, a byte-identical design-source
+tree, and zero findings across Feature 001 files. Typecheck, tests, and build must exit 0.
+
 Before extending a domain, consult the [roadmap](../../docs/architecture/IMPLEMENTATION-ROADMAP.md)
 and the [database capability map](../../docs/architecture/DATABASE-CAPABILITY-MAP.md). A recorded
 database blocker requires the governed database-change process; it is not permission for a shadow
 table, service-role bypass, or client-only workaround.
+
+## Closure boundary
+
+Feature 001 closes the platform foundation only. It does **not** authorize production trading.
+Legal readiness, KYB policy, agreements, warehouse reconciliation, finance/tax controls,
+market-data licensing, security review, backup/restore validation, and end-to-end acceptance
+testing remain outstanding product gates.

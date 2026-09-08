@@ -47,6 +47,8 @@ import { resolve } from "node:path";
 
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
+class SafeFixtureError extends Error {}
+
 // ---------------------------------------------------------------------------
 // Environment
 // ---------------------------------------------------------------------------
@@ -203,7 +205,7 @@ async function findAuthUserIdByEmail(
   const perPage = 1000;
   for (let page = 1; ; page += 1) {
     const { data, error } = await admin.auth.admin.listUsers({ page, perPage });
-    if (error) throw new Error(`Failed to list auth users: ${error.message}`);
+    if (error) throw new SafeFixtureError("Failed to list auth users.");
 
     const match = data.users.find(
       (user) => user.email?.toLowerCase() === email.toLowerCase()
@@ -229,7 +231,7 @@ async function ensureAuthUser(
       password,
       email_confirm: true,
     });
-    if (error) throw new Error(`Failed to update auth user: ${error.message}`);
+    if (error) throw new SafeFixtureError("Failed to update auth user.");
     return { userId: existingId, created: false };
   }
 
@@ -239,9 +241,7 @@ async function ensureAuthUser(
     email_confirm: true,
     user_metadata: { fixture: "001-platform-foundation" },
   });
-  if (error || !data.user) {
-    throw new Error(`Failed to create auth user: ${error?.message ?? "unknown"}`);
-  }
+  if (error || !data.user) throw new SafeFixtureError("Failed to create auth user.");
   return { userId: data.user.id, created: true };
 }
 
@@ -271,7 +271,7 @@ async function seed(admin: SupabaseClient, password: string): Promise<void> {
       { onConflict: "id" }
     );
     if (profileError) {
-      throw new Error(`profiles upsert failed: ${profileError.message}`);
+      throw new SafeFixtureError("profiles upsert failed.");
     }
 
     if (fixture.organization !== null) {
@@ -291,7 +291,7 @@ async function seed(admin: SupabaseClient, password: string): Promise<void> {
         { onConflict: "id" }
       );
       if (orgError) {
-        throw new Error(`organizations upsert failed: ${orgError.message}`);
+        throw new SafeFixtureError("organizations upsert failed.");
       }
 
       // `organization_can_buy`/`organization_can_sell` require an APPROVED KYB application for a
@@ -309,7 +309,7 @@ async function seed(admin: SupabaseClient, password: string): Promise<void> {
         { onConflict: "id" }
       );
       if (kybError) {
-        throw new Error(`kyb_applications upsert failed: ${kybError.message}`);
+        throw new SafeFixtureError("kyb_applications upsert failed.");
       }
 
       const { error: memberError } = await admin
@@ -324,9 +324,7 @@ async function seed(admin: SupabaseClient, password: string): Promise<void> {
           { onConflict: "organization_id,user_id" }
         );
       if (memberError) {
-        throw new Error(
-          `organization_members upsert failed: ${memberError.message}`
-        );
+        throw new SafeFixtureError("organization_members upsert failed.");
       }
     }
 
@@ -340,7 +338,7 @@ async function seed(admin: SupabaseClient, password: string): Promise<void> {
         { onConflict: "user_id" }
       );
       if (adminError) {
-        throw new Error(`platform_admins upsert failed: ${adminError.message}`);
+        throw new SafeFixtureError("platform_admins upsert failed.");
       }
     }
 
@@ -384,7 +382,7 @@ async function setBuyerAndSellerCanSell(
     .maybeSingle();
 
   if (error) {
-    throw new Error(`fixture capability update failed: ${error.message}`);
+    throw new SafeFixtureError("fixture capability update failed.");
   }
   if (!data) {
     throw new Error(
@@ -423,7 +421,7 @@ async function teardown(admin: SupabaseClient): Promise<void> {
       .from("platform_admins")
       .delete()
       .in("user_id", userIds);
-    if (error) throw new Error(`platform_admins delete failed: ${error.message}`);
+    if (error) throw new SafeFixtureError("platform_admins delete failed.");
   }
 
   const { error: memberError } = await admin
@@ -431,7 +429,7 @@ async function teardown(admin: SupabaseClient): Promise<void> {
     .delete()
     .in("organization_id", organizationIds);
   if (memberError) {
-    throw new Error(`organization_members delete failed: ${memberError.message}`);
+    throw new SafeFixtureError("organization_members delete failed.");
   }
 
   const { error: kybError } = await admin
@@ -439,7 +437,7 @@ async function teardown(admin: SupabaseClient): Promise<void> {
     .delete()
     .in("id", kybApplicationIds);
   if (kybError) {
-    throw new Error(`kyb_applications delete failed: ${kybError.message}`);
+    throw new SafeFixtureError("kyb_applications delete failed.");
   }
 
   const { error: orgError } = await admin
@@ -447,14 +445,14 @@ async function teardown(admin: SupabaseClient): Promise<void> {
     .delete()
     .in("id", organizationIds);
   if (orgError) {
-    throw new Error(`organizations delete failed: ${orgError.message}`);
+    throw new SafeFixtureError("organizations delete failed.");
   }
 
   // Deleting the Auth user cascades to `profiles` (profiles.id references auth.users ON DELETE
   // CASCADE), which is why every referencing row above is removed first.
   for (const userId of userIds) {
     const { error } = await admin.auth.admin.deleteUser(userId);
-    if (error) throw new Error(`auth user delete failed: ${error.message}`);
+    if (error) throw new SafeFixtureError("auth user delete failed.");
   }
 
   console.log(
@@ -482,7 +480,7 @@ async function main(): Promise<void> {
   if (capabilityArgument) {
     const value = capabilityArgument.slice(capabilityArgumentPrefix.length);
     if (value !== "true" && value !== "false") {
-      throw new Error(
+      throw new SafeFixtureError(
         "--set-buyer-and-seller-can-sell must be exactly true or false"
       );
     }
@@ -500,9 +498,16 @@ async function main(): Promise<void> {
 }
 
 main().catch((error: unknown) => {
-  // Message only — never the stack or any payload that could carry credential material.
+  // Only deliberately-authored safe messages may reach stderr. Unexpected SDK/database errors
+  // are mapped generically so their raw payload, stack and request/session context stay private.
+  const safeMessage =
+    error instanceof SafeFixtureError ||
+    (error instanceof Error &&
+      error.message.startsWith("Missing required environment variable "))
+      ? error.message
+      : "Unexpected fixture operation failure.";
   console.error(
-    `\nFixture script failed: ${error instanceof Error ? error.message : String(error)}`
+    `\nFixture script failed: ${safeMessage}`
   );
   process.exitCode = 1;
 });

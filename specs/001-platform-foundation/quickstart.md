@@ -40,9 +40,11 @@ npm test
 npm run build
 ```
 
-Expected: all four succeed with a clear pass signal. This is the exact sequence FR-030/SC-008
-require to be real and documented — if any of these fails, the foundation is not done, regardless
-of what the UI appears to do.
+Expected: typecheck, tests, and build exit 0. The repository-wide lint command currently reproduces
+the T001-captured, pre-Feature-001 `docs/claude-design` baseline of exactly 124 errors / 148 warnings;
+that imported design-source directory must remain byte-identical to commit `c7ffb01`, while the
+Feature 001 application, script, and test files lint with zero findings. Any different lint result
+or any Feature 001 finding fails verification, regardless of what the UI appears to do.
 
 ## 3. Manually verify each Platform Story
 
@@ -67,6 +69,11 @@ Using the seeded fixtures from step 1:
    navigation, and a FINANCE-only action (if any exists yet) is rejected.
 4. (Manual DB step) Toggle a fixture organization's `can_sell` off via the database, refresh the
    page (no sign-out) → confirm seller navigation disappears on that next request.
+
+Feature 001 intentionally stops at route shells and does not ship product navigation or business
+actions. Until a later feature adds those controls, perform this closure check through a temporary
+server-rendered verification probe that exposes only the resolved role/capability booleans; remove
+the probe after verification. Do not add speculative business UI to make this check visible.
 
 ### Story 3 — Server Action contract proof
 

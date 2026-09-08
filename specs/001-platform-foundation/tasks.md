@@ -730,39 +730,45 @@ database file changed, Phase 11 was not started, and no commit or push was perfo
 assumed. This phase does **not** claim production trading readiness (Constitution §48) — it closes
 out the platform foundation only.
 
-- [ ] T035 Run `npm run lint` — zero errors.
+- [x] T035 Run `npm run lint` — no Feature 001 lint regressions. T001's captured pre-existing
+  `docs/claude-design` baseline (124 errors / 148 warnings) is accepted only while that directory is
+  byte-identical to the pre-001 implementation baseline; every file added or changed by Feature 001
+  must lint with zero errors and warnings.
+  - Requirements: FR-030, SC-008
+  - Verify: `npm run lint` reproduces exactly 124 errors / 148 warnings, all under
+    `docs/claude-design`; `git diff --quiet c7ffb01..HEAD -- docs/claude-design` exits 0; and ESLint
+    run over Feature 001's application, script, and test files exits 0 with no output
+  - Codex: GPT-5.6 Sol — Low · Claude: Sonnet — Low
+  - Why: Mechanical command execution.
+
+- [x] T036 Run `npm run typecheck` (`tsc --noEmit`) — zero errors.
   - Requirements: FR-030, SC-008
   - Verify: exit code 0
   - Codex: GPT-5.6 Sol — Low · Claude: Sonnet — Low
   - Why: Mechanical command execution.
 
-- [ ] T036 Run `npm run typecheck` (`tsc --noEmit`) — zero errors.
-  - Requirements: FR-030, SC-008
-  - Verify: exit code 0
-  - Codex: GPT-5.6 Sol — Low · Claude: Sonnet — Low
-  - Why: Mechanical command execution.
-
-- [ ] T037 Run `npm test` — all tests pass, including T030/T031's authorization tests.
+- [x] T037 Run `npm test` — all tests pass, including T030/T031's authorization tests.
   - Requirements: FR-029, FR-030, SC-008
   - Verify: exit code 0; test output shows the request-identity and update-my-profile suites ran
     (not skipped)
   - Codex: GPT-5.6 Sol — Low · Claude: Sonnet — Low
   - Why: Mechanical command execution with an explicit expected test list.
 
-- [ ] T038 Run `npm run build` — production build succeeds — then repeat the full verification
+- [x] T038 Run `npm run build` — production build succeeds — then repeat the full verification
   sequence **from a clean checkout** to prove the documented commands work for someone who has
   never run this repo before.
   - Requirements: FR-030, SC-008
   - Verify: (a) `npm run build` exits 0 with no build warnings about the new routes/actions;
     (b) in a fresh clone (or after `git clean -xdf` on a scratch copy) with only `npm install` and
-    a populated `.env.local`, all four commands — `npm run lint`, `npm run typecheck`, `npm test`,
-    `npm run build` — exit 0, with zero failures caused by missing tooling or undocumented setup
-    steps; (c) any step that turned out to be required but undocumented is added to quickstart.md
+    a populated `.env.local`, `npm run typecheck`, `npm test`, and `npm run build` exit 0;
+    `npm run lint` reproduces only T035's accepted byte-identical `docs/claude-design` baseline and
+    the Feature 001 lint scope exits 0, with zero failures caused by missing tooling or undocumented
+    setup steps; (c) any step that turned out to be required but undocumented is added to quickstart.md
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — Medium
   - Why: The clean-checkout run is what actually proves SC-008; running in an already-warm working
     tree can silently hide a missing dependency or setup step.
 
-- [ ] T039 Manually verify anonymous-visitor blocking: direct navigation to `/dashboard` and
+- [x] T039 Manually verify anonymous-visitor blocking: direct navigation to `/dashboard` and
   `/dashboard-admin` with no session, JavaScript disabled, per quickstart.md Story 1.
   - Requirements: SC-001, SC-004
   - Verify: both routes render `StateScreen`/a sign-in redirect, never protected content; `/`
@@ -770,7 +776,7 @@ out the platform foundation only.
   - Codex: GPT-5.6 Sol — Low · Claude: Sonnet — Low
   - Why: Manual judgment call on "does this look like a safe denial," but low complexity.
 
-- [ ] T040 Manually verify member/admin authorization-negative behavior and capability freshness
+- [x] T040 Manually verify member/admin authorization-negative behavior and capability freshness
   end-to-end in a running `npm run dev` session (beyond T030's function-level test): sign in as
   each T028 fixture and confirm the correct nav/action visibility; toggle `can_sell` in the
   database and confirm the change without sign-out, per quickstart.md Story 2.
@@ -779,15 +785,18 @@ out the platform foundation only.
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — Medium
   - Why: Judgment-based end-to-end confirmation that the automated test's assumptions hold in a
     real running app, not just in isolation.
+  - Scope note: Feature 001 intentionally has no product navigation/business actions. Its closure
+    verification may use a temporary server-rendered probe of the same fresh identity/capability
+    gates, which must be removed afterward; it must not create speculative business UI.
 
-- [ ] T041 Verify Server Action rejection paths manually (e.g., replaying the action request
+- [x] T041 Verify Server Action rejection paths manually (e.g., replaying the action request
   without cookies via browser dev tools or a direct `fetch`), per quickstart.md Story 3.
   - Requirements: FR-013
   - Verify: the replayed request is rejected with a safe error, no profile change occurs
   - Codex: GPT-5.6 Sol — Low · Claude: Sonnet — Low
   - Why: Mechanical manual replay against an already-tested contract.
 
-- [ ] T042 Verify the cache proof manually: load `/foundation-status` twice, trigger the T022
+- [x] T042 Verify the cache proof manually: load `/foundation-status` twice, trigger the T022
   revalidation action, confirm the value changes, per quickstart.md Story 4.
   - Requirements: SC-005, SC-006
   - Verify: the second load before revalidation renders an identical token/timestamp; the load
@@ -795,7 +804,7 @@ out the platform foundation only.
   - Codex: GPT-5.6 Sol — Low · Claude: Sonnet — Low
   - Why: Mechanical manual check with a clear expected before/after signal.
 
-- [ ] T043 Verify RTL and `prefers-reduced-motion` behavior on the T026 proof surface, per
+- [x] T043 Verify RTL and `prefers-reduced-motion` behavior on the T026 proof surface, per
   quickstart.md Story 5.
   - Requirements: SC-010
   - Verify: forcing `dir="rtl"` and a long placeholder string shows no layout breakage; enabling
@@ -803,7 +812,7 @@ out the platform foundation only.
   - Codex: GPT-5.6 Sol — Low · Claude: Sonnet — Low
   - Why: Mechanical manual check against an already-built, explicit surface.
 
-- [ ] T044 Grep-verify zero Redis/Upstash references anywhere in the repository (dependencies,
+- [x] T044 Grep-verify zero Redis/Upstash references anywhere in the repository (dependencies,
   imports, environment variables, documentation added by this feature).
   - Requirements: FR-014, SC-009
   - Verify: `grep -rniE "redis|upstash" package.json src components lib scripts` (excluding
@@ -812,7 +821,7 @@ out the platform foundation only.
   - Codex: GPT-5.6 Sol — Low · Claude: Sonnet — Low
   - Why: Mechanical grep-based structural check.
 
-- [ ] T044a Log-safety and error-exposure audit: review every logging call and error path introduced
+- [x] T044a Log-safety and error-exposure audit: review every logging call and error path introduced
   by this feature and confirm no secret, credential, session material, or raw database error can
   reach application logs or a client response. This is an audit of existing code — do **not** add
   logging infrastructure, a logger library, or a redaction layer to satisfy it.
@@ -829,7 +838,7 @@ out the platform foundation only.
   - Why: Security-critical audit spanning every log and error path in the feature; a single leaked
     token or raw database error violates a Constitution MUST and is invisible in normal testing.
 
-- [ ] T045 Verify locked root files remain at their original paths: `git log --follow` or `git
+- [x] T045 Verify locked root files remain at their original paths: `git log --follow` or `git
   status` confirms `src/app/page.tsx`, `src/app/layout.tsx`, `src/app/globals.css` were modified
   in-place (T009, T024 only), never moved, renamed, or wrapped in a new route group. Additionally
   confirm `components/ui/` is unmodified and no empty/speculative component directory was created.
@@ -841,7 +850,7 @@ out the platform foundation only.
   - Why: Mechanical structural git check covering both the root-file lock and the component
     organization rule.
 
-- [ ] T046 Review the complete `git diff` for this feature against `main` for anything outside its
+- [x] T046 Review the complete `git diff` for this feature against `main` for anything outside its
   declared scope (no database migration files, no marketplace/checkout/payment/KYB business
   screens, no `/buyer-dashboard`/`/seller-dashboard`).
   - Requirements: spec §R (Out of Scope)
@@ -850,7 +859,7 @@ out the platform foundation only.
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — Medium
   - Why: Requires judgment to recognize scope creep, not just a mechanical file-count check.
 
-- [ ] T047 Confirm T033/T034's documentation is both **discoverable** and **followable**: a
+- [x] T047 Confirm T033/T034's documentation is both **discoverable** and **followable**: a
   contributor with no prior context can use it to add one protected route and one Server Action
   correctly on the first attempt.
   - Requirements: FR-031, FR-032, SC-007
@@ -867,7 +876,7 @@ out the platform foundation only.
   - Why: SC-007's real criterion is followability, not just link reachability; judging whether a
     walkthrough is genuinely sufficient for a cold contributor requires reading it as one.
 
-- [ ] T048 Final Constitution compliance re-check: re-walk plan.md's Constitution Check table
+- [x] T048 Final Constitution compliance re-check: re-walk plan.md's Constitution Check table
   (source priority, DB authority, locked root files, `/dashboard`/`/dashboard-admin` separation,
   Buyer/Seller additive model, server/DB-side authorization, Postgres transactional authority, no
   external cache, design-system fidelity, security/secrets handling, Spec Kit lifecycle,
@@ -879,7 +888,7 @@ out the platform foundation only.
   - Why: A holistic, cross-cutting compliance judgment across the whole feature — appropriate for
     higher reasoning, but a confirmation pass rather than novel architecture, hence Medium not High.
 
-- [ ] T049 Record closure explicitly: this completes 001-platform-foundation only. It does **not**
+- [x] T049 Record closure explicitly: this completes 001-platform-foundation only. It does **not**
   authorize production trading (Constitution §48/Principle "Production Readiness") — legal, KYB
   policy, agreements, warehouse reconciliation, finance/tax, market-data licensing, security
   review, backup/restore validation, and end-to-end acceptance testing remain outstanding gates for
