@@ -239,12 +239,57 @@
   - Codex: GPT-5.6 Sol — High · Claude: Opus — High
   - Why: this surface grants operational power to people — the highest-privilege action in the system.
 
-- [ ] T028 [P] [PS8] Implement commission tier, tax rule and shipping rule configuration
-  (SUPER_ADMIN only), with clear indication that changes affect future snapshots only.
+- [ ] T028 [P] [PS8] Implement tax rule and shipping rule configuration (SUPER_ADMIN only), with
+  clear indication that changes affect future snapshots only. *(Commission configuration is T042 —
+  split out because it carries its own immutability and coverage semantics.)*
   - Req: FR-002, PS8 | Depends: T004
   - Verify: ADMIN refused; existing order snapshots are unaffected by later configuration changes
   - Codex: GPT-5.6 Sol — High · Claude: Opus — Medium
   - Why: misunderstanding snapshot semantics here could retroactively distort commercial records.
+
+- [ ] T042 [PS8] Implement **commission configuration** inside the existing `/dashboard-admin`
+  surface, managing the existing `commission_policies` and `commission_tiers` tables — no parallel
+  or shadow commission tables, no schema change. Behavioural reference:
+  `docs/database/commission-capability.md`.
+  **Scope**: list policies with `name`, `status` (`DRAFT`/`ACTIVE`/`ARCHIVED`), `effective_from`,
+  `effective_until`; create and manage policies within the approved schema; add/edit a policy's
+  tiers (`min_quantity_kg`, `max_quantity_kg`, `percentage`); activate/deactivate by moving `status`
+  between the CHECK-approved values only.
+  **Semantics the UI must convey**: tier selection is by **total order quantity**, minimum
+  inclusive, maximum exclusive, and `max_quantity_kg = NULL` means an open-ended top band; the
+  selected percentage applies to the whole applicable base (not progressive banding); overlapping
+  ACTIVE policies resolve to the latest `effective_from`.
+  - Req: FR-002, PS8 | Depends: T004
+  - Verify: `ADMIN` (non-super) is refused in the application **and** by RLS; `SUPER_ADMIN` succeeds; the screens read/write only `commission_policies`/`commission_tiers`; `grep -rn "commission" src/app/dashboard src/app/\(public\)` shows no member or public commission surface
+  - Codex: GPT-5.6 Sol — High · Claude: Opus — High
+  - Why: a configuration screen that silently mis-states tier semantics would cause every future order to be priced on a rate the operator did not intend.
+
+- [ ] T043 [PS8] Enforce the commission authorization boundary in the application layer as well as
+  RLS: every commission read/mutation path verifies `is_super_admin()` server-side before calling
+  the database, and the existing `commission_admin` / `tiers_admin` RLS policies are left unchanged.
+  - Req: FR-001, FR-002, SEC-003 | Depends: T042
+  - Verify: an `ADMIN`, `COMPLIANCE`, `WAREHOUSE`, `FINANCE`, `AUDITOR` and plain member fixture are each refused — by direct URL and by direct action invocation; no migration or policy edit appears in the diff
+  - Codex: GPT-5.6 Sol — High · Claude: Opus — High
+  - Why: defence in depth on the highest-privilege commercial configuration in the platform; RLS alone is the backstop, not the only gate.
+
+- [ ] T044 [PS8] Make historical immutability explicit in the commission UI: state that **"Changes
+  apply to eligible future checkouts only"** at the point of change, and provide **no** normal
+  action — button, bulk operation, or menu item — that recalculates, restates or re-snapshots
+  historical orders, commission amounts, seller net amounts or payouts.
+  - Req: FR-002, PS8 | Depends: T042
+  - Verify: the copy is present on both policy and tier mutations; `grep -rniE "recalculat|re-?snapshot|restate|backfill" src/app/dashboard-admin` returns nothing that acts on historical financial records; changing a policy after an order's checkout leaves that order's `order_financials` unchanged (cross-checked with 008's T032)
+  - Codex: GPT-5.6 Sol — Medium · Claude: Opus — High
+  - Why: the one place a well-meaning "fix historical commissions" feature would plausibly be added — its absence must be deliberate and visible.
+
+- [ ] T045 [PS8] Surface tier **coverage gaps** to the operator: show, for a policy, which quantity
+  ranges have no covering band, because an uncovered total quantity currently yields a **0%**
+  commission at checkout rather than an error (`COMMISSION-OPEN-01`). Present this as an
+  operational warning; do **not** implement either resolution option — the fallback decision is
+  Business/Finance's, owned by Feature 008.
+  - Req: FR-002, PS8, spec Open items | Depends: T042
+  - Verify: a policy with bands `0–100` and `250–NULL` visibly warns about the uncovered `100–250` range; the UI neither blocks checkout nor silently "fixes" the gap; `COMMISSION-OPEN-01` is cited in the surface or its handoff notes
+  - Codex: GPT-5.6 Sol — Medium · Claude: Opus — Medium
+  - Why: makes a silent revenue-affecting misconfiguration visible without pre-empting an open business decision.
 
 - [ ] T029 [P] [PS8] Implement payment-account configuration (`is_platform_admin()`), flagged as a
   high-risk action pending the OPS-01 dual-control decision.
@@ -356,7 +401,16 @@
 - Phase 1 blocks everything.
 - Phases 3–9 are largely parallel by area once Phase 1 lands (different route groups, different
   domain layers) — the natural multi-agent split for this feature.
+- Phase 9's commission set (T042 → T043/T044/T045) is sequential within itself: T043–T045 all extend
+  the surface T042 creates, so none is `[P]`.
 - Phase 10's tests: T031–T035 parallel; T030 must follow the areas it iterates.
 - Phase 12 depends on everything.
 
-**Parallel-safe tasks**: T012, T015, T022, T024, T028, T029, T031, T032, T033, T034 (10 of 41).
+**Parallel-safe tasks**: T012, T015, T022, T024, T028, T029, T031, T032, T033, T034 (10 of 45).
+
+**Commission ownership note**: this feature owns the **Admin management UI** for the existing
+`commission_policies`/`commission_tiers` tables inside the existing `/dashboard-admin` surface
+(Phase 9, SUPER_ADMIN only). It does **not** own commission calculation — that is implemented in the
+database (`docs/database/commission-capability.md`) — and it does **not** own the financial workflow
+or payout presentation, which is Feature 008. The `COMMISSION-OPEN-01` fallback decision belongs to
+Business/Finance via Feature 008 and must not be pre-empted by a UI behaviour here.

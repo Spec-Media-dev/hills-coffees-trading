@@ -206,6 +206,16 @@ succeeds.
 2. Given a `SUPER_ADMIN`, when they make such a change, then it succeeds and is audited.
 3. Given any bank/payment-account change, when made, then it is treated as a high-risk action and
    recorded (see Open items on dual control).
+4. Given a `SUPER_ADMIN` managing commission, when they view the area, then they can see existing
+   `commission_policies` (name, status, `effective_from`, `effective_until`) with each policy's
+   `commission_tiers` (`min_quantity_kg`, `max_quantity_kg`, `percentage`), and may create/manage
+   policies and add/edit tiers within the approved schema.
+5. Given any commission policy or tier change, when it is saved, then the interface states
+   explicitly that **changes apply to eligible future checkouts only**, and offers **no** action to
+   recalculate or restate historical orders, commission amounts, seller net amounts or payouts.
+6. Given a tier configuration that leaves a quantity gap or no covering band, when it is saved, then
+   the interface surfaces the gap to the operator, because an uncovered quantity currently results
+   in a 0% commission at checkout (`COMMISSION-OPEN-01`) rather than an error.
 
 ## Functional Requirements
 

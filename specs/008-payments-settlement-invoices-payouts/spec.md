@@ -205,6 +205,22 @@ A seller sees payout status progression (`PENDING_PAYOUT` → `PROCESSING` → `
 - **FR-015**: Screens MUST provide loading, empty, error, unauthorized, suspended, expired, pending,
   rejected and settled states.
 - **FR-016**: Copy externalised; layouts RTL-safe; money always with currency; codes monospaced.
+- **FR-017**: **Commission is read from the checkout snapshot, never recalculated.** Every displayed
+  or derived commission value MUST come from `order_financials`
+  (`commission_policy_id`, `commission_percentage_snapshot`, `commission_amount`,
+  `seller_net_amount`, `total_quantity_kg`). This feature MUST NOT read
+  `commission_policies`/`commission_tiers` to compute, re-derive, or "verify" a historical order's
+  commission, and MUST NOT expose any action that recalculates a historical order.
+  Behavioural reference: `docs/database/commission-capability.md`.
+- **FR-018**: **Historical commission immutability MUST hold across configuration changes.** A later
+  commission policy/tier edit (by SUPER_ADMIN via 010) MUST affect only eligible future checkouts;
+  it MUST NOT change previous `order_financials`, historical commission amounts, previous seller net
+  amounts, or existing `payouts`. This feature's reads and tests MUST demonstrate that property
+  rather than assume it.
+- **FR-019**: Seller payout amounts MUST be understood and presented as derived by
+  `admin_review_payment()` from `commission_percentage_snapshot` (line base − line commission,
+  accumulated per `(order_id, seller_organization_id)`), with `HILLS`-sourced lines producing no
+  payout. The application MUST NOT compute an alternative payout figure for display.
 
 ## Security Requirements
 
@@ -250,12 +266,24 @@ A seller sees payout status progression (`PENDING_PAYOUT` → `PROCESSING` → `
 - **SC-006**: No payment/settlement/payout data is readable across organizations.
 - **SC-007**: No raw database exception text reaches a client.
 - **SC-008**: No payment file bytes are stored anywhere until an approved Storage bucket exists.
+- **SC-009**: Commission tier selection is proven correct at band boundaries (inclusive minimum,
+  exclusive maximum) and for an open-ended top band, using the total order quantity — never
+  progressive/marginal banding.
+- **SC-010**: After a commission policy/tier change made *after* an order's checkout, that order's
+  `order_financials` snapshot, commission amount, seller net amount and payout are byte-for-byte
+  unchanged, verified by an automated test.
 
 ## Assumptions
 
 - MVP settlement is **manual confirmation by a finance operator** (SRS §12, §16) — no gateway.
 - `payment_accounts` is populated by administrators (010); this feature only reads it.
 - Commission and tax were snapshotted at checkout by `checkout_order()`; this feature displays them.
+  The commission capability is **implemented in the database** and fully described in
+  `docs/database/commission-capability.md`: tier selection is by **total order quantity**
+  (inclusive minimum, exclusive maximum, NULL maximum = open-ended), against an `ACTIVE` policy
+  whose effective period contains the checkout time; the commission base is `base_subtotal`
+  (shipping and VAT excluded); and `admin_review_payment()` derives member-seller payouts from the
+  snapshotted percentage without re-reading current tiers.
 - Payout execution (actually moving money) happens off-platform; the platform tracks status.
 
 ## Open items / blockers
@@ -271,6 +299,16 @@ A seller sees payout status progression (`PENDING_PAYOUT` → `PROCESSING` → `
   control is required for settlement needs a business decision before 010 builds the console.
 - **Payout execution evidence**: `payouts.payment_reference` exists, but who sets it and with what
   evidence is an operational decision for finance.
+- **COMMISSION-OPEN-01 (Business/Finance decision — owned here, blocks production trading, not
+  implementation)**: `checkout_order()` initialises the commission rate to zero and coalesces to
+  zero when no ACTIVE, in-force policy has a tier band covering the order's total quantity, so the
+  current effective fallback may be **0%** — checkout succeeds and the member seller is paid the
+  full base. The schema does not enforce gapless tier coverage, so a configuration gap produces this
+  silently. For MEMBER_SELLER checkout the business must decide: **(A)** explicitly allow 0%
+  commission when no tier matches, or **(B)** fail closed with a commission-configuration error.
+  **This feature does not choose, and no database change is proposed.** Option (B) would require the
+  Constitution's database-change process. Recorded in
+  `docs/architecture/DATABASE-CAPABILITY-MAP.md` §9 and `docs/database/commission-capability.md` §8.
 
 ## Dependencies
 

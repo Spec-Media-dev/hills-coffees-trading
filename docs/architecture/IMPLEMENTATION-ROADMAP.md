@@ -5,11 +5,14 @@
 `docs/requirements/Hills-Coffee-SRS-v1.md` → `docs/database/` →
 `docs/design-guidance/Hills-Coffee-Website-Recommendations.md` → `docs/claude-design/` → code.
 
-> **No application implementation has started.** Every feature below is at planning stage. Task
-> checkboxes in each `tasks.md` reflect real implementation state and are all unchecked.
+> **Feature 001 (Platform Foundation) is IMPLEMENTED and VERIFIED** — all 50 of its tasks are
+> checked, and every phase carries a COMPLETE — VERIFIED status recorded against executed
+> verification (including live-browser and real-Supabase proofs). **Features 002–012 remain at
+> planning stage**, with every task checkbox unchecked.
 
 This document is the index a new agent reads first. For *what the database can already do*, read
-`docs/architecture/DATABASE-CAPABILITY-MAP.md` — including its list of recorded blockers.
+`docs/architecture/DATABASE-CAPABILITY-MAP.md` — including its list of recorded blockers and the
+commission capability (§8), which is already implemented in the database.
 
 ---
 
@@ -17,8 +20,8 @@ This document is the index a new agent reads first. For *what the database can a
 
 | # | Feature | Surface | Status | Artefacts |
 |---|---|---|---|---|
-| 001 | Platform Foundation | All three (foundation) | Constitution ✅ · Specify ✅ · Clarify ✅ · Plan ✅ · Tasks ✅ · **Analyze PENDING** · Implement NOT STARTED · Converge PENDING | [spec](../../specs/001-platform-foundation/spec.md) · [plan](../../specs/001-platform-foundation/plan.md) · [tasks](../../specs/001-platform-foundation/tasks.md) · research · data-model · contracts · quickstart |
-| 002 | Public Website | Public `/` | Planning prepared · Implement NOT STARTED | [spec](../../specs/002-public-website/spec.md) · [plan](../../specs/002-public-website/plan.md) · [tasks](../../specs/002-public-website/tasks.md) |
+| 001 | Platform Foundation | All three (foundation) | Constitution ✅ · Specify ✅ · Clarify ✅ · Plan ✅ · Tasks ✅ · Analyze ✅ · **Implement ✅ — IMPLEMENTED / VERIFIED (50/50 tasks)** | [spec](../../specs/001-platform-foundation/spec.md) · [plan](../../specs/001-platform-foundation/plan.md) · [tasks](../../specs/001-platform-foundation/tasks.md) · research · data-model · contracts · quickstart · AGENT-HANDOFF |
+| 002 | Public Website | Public `/` | Planning **re-synchronised** (59 tasks / 13 phases / 6 contracts) · Analyze PENDING (re-run) · Implement NOT STARTED | [spec](../../specs/002-public-website/spec.md) · [plan](../../specs/002-public-website/plan.md) · [tasks](../../specs/002-public-website/tasks.md) · [contracts](../../specs/002-public-website/contracts/) |
 | 003 | Auth, Membership & KYB | Public auth routes + `/dashboard` | Planning prepared · Implement NOT STARTED | [spec](../../specs/003-auth-membership-kyb/spec.md) · [plan](../../specs/003-auth-membership-kyb/plan.md) · [tasks](../../specs/003-auth-membership-kyb/tasks.md) |
 | 004 | Member Dashboard | `/dashboard` | Planning prepared · Implement NOT STARTED | [spec](../../specs/004-member-dashboard/spec.md) · [plan](../../specs/004-member-dashboard/plan.md) · [tasks](../../specs/004-member-dashboard/tasks.md) |
 | 005 | Inventory, Custody & Storage | `/dashboard` + shared layer | Planning prepared · Implement NOT STARTED | [spec](../../specs/005-inventory-custody-storage/spec.md) · [plan](../../specs/005-inventory-custody-storage/plan.md) · [tasks](../../specs/005-inventory-custody-storage/tasks.md) |
@@ -34,6 +37,13 @@ This document is the index a new agent reads first. For *what the database can a
 implementation) → Implement → Converge. For 002–012, Analyze is pending and should be run
 immediately before that feature's implementation begins, not now.
 
+**Feature 002 status note**: 002's planning artefacts were re-synchronised on 2026-09-08 after an
+Analyze pass returned NOT READY. The corrections covered the cache API (now `unstable_cache` +
+`revalidateTag`, matching what 001 actually implemented), a shared `PublicShell` for the locked root
+homepage, an explicit public DTO allowlist, honest RFQ/price/lifecycle/media boundaries, real-browser
+verification, trailing-slash canonicalisation, and corrected task dependencies. **002 must be
+re-analyzed before implementation.**
+
 ---
 
 ## 2. Purpose and ownership at a glance
@@ -41,13 +51,13 @@ immediately before that feature's implementation begins, not now.
 | # | Owns | Explicitly does **not** own |
 |---|---|---|
 | 001 | Route/layout foundation, identity & authorization resolution, Supabase client boundary, Server Action contract, cache policy, state components, i18n/RTL base, test tooling & fixtures | Any business feature |
-| 002 | Public discovery, SEO, RFQ entry, membership entry, public reference-price presentation | Any private data; price semantics (011); catalogue authoring (010) |
+| 002 | Public discovery, SEO, public shell, RFQ entry (to the validation boundary), membership entry points, reference-price presentation *shell* | Any private data; price semantics (011); catalogue authoring (010); **commission of any kind** (database + 008 + 010); knowledge/legal content (CONTENT-01) |
 | 003 | Authentication, membership application, organization context, KYB submission/status, agreements | Compliance review decisions (010); trading (005–009) |
 | 004 | Member portal shell, navigation, overview, module registration contract | Any module's business logic |
 | 005 | Inventory positions, custody, storage allocations, ownership ledger, availability facts | Any inventory mutation (007/008/010) |
 | 006 | Private marketplace, listing lifecycle, seller eligibility, fill presentation | Reservations (007); settlement (008); review decisions (010) |
 | 007 | Draft orders, checkout via `checkout_order()`, 20-minute hold, expiry, buyer shipment request | Title transfer (008); fulfilment states (009) |
-| 008 | Payment instructions/proof, finance decision layer, settlement outcomes, invoices, payouts | Settlement logic itself (database); console screens (010) |
+| 008 | Payment instructions/proof, finance decision layer, settlement outcomes, invoices, payouts, **commission snapshot presentation + immutability verification**, and the COMMISSION-OPEN-01 decision | Settlement logic itself (database); commission *calculation* (database); commission *configuration UI* (010); console screens (010) |
 | 009 | Delivery request, warehouse fulfilment layer, delivered quantity, tracking | Console screens (010); inventory reservation (blocked, DB-BLOCK-07) |
 | 010 | Role-separated operations console composing 003/005/006/008/009/012 layers; catalogue; system config | Transactional logic (delegated); schema changes |
 | 011 | The four price types, reference data, disclosure/staleness/licence rules | Executable pricing (006/007); ingestion; FX (blocked) |
@@ -207,10 +217,26 @@ business decision.
 | DB-OPEN-08 | No FX/conversion storage | 011, 002 | **AC-06** conversions |
 | DB-OPEN-09 | Dispute freeze has no mechanism; compliance cannot set an order `DISPUTED` | 010, 012 | MKT-07 |
 
+### Feature-level blockers recorded during 002's planning sync
+
+These are surfaced in `specs/002-public-website/spec.md` and constrain sub-flows only — none blocks
+Feature 002 as a whole.
+
+| ID | Summary | Severity | Blocks | Owner |
+|---|---|---|---|---|
+| CRM-DEST-01 | No approved CRM/email destination for RFQ hand-off | PRE-PRODUCTION BLOCKER | RFQ delivery to the business | Business (SRS §18 register) |
+| CONTENT-01 | No approved content source for knowledge/editorial/legal (no CMS/article/legal table exists; SRS assigns authoring to the Catalogue/CMS admin area) | BLOCKS SUB-FLOW | `/knowledge/*`, `/legal/*` | 010 / Content-Legal |
+| LIFE-01 | No alias/redirect/tombstone capability — renamed, withdrawn and never-existed are indistinguishable | BLOCKS SUB-FLOW | 301/308/410 lifecycle (200/404 is implementable) | DB capability decision |
+| ABUSE-01 | No durable multi-instance abuse protection (no Redis/Upstash approved) | PRE-PRODUCTION BLOCKER | production-grade abuse defence | Infrastructure decision |
+| MEDIA-01 | No Storage bucket / public file-delivery path (extends DB-BLOCK-01) | BLOCKS SUB-FLOW | real public imagery/documents | DB capability decision |
+| PRICE-011 | Feature 011 unimplemented; conversions also blocked by DB-OPEN-08 | BLOCKS SUB-FLOW | numeric reference pricing | 011 |
+
 **Business decisions still outstanding** (SRS §18 Sprint 0 register): RFQ/CRM destination; refund and
 chargeback model; OPS-01 dual control for high-risk actions; member MFA enforcement policy; KYB
 screening provider/policy; market-data licensing; hold-expiry and price-ingestion scheduling
-infrastructure; Hills commercial quote entity.
+infrastructure; Hills commercial quote entity; **COMMISSION-OPEN-01** — whether a MEMBER_SELLER
+checkout with no matching commission tier should explicitly allow 0% commission or fail closed
+(owned by Feature 008 / Business-Finance; see `docs/database/commission-capability.md` §8).
 
 ---
 
@@ -227,9 +253,14 @@ implementation quality.
 ## 7. How to continue (for an agent with no prior context)
 
 1. Read `.specify/memory/constitution.md` (v2.0.0) — the locked rules.
-2. Read this roadmap and `docs/architecture/DATABASE-CAPABILITY-MAP.md`.
-3. Pick the next feature per §3's dependency graph.
-4. Read that feature's `spec.md` → `plan.md` → `tasks.md`.
-5. Run `/speckit-analyze` for that feature (its preflight is pending).
-6. Implement tasks in phase order, honouring every "standing rule" in its tasks.md.
-7. Never resolve a recorded blocker with a workaround; escalate it instead.
+2. Read this roadmap and `docs/architecture/DATABASE-CAPABILITY-MAP.md` (including §8 commission and
+   §9 blockers).
+3. Read `specs/001-platform-foundation/AGENT-HANDOFF.md` — 001 is **built**, so its patterns
+   (route guards, DAL, Server Action contract, `unstable_cache` + `revalidateTag`, `StateScreen`,
+   test fixtures) are working code to copy, not proposals.
+4. Pick the next feature per §3's dependency graph.
+5. Read that feature's `spec.md` → `plan.md` → `tasks.md` → `contracts/`.
+6. Run `/speckit-analyze` for that feature (its preflight is pending; **002 requires a re-run**
+   after its 2026-09-08 planning sync).
+7. Implement tasks in phase order, honouring every "standing rule" in its tasks.md.
+8. Never resolve a recorded blocker with a workaround; escalate it instead.

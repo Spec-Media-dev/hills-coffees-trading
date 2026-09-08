@@ -34,6 +34,24 @@ refusal, cross-organization isolation.
 | Proforma / tax invoice | `proforma_invoices`, `proforma_invoice_items`, `tax_invoices` via `can_view_order` | tax invoice writes are finance-only |
 | Payouts | `payouts` SELECT (own seller org or admin); ALL for finance | created by `admin_review_payment` |
 | Bank details | `payment_accounts` (admin-only ALL) | read-only here; never member-writable |
+| Commission (per order) | `order_financials.commission_policy_id` / `commission_percentage_snapshot` / `commission_amount` / `seller_net_amount` / `total_quantity_kg` | **Snapshot only.** Written by `checkout_order()`; read by `admin_review_payment()` for payouts. This feature never reads `commission_policies`/`commission_tiers` |
+
+**Commission capability** — implemented in the database, fully described in
+[`docs/database/commission-capability.md`](../../docs/database/commission-capability.md). The three
+properties this feature must preserve and prove:
+
+1. **Total-quantity tiering** — one band is chosen from the order's *total* quantity (inclusive
+   minimum, exclusive maximum, NULL maximum = open-ended) and its percentage applies to the whole
+   base subtotal. It is **not** progressive/marginal banding, and the base excludes shipping and VAT.
+2. **Snapshot at checkout** — policy id, percentage, commission amount, seller net and total
+   quantity are frozen into `order_financials` at checkout time.
+3. **Historical immutability** — settlement and payouts read that snapshot; a later SUPER_ADMIN
+   policy/tier edit (Feature 010) affects eligible *future* checkouts only and must never
+   recalculate previous orders or existing payouts. No recalculation action may exist in this
+   feature.
+
+`COMMISSION-OPEN-01` (0% fallback when no tier matches) is a Business/Finance decision owned by this
+feature — see spec.md Open items. It is not resolved here and no database change is proposed.
 
 ## Constitution Check
 

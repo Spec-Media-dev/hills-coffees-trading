@@ -33,7 +33,28 @@ no-hard-delete verification.
 | Finance | `is_finance_operator()` | `admin_review_payment()` **via 008's layer**, `payouts` ALL, `tax_invoices` ALL |
 | Catalogue | `is_platform_admin()` | `coffees`, `coffee_lots`, `origins`, `regions`, taxonomy, `warehouses`, media, price tables |
 | Audit | `is_auditor()` | read-only (see DB-OPEN-06 for `audit_logs`) |
-| System | `is_super_admin()` | `platform_admins`, `commission_tiers`, `tax_rules`, `shipping_rules`; `payment_accounts` is `is_platform_admin()` |
+| System | `is_super_admin()` | `platform_admins`, **`commission_policies` + `commission_tiers`**, `tax_rules`, `shipping_rules`; `payment_accounts` is `is_platform_admin()` |
+
+**Commission configuration (Phase 9, T042–T045)** — this console owns the **Admin management UI**
+only. The commission capability itself is already implemented in the database; the behavioural
+reference is
+[`docs/database/commission-capability.md`](../../docs/database/commission-capability.md).
+
+- Manages the **existing** `commission_policies` (`name`, `status` ∈ `DRAFT`/`ACTIVE`/`ARCHIVED`,
+  `effective_from`, `effective_until`) and `commission_tiers` (`min_quantity_kg`,
+  `max_quantity_kg`, `percentage`) tables. **No parallel commission tables, no schema change.**
+- Both tables are `is_super_admin()`-only under RLS (`commission_admin`, `tiers_admin`, USING and
+  WITH CHECK). The console verifies `is_super_admin()` **server-side as well**; the existing RLS is
+  the backstop and must not be weakened to make a screen convenient.
+- Tier semantics the UI must communicate: selection is by **total order quantity**, minimum
+  inclusive, maximum exclusive, `NULL` maximum = open-ended top band; the chosen percentage applies
+  to the whole applicable base (**not** progressive/marginal banding).
+- **Historical immutability**: every change states "Changes apply to eligible future checkouts
+  only", and the console exposes **no** action that recalculates or restates historical orders,
+  commission amounts, seller net amounts or payouts.
+- Tier **coverage gaps** are surfaced as an operational warning, because an uncovered quantity
+  currently yields 0% commission at checkout (`COMMISSION-OPEN-01`). That fallback decision belongs
+  to Business/Finance via Feature 008 and is **not** resolved by this console.
 
 ## Constitution Check
 

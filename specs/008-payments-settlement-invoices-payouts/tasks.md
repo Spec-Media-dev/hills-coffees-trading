@@ -54,6 +54,16 @@ AC-03.
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — Medium
   - Why: inventing bank details would be a serious commercial hazard; the guard is simple but essential.
 
+- [ ] T029 Add the commission snapshot to the finance DTO and read layer, sourced **only** from
+  `order_financials` (`commission_policy_id`, `commission_percentage_snapshot`, `commission_amount`,
+  `seller_net_amount`, `total_quantity_kg`). No module in `lib/finance/` may query
+  `commission_policies` or `commission_tiers`. Behavioural reference:
+  `docs/database/commission-capability.md`.
+  - Req: FR-004, FR-017, FR-018, SC-005 | Depends: T001, T003
+  - Verify: `grep -rn "commission_policies\|commission_tiers" lib src` returns nothing; every commission field in the DTO maps 1:1 to an `order_financials` column; no arithmetic derives a commission percentage or amount
+  - Codex: GPT-5.6 Sol — High · Claude: Opus — High
+  - Why: the single structural guarantee behind historical commission immutability — one stray join to the live tier tables silently reintroduces retroactive recalculation.
+
 ---
 
 ## Phase 2 — Payment proof path
@@ -131,6 +141,15 @@ AC-03.
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — High
   - Why: seller money data with a strict ownership boundary.
 
+- [ ] T030 [PS4][PS6] Present the commission snapshot on the seller-facing settlement/payout surface:
+  the percentage that applied, the commission amount, the seller net amount and the quantity the
+  tier decision was based on — each labelled as the value snapshotted **at checkout**, with copy
+  making clear that later configuration changes do not alter it.
+  - Req: FR-017, FR-018, FR-019, PS4, PS6 | Depends: T029, T013
+  - Verify: figures equal `order_financials` exactly; the surface offers no recalculate/refresh action; a `HILLS`-sourced order shows no payout and no member-seller commission attribution
+  - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — High
+  - Why: this is where a seller reads what Hills deducted — wrong or ambiguous framing here is a commercial dispute waiting to happen.
+
 - [ ] T014 [PS5] Implement `src/app/dashboard/documents/page.tsx` — proformas and tax invoices for
   orders the member may view.
   - Req: FR-008, PS5 | Depends: T003
@@ -197,6 +216,45 @@ AC-03.
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — High
   - Why: two focused suites over explicit contracts.
 
+- [ ] T031 Write `tests/finance/commission-tier-selection.test.ts` — prove the database's
+  **total-quantity** tier semantics against seeded policies/tiers (planning-time definition only;
+  implement in this feature's test phase, not before).
+  Cases **A–C**:
+  **(A) Boundary quantities** — with bands `0–100`, `100–250`, `250–NULL`: `0`, `99.999`, **`100`**,
+  `249.999`, **`250`** each select the expected band, proving inclusive minimum / exclusive maximum.
+  **(B) Open-ended maximum** — a very large quantity selects the `max_quantity_kg IS NULL` band.
+  **(C) Effective dates** — a policy not yet in force (`effective_from > now()`), an expired policy
+  (`effective_until <= now()`), and a non-`ACTIVE` policy are each ignored; where two ACTIVE
+  policies overlap, the later `effective_from` wins.
+  Also assert the selected percentage is applied to the **whole** base (not progressive/marginal
+  banding), and that the commission base excludes shipping and VAT.
+  - Req: FR-017, SC-009 | Depends: T029, 007's checkout layer
+  - Verify: `npm test -- finance/commission-tier-selection` passes for every case; a deliberately progressive/marginal expectation fails the suite
+  - Codex: GPT-5.6 Sol — High · Claude: Opus — High
+  - Why: boundary-condition correctness on money; an off-by-one at a band edge misprices every order at that quantity.
+
+- [ ] T032 Write `tests/finance/commission-immutability.test.ts` — prove commission history cannot be
+  retroactively changed. Cases **D–F**:
+  **(D)** Check out an order, then change the commission policy/tier (new percentage, archive the
+  policy, and edit the tier) — the order's `order_financials` row is unchanged in every commission
+  field.
+  **(E)** Settle that order and assert the payout was derived from
+  `commission_percentage_snapshot`, not from the now-current tier.
+  **(F)** Assert historical `order_financials` rows for previously settled orders remain unchanged
+  after the same configuration edits.
+  - Req: FR-018, FR-019, SC-010 | Depends: T029, T009
+  - Verify: `npm test -- finance/commission-immutability` passes; a snapshot mutated by a later configuration edit fails the suite
+  - Codex: GPT-5.6 Sol — High · Claude: Opus — High
+  - Why: the property that makes historical commercial records defensible; it must be executable, not asserted in prose.
+
+- [ ] T033 Extend the idempotency proof to payouts explicitly — case **G**: retried/concurrent
+  settlement of the same payment produces exactly **one** payout row per
+  `(order_id, seller_organization_id)` with the correct accumulated amount, never a doubled figure.
+  - Req: FR-006, FR-019, SC-003 | Depends: T018, T029
+  - Verify: `npm test -- finance/idempotency` includes payout-amount assertions under sequential and concurrent decisions; amounts are exact, not "at least"
+  - Codex: GPT-5.6 Sol — High · Claude: Opus — High
+  - Why: `payouts` upserts by accumulating, so a duplicate settlement path would silently overpay a seller — the failure mode is money leaving the business.
+
 ---
 
 ## Phase 7 — States, accessibility, RTL
@@ -256,12 +314,21 @@ AC-03.
 
 ## Dependencies & parallelisation
 
-- Phase 1 blocks everything; T004 is parallel to T002/T003.
+- Phase 1 blocks everything; T004 is parallel to T002/T003. T029 (commission snapshot in the DTO/read
+  layer) belongs to Phase 1 and gates the commission presentation and commission tests.
 - Phase 2 (proof) and Phase 3 (settlement) are independent of each other and can proceed in parallel
   once Phase 1 lands.
-- Phase 4 depends on Phase 3's outcomes existing.
+- Phase 4 depends on Phase 3's outcomes existing; T030 additionally depends on T029.
 - Phase 6: T020/T021 parallel; T016–T019 should each be reviewed individually (distinct invariants).
+  T031/T032/T033 are the commission verification set (cases A–G) and are deliberately **not**
+  parallel — each seeds and mutates commission configuration, so concurrent runs would interfere.
 - Phase 8 depends on everything.
 
-**Parallel-safe tasks**: T004, T008, T020, T021 (4 of 28) — deliberately low; this feature converges
-on two transactional call sites.
+**Parallel-safe tasks**: T004, T008, T020, T021 (4 of 33) — deliberately low; this feature converges
+on two transactional call sites and, for commission, on one shared configuration fixture.
+
+**Commission ownership note**: this feature *consumes and proves* the database's commission
+capability (`docs/database/commission-capability.md`). It never calculates commission, never reads
+`commission_policies`/`commission_tiers`, and never offers historical recalculation. Managing the
+policies and tiers themselves is Feature 010's Phase 9 (System configuration, SUPER_ADMIN).
+The `COMMISSION-OPEN-01` fallback decision is owned here, by Business/Finance.

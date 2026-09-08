@@ -82,14 +82,30 @@ Transitions are policed by triggers: `validate_order_transition`, `validate_offe
 
 ## 4. Publicly readable tables (RLS allows anonymous SELECT)
 
-`coffees` (status `PUBLISHED` only) · `coffee_media`/`coffee_translations`/`coffee_tags` (only for
-published coffees) · `origins` (`ACTIVE`) · `origin_translations` · `regions` · `coffee_types` ·
-`coffee_varieties` · `processing_methods` · `tags` · `warehouses` (`is_active`) · `price_sources`
-(`is_active` **and** `licence_status = 'APPROVED'`) · `price_observations` (only from such sources)
-· `price_differentials` (`is_active`).
+`coffees` (status `PUBLISHED` only) · `coffee_media`/`coffee_translations`/`coffee_tags`/
+**`coffee_certifications`** (only for published coffees) · `origins` (`ACTIVE`) ·
+`origin_translations` · `regions` · `coffee_types` · `coffee_varieties` · `processing_methods` ·
+**`packaging_types`** · `tags` · `warehouses` (`is_active`) · `price_sources` (`is_active` **and**
+`licence_status = 'APPROVED'`) · `price_observations` (only from such sources) ·
+`price_differentials` (`is_active`).
 
 Everything else requires authentication and, in most cases, organization membership or an
 operational role.
+
+**Two cautions for public surfaces** (both enforced by Feature 002's
+`contracts/public-dto-allowlist.md`):
+
+- **`warehouses` is anonymously readable but must not be published.** The row carries
+  `owner_organization_id`, `address`, `city` and `code` — owner identity and exact location, which
+  SEO-APP-02 forbids on a public surface. Being RLS-readable is not authorisation to render it.
+  Feature 002 does not query this table at all.
+- **Quality/grade data is NOT public.** `coffee_lots` (`crop_year`, `quality_grade`, `cup_score`)
+  requires `is_authorized_member()` — and its policy is additionally suspect (DB-OPEN-05). Public
+  coffee pages therefore cannot show grade, cup score or crop year; only the taxonomy
+  (type/variety/processing/packaging), origin, description, tags and certifications are available.
+- Every public table row still carries internal columns (`created_by`, `updated_by`,
+  `created_at`/`updated_at`). These are staff identity and internal bookkeeping: never place them in
+  a public DTO. Select explicit column allowlists rather than `select *`.
 
 ## 5. Member-visible private tables (organization-scoped)
 
@@ -137,7 +153,33 @@ operational role.
 
 ---
 
-## 8. Recorded BLOCKERS and OPEN ITEMS (do **not** resolve with a migration)
+## 8. Commission capability (configuration → checkout snapshot → settlement)
+
+**DATABASE COMMISSION CAPABILITY: IMPLEMENTED.**
+**FINANCIAL WORKFLOW CONSUMER: Feature 008.**
+**ADMIN MANAGEMENT UI: PLANNED — Feature 010** (not implemented; no commission admin screen exists).
+
+Full behavioural reference: **[`docs/database/commission-capability.md`](../database/commission-capability.md)**.
+Summary for planning:
+
+| Aspect | Verified behaviour |
+|---|---|
+| Objects | `commission_policies`, `commission_tiers`, `order_financials`, `payouts`, `checkout_order()`, `admin_review_payment()` |
+| Tier basis | **Total order quantity** (`sum(order_items.quantity_kg)`) — **not** progressive/marginal banding |
+| Band match | `min_quantity_kg <= total` (inclusive) AND (`max_quantity_kg IS NULL` OR `total < max_quantity_kg`) (exclusive); NULL max = open-ended |
+| Policy eligibility | `status = 'ACTIVE'` AND `effective_from <= now()` AND (`effective_until IS NULL` OR `effective_until > now()`); ties broken by latest `effective_from`, then highest matching `min_quantity_kg` |
+| Commission base | `order_financials.base_subtotal` (shipping and VAT are **not** in the base) |
+| Snapshot written at | **Checkout** (`checkout_order`) → `commission_policy_id`, `commission_percentage_snapshot`, `commission_amount`, `seller_net_amount`, `total_quantity_kg` |
+| Settlement/payout | `admin_review_payment` reads `commission_percentage_snapshot`; it **never** re-reads current tiers. Member-seller payouts = line base − line commission, upserted per `(order_id, seller_organization_id)` |
+| Mutation rights | `is_super_admin()` only, on both tables (USING and WITH CHECK). `ADMIN` is insufficient. No public/member read path |
+| Historical immutability | **Required.** A later policy/tier edit affects eligible FUTURE checkouts only, and must never recalculate previous `order_financials`, commission amounts, seller net amounts, or existing `payouts` |
+
+**Application rule**: commission is never recomputed in TypeScript, and a historical order's
+commission is always read from the `order_financials` snapshot — never derived from current tiers.
+
+---
+
+## 9. Recorded BLOCKERS and OPEN ITEMS (do **not** resolve with a migration)
 
 These are genuine gaps between SRS intent and the approved baseline, surfaced during 002–012
 planning. Each must be decided through the Constitution's database-change process (explicit
@@ -160,3 +202,12 @@ review → re-audit) before the dependent feature can be fully implemented.
 that feature's spec/tasks as depending on the blocker, and stop at the boundary. Do not invent a
 workaround (e.g. a second "shadow" table, a service-role bypass, or client-side-only state) that
 weakens the approved authorization model.
+
+### Business/Finance decisions recorded against an implemented capability
+
+These are **not** database defects and **not** implementation blockers for the features that merely
+display the data. They are commercial decisions that must be made before production trading.
+
+| ID | Finding | Evidence | Decision owner | Blocks |
+|---|---|---|---|---|
+| **COMMISSION-OPEN-01** | `checkout_order` initialises the commission rate to zero and coalesces to zero when no ACTIVE, in-force policy has a tier band covering the order's total quantity. The effective fallback is therefore **0% commission** — checkout succeeds, `commission_percentage_snapshot = 0`, and the member seller is paid the full base. The schema does not enforce gapless tier coverage, so a configuration gap produces this silently. **Question for MEMBER_SELLER checkout: (A)** explicitly allow 0% when no tier matches, or **(B)** fail closed with a commission-configuration error. *Not decided here.* | `commission_tiers` has no gapless-coverage constraint; `checkout_order` commission-rate default + `coalesce(rate, 0)`; see `docs/database/commission-capability.md` §8 | **Business/Finance**, via Feature 008 | Production trading readiness. **Does not block Feature 002.** If (B) is chosen it implies a database change through the approved process |
