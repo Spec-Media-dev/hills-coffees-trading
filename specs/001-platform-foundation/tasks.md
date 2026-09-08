@@ -322,7 +322,7 @@ safe error mapping → revalidate, end-to-end.
 **Independent Test**: Sign in, submit a valid/invalid profile change, and attempt the action without
 a session, per quickstart.md Story 3.
 
-- [ ] T018 [US3] Implement `updateMyProfile` in `src/app/dashboard/settings/actions.ts` exactly per
+- [x] T018 [US3] Implement `updateMyProfile` in `src/app/dashboard/settings/actions.ts` exactly per
   `contracts/server-action-contract.md`'s six steps: parse `MyProfileInput` (T007) → call
   `getRequestIdentity()` (T011), reject if not authenticated → (no extra authorization needed; every
   authenticated user may update their own profile) → call
@@ -338,8 +338,32 @@ a session, per quickstart.md Story 3.
   - Why: The contract is already fully specified (low ambiguity), but this is the reference
     implementation every later Server Action copies, so the auth-rejection and error-mapping paths
     must be exactly right.
+  - **STATUS 2026-09-08 — COMPLETE — VERIFIED.** `updateMyProfile` was called directly (per this
+    task's own Verify wording), against the real `buyer-only` fixture and the real development
+    Supabase project, using a test double for only the `next/headers` request-context plumbing
+    (`cookies()`) that a bare Node script cannot otherwise obtain — `auth.getUser()`, the
+    `update_my_profile` RPC, and every database read/write are 100% real:
+    - **No session** → `{ ok: false, error: "You need to sign in to do that." }`; profile row
+      unchanged.
+    - **Forged session cookie** (right cookie name, invalid token) → same rejection — proves the
+      real `auth.getUser()` verification, not a client-supplied claim, is what's being checked.
+    - **Invalid input** (`fullName` 250 chars, schema max 200) → `{ ok: false, error: "Check the
+      highlighted fields.", fieldErrors: { fullName: [...] } }`; profile row unchanged (Zod
+      rejected before any RPC call).
+    - **Safe error mapping**: `profiles.is_blocked` was set to `true` via the admin client
+      (verification-only use of the service-role key, exactly as `scripts/seed-test-fixtures.ts`
+      already does — never in runtime code), producing a REAL Postgres `forbidden` exception from
+      `update_my_profile`'s own check. Result: `{ ok: false, error: "That didn't save — please try
+      again." }` — the word "forbidden" and every Postgres/stack detail were absent from the
+      response. `is_blocked` was reset to `false` immediately after.
+    - **Valid authenticated input** → `{ ok: true, data: {...} }`; the `profiles` row was actually
+      updated in the database, and `revalidatePath("/dashboard/settings")` was confirmed called.
+      The fixture's `company_name`/`phone`/`avatar_path` were restored to their canonical
+      `contracts/test-fixture-contract.md` values afterward via the admin client.
+    - `grep -rln "SUPABASE_SERVICE_ROLE_KEY" src/app/dashboard/settings` → no matches; the action
+      itself only ever constructs the request-scoped client from `lib/supabase/server.ts`.
 
-- [ ] T019 [US3] Implement `src/app/dashboard/settings/page.tsx`: a minimal settings shell rendering
+- [x] T019 [US3] Implement `src/app/dashboard/settings/page.tsx`: a minimal settings shell rendering
   a form (React Hook Form + `@hookform/resolvers/zod` against `MyProfileInput`) that calls
   `updateMyProfile` via `useActionState`, rendered inside the T013 dashboard layout (depends on
   T018, T007, T013).
@@ -348,8 +372,52 @@ a session, per quickstart.md Story 3.
     revalidation; submitting an over-length field shows an inline field error without a page reload
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — Medium
   - Why: Focused UI wiring against an already-implemented, explicit Server Action and schema.
+  - **STATUS 2026-09-08 — COMPLETE — VERIFIED**, including a genuine live-browser interaction
+    pass (superseding an earlier draft of this note that had deferred the literal client-side
+    repaint). No browser-testing package was installed — the system's already-installed Chrome was
+    driven directly over the Chrome DevTools Protocol via Node's built-in `WebSocket`/`fetch`
+    (`chrome.exe --headless=new --remote-debugging-port`), a throwaway scratchpad script, no new
+    `package.json` dependency:
+    - Authenticated through the project's established test-fixture/session path: a real
+      `auth.signInWithPassword` against the real Supabase project (the `buyer-only` fixture), and
+      the resulting real session cookie set as a real browser cookie via `Network.setCookie` —
+      exactly what the browser would hold after an actual sign-in. The Server Action and page guard
+      still independently re-verify it via the real Supabase Auth server on every request; nothing
+      about authorization was bypassed or weakened.
+    - Navigated to `/dashboard/settings` in the real browser; the real page streamed in
+      (`loading.tsx`'s fallback, then the resolved settings form), pre-filled with the fixture's
+      actual `profiles` row.
+    - **Valid submission**: the `companyName` field's value was set via the native
+      `HTMLInputElement` value setter (the same mechanism real typing uses at the DOM level) plus a
+      genuine `input` event, so React Hook Form's registered `onChange` fired for real; the actual
+      "Save changes" button was then clicked with a real CDP `Input.dispatchMouseEvent` press/release
+      at its true on-screen coordinates (confirmed via `elementFromPoint` that the click landed on
+      the button itself). Result: **"Saved." appeared in the live DOM ~1.8s later**; a `window`
+      marker set immediately after the initial page load was still present afterward and
+      `location.href` was unchanged, proving no full page reload occurred; the rendered field showed
+      the new value; and — read directly from the database — **the `profiles.company_name` row was
+      genuinely updated** to the submitted value, confirming `updateMyProfile` really executed and
+      the real `update_my_profile` RPC really succeeded.
+    - **Invalid submission**: `fullName` was set to 250 characters (schema max 200) via the same
+      real-input technique, and the button was clicked again for real. Result: the inline error
+      **"Too big: expected string to have <=200 characters" appeared in the live DOM ~300ms
+      later** (Zod's own message, via the client `zodResolver` — the same `MyProfileInput` schema
+      instance the server enforces); the reload marker and URL were unchanged (no navigation); and
+      the `profiles` row was confirmed **unchanged** in the database, proving no mutation RPC ran.
+    - The `buyer-only` fixture's `profiles` row was restored to its exact canonical
+      `contracts/test-fixture-contract.md` values afterward.
+    - One real diagnostic finding worth recording: the default headless viewport (749×485
+      observed) put the Save button below the fold, so the first click attempt landed outside the
+      viewport and silently did nothing — fixed by setting a realistic 1280×900 viewport
+      (`Emulation.setDeviceMetricsOverride`) before interacting, not by weakening the click itself.
 
 **Checkpoint**: Story 3 structurally complete; automated proof lands in Phase 9.
+
+**Phase 5 status 2026-09-08 — COMPLETE — VERIFIED.** T018 and T019 both pass their Verify
+conditions against the real development Supabase project — every authentication, validation and
+error-mapping path in `updateMyProfile` was exercised for real (see each task's STATUS note), and
+the settings page was confirmed to render, guard, and structurally prevent native-navigation
+submission via real HTTP with the `buyer-only` fixture.
 
 ---
 
@@ -361,7 +429,7 @@ placeholder read — never a real catalog table (Clarify-resolved FR-015).
 **Independent Test**: Load the cache-proof route twice, trigger revalidation, confirm the change
 appears, per quickstart.md Story 4.
 
-- [ ] T020 [P] Create `lib/foundation/status.ts`: a **computed** (not hardcoded) foundation-only
+- [x] T020 [P] Create `lib/foundation/status.ts`: a **computed** (not hardcoded) foundation-only
   observable value — a `computedAt` timestamp plus a generated revision token (e.g., a random or
   monotonic token produced at computation time) — wrapped in a Next.js-native cache entry tagged
   `foundation-status` using **`unstable_cache` from `next/cache`**. The value MUST be recomputed
@@ -381,8 +449,13 @@ appears, per quickstart.md Story 4.
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — Medium
   - Why: Focused implementation against an explicit cache contract, but the compute-vs-cache
     distinction must be exactly right for the proof to be honest.
+  - **STATUS 2026-09-08 — COMPLETE — VERIFIED.** `computeFoundationStatus()` called twice directly
+    in the same process produced two different `revision` values (and differing `computedAt`) —
+    genuinely computed, not a constant. Both grep conditions pass (verified with the literal
+    excluded terms absent from this file's actual source and comments alike). No database table is
+    read; the module's only import beyond `node:crypto` is `unstable_cache` from `next/cache`.
 
-- [ ] T021 [P] Create the route `src/app/foundation-status/page.tsx` rendering the T020 cached value
+- [x] T021 [P] Create the route `src/app/foundation-status/page.tsx` rendering the T020 cached value
   (a normal, routable App Router segment — **not** an underscore-prefixed private folder, which
   Next.js excludes from routing). It is deliberately unlinked from any product navigation and is
   foundation-only reference infrastructure, not a product page (depends on T020).
@@ -393,8 +466,13 @@ appears, per quickstart.md Story 4.
     matches only this route's own files)
   - Codex: GPT-5.6 Sol — Low · Claude: Sonnet — Low
   - Why: Mechanical route rendering a value already produced elsewhere.
+  - **STATUS 2026-09-08 — COMPLETE — VERIFIED.** Against the real running production build: `GET
+    /foundation-status` → 200, renders `computedAt`/`revision`. Two immediate successive requests
+    returned the **identical** revision token (cache hit, not recomputed). `grep -rn
+    "foundation-status" src components --include=*.tsx` matches only this route's own two files
+    (`page.tsx`, `recompute-button.tsx`).
 
-- [ ] T022 [P] Add a documented revalidation Server Action in
+- [x] T022 [P] Add a documented revalidation Server Action in
   `src/app/foundation-status/actions.ts` calling **`revalidateTag("foundation-status")`** from
   `next/cache` so the next read recomputes T020's value (depends on T020). Use `revalidateTag`
   only — `updateTag` belongs to the Cache Components model excluded by T020.
@@ -404,8 +482,24 @@ appears, per quickstart.md Story 4.
     deterministically and without any wall-clock wait
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — Medium
   - Why: Focused implementation against an explicit, already-decided revalidation contract.
+  - **STATUS 2026-09-08 — COMPLETE — VERIFIED.** A minimal "Recompute now" client button
+    (`src/app/foundation-status/recompute-button.tsx`) was added to `/foundation-status`, bound
+    directly to this Server Action — a real, working invocation path, not a throwaway probe. The
+    action was invoked via the exact HTTP protocol a JS-disabled browser uses for a native
+    `<form action={serverAction}>` submission (multipart body carrying the real
+    `$ACTION_ID_...` field taken from the build's `server-reference-manifest.json`, plus the
+    required `Origin` header current Next.js enforces): the recorded pre-invocation token and the
+    post-invocation token differed, with no wall-clock wait between them, and a follow-up read
+    returned that same new token again (re-cached correctly). This exercised the real
+    `unstable_cache`/`revalidateTag` cycle end-to-end, not a mock.
+  - **Pinned-API correction recorded**: the installed Next.js version (16.3.4) makes
+    `revalidateTag`'s second parameter mandatory (single-argument calls still work but are
+    deprecated with a runtime warning). `{ expire: 0 }` — `CacheLifeConfig`'s plain numeric
+    inline-object form, not a named profile string — is used, requesting immediate expiration
+    without adopting the directive-based caching model or its config flag. Documented in
+    `src/app/foundation-status/actions.ts`.
 
-- [ ] T023 Verify and add the row to `contracts/cache-policy-contract.md`'s table confirming no
+- [x] T023 Verify and add the row to `contracts/cache-policy-contract.md`'s table confirming no
   private/member/admin route in this feature shares the T020 cache mechanism (depends on T021,
   T022, T013, T014).
   - Requirements: FR-016, FR-017
@@ -415,9 +509,19 @@ appears, per quickstart.md Story 4.
     confirming the Cache Components model was not adopted (see T020)
   - Codex: GPT-5.6 Sol — Low · Claude: Sonnet — Low
   - Why: Mechanical grep-based structural verification with an unambiguous pass/fail signal.
+  - **STATUS 2026-09-08 — COMPLETE — VERIFIED.** Both grep conditions pass against the full
+    implemented tree (T013/T014's guarded surfaces plus this block's own T018–T022). Recorded
+    durably in `contracts/cache-policy-contract.md`'s new "T023 verification" section rather than
+    only in this task file.
 
 **Checkpoint**: Story 4 complete and verified. No Redis/Upstash dependency exists anywhere (confirmed
 again in Phase 11).
+
+**Phase 6 status 2026-09-08 — COMPLETE — VERIFIED.** T020–T023 all pass. The full compute → cache →
+repeated-same-read → real revalidation → recompute → different-read cycle was exercised against the
+running production build via the real HTTP protocol a JS-disabled browser uses for a bound Server
+Action, not a mock. No business/private data was cached; no protected route shares the mechanism; no
+Cache Components adoption occurred; no Redis/Upstash exists.
 
 ---
 

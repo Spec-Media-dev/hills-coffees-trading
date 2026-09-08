@@ -31,6 +31,22 @@ use `unstable_cache` + `revalidateTag`.
 | Private/member data | orders, inventory positions, reservations, listings, payments, settlement, ownership, KYB, private documents | **Never shared-cached** | never-shared | Any future caching of these must be scoped per-user/per-org and re-validated by the database at transaction time regardless (FR-017) |
 | Checkout/transactional reads | any UI-shown availability used to initiate a purchase | Advisory only | n/a | The database performs the authoritative check at the moment of the transactional action — a cached read is never trusted as proof of availability |
 
+## T023 verification (2026-09-08): no protected route shares the foundation-status mechanism
+
+Confirmed by structural check against the implemented tree, re-run at the end of Phase 5/6:
+
+- `grep -rln "unstable_cache" src/app/dashboard src/app/dashboard-admin` → **no matches**. Neither
+  protected surface (T013/T014's guarded route trees) uses the `unstable_cache` primitive the
+  public `foundation-status` proof (T020) uses — a protected route's data is resolved fresh, per
+  request, through `getRequestIdentity()` and RLS, never through this shared cache mechanism.
+- `grep -rn "use cache\|cacheLife\|cacheComponents" src lib next.config.ts` → **no matches**. The
+  directive-based caching model remains unadopted; `next.config.ts` is unchanged from before this
+  feature.
+- `revalidateTag`'s second parameter (this installed Next.js version, 16.3.4, makes it mandatory —
+  see `src/app/foundation-status/actions.ts`) is passed as `{ expire: 0 }`, the plain numeric
+  inline-object form, never a named profile string — so no cache-life profile system was
+  introduced either.
+
 ## Adding a new cache entry (for later features)
 
 1. Confirm the data is public and non-authorization-sensitive, or is scoped so its cache key cannot
