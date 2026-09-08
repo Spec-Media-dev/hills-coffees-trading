@@ -34,6 +34,8 @@
  *
  *   npm run test:seed              # create or reconcile the fixtures (idempotent)
  *   npm run test:seed:teardown     # delete exactly the fixtures this script creates
+ *   --set-buyer-and-seller-can-sell=true|false
+ *                                  # Phase 9 freshness-test control; exact fixture row only
  *
  * Requires `.env.local` to define NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY and
  * TEST_FIXTURE_PASSWORD. Run only against the development Supabase project — never one labelled
@@ -362,6 +364,35 @@ async function seed(admin: SupabaseClient, password: string): Promise<void> {
   );
 }
 
+/**
+ * Changes only the capability flag used by T030's cross-request freshness proof.
+ *
+ * The authenticated fixture must not be allowed to mutate this authorization-critical flag under
+ * RLS. Keeping this narrowly-scoped control in the already-approved fixture script preserves that
+ * production boundary while allowing the integration test to change and immediately restore the
+ * one documented test row. No arbitrary organization id or column is accepted from the caller.
+ */
+async function setBuyerAndSellerCanSell(
+  admin: SupabaseClient,
+  canSell: boolean
+): Promise<void> {
+  const { data, error } = await admin
+    .from("organizations")
+    .update({ can_sell: canSell })
+    .eq("id", ORGANIZATION_IDS.buyerAndSeller)
+    .select("id")
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`fixture capability update failed: ${error.message}`);
+  }
+  if (!data) {
+    throw new Error(
+      "buyer-and-seller fixture is missing; run npm run test:seed first"
+    );
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Teardown
 // ---------------------------------------------------------------------------
@@ -442,7 +473,23 @@ async function main(): Promise<void> {
   loadEnvLocal();
 
   const isTeardown = process.argv.includes("--teardown");
+  const capabilityArgumentPrefix = "--set-buyer-and-seller-can-sell=";
+  const capabilityArgument = process.argv.find((argument) =>
+    argument.startsWith(capabilityArgumentPrefix)
+  );
   const admin = createAdminClient();
+
+  if (capabilityArgument) {
+    const value = capabilityArgument.slice(capabilityArgumentPrefix.length);
+    if (value !== "true" && value !== "false") {
+      throw new Error(
+        "--set-buyer-and-seller-can-sell must be exactly true or false"
+      );
+    }
+
+    await setBuyerAndSellerCanSell(admin, value === "true");
+    return;
+  }
 
   if (isTeardown) {
     await teardown(admin);

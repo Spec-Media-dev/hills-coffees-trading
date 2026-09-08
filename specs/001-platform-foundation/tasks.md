@@ -637,7 +637,7 @@ is clean). No database schema, RLS, policy, function, trigger, or Storage object
 **Purpose**: The real, automated proof that Stories 2 and 3's authorization/mutation behavior is
 correct — not merely asserted in documentation (FR-029).
 
-- [ ] T030 [P] [US2] Add `tests/auth/request-identity.test.ts` calling `getRequestIdentity()`
+- [x] T030 [P] [US2] Add `tests/auth/request-identity.test.ts` calling `getRequestIdentity()`
   directly (research.md §8 — no browser rendering) against the T028 fixtures: (a) no session →
   `{ kind: "anonymous" }`; (b) `buyer-only` → `organization.canSell === false`; (c)
   `buyer-and-seller` → `organization.canSell === true`; (d) `warehouse-admin` →
@@ -651,7 +651,7 @@ correct — not merely asserted in documentation (FR-029).
   - Why: This is the central automated proof of the platform's core authorization guarantee —
     including the no-stale-caching requirement that is easy to silently get wrong.
 
-- [ ] T031 [P] [US3] Add `tests/auth/update-my-profile.test.ts` calling `updateMyProfile` directly:
+- [x] T031 [P] [US3] Add `tests/auth/update-my-profile.test.ts` calling `updateMyProfile` directly:
   (a) no session → `{ ok: false, ... }`, no RPC invoked; (b) invalid input (e.g., over-length
   field) → `fieldErrors` present, no RPC invoked; (c) authenticated valid input (using a T028
   fixture) → `{ ok: true, ... }`, profile row updated (depends on T018, T028).
@@ -662,7 +662,7 @@ correct — not merely asserted in documentation (FR-029).
   - Why: Authorization-adjacent (must prove the auth-rejection path, not just the happy path)
     against an already-explicit contract.
 
-- [ ] T032 Run the full suite and confirm no test file references a hand-provisioned, undocumented
+- [x] T032 Run the full suite and confirm no test file references a hand-provisioned, undocumented
   account (depends on T030, T031).
   - Requirements: FR-029, FR-029a
   - Verify: `npm test` passes end-to-end; `grep -rn "@" tests/ | grep -v "foundation-test"` (or
@@ -672,6 +672,14 @@ correct — not merely asserted in documentation (FR-029).
 
 **Checkpoint**: Stories 2 and 3 are now automatically, truthfully verified — not just structurally
 built.
+
+**Phase 9 status 2026-09-08 — COMPLETE — VERIFIED.** T030–T032 pass against the live development
+Supabase project using only the documented Phase 8 identities. The two named suites execute 9
+authorization/mutation tests (none skipped); the full suite executes 13 tests and passes twice.
+Capability and profile mutations are restored to their canonical fixture state in `finally` blocks.
+Typecheck, production build, and Phase 9 file lint pass; the unchanged `docs/claude-design` baseline
+remains 124 errors / 148 warnings. No application-runtime service-role reference, database
+structural change, migration, Phase 10/11 work, commit, or push was introduced.
 
 ---
 
