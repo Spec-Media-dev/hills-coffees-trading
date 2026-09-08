@@ -55,7 +55,7 @@ RTL · US6 = Continuity documentation & verification.
 **Purpose**: Establish the test runner and environment-contract scaffolding every later phase needs.
 No application/authorization code yet.
 
-- [ ] T001 Run and record the pre-existing baseline: `npm run lint` and `npm run build` on the
+- [x] T001 Run and record the pre-existing baseline: `npm run lint` and `npm run build` on the
   unmodified repository, before any Phase 1+ change.
   - Requirements: FR-030 (baseline for "these commands must actually work as documented")
   - Verify: both commands exit 0; if either fails today, record the failure as a pre-existing
@@ -63,7 +63,7 @@ No application/authorization code yet.
   - Codex: GPT-5.6 Sol — Low · Claude: Sonnet — Low
   - Why: Mechanical command execution with a binary pass/fail signal.
 
-- [ ] T002 Add Vitest test tooling as dev dependencies: `vitest`, `@vitejs/plugin-react`, `jsdom`,
+- [x] T002 Add Vitest test tooling as dev dependencies: `vitest`, `@vitejs/plugin-react`, `jsdom`,
   `@testing-library/react`, `@testing-library/dom`, `vite-tsconfig-paths` in `package.json` /
   `package-lock.json` (research.md §8).
   - Requirements: FR-029, FR-030
@@ -72,7 +72,7 @@ No application/authorization code yet.
   - Codex: GPT-5.6 Sol — Low · Claude: Sonnet — Low
   - Why: Mechanical dependency addition with an explicit, already-decided package list.
 
-- [ ] T003 Create `vitest.config.mts` (jsdom environment, `@vitejs/plugin-react`,
+- [x] T003 Create `vitest.config.mts` (jsdom environment, `@vitejs/plugin-react`,
   `vite-tsconfig-paths` for the existing `@/*` alias) and add `"test": "vitest run"`,
   `"test:watch": "vitest"`, `"typecheck": "tsc --noEmit"` scripts to `package.json` (depends on
   T002).
@@ -82,7 +82,7 @@ No application/authorization code yet.
   - Codex: GPT-5.6 Sol — Low · Claude: Sonnet — Low
   - Why: Mechanical config file matching Next.js's own documented Vitest setup verbatim.
 
-- [ ] T004 [P] Create `.env.example` at the repo root documenting the four existing environment
+- [x] T004 [P] Create `.env.example` at the repo root documenting the four existing environment
   variables — `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`,
   `NEXT_PUBLIC_SITE_URL` (browser-safe), `SUPABASE_SERVICE_ROLE_KEY` (server-only, test-script-only
   — see Phase 8) — with placeholder values only, no real secrets (research.md §14).
@@ -101,7 +101,7 @@ No application/authorization code yet.
 **Purpose**: The shared, non-story-specific infrastructure every later phase depends on. Blocking —
 no Phase 3+ task starts before this phase completes.
 
-- [ ] T005 [P] Create `lib/supabase/client.ts` exporting a `createBrowserClient` wrapper
+- [x] T005 [P] Create `lib/supabase/client.ts` exporting a `createBrowserClient` wrapper
   (`@supabase/ssr`) using `NEXT_PUBLIC_SUPABASE_URL`/`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` only
   (research.md §4).
   - Requirements: FR-025, FR-026
@@ -110,7 +110,7 @@ no Phase 3+ task starts before this phase completes.
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — Medium
   - Why: Focused implementation against an explicit, already-decided client contract.
 
-- [ ] T006 [P] Create `lib/supabase/server.ts` exporting a request-scoped `createServerClient`
+- [x] T006 [P] Create `lib/supabase/server.ts` exporting a request-scoped `createServerClient`
   wrapper reading/writing cookies via `next/headers`'s `cookies()`, following the installed
   `@supabase/ssr` README's cookie-handling pattern (research.md §4).
   - Requirements: FR-025, FR-026
@@ -120,7 +120,7 @@ no Phase 3+ task starts before this phase completes.
   - Why: Requires correctly reasoning about per-request cookie/session plumbing from the SSR
     package's documented (but non-trivial) contract, not pure mechanical typing.
 
-- [ ] T007 [P] Create `lib/validation/my-profile.ts` exporting the `MyProfileInput` Zod schema
+- [x] T007 [P] Create `lib/validation/my-profile.ts` exporting the `MyProfileInput` Zod schema
   (`fullName`, `phone`, `companyName`, `avatarPath`, all optional, per data-model.md) used by both
   the client form and the Server Action.
   - Requirements: FR-018
@@ -129,7 +129,7 @@ no Phase 3+ task starts before this phase completes.
   - Codex: GPT-5.6 Sol — Low · Claude: Sonnet — Low
   - Why: Mechanical schema matching an explicit, already-known DB function signature.
 
-- [ ] T008 [P] Create `lib/i18n/config.ts` — minimal `i18next`/`react-i18next` initialization, a
+- [x] T008 [P] Create `lib/i18n/config.ts` — minimal `i18next`/`react-i18next` initialization, a
   single `en` resource namespace, no `i18next-browser-languagedetector` activation, no switcher
   (research.md §10).
   - Requirements: FR-021
@@ -138,7 +138,7 @@ no Phase 3+ task starts before this phase completes.
   - Codex: GPT-5.6 Sol — Low · Claude: Sonnet — Low
   - Why: Mechanical library initialization with an explicit, narrow scope already decided.
 
-- [ ] T009 Narrow, foundation-level edit to `src/app/layout.tsx`: wrap `{children}` with the i18n
+- [x] T009 Narrow, foundation-level edit to `src/app/layout.tsx`: wrap `{children}` with the i18n
   provider from T008. File stays at its current path and still serves route `/`; no homepage
   visual/content change (contracts/route-surface-contract.md's locked-file table; depends on T008).
   - Requirements: FR-001, FR-021
