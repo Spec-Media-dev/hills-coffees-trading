@@ -7,9 +7,12 @@ it's built. Implementation details live in `plan.md`/`research.md`; task-by-task
 ## Prerequisites
 
 - Node.js (version matching `package.json`'s engines / this repo's current toolchain).
-- The repository's `.env.local` populated with the four documented variables (see
+- The repository's `.env.local` populated with the documented variables (see `.env.example`,
   `contracts/` and research.md §14) pointing at the same Supabase project the approved database
   baseline (`docs/database/database-schema-report.json`) is validated against.
+  `NEXT_PUBLIC_SUPABASE_URL` must be the **project base URL** (`https://<ref>.supabase.co`) — not
+  the `/rest/v1/` endpoint, which `@supabase/ssr` and `supabase-js` cannot use and which fails with
+  "Invalid path specified in request URL".
 - Dependencies installed: `npm install`.
 
 ## 1. Seed test fixtures (once per environment)
@@ -19,7 +22,14 @@ npm run test:seed
 ```
 
 Expected: prints the three fixture identities (research.md §9, contracts/test-fixture-contract.md)
-it created or confirmed already exist. Re-running is safe (idempotent).
+it created or confirmed already exist. Re-running is safe (idempotent) — the second run reports
+`reused` for all three and adds no rows. Remove them with:
+
+```bash
+npm run test:seed:teardown
+```
+
+Requires `TEST_FIXTURE_PASSWORD` in `.env.local`; the script never prints it.
 
 ## 2. Run full verification
 

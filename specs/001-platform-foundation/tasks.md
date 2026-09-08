@@ -160,7 +160,7 @@ begin.
 Server Action in this feature (and later features) will call. This is the platform's core trust
 boundary (Constitution Principle VIII, NON-NEGOTIABLE).
 
-- [ ] T010 [P] [US2] Define `RequestIdentity`, `OrganizationMembership`, `OperationalRole` types in
+- [x] T010 [P] [US2] Define `RequestIdentity`, `OrganizationMembership`, `OperationalRole` types in
   `lib/auth/types.ts`, matching data-model.md exactly.
   - Requirements: FR-005, FR-008
   - Verify: `tsc --noEmit` passes; type shapes match data-model.md's `RequestIdentity` union
@@ -168,7 +168,7 @@ boundary (Constitution Principle VIII, NON-NEGOTIABLE).
   - Codex: GPT-5.6 Sol — Low · Claude: Sonnet — Low
   - Why: Mechanical typing task against an already-fully-specified contract.
 
-- [ ] T011 [US2] Implement `getRequestIdentity()` in `lib/auth/dal.ts`: call `supabase.auth.getUser()`
+- [x] T011 [US2] Implement `getRequestIdentity()` in `lib/auth/dal.ts`: call `supabase.auth.getUser()`
   (never `getSession()`, research.md §1) via the T006 server client; if no user, return
   `{ kind: "anonymous" }`; if a user exists, call `is_org_member`/`organization_can_buy`/
   `organization_can_sell` for the user's active `organization_members` row and
@@ -198,7 +198,7 @@ beyond the Phase 2 provider edit.
 **Independent Test**: Navigate directly (JS disabled) to `/`, `/dashboard`, `/dashboard-admin` as an
 anonymous visitor per quickstart.md Story 1.
 
-- [ ] T012 [P] [US1] Create `components/layout/state-screen.tsx` — a shared, `kind`-parameterized
+- [x] T012 [P] [US1] Create `components/layout/state-screen.tsx` — a shared, `kind`-parameterized
   full-page shell for `unauthorized` / `forbidden` / `not-found` / `empty` (research.md §15; named
   `StateScreen` to match the already-approved Hills design system component inventory).
   - Requirements: FR-023, FR-024 (the `kind` parameter is the extension point later features'
@@ -210,7 +210,7 @@ anonymous visitor per quickstart.md Story 1.
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — Medium
   - Why: Focused component with an explicit, already-decided set of states.
 
-- [ ] T013 [P] [US1] Create `src/app/dashboard/layout.tsx`: call `getRequestIdentity()`; if not
+- [x] T013 [P] [US1] Create `src/app/dashboard/layout.tsx`: call `getRequestIdentity()`; if not
   `kind: "authenticated"` or `organization` is `null`, render `StateScreen` with an
   unauthorized/no-organization state; otherwise render `{children}` inside a minimal Member Portal
   shell (no business nav yet beyond a placeholder) (depends on T011, T012).
@@ -221,7 +221,7 @@ anonymous visitor per quickstart.md Story 1.
   - Why: This is the actual enforcement point for the Member Portal's security boundary — a wiring
     mistake here directly defeats Constitution Principle VIII.
 
-- [ ] T014 [P] [US1] Create `src/app/dashboard-admin/layout.tsx`: call `getRequestIdentity()`; if
+- [x] T014 [P] [US1] Create `src/app/dashboard-admin/layout.tsx`: call `getRequestIdentity()`; if
   not `kind: "authenticated"` or `operationalRoles` is empty, render `StateScreen`
   (unauthorized); otherwise render `{children}` inside a minimal Operations Console shell. This
   check is completely independent of T013's — it never inspects `organization` (depends on T011,
@@ -233,7 +233,7 @@ anonymous visitor per quickstart.md Story 1.
   - Why: Same enforcement-point risk as T013, for the Operations Console; independence from T013
     is itself a security requirement (Edge Cases: admin access never implies member access).
 
-- [ ] T015 [P] [US1] Add `src/app/dashboard/error.tsx` and `src/app/dashboard/loading.tsx` (Next.js
+- [x] T015 [P] [US1] Add `src/app/dashboard/error.tsx` and `src/app/dashboard/loading.tsx` (Next.js
   native route-segment conventions; recoverable/unexpected error + loading, reusing `StateScreen`
   where sensible) (depends on T013).
   - Requirements: FR-023
@@ -241,15 +241,34 @@ anonymous visitor per quickstart.md Story 1.
     page
   - Codex: GPT-5.6 Sol — Low · Claude: Sonnet — Low
   - Why: Mechanical use of a documented Next.js file convention.
+  - **STATUS 2026-09-08 — COMPLETE — VERIFIED at runtime against the production build.** Executed
+    with the real `buyer-only` fixture (T028): signed in through `@supabase/ssr`, replayed the
+    resulting session cookies, and requested a temporary throwing child route under `/dashboard`.
+    The probe re-verified authorization itself and threw only *after* passing, so the request
+    provably crossed the real boundary — no guard was bypassed, faked, or weakened. Result: the
+    member layout rendered (org header present), the child segment produced an **errored Suspense
+    boundary** (`<!--$!-->`) carrying only `data-dgst="4069242283"`, the `loading.tsx` fallback held
+    the slot, and the compiled chunk containing `error.tsx`'s copy was shipped in the response.
+    The raw error message never appeared, and no stack trace or file:line leaked (FR-027).
+    Control experiment: an identical throw in a segment with **no** `error.tsx` returned HTTP 500
+    with no boundary and no digest — so the handled outcome is attributable to `error.tsx`, not
+    assumed. Probe routes were deleted afterwards (`find src -iname "*probe*"` → none).
 
-- [ ] T016 [P] [US1] Add `src/app/dashboard-admin/error.tsx` and
+- [x] T016 [P] [US1] Add `src/app/dashboard-admin/error.tsx` and
   `src/app/dashboard-admin/loading.tsx` (same pattern as T015) (depends on T014).
   - Requirements: FR-023
   - Verify: same as T015, scoped to `/dashboard-admin`
   - Codex: GPT-5.6 Sol — Low · Claude: Sonnet — Low
   - Why: Mechanical use of a documented Next.js file convention.
+  - **STATUS 2026-09-08 — COMPLETE — VERIFIED at runtime against the production build.** Same
+    method as T015, with the real `warehouse-admin` fixture (operational role `WAREHOUSE`, no
+    organization). The admin layout rendered ("Operations console"), the throwing child produced an
+    errored Suspense boundary carrying only `data-dgst="3081085247"`, and the response shipped the
+    admin surface's **own** compiled `error.tsx` chunk — a different chunk from the member
+    surface's, confirming each surface has its own boundary. No raw error text, stack, or file:line
+    leaked. Same HTTP 500 control contrast as T015.
 
-- [ ] T017 [US1] Add optional `src/proxy.ts` (alongside `src/app/`, **not** inside it — Next 16
+- [x] T017 [US1] Add optional `src/proxy.ts` (alongside `src/app/`, **not** inside it — Next 16
   resolves `proxy.ts` at the same level as `app/`): read only the Supabase auth cookie's
   presence/absence (no `getUser()`, no database call) to optimistically redirect an obviously-
   anonymous visitor away from `/dashboard`/`/dashboard-admin` toward a sign-in route
@@ -264,6 +283,33 @@ anonymous visitor per quickstart.md Story 1.
 
 **Checkpoint**: Story 1 is structurally complete (automated proof lands in Phase 9 once fixtures
 exist). `/`, `/dashboard`, `/dashboard-admin` each have an independent, server-side guard.
+
+**Phase 4 status 2026-09-08 — COMPLETE — VERIFIED.** All of T012–T017 have had their Verify
+conditions executed against a running production build. T015 and T016's deferred runtime checks were
+completed once the Phase 8 fixtures (T028) existed; see their entries above.
+
+**Both guards are now proven with real authenticated sessions, not only fail-closed paths.** Earlier
+Phase 4 verification could only exercise denial, because `.env.local` pointed
+`NEXT_PUBLIC_SUPABASE_URL` at the `/rest/v1/` endpoint instead of the project base URL — every
+`auth.getUser()` errored, so every request resolved to `anonymous` and *appeared* correctly denied.
+That configuration defect was found and corrected during Phase 8 (see quickstart.md Prerequisites).
+Re-verified afterwards with live fixture sessions:
+
+| Request | Result |
+|---|---|
+| `buyer-only` → `/dashboard` | **granted** — member content rendered |
+| `warehouse-admin` → `/dashboard-admin` | **granted** — console content rendered |
+| `buyer-only` → `/dashboard-admin` | **denied** — `forbidden` state, zero admin content |
+| `warehouse-admin` → `/dashboard` | **denied** — `forbidden` state, zero member content |
+
+The last two rows are Story 1 AS4's independence rule demonstrated with real sessions: member access
+never implies admin access, and an operational role never implies member access.
+
+**Security rule discovered here** (now recorded durably in
+`contracts/route-surface-contract.md` → "Defence in depth"): a layout guard alone does **not**
+prevent a protected child page from executing or from having its output serialized into the RSC
+flight payload, because Next.js renders route segments in parallel. Every protected page, Server
+Action and Route Handler must independently authorize before reading protected data.
 
 ---
 
@@ -437,7 +483,7 @@ long string, confirm no layout breakage, per quickstart.md Story 5.
 **Purpose**: A disposable, reproducible seed mechanism so Phase 9's authorization tests don't depend
 on hand-provisioned, undocumented accounts (Clarify-resolved FR-029a).
 
-- [ ] T028 Implement `scripts/seed-test-fixtures.ts`: using `SUPABASE_SERVICE_ROLE_KEY` (read only
+- [x] T028 Implement `scripts/seed-test-fixtures.ts`: using `SUPABASE_SERVICE_ROLE_KEY` (read only
   in this script — never imported by anything under `src/app/`, `components/`, or `lib/`), create
   (idempotently, by fixed `+foundation-test` email convention) the `buyer-only`,
   `buyer-and-seller`, and `warehouse-admin` fixtures exactly as specified in
@@ -450,8 +496,18 @@ on hand-provisioned, undocumented accounts (Clarify-resolved FR-029a).
   - Why: Privileged-credential handling with an explicit, non-negotiable security boundary
     (service-role must never leak into runtime application code) — worth the extra scrutiny even
     though the scripting itself is otherwise mechanical.
+  - **STATUS 2026-09-08 — COMPLETE, all Verify conditions executed.** Full lifecycle proven against
+    the live development Supabase project: first creation (3 auth users + 3 profiles + 2
+    organizations + 2 APPROVED KYB applications + 2 memberships + 1 `platform_admins` row);
+    identical second run reported `reused` for all three with byte-identical user ids and no row
+    added; teardown returned every fixture table to its exact pre-seed count; recreation after
+    teardown succeeded. `grep -rln "SUPABASE_SERVICE_ROLE_KEY" src components lib` returns nothing
+    — the only executable reference in the repository is inside this script. The key is also absent
+    from `.next/static` (client bundle) and `.next/server` (server chunks).
+  - **UNBLOCKED THE TWO PENDING PHASE 4 VERIFICATIONS** — T015 and T016 were both run against these
+    fixtures and now pass; see their entries in Phase 4.
 
-- [ ] T029 Add `"test:seed": "tsx scripts/seed-test-fixtures.ts"` and
+- [x] T029 Add `"test:seed": "tsx scripts/seed-test-fixtures.ts"` and
   `"test:seed:teardown": "tsx scripts/seed-test-fixtures.ts --teardown"` to `package.json` (add
   `tsx` as a dev dependency if no existing script runner already satisfies this) (depends on T028).
   - Requirements: FR-029a
@@ -461,6 +517,14 @@ on hand-provisioned, undocumented accounts (Clarify-resolved FR-029a).
   - Why: Mechanical package-script wiring.
 
 **Checkpoint**: reproducible test identities exist. Phase 9's authorization tests can now run.
+
+**Phase 8 status 2026-09-08 — COMPLETE — VERIFIED.** T028 and T029 both pass every stated Verify
+condition. Creation, idempotent re-run, teardown and recreation were each executed and measured
+against the live development Supabase project; `npm run test:seed` and `npm run test:seed:teardown`
+both run clean; the service-role key appears nowhere under `src/`, `components/`, or `lib/`.
+`npm run typecheck`, `npm test` and `npm run build` all exit 0, and the pre-existing
+`docs/claude-design` lint baseline is unchanged at 124 errors / 148 warnings (`npx eslint scripts/`
+is clean). No database schema, RLS, policy, function, trigger, or Storage object was modified.
 
 ---
 

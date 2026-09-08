@@ -9,6 +9,8 @@
     "lint": "eslint",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:seed": "tsx scripts/seed-test-fixtures.ts",
+    "test:seed:teardown": "tsx scripts/seed-test-fixtures.ts --teardown",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -49,6 +51,7 @@
     "eslint-config-next": "16.3.4",
     "jsdom": "^29.1.1",
     "tailwindcss": "^4",
+    "tsx": "^4.23.13",
     "typescript": "^5",
     "vite": "^7.3.6",
     "vite-tsconfig-paths": "^6.1.1",
