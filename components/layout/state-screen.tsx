@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
 
+import { Icon, type IconName } from "@/components/ui/icon";
+
 /**
  * Shared full-page state shell (research.md §15; named `StateScreen` to match the approved Hills
  * design system component inventory).
@@ -19,6 +21,10 @@ export type StateScreenKind =
   | "empty"
   | "error"
   | "loading"
+  | "unavailable"
+  | "retry"
+  | "blocked"
+  | "suspended"
   // Open extension point: any later feature's domain state. The union above keeps editor
   // autocomplete for the known states without closing the set.
   | (string & {});
@@ -60,6 +66,22 @@ export const STATE_SCREEN_COPY: Record<string, StateScreenCopy> = {
     title: "Loading",
     description: "Fetching the latest information.",
   },
+  unavailable: {
+    title: "Currently unavailable",
+    description: "This area is temporarily unavailable. Please return shortly.",
+  },
+  retry: {
+    title: "Try that again",
+    description: "The request could not be completed. Please retry the action.",
+  },
+  blocked: {
+    title: "Required documents are missing",
+    description: "Upload the documents named in this request before continuing.",
+  },
+  suspended: {
+    title: "Account suspended",
+    description: "Contact support to review the current account restriction.",
+  },
 };
 
 const FALLBACK_COPY: StateScreenCopy = {
@@ -86,17 +108,21 @@ export function StateScreen({
   const copy = STATE_SCREEN_COPY[kind] ?? FALLBACK_COPY;
   const resolvedTitle = title ?? copy.title;
   const resolvedDescription = description ?? copy.description;
+  const stateIcon: IconName = kind === "loading" ? "clock" : kind === "error" || kind === "retry" ? "warning" : kind === "empty" ? "inbox" : "alert-circle";
 
   return (
     <main
       data-state-screen={kind}
-      className="flex min-h-[60vh] flex-1 items-center justify-center px-6 py-16"
+      className="hc-container flex min-h-[60vh] flex-1 items-center justify-center py-16"
     >
-      <div className="w-full max-w-md text-center">
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+      <div className="w-full max-w-md rounded-[var(--radius-lg)] border border-border bg-[var(--surface-card)] p-8 text-center shadow-[var(--shadow-xs)]">
+        <span className="mx-auto mb-5 grid size-12 place-items-center rounded-full bg-[var(--surface-subtle)] text-foreground" aria-hidden="true">
+          <Icon name={stateIcon} className="size-6" />
+        </span>
+        <h1 className="hc-heading-3 font-semibold text-foreground">
           {resolvedTitle}
         </h1>
-        <p className="mt-3 text-sm text-muted-foreground">
+        <p className="mt-3 text-base leading-[var(--lh-body)] text-muted-foreground">
           {resolvedDescription}
         </p>
         {children ? <div className="mt-6">{children}</div> : null}

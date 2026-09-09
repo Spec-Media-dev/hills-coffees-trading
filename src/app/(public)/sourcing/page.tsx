@@ -4,13 +4,13 @@ import Link from "next/link";
 
 import {
   CONTAINER,
-  CTA_ON_FOREST,
   EYEBROW,
   HEADING_2,
   HEADING_3,
   LEAD,
 } from "@/components/public/section";
 import { PUBLIC_ROUTES } from "@/components/public/site-header";
+import { Button } from "@/components/ui/button";
 import { copy } from "@/lib/public/copy";
 import { canonicalUrl } from "@/lib/public/site";
 
@@ -154,12 +154,13 @@ export default function SourcingPage() {
               {copy.sourcing.cta.lead}
             </p>
           </div>
-          <Link
-            href={PUBLIC_ROUTES.contact}
-            className={`${CTA_ON_FOREST} shrink-0`}
+          <Button
+            variant="accent"
+            className="shrink-0"
+            render={<Link href={PUBLIC_ROUTES.contact} />}
           >
             {copy.cta.requestAnOffer}
-          </Link>
+          </Button>
         </div>
       </div>
     </article>

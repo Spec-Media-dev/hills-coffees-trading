@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect } from "react";
+import { StateScreen } from "@/components/layout/state-screen";
+import { Button } from "@/components/ui/button";
 
 /**
  * Member Portal error boundary (Next.js route-segment convention). Must be a Client Component.
@@ -29,26 +31,5 @@ export default function DashboardError({
     }
   }, [error.digest]);
 
-  return (
-    <main
-      data-state-screen="error"
-      className="flex min-h-[60vh] flex-1 items-center justify-center px-6 py-16"
-    >
-      <div className="w-full max-w-md text-center">
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-          Something went wrong
-        </h1>
-        <p className="mt-3 text-sm text-muted-foreground">
-          That did not load correctly. Please try again.
-        </p>
-        <button
-          type="button"
-          onClick={reset}
-          className="mt-6 inline-flex h-9 items-center justify-center rounded-lg border border-border px-4 text-sm font-medium transition-colors hover:bg-muted"
-        >
-          Try again
-        </button>
-      </div>
-    </main>
-  );
+  return <StateScreen kind="error"><Button variant="outline" onClick={reset}>Try again</Button></StateScreen>;
 }

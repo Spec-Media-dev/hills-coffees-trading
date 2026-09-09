@@ -1,16 +1,46 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Cairo, Readex_Pro } from "next/font/google";
+import localFont from "next/font/local";
 import { I18nProvider } from "@/lib/i18n/config";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
+const benito = localFont({
+  variable: "--font-benito",
+  display: "swap",
+  src: [
+    { path: "../../public/fonts/Benito-Thin.ttf", weight: "100" },
+    { path: "../../public/fonts/Benito-Light.ttf", weight: "300" },
+    { path: "../../public/fonts/Benito-Regular.ttf", weight: "400" },
+    { path: "../../public/fonts/Benito-Medium.ttf", weight: "500" },
+    { path: "../../public/fonts/Benito-Bold.ttf", weight: "700" },
+    { path: "../../public/fonts/Benito-Black.ttf", weight: "900" },
+  ],
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
+const manrope = localFont({
+  variable: "--font-manrope",
+  display: "swap",
+  src: [
+    { path: "../../public/fonts/Manrope-ExtraLight.ttf", weight: "200" },
+    { path: "../../public/fonts/Manrope-Light.ttf", weight: "300" },
+    { path: "../../public/fonts/Manrope-Regular.ttf", weight: "400" },
+    { path: "../../public/fonts/Manrope-Medium.ttf", weight: "500" },
+    { path: "../../public/fonts/Manrope-SemiBold.ttf", weight: "600" },
+    { path: "../../public/fonts/Manrope-Bold.ttf", weight: "700" },
+    { path: "../../public/fonts/Manrope-ExtraBold.ttf", weight: "800" },
+  ],
+});
+
+const readexPro = Readex_Pro({
+  variable: "--font-readex-pro",
+  subsets: ["arabic", "latin"],
+  display: "swap",
+});
+
+const cairo = Cairo({
+  variable: "--font-cairo",
+  subsets: ["arabic", "latin"],
+  display: "swap",
 });
 
 export const metadata: Metadata = {
@@ -26,7 +56,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${benito.variable} ${manrope.variable} ${readexPro.variable} ${cairo.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
         <I18nProvider>{children}</I18nProvider>

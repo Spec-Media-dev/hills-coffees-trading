@@ -9,7 +9,6 @@ import { OriginCard } from "@/components/public/origin-card";
 import { PublicShell } from "@/components/public/public-shell";
 import {
   CONTAINER,
-  CTA_ON_FOREST,
   EYEBROW,
   HEADING_2,
   LEAD,
@@ -17,6 +16,7 @@ import {
   Section,
 } from "@/components/public/section";
 import { PUBLIC_ROUTES } from "@/components/public/site-header";
+import { Button } from "@/components/ui/button";
 import { getPublicCoffeeIndex } from "@/lib/public/coffees";
 import { copy } from "@/lib/public/copy";
 import { getPublicOriginIndex } from "@/lib/public/origins";
@@ -197,12 +197,13 @@ export default async function HomePage() {
               {copy.home.rfq.lead}
             </p>
           </div>
-          <Link
-            href={PUBLIC_ROUTES.contact}
-            className={`${CTA_ON_FOREST} shrink-0`}
+          <Button
+            variant="accent"
+            className="shrink-0"
+            render={<Link href={PUBLIC_ROUTES.contact} />}
           >
             {copy.cta.requestAnOffer}
-          </Link>
+          </Button>
         </div>
       </section>
     </PublicShell>

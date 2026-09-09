@@ -4,12 +4,12 @@ import Link from "next/link";
 
 import {
   CONTAINER,
-  CTA_PRIMARY,
   EYEBROW,
   HEADING_2,
   LEAD,
 } from "@/components/public/section";
 import { PUBLIC_ROUTES } from "@/components/public/site-header";
+import { Button } from "@/components/ui/button";
 import { copy } from "@/lib/public/copy";
 import { canonicalUrl } from "@/lib/public/site";
 
@@ -82,9 +82,9 @@ export default function PortalEntryPage() {
         <p className="max-w-[58ch] text-[0.9375rem] leading-[1.6] text-muted-foreground text-pretty">
           {copy.portalEntry.body}
         </p>
-        <Link href={PUBLIC_ROUTES.contact} className={`${CTA_PRIMARY} mt-2`}>
+        <Button className="mt-2" render={<Link href={PUBLIC_ROUTES.contact} />}>
           {copy.portalEntry.action}
-        </Link>
+        </Button>
         </div>
       </div>
     </article>

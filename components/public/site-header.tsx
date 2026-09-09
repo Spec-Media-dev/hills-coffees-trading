@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 
+import { Button } from "@/components/ui/button";
 import { copy } from "@/lib/public/copy";
 
 /**
@@ -49,7 +50,7 @@ const PRIMARY_NAV = [
 export function SiteHeader() {
   return (
     <header className="sticky top-0 z-40 border-b border-border/80 bg-background/95 shadow-[0_8px_28px_rgba(23,60,50,0.05)] supports-[backdrop-filter]:backdrop-blur-md dark:shadow-none">
-      <div className="mx-auto flex w-full max-w-7xl flex-wrap items-center gap-x-6 gap-y-3 px-5 py-3 sm:px-8 xl:px-10">
+      <div className="hc-container flex flex-wrap items-center gap-x-6 gap-y-3 py-3">
         {/*
           Two horizontal logo variants (approved brand assets under `public/images/`), swapped by
           Tailwind's `dark:` variant so the mark stays legible against the page's current theme with
@@ -88,7 +89,7 @@ export function SiteHeader() {
             <Link
               key={item.href}
               href={item.href}
-              className="shrink-0 py-2 text-sm font-medium text-muted-foreground underline-offset-8 transition-colors hover:text-foreground hover:underline hover:decoration-accent hover:decoration-2 focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring"
+              className="inline-flex min-h-11 shrink-0 items-center py-2 text-sm font-medium text-muted-foreground underline-offset-8 transition-colors hover:text-foreground hover:underline hover:decoration-accent hover:decoration-2 focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring"
             >
               {item.label}
             </Link>
@@ -96,8 +97,8 @@ export function SiteHeader() {
         </nav>
 
         {/*
-          `ms-auto` (margin-inline-start) rather than `ml-auto`, so the actions sit at the trailing
-          edge in both LTR and RTL without a second stylesheet (FR-018).
+          Logical margin keeps the actions at the trailing edge in both LTR and RTL without a second
+          stylesheet (FR-018).
         */}
         <div className="order-3 flex w-full items-center justify-between gap-4 sm:order-none sm:ms-auto sm:w-auto sm:justify-start">
           {/*
@@ -107,18 +108,15 @@ export function SiteHeader() {
           */}
           <Link
             href={PUBLIC_ROUTES.portalEntry}
-            className="rounded-sm py-2 text-sm font-medium text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring"
+            className="inline-flex min-h-11 items-center rounded-sm py-2 text-sm font-medium text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring"
           >
             {copy.nav.portalEntry}
           </Link>
 
           {/* Primary commercial CTA — the public site's main conversion action. */}
-          <Link
-            href={PUBLIC_ROUTES.contact}
-            className="inline-flex min-h-11 items-center justify-center rounded-lg bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground transition-[background-color,transform] hover:bg-primary/90 active:translate-y-px focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring motion-reduce:transform-none motion-reduce:transition-none"
-          >
+          <Button render={<Link href={PUBLIC_ROUTES.contact} />}>
             {copy.cta.requestAnOffer}
-          </Link>
+          </Button>
         </div>
       </div>
     </header>

@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 
 import { PUBLIC_ROUTES } from "@/components/public/site-header";
+import { Button } from "@/components/ui/button";
 import { copy } from "@/lib/public/copy";
 
 /**
@@ -31,7 +32,7 @@ const FOOTER_NAV = [
 export function SiteFooter() {
   return (
     <footer className="border-t border-sidebar-border bg-sidebar text-sidebar-foreground">
-      <div className="mx-auto w-full max-w-7xl px-5 py-[clamp(3rem,7vw,6rem)] sm:px-8 xl:px-10">
+      <div className="hc-container py-[clamp(3rem,7vw,6rem)]">
         <div className="grid gap-12 border-b border-sidebar-border pb-12 md:grid-cols-[minmax(0,1.25fr)_minmax(10rem,0.7fr)_minmax(15rem,0.9fr)]">
           <div className="flex max-w-md flex-col gap-5">
           {/*
@@ -66,7 +67,7 @@ export function SiteFooter() {
               <Link
                 key={item.href}
                 href={item.href}
-                className="rounded-sm py-1 text-sm text-sidebar-foreground/75 underline-offset-4 transition-colors hover:text-sidebar-foreground hover:underline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-sidebar-ring"
+                className="inline-flex min-h-11 items-center rounded-sm py-1 text-sm text-sidebar-foreground/75 underline-offset-4 transition-colors hover:text-sidebar-foreground hover:underline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-sidebar-ring"
               >
                 {item.label}
               </Link>
@@ -80,12 +81,9 @@ export function SiteFooter() {
             <p className="text-sm leading-[1.7] text-sidebar-foreground/75">
               {copy.footer.commercialBody}
             </p>
-            <Link
-              href={PUBLIC_ROUTES.contact}
-              className="inline-flex min-h-11 items-center justify-center rounded-lg bg-sidebar-foreground px-5 py-2 text-sm font-semibold text-sidebar transition-[background-color,transform] hover:bg-sidebar-foreground/90 active:translate-y-px focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sidebar-ring motion-reduce:transform-none motion-reduce:transition-none"
-            >
+            <Button variant="accent" render={<Link href={PUBLIC_ROUTES.contact} />}>
               {copy.cta.requestAnOffer}
-            </Link>
+            </Button>
           </div>
         </div>
 

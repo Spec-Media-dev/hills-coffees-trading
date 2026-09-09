@@ -66,7 +66,7 @@ therefore run before every task in Blocks B–I regardless of their numbers.
 **Codex: GPT-5.6 Sol — High · Claude: Opus — High**
 Critical path. Every other block consumes these tokens and primitives.
 
-- [ ] UIF-001 Self-host the brand faces and wire the font variables (`public/fonts/`, `src/app/layout.tsx`, `src/app/globals.css`)
+- [x] UIF-001 Self-host the brand faces and wire the font variables (`public/fonts/`, `src/app/layout.tsx`, `src/app/globals.css`)
   - Scope: copy Benito (6 weights) + Manrope (7 weights) from `docs/claude-design/assets/fonts/` into `public/fonts/`; load via `next/font/local`; add Readex Pro + Cairo via `next/font/google` for Arabic; expose `--font-display`, `--font-ui`, `--font-display-ar`, `--font-ui-ar`, `--font-mono`. **Retire the third, route-scoped font mechanism**: `src/app/dashboard/settings/hills-fonts.module.css` currently declares `"Hills Benito"`/`"Hills Manrope"` for one route only and loads the binaries **from `docs/claude-design/assets/fonts/` via a relative path out of `src/`**. Delete it and repoint `settings-foundation-shell.tsx` at the global tokens.
   - Requirement: contract §4; plan §1 gap 1
   - Depends: —
@@ -75,7 +75,7 @@ Critical path. Every other block consumes these tokens and primitives.
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — High
   - Why: mechanical but foundational — every subsequent visual judgement is made against the wrong face until this lands.
 
-- [ ] UIF-002 Type scale + Arabic typography tokens (`src/app/globals.css`)
+- [x] UIF-002 Type scale + Arabic typography tokens (`src/app/globals.css`)
   - Scope: fluid `clamp()` scale (`--text-hero` … `--text-micro`), line heights, tracking, weights, and the mandatory `[dir="rtl"]`/`[lang="ar"]` overrides.
   - Requirement: contract §4
   - Depends: UIF-001
@@ -84,7 +84,7 @@ Critical path. Every other block consumes these tokens and primitives.
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — High
   - Why: token work with one genuinely subtle requirement — the RTL override that prevents Arabic from rendering cramped.
 
-- [ ] UIF-003 The 96rem product content grid (`src/app/globals.css`, `components/layout/container.tsx`)
+- [x] UIF-003 The 96rem product content grid (`src/app/globals.css`, `components/layout/container.tsx`)
   - Scope: the single `.hc-container` primitive (`max-inline-size: 96rem`, `margin-inline: auto`, `padding-inline: var(--gutter-page)`) plus a full-bleed pattern and the nested 1280px / 760px reading measures.
   - Requirement: contract §2; plan §7 (locked decision)
   - Depends: —
@@ -93,7 +93,7 @@ Critical path. Every other block consumes these tokens and primitives.
   - Codex: GPT-5.6 Sol — Medium · Claude: Opus — Medium
   - Why: one locked number, but it must be reconciled against two narrower design-system measures without collapsing them into one.
 
-- [ ] UIF-004 [P] Colour, surface and status token completion (`src/app/globals.css`)
+- [x] UIF-004 [P] Colour, surface and status token completion (`src/app/globals.css`)
   - Scope: add the tokens the implementation lacks — `--surface-raised/-subtle/-inverse`, `--sand-*` and `--forest-*` ramps, `--gold-on-light`/`--gold-on-dark`, `--primary-hover`/`--primary-active`, `--border-strong`/`--border-subtle`, `--overlay`, scrims, the five warm shadow steps, and the status token pairs — in both `:root` and `.dark`.
   - Requirement: contract §3
   - Depends: —
@@ -102,7 +102,7 @@ Critical path. Every other block consumes these tokens and primitives.
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — Medium
   - Why: additive token work against an explicit table; the judgement is restraint, not invention.
 
-- [ ] UIF-005 [P] Radii, elevation and motion tokens (`src/app/globals.css`)
+- [x] UIF-005 [P] Radii, elevation and motion tokens (`src/app/globals.css`)
   - Scope: radii 6/8/12/14/20/28/pill + `--radius-arch`; five warm shadow steps + `--shadow-inset`/`--shadow-focus`; motion durations and the two easing curves.
   - Requirement: contract §6, §13
   - Depends: —
@@ -111,7 +111,7 @@ Critical path. Every other block consumes these tokens and primitives.
   - Codex: GPT-5.6 Sol — Low · Claude: Sonnet — Low
   - Why: small, mechanical, explicitly specified.
 
-- [ ] UIF-006 Button + IconButton convergence (`components/ui/button.tsx`, `components/ui/icon-button.tsx`)
+- [x] UIF-006 Button + IconButton convergence (`components/ui/button.tsx`, `components/ui/icon-button.tsx`)
   - Scope: converge to Hills sizes (36/44/52px), the six variants, semibold `.005em`, press `translateY(1px)`, 45% disabled, focus-visible ring; retire the ad-hoc CTA class constants in `components/public/section.tsx` and repoint every public CTA at the converged component.
   - Requirement: contract §5; plan §1 gap 3
   - Depends: UIF-002, UIF-004, UIF-005
@@ -120,7 +120,7 @@ Critical path. Every other block consumes these tokens and primitives.
   - Codex: GPT-5.6 Sol — High · Claude: Opus — High
   - Why: two forked systems must become one without regressing verified public surfaces — the highest-blast-radius primitive in the phase.
 
-- [ ] UIF-007 [P] Icon system (`components/ui/icon.tsx`)
+- [x] UIF-007 [P] Icon system (`components/ui/icon.tsx`)
   - Scope: one Lucide wrapper — line/outline, 1.75 stroke, size prop, `aria-hidden` by default, RTL-aware flipping for directional glyphs only.
   - Requirement: contract §12, §15; design README iconography
   - Depends: UIF-004
@@ -129,7 +129,7 @@ Critical path. Every other block consumes these tokens and primitives.
   - Codex: GPT-5.6 Sol — Low · Claude: Sonnet — Medium
   - Why: small surface, but the RTL flip rule is easy to get wrong in both directions.
 
-- [ ] UIF-008 Form control convergence + `Field` scaffold (`components/ui/{input,textarea,select,checkbox,radio-group,switch,label}.tsx`, `components/ui/field.tsx`)
+- [x] UIF-008 Form control convergence + `Field` scaffold (`components/ui/{input,textarea,select,checkbox,radio-group,switch,label}.tsx`, `components/ui/field.tsx`)
   - Scope: Hills control height/radius/state treatment for every control; a `Field` scaffold (label + hint + control + error) wired with `aria-describedby`/`aria-invalid`; upload treatment; section grouping and action-bar patterns.
   - Requirement: contract §9
   - Depends: UIF-006
@@ -138,7 +138,7 @@ Critical path. Every other block consumes these tokens and primitives.
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — High
   - Why: broad but pattern-repetitive once the scaffold is right; the a11y wiring is the part that must not be approximated.
 
-- [ ] UIF-009 [P] Card and panel system (`components/ui/card.tsx`, `components/layout/panel.tsx`)
+- [x] UIF-009 [P] Card and panel system (`components/ui/card.tsx`, `components/layout/panel.tsx`)
   - Scope: base card (white/`#1E2C26`, 1px warm border, 14px radius, near-subliminal warm shadow), interactive `-2px` hover lift, the gold action-needed border variant, and a panel/section surface.
   - Requirement: contract §6
   - Depends: UIF-004, UIF-005
@@ -147,7 +147,7 @@ Critical path. Every other block consumes these tokens and primitives.
   - Codex: GPT-5.6 Sol — Low · Claude: Sonnet — Medium
   - Why: explicit spec; the discipline is in what is *not* added.
 
-- [ ] UIF-010 [P] Badge, StatusBadge and chips (`components/ui/badge.tsx`, `components/ui/status-badge.tsx`, `components/ui/filter-chip.tsx`)
+- [x] UIF-010 [P] Badge, StatusBadge and chips (`components/ui/badge.tsx`, `components/ui/status-badge.tsx`, `components/ui/filter-chip.tsx`)
   - Scope: dot+label status presentation over the closed vocabulary; filter chips; pill radius.
   - Requirement: contract §7
   - Depends: UIF-004
@@ -156,7 +156,7 @@ Critical path. Every other block consumes these tokens and primitives.
   - Codex: GPT-5.6 Sol — Low · Claude: Sonnet — Medium
   - Why: small, but the closed vocabulary is a cross-feature contract that later features depend on verbatim.
 
-- [ ] UIF-011 Table system + mobile transformation (`components/app/data-table.tsx`, `components/ui/table.tsx`)
+- [x] UIF-011 Table system + mobile transformation (`components/app/data-table.tsx`, `components/ui/table.tsx`)
   - Scope: desktop data table (sortable headers, row actions at inline-end, pagination slot), tablet column reduction + filter drawer, and the **mobile card/list transformation**; empty and loading states that hold layout.
   - Requirement: contract §8
   - Depends: UIF-009, UIF-010
@@ -165,7 +165,7 @@ Critical path. Every other block consumes these tokens and primitives.
   - Codex: GPT-5.6 Sol — High · Claude: Opus — Medium
   - Why: the responsive transformation is real architecture that every later data feature inherits.
 
-- [ ] UIF-012 [P] Tabs, breadcrumbs, pagination, sort control (`components/ui/{tabs,breadcrumb}.tsx`, `components/app/{pagination,sort-control}.tsx`)
+- [x] UIF-012 [P] Tabs, breadcrumbs, pagination, sort control (`components/ui/{tabs,breadcrumb}.tsx`, `components/app/{pagination,sort-control}.tsx`)
   - Scope: one active-tab gold underline; breadcrumb trail with a separator that flips in RTL; pagination and sort presentation.
   - Requirement: contract §7, §8, §12
   - Depends: UIF-006, UIF-007
@@ -174,7 +174,7 @@ Critical path. Every other block consumes these tokens and primitives.
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — Medium
   - Why: several small components sharing one directional rule.
 
-- [ ] UIF-013 State visual system (`components/layout/state-screen.tsx`, `components/app/empty-state.tsx`, `components/ui/skeleton.tsx`, `components/ui/inline-alert.tsx`)
+- [x] UIF-013 State visual system (`components/layout/state-screen.tsx`, `components/app/empty-state.tsx`, `components/ui/skeleton.tsx`, `components/ui/inline-alert.tsx`)
   - Scope: converge Feature 001's `StateScreen`; build EmptyState, sand-toned Skeleton that holds layout, and InlineAlert; cover loading · empty · error · unavailable · retry · not-found · blocked sub-flow · unauthorized · suspended. Also converge the **four existing route-level state files** so protected surfaces do not keep a pre-Phase-5.5 look: `src/app/dashboard/{loading,error}.tsx` and `src/app/dashboard-admin/{loading,error}.tsx`.
   - Requirement: contract §10; plan §12
   - Depends: UIF-009, UIF-010
@@ -183,7 +183,7 @@ Critical path. Every other block consumes these tokens and primitives.
   - Codex: GPT-5.6 Sol — Medium · Claude: Opus — Medium
   - Why: this is where "visual foundation vs behavioural verification" must be split cleanly, and the copy rule is a judgement call.
 
-- [ ] UIF-014 [P] Overlay system — Dialog, Drawer, Toast (`components/ui/{dialog,sheet}.tsx`, `components/app/toast.tsx`)
+- [x] UIF-014 [P] Overlay system — Dialog, Drawer, Toast (`components/ui/{dialog,sheet}.tsx`, `components/app/toast.tsx`)
   - Scope: dialog rises 12px, toast rises 10px, drawer slides from the **inline-end** edge; `--overlay` + 2px backdrop blur; focus trap, Escape, focus restore.
   - Requirement: contract §6, §13, §15
   - Depends: UIF-006, UIF-009
@@ -192,7 +192,7 @@ Critical path. Every other block consumes these tokens and primitives.
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — High
   - Why: focus management is the part that is quietly wrong most often.
 
-- [ ] UIF-015 Motion foundation — Motion + CSS layer (`components/motion/*`, `src/app/globals.css`)
+- [x] UIF-015 Motion foundation — Motion + CSS layer (`components/motion/*`, `src/app/globals.css`)
   - Scope: Motion-based reveal / hover / entrance / enter-exit wrappers bound to the motion tokens, plus the CSS transition layer, with reduced-motion collapse built in. Owns component enter/exit, image crossfade, drawer, card, button and icon transitions.
   - Requirement: contract §13, §13.1, §13.5
   - Depends: UIF-005
@@ -201,7 +201,7 @@ Critical path. Every other block consumes these tokens and primitives.
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — High
   - Why: the restraint and the reduced-motion guarantee matter more than the animation itself.
 
-- [ ] UIF-052 Reference-pack audit and static-asset map (`docs/architecture/` or `specs/002-public-website/`, no runtime code)
+- [x] UIF-052 Reference-pack audit and static-asset map (`docs/architecture/` or `specs/002-public-website/`, no runtime code)
   - Scope: turn plan §11.1 into a machine-checkable asset map — for each of the 28 extracted crops and each root `public/images/` asset: subject, intrinsic size, class (usable / re-crop-required / restricted / not-a-product-asset), and the slot(s) it may fill. Produce the re-cropped derivatives for the 6 `USABLE ONLY AFTER RE-CROP` assets, or mark them unused.
   - Requirement: plan §11, §11.1; contract §14, §14.1; record **ASSET-REF-01**
   - Depends: —
@@ -210,7 +210,7 @@ Critical path. Every other block consumes these tokens and primitives.
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — High
   - Why: the failure mode is publishing a fabricated brand mark or burned-in English text — cheap to prevent here, expensive to find later.
 
-- [ ] UIF-053 GSAP foundation and animation-ownership registry (`components/motion/gsap-*`, `components/motion/ANIMATION-OWNERSHIP.md` or header comment)
+- [x] UIF-053 GSAP foundation and animation-ownership registry (`components/motion/gsap-*`, `components/motion/ANIMATION-OWNERSHIP.md` or header comment)
   - Scope: the scoped GSAP layer — a `gsap.context()`-based helper bound to a ref, timeline creation/cleanup conventions, a seekable/pausable/resumable timeline primitive for the story section, and the `ANIMATION-OWNERSHIP` registry recording per surface the interaction, its primary engine, and which engine owns which property. Owns timeline-controlled, multi-step, synchronised sequences.
   - Requirement: contract §13.1, §13.2, §13.3; plan §13, §17 (**MOTION-GSAP-01**)
   - Depends: UIF-005, UIF-015

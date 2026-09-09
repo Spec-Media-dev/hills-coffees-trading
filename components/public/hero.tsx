@@ -3,11 +3,10 @@ import Link from "next/link";
 
 import {
   CONTAINER,
-  CTA_ON_FOREST,
-  CTA_OUTLINE_ON_FOREST,
   EYEBROW,
 } from "@/components/public/section";
 import { PUBLIC_ROUTES } from "@/components/public/site-header";
+import { Button } from "@/components/ui/button";
 import { copy } from "@/lib/public/copy";
 
 /**
@@ -17,7 +16,7 @@ import { copy } from "@/lib/public/copy";
  * the first screen carries the positioning on its own: a full-bleed deep-forest editorial ground, a
  * headline set at the brand's largest display step, and an asymmetric split against a tall portrait
  * media area — the composition the approved public-website kit establishes for this page
- * (`docs/claude-design/ui_kits/public_website/home.jsx`).
+ * in the approved public website reference.
  *
  * The message is the one the design guidance requires: Dubai-based regional green-coffee supply,
  * stated immediately, with two clear actions — explore the coffee, or start a commercial
@@ -34,7 +33,7 @@ import { copy } from "@/lib/public/copy";
 
 /** `--text-hero`: clamp(44px, 1.6rem + 5.6vw, 112px) at `--lh-display` / `--tracking-display`. */
 const HERO_HEADLINE =
-  "text-[clamp(2.75rem,calc(1.6rem+5.6vw),6rem)] font-semibold leading-[1.03] tracking-[-0.03em] text-balance";
+  "hc-display font-semibold text-balance";
 
 export function Hero() {
   return (
@@ -57,15 +56,16 @@ export function Hero() {
           </p>
 
           <div className="mt-2 flex flex-wrap gap-3">
-            <Link href={PUBLIC_ROUTES.coffee} className={CTA_ON_FOREST}>
+            <Button variant="accent" render={<Link href={PUBLIC_ROUTES.coffee} />}>
               {copy.home.hero.exploreAction}
-            </Link>
-            <Link
-              href={PUBLIC_ROUTES.contact}
-              className={CTA_OUTLINE_ON_FOREST}
+            </Button>
+            <Button
+              variant="outline"
+              className="border-sidebar-foreground/40 text-sidebar-foreground hover:bg-white/8"
+              render={<Link href={PUBLIC_ROUTES.contact} />}
             >
               {copy.cta.requestAnOffer}
-            </Link>
+            </Button>
           </div>
         </div>
 
