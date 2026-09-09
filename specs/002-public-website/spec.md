@@ -30,6 +30,7 @@ Detailed rules live in `contracts/` and are binding:
 | [`rfq-contract.md`](./contracts/rfq-contract.md) | RFQ field shape, result shape, abuse posture, the blocked boundary |
 | [`reference-price-presentation.md`](./contracts/reference-price-presentation.md) | What 002 may render about price, and what it must never invent |
 | [`public-copy-architecture.md`](./contracts/public-copy-architecture.md) | Server-safe typed English copy dictionary; where i18next stays; copy vs technical constant |
+| [`product-ui-foundation.md`](./contracts/product-ui-foundation.md) | **Phase 5.5**: one Hills design system across Public/Member/Admin — 96rem grid, typography, controls, states, theme, direction, imagery |
 
 ## Scope
 
@@ -61,7 +62,10 @@ Detailed rules live in `contracts/` and are binding:
 - Knowledge/editorial and legal content **authoring and storage** — no approved source exists
   (CONTENT-01).
 - CMS authoring tooling (010).
-- Localisation into Arabic (RTL-safe markup only; translation delivery is a later decision).
+- Approved Arabic **content** translation (marketing, legal, compliance copy) — owned by
+  Content/Legal (`CONTENT-AR-01`). *Amended Phase 5.5: the EN/العربية switching **infrastructure**,
+  RTL layout correctness and Arabic typography are now IN scope — see
+  [`PHASE-5.5-UI-FOUNDATION-PLAN.md`](./PHASE-5.5-UI-FOUNDATION-PLAN.md) §8.*
 - Redirect/tombstone lifecycle beyond 200/404 (LIFE-01).
 
 ## Cross-feature boundaries
@@ -345,13 +349,22 @@ structured data; private routes are excluded from indexation.
   every user-facing string sourced from the **single typed English dictionary** at `lib/public/copy/`
   (`contracts/public-copy-architecture.md`). That module MUST be **server-safe** — no `"use client"`
   directive, no `react` or `i18next` import — so Server Components read it without crossing the
-  client boundary, and Client Components consume the same module. English-first; no locale routing,
-  no locale switcher.
+  client boundary, and Client Components consume the same module.
+  **AMENDED (Phase 5.5, 2026-09-09)**: English **and Arabic** are both supported. A locale control
+  switches the active language and document direction; the dictionary gains an `ar` sibling fed from
+  the same module. **No locale routing** (`/en`, `/ar`) is introduced. See
+  [`PHASE-5.5-UI-FOUNDATION-PLAN.md`](./PHASE-5.5-UI-FOUNDATION-PLAN.md) §8.
 - **FR-030**: Public typography and tokens MUST extend Feature 001's existing Hills token/font
   foundation. A second, independent token or font system MUST NOT be created. Likewise, Feature
   001's i18next initialisation (`lib/i18n/config.ts`) MUST remain the only one: this feature adds
   **no** second i18n initialisation, **no** second i18n library, and **no** duplicate copy
   dictionary.
+- **FR-032** *(added Phase 5.5)*: Every product surface — Public, Member and Admin — MUST render
+  correctly at `dir="rtl"` with Arabic typography, without requiring a future layout redesign.
+  Approved Arabic **content** translation is owned by Content/Legal (`CONTENT-AR-01`); missing
+  translations fall back to reviewed English and are never invented.
+- **FR-033** *(added Phase 5.5)*: A theme control MUST expose the existing Light/Dark token
+  architecture across all three surfaces. No second theme system may be created.
 - **FR-019**: Motion MUST remain restrained (reveal/hover/section transitions only), MUST respect
   `prefers-reduced-motion`, and MUST NOT introduce scroll hijacking or long intro sequences.
 - **FR-020**: Public routes MUST be **Server Components by default**; Client Components are permitted

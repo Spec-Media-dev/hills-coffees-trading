@@ -57,16 +57,22 @@ export function ReferencePrice({ state = DEFAULT_STATE }: ReferencePriceProps) {
 
 function UnavailableReferencePrice() {
   return (
-    <div className="flex flex-col gap-2 rounded-xl border border-border bg-card p-6">
-      <p className="text-sm font-medium text-foreground">
+    <aside className="relative overflow-hidden rounded-xl border border-border bg-card p-7 shadow-[0_12px_38px_rgba(23,60,50,0.045)] dark:shadow-none">
+      <span aria-hidden="true" className="absolute inset-y-0 start-0 w-1 bg-accent" />
+      <div className="flex flex-col gap-3 ps-2">
+      <p className="text-[0.75rem] font-semibold uppercase tracking-[0.14em] text-accent">
+        {copy.referencePrice.label}
+      </p>
+      <p className="text-lg font-semibold leading-snug text-foreground">
         {copy.referencePrice.unavailableTitle}
       </p>
-      <p className="text-[0.8125rem] leading-[1.6] text-muted-foreground">
+      <p className="max-w-[58ch] text-[0.875rem] leading-[1.7] text-muted-foreground">
         {copy.referencePrice.unavailableBody}
       </p>
-      <p className="text-[0.75rem] font-medium text-muted-foreground">
+      <p className="mt-2 border-t border-border pt-3 text-[0.75rem] font-semibold text-muted-foreground">
         {copy.referencePrice.disclosure}
       </p>
-    </div>
+      </div>
+    </aside>
   );
 }

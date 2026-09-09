@@ -48,8 +48,8 @@ const PRIMARY_NAV = [
 
 export function SiteHeader() {
   return (
-    <header className="border-b border-border bg-background">
-      <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center gap-4 px-6 py-4">
+    <header className="sticky top-0 z-40 border-b border-border/80 bg-background/95 shadow-[0_8px_28px_rgba(23,60,50,0.05)] supports-[backdrop-filter]:backdrop-blur-md dark:shadow-none">
+      <div className="mx-auto flex w-full max-w-7xl flex-wrap items-center gap-x-6 gap-y-3 px-5 py-3 sm:px-8 xl:px-10">
         {/*
           Two horizontal logo variants (approved brand assets under `public/images/`), swapped by
           Tailwind's `dark:` variant so the mark stays legible against the page's current theme with
@@ -62,35 +62,33 @@ export function SiteHeader() {
         <Link
           href={PUBLIC_ROUTES.home}
           aria-label={copy.a11y.homeLink}
-          className="shrink-0"
+          className="shrink-0 rounded-md focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring"
         >
           <Image
             src="/images/hills-logo-dark.png"
             alt=""
-            width={84}
-            height={32}
-            priority
+            width={150}
+            height={57}
             className="block dark:hidden"
           />
           <Image
             src="/images/hills-logo-light.png"
             alt=""
-            width={84}
-            height={32}
-            priority
+            width={150}
+            height={57}
             className="hidden dark:block"
           />
         </Link>
 
         <nav
           aria-label={copy.a11y.primaryNavigation}
-          className="flex flex-wrap items-center gap-5"
+          className="order-2 flex w-full items-center gap-6 overflow-x-auto border-t border-border/70 pt-3 sm:order-none sm:w-auto sm:border-0 sm:pt-0"
         >
           {PRIMARY_NAV.map((item) => (
             <Link
               key={item.href}
               href={item.href}
-              className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+              className="shrink-0 py-2 text-sm font-medium text-muted-foreground underline-offset-8 transition-colors hover:text-foreground hover:underline hover:decoration-accent hover:decoration-2 focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring"
             >
               {item.label}
             </Link>
@@ -101,7 +99,7 @@ export function SiteHeader() {
           `ms-auto` (margin-inline-start) rather than `ml-auto`, so the actions sit at the trailing
           edge in both LTR and RTL without a second stylesheet (FR-018).
         */}
-        <div className="ms-auto flex flex-wrap items-center gap-4">
+        <div className="order-3 flex w-full items-center justify-between gap-4 sm:order-none sm:ms-auto sm:w-auto sm:justify-start">
           {/*
             Secondary by design (FR-016): a plain text link beside the filled primary CTA. Until
             Feature 003 exists it resolves to an explicit, honest placeholder — never a fake sign-in
@@ -109,7 +107,7 @@ export function SiteHeader() {
           */}
           <Link
             href={PUBLIC_ROUTES.portalEntry}
-            className="text-sm text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
+            className="rounded-sm py-2 text-sm font-medium text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring"
           >
             {copy.nav.portalEntry}
           </Link>
@@ -117,7 +115,7 @@ export function SiteHeader() {
           {/* Primary commercial CTA — the public site's main conversion action. */}
           <Link
             href={PUBLIC_ROUTES.contact}
-            className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"
+            className="inline-flex min-h-11 items-center justify-center rounded-lg bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground transition-[background-color,transform] hover:bg-primary/90 active:translate-y-px focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring motion-reduce:transform-none motion-reduce:transition-none"
           >
             {copy.cta.requestAnOffer}
           </Link>

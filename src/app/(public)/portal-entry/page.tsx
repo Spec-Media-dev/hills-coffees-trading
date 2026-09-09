@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 
 import {
@@ -55,10 +56,21 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default function PortalEntryPage() {
   return (
-    <div
-      className={`${CONTAINER} flex flex-col items-center gap-6 py-[clamp(3rem,7vw,6rem)] text-center`}
-    >
-      <div className="flex max-w-[46rem] flex-col items-center gap-5">
+    <article className="bg-background">
+      <div
+        className={`${CONTAINER} grid gap-12 py-[clamp(3.5rem,8vw,7.5rem)] lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:items-center lg:gap-20`}
+      >
+        <div className="relative min-h-[25rem] overflow-hidden rounded-b-2xl rounded-t-[8rem] border border-border bg-muted sm:min-h-[34rem]">
+          <Image
+            src="/images/coffee-lot-1.jpg"
+            alt={copy.portalEntry.imageAlt}
+            fill
+            sizes="(min-width: 1024px) 42vw, 90vw"
+            className="object-cover"
+          />
+        </div>
+
+        <div className="flex max-w-[46rem] flex-col items-start gap-5 text-start">
         <span className={`${EYEBROW} text-accent`}>
           {copy.portalEntry.eyebrow}
         </span>
@@ -73,7 +85,8 @@ export default function PortalEntryPage() {
         <Link href={PUBLIC_ROUTES.contact} className={`${CTA_PRIMARY} mt-2`}>
           {copy.portalEntry.action}
         </Link>
+        </div>
       </div>
-    </div>
+    </article>
   );
 }

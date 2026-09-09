@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 
 import { CoffeeCard } from "@/components/public/coffee-card";
@@ -99,23 +100,35 @@ export default async function HomePage() {
         title={copy.home.credibility.title}
         lead={copy.home.credibility.lead}
       >
-        <dl className="grid gap-x-12 gap-y-10 border-t border-border pt-10 md:grid-cols-2">
-          {[
-            copy.home.credibility.origin,
-            copy.home.credibility.quality,
-            copy.home.credibility.custody,
-            copy.home.credibility.membership,
-          ].map((item) => (
-            <div key={item.title} className="flex flex-col gap-2">
-              <dt className="text-base font-semibold tracking-[-0.01em] text-foreground">
-                {item.title}
-              </dt>
-              <dd className="max-w-[52ch] text-[0.9375rem] leading-[1.6] text-muted-foreground text-pretty">
-                {item.body}
-              </dd>
-            </div>
-          ))}
-        </dl>
+        <div className="grid gap-12 lg:grid-cols-[minmax(0,1.05fr)_minmax(20rem,0.95fr)] lg:items-stretch">
+          <dl className="grid gap-x-10 gap-y-9 border-t border-border pt-9 sm:grid-cols-2">
+            {[
+              copy.home.credibility.origin,
+              copy.home.credibility.quality,
+              copy.home.credibility.custody,
+              copy.home.credibility.membership,
+            ].map((item) => (
+              <div key={item.title} className="flex flex-col gap-3">
+                <dt className="text-base font-semibold tracking-[-0.01em] text-foreground">
+                  {item.title}
+                </dt>
+                <dd className="max-w-[52ch] text-[0.9375rem] leading-[1.7] text-muted-foreground text-pretty">
+                  {item.body}
+                </dd>
+              </div>
+            ))}
+          </dl>
+
+          <div className="relative min-h-[24rem] overflow-hidden rounded-b-2xl rounded-t-[7rem] border border-border bg-muted sm:min-h-[30rem]">
+            <Image
+              src="/images/farmer-partnership.jpg"
+              alt={copy.home.credibility.imageAlt}
+              fill
+              sizes="(min-width: 1024px) 42vw, 90vw"
+              className="object-cover"
+            />
+          </div>
+        </div>
       </Section>
 
       <Section

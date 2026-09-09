@@ -50,7 +50,7 @@ export function IntentCards() {
       {INTENTS.map((intent) => (
         <li
           key={intent.key}
-          className="flex flex-col gap-4 rounded-xl border border-border bg-card p-7"
+          className="group flex min-h-64 flex-col gap-5 rounded-xl border border-border bg-card p-7 shadow-[0_12px_38px_rgba(23,60,50,0.045)] transition-[border-color,box-shadow,transform] hover:-translate-y-0.5 hover:border-accent hover:shadow-[0_18px_46px_rgba(23,60,50,0.09)] motion-reduce:transform-none motion-reduce:transition-none dark:shadow-none"
         >
           {/* The gold rule marks each card's head without adding a third type size. */}
           <span aria-hidden="true" className="h-px w-10 bg-accent" />
@@ -60,7 +60,7 @@ export function IntentCards() {
           </p>
           <Link
             href={intent.href}
-            className={`${LINK_QUIET} mt-auto self-start pt-2`}
+            className={`${LINK_QUIET} mt-auto self-start pt-4`}
           >
             {intent.action}
           </Link>

@@ -1,6 +1,6 @@
+import Image from "next/image";
 import Link from "next/link";
 
-import { MediaPlaceholder } from "@/components/public/media-placeholder";
 import {
   CONTAINER,
   CTA_ON_FOREST,
@@ -40,7 +40,7 @@ export function Hero() {
   return (
     <section className="bg-sidebar text-sidebar-foreground">
       <div
-        className={`${CONTAINER} grid gap-12 py-[clamp(4rem,9vw,8.75rem)] lg:grid-cols-[minmax(0,1.15fr)_minmax(17.5rem,0.85fr)] lg:items-center lg:gap-16`}
+        className={`${CONTAINER} grid gap-12 py-[clamp(3.5rem,8vw,8rem)] lg:min-h-[46rem] lg:grid-cols-[minmax(0,1.08fr)_minmax(19rem,0.92fr)] lg:items-center lg:gap-16`}
       >
         <div className="flex flex-col items-start gap-6">
           <span className={`${EYEBROW} text-sidebar-ring`}>
@@ -69,14 +69,21 @@ export function Hero() {
           </div>
         </div>
 
-        {/*
-          Portrait 4:5 media area. MEDIA-01 leaves no public file-delivery path, so this is the
-          shared labelled placeholder rather than an invented image URL — it reserves its space
-          exactly, so enabling real photography later shifts nothing. Left on its own warm ground:
-          a cream panel against forest is a deliberate contrast, and overriding its surface here
-          would strand the placeholder's own text colours on a dark background.
-        */}
-        <MediaPlaceholder aspectRatio="4 / 5" />
+        {/* Repository-owned editorial photography, not media for a catalogue entity (MEDIA-01). */}
+        <div className="relative min-h-[28rem] overflow-hidden rounded-b-2xl rounded-t-[9rem] border border-sidebar-border bg-sidebar-accent shadow-[0_24px_70px_rgba(0,0,0,0.2)] sm:min-h-[34rem] lg:min-h-[38rem]">
+          <Image
+            src="/images/hero-banner.jpg"
+            alt={copy.home.hero.imageAlt}
+            fill
+            preload
+            sizes="(min-width: 1024px) 42vw, (min-width: 640px) 86vw, 90vw"
+            className="object-cover object-center"
+          />
+          <span
+            aria-hidden="true"
+            className="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-sidebar/45 to-transparent"
+          />
+        </div>
       </div>
     </section>
   );

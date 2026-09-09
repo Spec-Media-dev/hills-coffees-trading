@@ -30,9 +30,10 @@ const FOOTER_NAV = [
 
 export function SiteFooter() {
   return (
-    <footer className="border-t border-border bg-background">
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-6 py-10">
-        <div className="flex flex-col gap-3">
+    <footer className="border-t border-sidebar-border bg-sidebar text-sidebar-foreground">
+      <div className="mx-auto w-full max-w-7xl px-5 py-[clamp(3rem,7vw,6rem)] sm:px-8 xl:px-10">
+        <div className="grid gap-12 border-b border-sidebar-border pb-12 md:grid-cols-[minmax(0,1.25fr)_minmax(10rem,0.7fr)_minmax(15rem,0.9fr)]">
+          <div className="flex max-w-md flex-col gap-5">
           {/*
             Same two-variant, `dark:`-swapped horizontal logo as the header (see its comment for the
             approved-asset / theme-driven rationale). Not wrapped in a Link here — the footer brand
@@ -41,42 +42,57 @@ export function SiteFooter() {
             supply an accessible name here.
           */}
           <Image
-            src="/images/hills-logo-dark.png"
-            alt={copy.site.name}
-            width={74}
-            height={28}
-            className="block dark:hidden"
-          />
-          <Image
             src="/images/hills-logo-light.png"
             alt={copy.site.name}
-            width={74}
-            height={28}
-            className="hidden dark:block"
+            width={150}
+            height={57}
           />
-          <p className="max-w-md text-sm text-muted-foreground">
+          <p className="text-[0.9375rem] leading-[1.7] text-sidebar-foreground/75">
             {copy.site.tagline}
           </p>
+          <p className="text-sm leading-[1.6] text-sidebar-foreground/65">
+            {copy.footer.brandStatement}
+          </p>
+          </div>
+
+          <nav
+            aria-label={copy.a11y.footerNavigation}
+            className="flex flex-col items-start gap-3"
+          >
+            <p className="mb-2 text-[0.75rem] font-semibold uppercase tracking-[0.14em] text-sidebar-ring">
+              {copy.footer.exploreHeading}
+            </p>
+            {FOOTER_NAV.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className="rounded-sm py-1 text-sm text-sidebar-foreground/75 underline-offset-4 transition-colors hover:text-sidebar-foreground hover:underline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-sidebar-ring"
+              >
+                {item.label}
+              </Link>
+            ))}
+          </nav>
+
+          <div className="flex flex-col items-start gap-4">
+            <p className="text-[0.75rem] font-semibold uppercase tracking-[0.14em] text-sidebar-ring">
+              {copy.footer.commercialHeading}
+            </p>
+            <p className="text-sm leading-[1.7] text-sidebar-foreground/75">
+              {copy.footer.commercialBody}
+            </p>
+            <Link
+              href={PUBLIC_ROUTES.contact}
+              className="inline-flex min-h-11 items-center justify-center rounded-lg bg-sidebar-foreground px-5 py-2 text-sm font-semibold text-sidebar transition-[background-color,transform] hover:bg-sidebar-foreground/90 active:translate-y-px focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sidebar-ring motion-reduce:transform-none motion-reduce:transition-none"
+            >
+              {copy.cta.requestAnOffer}
+            </Link>
+          </div>
         </div>
 
-        <nav
-          aria-label={copy.a11y.footerNavigation}
-          className="flex flex-wrap items-center gap-5"
-        >
-          {FOOTER_NAV.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className="text-sm text-muted-foreground transition-colors hover:text-foreground"
-            >
-              {item.label}
-            </Link>
-          ))}
-        </nav>
-
-        <p className="text-xs text-muted-foreground">
-          {copy.site.name}. {copy.footer.rights}
-        </p>
+        <div className="flex flex-col gap-2 pt-7 text-xs text-sidebar-foreground/60 sm:flex-row sm:items-center sm:justify-between">
+          <p>{copy.site.name}. {copy.footer.rights}</p>
+          <p>{copy.footer.locationLine}</p>
+        </div>
       </div>
     </footer>
   );

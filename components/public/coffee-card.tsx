@@ -25,11 +25,11 @@ export function CoffeeCard({ coffee }: { coffee: PublicCoffeeSummary }) {
     <li className="group">
       <Link
         href={`/coffee/${coffee.slug}/`}
-        className="flex h-full flex-col overflow-hidden rounded-xl border border-border bg-card transition-colors hover:border-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+        className="flex h-full flex-col overflow-hidden rounded-xl border border-border bg-card shadow-[0_12px_38px_rgba(23,60,50,0.045)] transition-[border-color,box-shadow,transform] hover:-translate-y-0.5 hover:border-accent hover:shadow-[0_18px_46px_rgba(23,60,50,0.09)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring motion-reduce:transform-none motion-reduce:transition-none dark:shadow-none"
       >
         <MediaPlaceholder aspectRatio="3 / 2" className="rounded-none border-0 border-b" />
 
-        <div className="flex flex-1 flex-col gap-2 p-6">
+        <div className="flex flex-1 flex-col gap-3 p-6">
           {origin ? (
             <span className="text-[0.8125rem] font-medium text-accent">
               {origin.name}
@@ -37,7 +37,7 @@ export function CoffeeCard({ coffee }: { coffee: PublicCoffeeSummary }) {
             </span>
           ) : null}
 
-          <h3 className="text-lg font-semibold leading-snug tracking-[-0.015em] text-foreground">
+          <h3 className="text-xl font-semibold leading-snug tracking-[-0.015em] text-foreground">
             {coffee.name}
           </h3>
 

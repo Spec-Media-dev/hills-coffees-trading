@@ -1,0 +1,422 @@
+[
+  {
+    "file": "01_arabica_cherries_closeup.jpg",
+    "source_board": "board1",
+    "crop_box": [
+      327,
+      133,
+      617,
+      581
+    ],
+    "description": "Coffee cherries close-up",
+    "size": [
+      290,
+      448
+    ]
+  },
+  {
+    "file": "02_dark_coffee_cup.jpg",
+    "source_board": "board1",
+    "crop_box": [
+      959,
+      141,
+      1244,
+      581
+    ],
+    "description": "Dark premium coffee cup scene",
+    "size": [
+      285,
+      440
+    ]
+  },
+  {
+    "file": "03_coffee_farm_landscape.jpg",
+    "source_board": "board1",
+    "crop_box": [
+      319,
+      697,
+      617,
+      1000
+    ],
+    "description": "Coffee farm mountain landscape",
+    "size": [
+      298,
+      303
+    ]
+  },
+  {
+    "file": "04_strip_red_cherries.jpg",
+    "source_board": "board1",
+    "crop_box": [
+      862,
+      767,
+      1235,
+      838
+    ],
+    "description": "Red coffee cherries strip",
+    "size": [
+      373,
+      71
+    ]
+  },
+  {
+    "file": "05_strip_green_cherries.jpg",
+    "source_board": "board1",
+    "crop_box": [
+      862,
+      843,
+      1235,
+      910
+    ],
+    "description": "Green coffee cherries strip",
+    "size": [
+      373,
+      67
+    ]
+  },
+  {
+    "file": "06_strip_processing_bed.jpg",
+    "source_board": "board1",
+    "crop_box": [
+      862,
+      917,
+      1235,
+      983
+    ],
+    "description": "Coffee processing/drying strip",
+    "size": [
+      373,
+      66
+    ]
+  },
+  {
+    "file": "07_strip_roasted_beans.jpg",
+    "source_board": "board1",
+    "crop_box": [
+      862,
+      990,
+      1235,
+      1055
+    ],
+    "description": "Roasted beans strip",
+    "size": [
+      373,
+      65
+    ]
+  },
+  {
+    "file": "08_hero_mountain_origin.jpg",
+    "source_board": "board2",
+    "crop_box": [
+      292,
+      102,
+      688,
+      365
+    ],
+    "description": "Hero mountain/origin landscape",
+    "size": [
+      396,
+      263
+    ]
+  },
+  {
+    "file": "09_hero_green_beans_sack.jpg",
+    "source_board": "board2",
+    "crop_box": [
+      365,
+      325,
+      688,
+      548
+    ],
+    "description": "Hero green beans in sack",
+    "size": [
+      323,
+      223
+    ]
+  },
+  {
+    "file": "10_origin_ethiopia_card.jpg",
+    "source_board": "board2",
+    "crop_box": [
+      955,
+      181,
+      1189,
+      518
+    ],
+    "description": "Ethiopia origin photography",
+    "size": [
+      234,
+      337
+    ]
+  },
+  {
+    "file": "11_farmer_origin_portrait.jpg",
+    "source_board": "board2",
+    "crop_box": [
+      1451,
+      121,
+      1624,
+      517
+    ],
+    "description": "Farmer in coffee landscape",
+    "size": [
+      173,
+      396
+    ]
+  },
+  {
+    "file": "12_cta_green_beans.jpg",
+    "source_board": "board2",
+    "crop_box": [
+      315,
+      562,
+      586,
+      858
+    ],
+    "description": "Green beans / sourcing CTA photo",
+    "size": [
+      271,
+      296
+    ]
+  },
+  {
+    "file": "13_product_green_beans_1.jpg",
+    "source_board": "board2",
+    "crop_box": [
+      620,
+      637,
+      786,
+      735
+    ],
+    "description": "Green beans product photo A",
+    "size": [
+      166,
+      98
+    ]
+  },
+  {
+    "file": "14_product_green_beans_2.jpg",
+    "source_board": "board2",
+    "crop_box": [
+      810,
+      637,
+      977,
+      735
+    ],
+    "description": "Green beans product photo B",
+    "size": [
+      167,
+      98
+    ]
+  },
+  {
+    "file": "15_product_red_cherries.jpg",
+    "source_board": "board2",
+    "crop_box": [
+      1004,
+      637,
+      1165,
+      735
+    ],
+    "description": "Red coffee cherries product photo",
+    "size": [
+      161,
+      98
+    ]
+  },
+  {
+    "file": "16_interactive_cherries.jpg",
+    "source_board": "board3",
+    "crop_box": [
+      285,
+      25,
+      584,
+      405
+    ],
+    "description": "Interactive coffee types hero image",
+    "size": [
+      299,
+      380
+    ]
+  },
+  {
+    "file": "17_process_mountain_farm.jpg",
+    "source_board": "board3",
+    "crop_box": [
+      839,
+      26,
+      1038,
+      413
+    ],
+    "description": "Process main mountain farm image",
+    "size": [
+      199,
+      387
+    ]
+  },
+  {
+    "file": "18_process_cultivation.jpg",
+    "source_board": "board3",
+    "crop_box": [
+      1048,
+      20,
+      1192,
+      103
+    ],
+    "description": "Cultivation thumbnail",
+    "size": [
+      144,
+      83
+    ]
+  },
+  {
+    "file": "19_process_harvesting_flower.jpg",
+    "source_board": "board3",
+    "crop_box": [
+      1048,
+      112,
+      1192,
+      201
+    ],
+    "description": "Harvesting / coffee flower thumbnail",
+    "size": [
+      144,
+      89
+    ]
+  },
+  {
+    "file": "20_process_processing.jpg",
+    "source_board": "board3",
+    "crop_box": [
+      1048,
+      209,
+      1192,
+      294
+    ],
+    "description": "Processing thumbnail",
+    "size": [
+      144,
+      85
+    ]
+  },
+  {
+    "file": "21_process_export_ship.jpg",
+    "source_board": "board3",
+    "crop_box": [
+      1048,
+      301,
+      1192,
+      386
+    ],
+    "description": "Global export ship thumbnail",
+    "size": [
+      144,
+      85
+    ]
+  },
+  {
+    "file": "22_origin_ethiopia_landscape.jpg",
+    "source_board": "board3",
+    "crop_box": [
+      232,
+      511,
+      317,
+      665
+    ],
+    "description": "Ethiopia origin landscape",
+    "size": [
+      85,
+      154
+    ]
+  },
+  {
+    "file": "23_origin_colombia_landscape.jpg",
+    "source_board": "board3",
+    "crop_box": [
+      323,
+      511,
+      408,
+      665
+    ],
+    "description": "Colombia origin landscape",
+    "size": [
+      85,
+      154
+    ]
+  },
+  {
+    "file": "24_origin_guatemala_landscape.jpg",
+    "source_board": "board3",
+    "crop_box": [
+      414,
+      511,
+      499,
+      665
+    ],
+    "description": "Guatemala origin landscape",
+    "size": [
+      85,
+      154
+    ]
+  },
+  {
+    "file": "25_origin_indonesia_landscape.jpg",
+    "source_board": "board3",
+    "crop_box": [
+      504,
+      511,
+      589,
+      665
+    ],
+    "description": "Indonesia origin landscape",
+    "size": [
+      85,
+      154
+    ]
+  },
+  {
+    "file": "26_story_hand_cherries.jpg",
+    "source_board": "board3",
+    "crop_box": [
+      619,
+      485,
+      892,
+      797
+    ],
+    "description": "Hand holding coffee cherries",
+    "size": [
+      273,
+      312
+    ]
+  },
+  {
+    "file": "27_advantages_landscape.jpg",
+    "source_board": "board3",
+    "crop_box": [
+      10,
+      1117,
+      598,
+      1197
+    ],
+    "description": "Wide mountain landscape background",
+    "size": [
+      588,
+      80
+    ]
+  },
+  {
+    "file": "28_cta_green_beans_closeup.jpg",
+    "source_board": "board3",
+    "crop_box": [
+      876,
+      861,
+      1207,
+      1045
+    ],
+    "description": "Green beans close-up for CTA",
+    "size": [
+      331,
+      184
+    ]
+  }
+]

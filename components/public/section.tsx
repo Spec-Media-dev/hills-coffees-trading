@@ -44,7 +44,7 @@ const TONE_LEAD: Record<SectionTone, string> = {
 };
 
 /** Container shared with `PublicShell`'s header and footer so every band aligns. */
-export const CONTAINER = "mx-auto w-full max-w-6xl px-6";
+export const CONTAINER = "mx-auto w-full max-w-7xl px-5 sm:px-8 xl:px-10";
 
 /** Uppercase tracked eyebrow — the kit's `hc-eyebrow`, at `--text-meta` / `--tracking-label`. */
 export const EYEBROW =
@@ -88,11 +88,11 @@ export function Section({
   const hasHeader = Boolean(eyebrow || title || lead);
 
   return (
-    <section className={`${TONE_GROUND[tone]} py-[clamp(3rem,7vw,7.5rem)]`}>
-      <div className={`${CONTAINER} flex flex-col gap-10`}>
+    <section className={`${TONE_GROUND[tone]} py-[clamp(3.5rem,7vw,7.5rem)]`}>
+      <div className={`${CONTAINER} flex flex-col gap-12`}>
         {hasHeader ? (
-          <div className="flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
-            <div className="flex max-w-[46rem] flex-col gap-3">
+          <div className="flex flex-col gap-6 border-s-2 border-accent/70 ps-5 sm:flex-row sm:items-end sm:justify-between sm:ps-7">
+            <div className="flex max-w-[50rem] flex-col gap-3">
               {eyebrow ? (
                 <span className={`${EYEBROW} ${TONE_EYEBROW[tone]}`}>
                   {eyebrow}
@@ -120,16 +120,16 @@ export function Section({
  * keyboard-operable (FR-017).
  */
 const CTA_BASE =
-  "inline-flex items-center justify-center rounded-lg px-5 py-3 text-sm font-medium transition-opacity hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2";
+  "inline-flex min-h-11 items-center justify-center rounded-lg px-5 py-3 text-sm font-semibold transition-[background-color,border-color,color,transform] active:translate-y-px focus-visible:outline-2 focus-visible:outline-offset-2 motion-reduce:transform-none motion-reduce:transition-none";
 
 /** The single strongest action on a light ground. */
-export const CTA_PRIMARY = `${CTA_BASE} bg-primary text-primary-foreground focus-visible:outline-ring`;
+export const CTA_PRIMARY = `${CTA_BASE} bg-primary text-primary-foreground hover:bg-primary/90 focus-visible:outline-ring`;
 
 /** Quieter action on a light ground — a bordered surface, not a second filled button. */
-export const CTA_SECONDARY = `${CTA_BASE} border border-border bg-card text-foreground focus-visible:outline-ring`;
+export const CTA_SECONDARY = `${CTA_BASE} border border-border bg-card text-foreground hover:border-accent focus-visible:outline-ring`;
 
 /** On the dark editorial ground the cream surface becomes the strongest action. */
-export const CTA_ON_FOREST = `${CTA_BASE} bg-sidebar-foreground text-sidebar focus-visible:outline-sidebar-ring`;
+export const CTA_ON_FOREST = `${CTA_BASE} bg-sidebar-foreground text-sidebar hover:bg-sidebar-foreground/90 focus-visible:outline-sidebar-ring`;
 
 /** Its companion on dark: outline only, so the pair reads as primary + secondary. */
 export const CTA_OUTLINE_ON_FOREST = `${CTA_BASE} border border-sidebar-foreground/40 text-sidebar-foreground hover:border-sidebar-foreground/70 focus-visible:outline-sidebar-ring`;

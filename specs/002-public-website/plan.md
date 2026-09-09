@@ -25,6 +25,23 @@ every capability the database cannot support is stopped at an explicit, recorded
 | [`contracts/rfq-contract.md`](./contracts/rfq-contract.md) | RFQ shape, results, abuse posture, blocked boundary |
 | [`contracts/reference-price-presentation.md`](./contracts/reference-price-presentation.md) | Price presentation limits |
 | [`contracts/public-copy-architecture.md`](./contracts/public-copy-architecture.md) | Server-safe typed English copy; i18next ownership; copy vs constant |
+| [`contracts/product-ui-foundation.md`](./contracts/product-ui-foundation.md) | **Phase 5.5**: one Hills design system across Public/Member/Admin — 96rem grid, typography, controls, states, theme, direction, imagery |
+
+## Phase 5.5 — Full Product UI Foundation (inserted before Phase 6)
+
+A product-scope amendment adds **Phase 5.5** between Phases 5/7 and Phase 6. It establishes the UI
+foundation for the entire Hills Coffee product — Public, Member (Buyer + Seller additive) and Admin —
+rather than leaving Features 003–012 to invent five divergent visual systems.
+
+- **Plan**: [`PHASE-5.5-UI-FOUNDATION-PLAN.md`](./PHASE-5.5-UI-FOUNDATION-PLAN.md)
+- **Tasks**: [`PHASE-5.5-TASKS.md`](./PHASE-5.5-TASKS.md) — `UIF-001`–`UIF-058`, 9 blocks
+- **Contract**: [`contracts/product-ui-foundation.md`](./contracts/product-ui-foundation.md)
+
+It owns visual/structural readiness only — **UI FOUNDATION READY ≠ BUSINESS FEATURE COMPLETE**. It
+renumbers no existing task and marks none complete. It formally amends FR-018 (EN/العربية) and adds
+FR-032/FR-033; see the plan §8 for why that aligns with the SRS and `docs/claude-design`.
+
+---
 
 ## Technical Context
 
@@ -115,8 +132,10 @@ written against that reality.
    freezing coffee, origin and homepage work.
 8. **Abuse control is endpoint-local and honestly labelled.** In-process, per-instance, non-durable;
    ABUSE-01 records what is still missing.
-9. **Motion budget.** `motion` only for section reveals and hover; GSAP/Lenis are **not** initialised.
-   Every motion respects `prefers-reduced-motion`.
+9. **Motion budget.** `motion` for section reveals, hover and component enter/exit. **Amended
+   2026-09-09 (MOTION-GSAP-01): GSAP is approved for Phase 5.5** — scoped via `gsap.context()`, one
+   engine per property, timelines reverted on unmount. **Lenis is still not initialised.** Every
+   motion respects `prefers-reduced-motion`.
 10. **Trailing slash is a shared-config change.** `trailingSlash: true` affects `/dashboard*` too, so
     it ships with a Feature 001 authorization regression check (SC-010).
 

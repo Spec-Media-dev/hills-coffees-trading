@@ -6,7 +6,12 @@
 `docs/design-guidance/Hills-Coffee-Website-Recommendations.md`, `docs/claude-design/`.
 
 **Status**: Block A (Phases 1–2) **COMPLETE — 12 / 12 verified**. Block B (Phases 3–4)
-**COMPLETE — 5 / 5 verified**. Phases 5–13 not started.
+**COMPLETE — 5 / 5 verified**. Block C (Phases 5 + 7) **COMPLETE — 3 / 3 verified**.
+**20 / 59 tasks checked.** Phases 6 and 8–13 not started.
+**Phase 5.5 (Full Product UI Foundation) is planned and inserted before Phase 6** — see
+[`PHASE-5.5-UI-FOUNDATION-PLAN.md`](./PHASE-5.5-UI-FOUNDATION-PLAN.md) and
+[`PHASE-5.5-TASKS.md`](./PHASE-5.5-TASKS.md). Its `UIF-001`–`UIF-058` namespace does not collide with
+`T000`–`T057`, and **no existing task is renumbered or marked complete by it.**
 **DB-BLOCK-10 is RESOLVED** — the approved policy-scoping migration is applied and the anonymous
 public catalogue boundary is verified live.
 **Prerequisite**: 001-platform-foundation **implemented and verified** (Hills tokens, `StateScreen`,
@@ -308,6 +313,33 @@ visitor. This is what makes the T031 revalidation proof observable without mutat
 
 ---
 
+## Phase 5.5 — Full Product UI Foundation & Visual System Freeze
+
+**Task namespace**: `UIF-001`–`UIF-058`, maintained in
+[`PHASE-5.5-TASKS.md`](./PHASE-5.5-TASKS.md). Plan:
+[`PHASE-5.5-UI-FOUNDATION-PLAN.md`](./PHASE-5.5-UI-FOUNDATION-PLAN.md). Contract:
+[`contracts/product-ui-foundation.md`](./contracts/product-ui-foundation.md).
+
+Inserted here deliberately: Phase 6 onward builds on the finished visual system rather than
+retrofitting it. Phase 5.5 establishes the UI foundation for the **whole product** — Public, Member
+(Buyer + Seller additive), and Admin — plus Light/Dark, LTR/RTL, EN/العربية, the 96rem product grid
+and the shared component system.
+
+> **UI FOUNDATION READY ≠ BUSINESS FEATURE COMPLETE.** Phase 5.5 creates no business capability, no
+> authorization logic and no fabricated operational data. Features 003–012 keep every functional
+> responsibility.
+
+**Reconciliation with tasks in this file — none of these is completed by Phase 5.5:**
+
+| Task | Phase 5.5 supplies | This task remains, redefined as |
+|---|---|---|
+| **T033** | The reusable *visual* state system (UIF-013, UIF-034) | Per-route **behavioural** state coverage verification |
+| **T034** | The motion *foundation* (UIF-015) | Per-route reveal/hover application + reduced-motion verification |
+| **T035** | A minimal documented client-island set (UIF-047) | Unchanged — the audit still runs against the final tree |
+| **T036** | RTL-correct primitives + Arabic typography (UIF-018, UIF-044) | Unchanged — still verifies every public layout |
+
+---
+
 ## Phase 6 — RFQ (UI → validation → honest unavailable result)
 
 Independent of Phases 3–4. Governed by [`contracts/rfq-contract.md`](./contracts/rfq-contract.md).
@@ -497,9 +529,16 @@ Independent of Phases 3–4. Governed by [`contracts/rfq-contract.md`](./contrac
   - Why: broad and easy to under-deliver; honest blocked/unavailable states are a stated SRS design requirement, not polish.
 
 - [ ] T034 Apply restrained Motion reveals/hover states with `prefers-reduced-motion` support. Do
-  **not** initialise GSAP or Lenis.
+  **not** initialise Lenis.
+  - **Amended 2026-09-09 (MOTION-GSAP-01).** GSAP is approved for Phase 5.5 visual/experience work
+    (product-owner decision; Constitution XIII already permitted it with justification). The earlier
+    "do not initialise GSAP" clause is superseded. **Lenis remains uninitialised.** Ownership rules:
+    `contracts/product-ui-foundation.md` §13.1–§13.3. Foundation supplied by `UIF-015` (Motion + CSS)
+    and `UIF-053` (scoped GSAP + `ANIMATION-OWNERSHIP` registry); leak/cleanup proof is `UIF-058`.
   - Req: FR-019 | Depends: T013, T014, T016
-  - Verify: `grep -rn "gsap\|lenis" src components` returns nothing for this feature; reduced-motion removes all animation
+  - Verify: `grep -rn "lenis" src components` returns nothing; every GSAP call site is inside a
+    ref-scoped `gsap.context()` reverted on unmount; no property is written by two engines;
+    reduced-motion removes all animation
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — Low
   - Why: the requirement is restraint; the risk is over-animating, not technical difficulty.
 
@@ -729,6 +768,15 @@ Direct task coverage — no requirement relies on implicit coverage.
 | **MEDIA-01** | No Storage bucket / public file delivery (DB-BLOCK-01) | BLOCKS SUB-FLOW | real public imagery | T006, T044 |
 | **DB-BLOCK-10** | **RESOLVED 2026-09-09.** The `anon` role could not read the public catalogue: `is_platform_admin()` is executable only by `authenticated`/`service_role`, yet every catalogue table carried `catalog_admin_* FOR ALL TO public USING (is_platform_admin())`, so an anonymous `SELECT` aborted with `42501` instead of the policy evaluating false. Fixed by scoping those five policies to `authenticated` — least privilege preserved, no grant added to `anon`. Verified live: anonymous reads succeed on all Feature-002 catalogue tables, `DRAFT`/`ARCHIVED` and `INACTIVE`/`ARCHIVED` stay hidden, and anon gains no admin or write capability. | **RESOLVED** — no longer blocks | nothing | T006a, T007, T008, T010 all verified and complete |
 
+**Opened by the Phase 5.5 plan (all four non-blocking):**
+
+| ID | Type | Summary | Blocking? |
+|---|---|---|---|
+| **CONTENT-AR-01** | Content ownership | Approved Arabic **content** translation is unavailable. The EN/العربية *infrastructure* ships regardless; untranslated keys fall back to reviewed English and no Arabic business or legal claim is invented. | **No** |
+| **I18N-ROUTE-01** | Deferred decision | Locale routing (`/ar/…`) + `hreflang` for Arabic SEO indexability is deliberately **not** adopted in Phase 5.5 (it would touch the canonical/SEO contract). Recorded trade-off, future decision. | **No** |
+| **ASSET-REF-01** | Asset constraint | 9 of the 28 extracted `public/images/features/` crops carry a fabricated brand mark, burned-in board UI or burned-in English text; 6 more need a re-crop; none is hero-grade. Classified in the Phase 5.5 plan §11.1, enforced by `UIF-052`. | **No** |
+| **MOTION-GSAP-01** | Approved amendment | GSAP approved for Phase 5.5 (2026-09-09), superseding T034's "do not initialise GSAP" clause. Motion and CSS remain approved. **Lenis remains not approved.** | **No** |
+
 **COMMISSION-OPEN-01** is **not** a Feature 002 blocker. It is a Business/Finance decision owned by
 Feature 008 and must not be addressed here.
 
@@ -770,4 +818,5 @@ after the restructure, not carried over.
 | Phases | **13** |
 | Parallel-safe | **16** |
 | Tasks with both Codex and Claude metadata | **59 / 59** |
-| Tasks checked | **0** — implementation not started |
+| Tasks checked | **20 / 59** — T000–T018, T023 (Blocks A, B, C) |
+| Phase 5.5 (`UIF-001`–`UIF-058`) | **58 tasks / 9 blocks**, tracked separately in [`PHASE-5.5-TASKS.md`](./PHASE-5.5-TASKS.md) — 0 checked |

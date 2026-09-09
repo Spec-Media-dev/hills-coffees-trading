@@ -48,7 +48,7 @@ export function MediaPlaceholder({
       // ratio; Tailwind cannot generate an arbitrary runtime value here.
       style={{ aspectRatio }}
       className={[
-        "flex w-full flex-col items-center justify-center gap-1 overflow-hidden rounded-lg border border-border bg-muted px-6 py-4 text-center",
+        "relative flex w-full flex-col items-center justify-center gap-2 overflow-hidden rounded-lg border border-border bg-muted px-6 py-4 text-center",
         className ?? "",
       ]
         .join(" ")
@@ -58,10 +58,14 @@ export function MediaPlaceholder({
         `aria-hidden` on the visible text: the accessible name already comes from the `aria-label`
         above, so exposing both would make a screen reader announce the same thing twice.
       */}
-      <span aria-hidden="true" className="text-sm font-medium text-foreground">
+      <span
+        aria-hidden="true"
+        className="absolute size-28 rounded-t-full border border-accent/35 opacity-60"
+      />
+      <span aria-hidden="true" className="relative text-sm font-semibold text-foreground">
         {copy.media.placeholderLabel}
       </span>
-      <span aria-hidden="true" className="text-xs text-muted-foreground">
+      <span aria-hidden="true" className="relative max-w-56 text-xs leading-relaxed text-muted-foreground">
         {copy.media.placeholderDescription}
       </span>
     </div>

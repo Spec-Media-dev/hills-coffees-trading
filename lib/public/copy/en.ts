@@ -55,6 +55,13 @@ export const en = {
 
   footer: {
     rights: "All rights reserved.",
+    exploreHeading: "Explore",
+    commercialHeading: "Trade with Hills",
+    brandStatement:
+      "Traceable green coffee for roasters, importers and distributors across the Arab region.",
+    commercialBody:
+      "Share the coffee, volume, timing and delivery point you are working with. Our commercial team will continue the conversation directly.",
+    locationLine: "Dubai · Egypt",
   },
 
   /**
@@ -80,6 +87,7 @@ export const en = {
       lead:
         "Hills Coffee sources green coffee from producing regions and holds it under Hills-approved custody. Roasters, importers and distributors across the Arab region contract with us for supply they can trace back to where it grew.",
       exploreAction: "Explore coffee",
+      imageAlt: "A coffee grower working across raised drying beds at origin.",
     },
     intents: {
       eyebrow: "Start here",
@@ -128,6 +136,7 @@ export const en = {
         body:
           "Every trading account is reviewed and approved before it can transact. Registration alone never authorises trading.",
       },
+      imageAlt: "Fresh coffee cherries gathered at origin after harvest.",
     },
     featuredCoffee: {
       eyebrow: "Coffee",
@@ -263,6 +272,7 @@ export const en = {
     body:
       "That capability is being built as its own feature. Until it is ready, if you want to talk through sourcing or start a commercial conversation, reach out directly and a member of the team will pick it up from there.",
     action: "Request an offer",
+    imageAlt: "Green coffee bags held in a warm warehouse setting.",
     metaTitle: "Trading Portal",
     metaDescription:
       "The Hills Trading Portal entry point. Membership and sign-in are not yet open on the public site.",
@@ -274,6 +284,7 @@ export const en = {
    * distinguishes reference information from a Hills offer or member listing price (SRS §9).
    */
   referencePrice: {
+    label: "Reference price",
     unavailableTitle: "Reference pricing is not published yet",
     unavailableBody:
       "This section will show a reference benchmark price once Hills publishes one for this coffee.",
