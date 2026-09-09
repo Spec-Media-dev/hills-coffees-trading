@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 
 import { PUBLIC_ROUTES } from "@/components/public/site-header";
@@ -31,10 +32,28 @@ export function SiteFooter() {
   return (
     <footer className="border-t border-border bg-background">
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-6 py-10">
-        <div className="flex flex-col gap-2">
-          <p className="text-base font-semibold tracking-tight text-foreground">
-            {copy.site.name}
-          </p>
+        <div className="flex flex-col gap-3">
+          {/*
+            Same two-variant, `dark:`-swapped horizontal logo as the header (see its comment for the
+            approved-asset / theme-driven rationale). Not wrapped in a Link here — the footer brand
+            block was never interactive, and this narrow refinement preserves that, replacing only
+            the visual mark. Alt carries the brand name directly, since there is no wrapping Link to
+            supply an accessible name here.
+          */}
+          <Image
+            src="/images/hills-logo-dark.png"
+            alt={copy.site.name}
+            width={74}
+            height={28}
+            className="block dark:hidden"
+          />
+          <Image
+            src="/images/hills-logo-light.png"
+            alt={copy.site.name}
+            width={74}
+            height={28}
+            className="hidden dark:block"
+          />
           <p className="max-w-md text-sm text-muted-foreground">
             {copy.site.tagline}
           </p>

@@ -284,7 +284,7 @@ visitor. This is what makes the T031 revalidation proof observable without mutat
 
 ## Phase 5 — Sourcing & portal entry
 
-- [ ] T017 [P] [PS2] Implement `src/app/(public)/sourcing/page.tsx` — supply credibility (sourcing
+- [x] T017 [P] [PS2] Implement `src/app/(public)/sourcing/page.tsx` — supply credibility (sourcing
   relationships, custody, logistics, quality documentation) from **reviewed 002-owned copy only**.
   **Must not query `warehouses`** or derive any claim from warehouse rows.
   - Req: FR-002, FR-003, FR-021, PS2 | Depends: T000, T003
@@ -292,7 +292,7 @@ visitor. This is what makes the T031 revalidation proof observable without mutat
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — High
   - Why: the page most tempting to back with real warehouse data, which would publish owner identity and exact locations.
 
-- [ ] T018 [P] [PS4] Implement `src/app/(public)/portal-entry/page.tsx` — an explicit, honest
+- [x] T018 [P] [PS4] Implement `src/app/(public)/portal-entry/page.tsx` — an explicit, honest
   placeholder for Trading Portal / membership entry until Feature 003 exists. States plainly that
   membership and sign-in are not yet open and offers the commercial contact route.
   **Must not**: render a non-functional sign-in form, imply account creation, or silently redirect
@@ -349,7 +349,7 @@ Independent of Phases 3–4. Governed by [`contracts/rfq-contract.md`](./contrac
 
 ## Phase 7 — Reference-price presentation shell
 
-- [ ] T023 [P] [PS5] Build `components/public/reference-price.tsx` — the **unavailable state only**,
+- [x] T023 [P] [PS5] Build `components/public/reference-price.tsx` — the **unavailable state only**,
   plus the "reference information, not an offer" disclosure. Accepts a discriminated union so an
   unavailable value cannot be mistaken for a numeric one. **Does not query price tables.**
   - Req: FR-012, FR-013, SC-004 | Depends: T000, T001

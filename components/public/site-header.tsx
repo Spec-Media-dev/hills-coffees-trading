@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 
 import { copy } from "@/lib/public/copy";
@@ -49,12 +50,36 @@ export function SiteHeader() {
   return (
     <header className="border-b border-border bg-background">
       <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center gap-4 px-6 py-4">
+        {/*
+          Two horizontal logo variants (approved brand assets under `public/images/`), swapped by
+          Tailwind's `dark:` variant so the mark stays legible against the page's current theme with
+          no client JavaScript (`@custom-variant dark (&:is(.dark *))` in globals.css). The site has
+          no dark-mode toggle yet, so only the green mark renders today; the white variant is wired in
+          now so a future toggle needs no header change. Both share identical dimensions, so the swap
+          introduces no layout shift. The accessible name lives on the Link (alt is empty on both
+          images to avoid a duplicate announcement).
+        */}
         <Link
           href={PUBLIC_ROUTES.home}
           aria-label={copy.a11y.homeLink}
-          className="text-lg font-semibold tracking-tight text-foreground"
+          className="shrink-0"
         >
-          {copy.site.name}
+          <Image
+            src="/images/hills-logo-dark.png"
+            alt=""
+            width={84}
+            height={32}
+            priority
+            className="block dark:hidden"
+          />
+          <Image
+            src="/images/hills-logo-light.png"
+            alt=""
+            width={84}
+            height={32}
+            priority
+            className="hidden dark:block"
+          />
         </Link>
 
         <nav

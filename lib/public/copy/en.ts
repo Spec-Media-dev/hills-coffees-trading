@@ -207,4 +207,76 @@ export const en = {
       backToIndex: "All origins",
     },
   },
+
+  /**
+   * Sourcing page (T017). Content-driven, not data-driven: every claim here is 002-owned reviewed
+   * copy, never derived from a database row — and in particular never from the private storage-
+   * location table denylisted in the public DTO allowlist contract (SEO-APP-02). Wording is
+   * deliberately consistent with the homepage credibility section rather than introducing new
+   * unverified claims.
+   */
+  sourcing: {
+    eyebrow: "Sourcing",
+    title: "How we source and hold coffee",
+    lead:
+      "Green coffee sourcing is a chain of decisions made months before a bag reaches a roaster. This is how Hills makes them.",
+    relationships: {
+      title: "Origin relationships",
+      body:
+        "We work directly with the producing regions we source from, so the coffee we publish carries a real, traceable link back to where it grew.",
+    },
+    custody: {
+      title: "Custody",
+      body:
+        "Coffee Hills sources moves into Hills-approved custody and stays there until title transfers to the buyer. Responsibility for the coffee is never split or left ambiguous.",
+    },
+    logistics: {
+      title: "Logistics",
+      body:
+        "Delivery moves through logistics arrangements Hills has approved, keeping supply accounted for between origin and the buyer's chosen delivery point.",
+    },
+    quality: {
+      title: "Quality documentation",
+      body:
+        "Certifications and quality evidence are collected and reviewed before a coffee is published, and shared with approved buyers as part of the commercial conversation.",
+    },
+    cta: {
+      title: "Talk to us about a coffee",
+      lead:
+        "If you want to go further into any of this for a specific coffee, we are glad to have that conversation.",
+    },
+    images: {
+      harvestAlt: "Ripe coffee cherries on the branch at origin.",
+      qualityAlt: "Green coffee being inspected by hand for quality.",
+    },
+    metaTitle: "Sourcing",
+    metaDescription:
+      "How Hills Coffee sources green coffee at origin and holds it under approved custody for professional buyers across the Arab region.",
+  },
+
+  /** Trading Portal entry placeholder (T018) — honest until Feature 003 owns the real destination. */
+  portalEntry: {
+    eyebrow: "Trading Portal",
+    title: "Membership is not open here yet",
+    lead:
+      "The Hills Trading Portal is where approved members buy, hold and resell green coffee. Sign-in and membership applications are not open on the public site yet.",
+    body:
+      "That capability is being built as its own feature. Until it is ready, if you want to talk through sourcing or start a commercial conversation, reach out directly and a member of the team will pick it up from there.",
+    action: "Request an offer",
+    metaTitle: "Trading Portal",
+    metaDescription:
+      "The Hills Trading Portal entry point. Membership and sign-in are not yet open on the public site.",
+  },
+
+  /**
+   * Reference-price presentation (T023). Feature 002 implements only the unavailable state — see
+   * `contracts/reference-price-presentation.md`. The disclosure line is the mandatory wording that
+   * distinguishes reference information from a Hills offer or member listing price (SRS §9).
+   */
+  referencePrice: {
+    unavailableTitle: "Reference pricing is not published yet",
+    unavailableBody:
+      "This section will show a reference benchmark price once Hills publishes one for this coffee.",
+    disclosure: "Reference information, not an offer.",
+  },
 } as const;
