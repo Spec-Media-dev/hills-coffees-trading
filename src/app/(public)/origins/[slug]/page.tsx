@@ -5,7 +5,6 @@ import { notFound } from "next/navigation";
 import { CoffeeCard } from "@/components/public/coffee-card";
 import { MediaPlaceholder } from "@/components/public/media-placeholder";
 import {
-  CONTAINER,
   EYEBROW,
   HEADING_2,
   HEADING_3,
@@ -82,14 +81,14 @@ export default async function OriginDetailPage({ params }: PageProps) {
 
   return (
     <article className="bg-background">
-      <div className={`${CONTAINER} py-[clamp(2.5rem,5vw,4.5rem)]`}>
+      <div className={`hc-container py-[clamp(2.5rem,5vw,4.5rem)]`}>
         <Link href={PUBLIC_ROUTES.origins} className={LINK_QUIET}>
           {copy.origins.detail.backToIndex}
         </Link>
       </div>
 
       <div
-        className={`${CONTAINER} grid gap-10 pb-[clamp(3rem,6vw,5rem)] lg:grid-cols-[minmax(0,1fr)_minmax(18rem,0.8fr)] lg:gap-16`}
+        className={`hc-container grid gap-10 pb-[clamp(3rem,6vw,5rem)] lg:grid-cols-[minmax(0,1fr)_minmax(18rem,0.8fr)] lg:gap-16`}
       >
         <div className="flex flex-col gap-5">
           {origin.countryCode ? (
@@ -144,7 +143,7 @@ export default async function OriginDetailPage({ params }: PageProps) {
 
       <div className="bg-secondary">
         <div
-          className={`${CONTAINER} flex flex-col gap-8 py-[clamp(3rem,6vw,5rem)]`}
+          className={`hc-container flex flex-col gap-8 py-[clamp(3rem,6vw,5rem)]`}
         >
           <h2 className={HEADING_3}>{copy.origins.detail.coffeesHeading}</h2>
 

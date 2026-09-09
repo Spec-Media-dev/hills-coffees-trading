@@ -1,8 +1,8 @@
 import type { ReactNode } from "react";
 
+import { Bilingual } from "@/components/locale/bilingual";
 import { SiteFooter } from "@/components/public/site-footer";
 import { SiteHeader } from "@/components/public/site-header";
-import { copy } from "@/lib/public/copy";
 
 /**
  * The single shared public chrome (Feature 002, T001 — FR-023, FR-020, FR-030).
@@ -44,9 +44,9 @@ export function PublicShell({ children }: PublicShellProps) {
       */}
       <a
         href={`#${MAIN_CONTENT_ID}`}
-        className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:m-3 focus:rounded-md focus:bg-primary focus:px-4 focus:py-2 focus:text-primary-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+        className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:m-3 focus:inline-flex focus:h-[var(--control-h)] focus:items-center focus:rounded-[var(--radius-sm)] focus:bg-primary focus:px-5 focus:text-[var(--text-small)] focus:font-semibold focus:text-primary-foreground focus:outline-2 focus:outline-offset-2 focus:outline-[var(--focus-ring)]"
       >
-        {copy.a11y.skipToContent}
+        <Bilingual pick={(c) => c.a11y.skipToContent} />
       </a>
 
       <SiteHeader />

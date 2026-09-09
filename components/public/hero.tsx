@@ -2,7 +2,6 @@ import Image from "next/image";
 import Link from "next/link";
 
 import {
-  CONTAINER,
   EYEBROW,
 } from "@/components/public/section";
 import { PUBLIC_ROUTES } from "@/components/public/site-header";
@@ -39,7 +38,7 @@ export function Hero() {
   return (
     <section className="bg-sidebar text-sidebar-foreground">
       <div
-        className={`${CONTAINER} grid gap-12 py-[clamp(3.5rem,8vw,8rem)] lg:min-h-[46rem] lg:grid-cols-[minmax(0,1.08fr)_minmax(19rem,0.92fr)] lg:items-center lg:gap-16`}
+        className={`hc-container grid gap-12 py-[clamp(3.5rem,8vw,8rem)] lg:min-h-[46rem] lg:grid-cols-[minmax(0,1.08fr)_minmax(19rem,0.92fr)] lg:items-center lg:gap-16`}
       >
         <div className="flex flex-col items-start gap-6">
           <span className={`${EYEBROW} text-sidebar-ring`}>
@@ -56,12 +55,13 @@ export function Hero() {
           </p>
 
           <div className="mt-2 flex flex-wrap gap-3">
-            <Button variant="accent" render={<Link href={PUBLIC_ROUTES.coffee} />}>
+            <Button variant="accent" nativeButton={false} render={<Link href={PUBLIC_ROUTES.coffee} />}>
               {copy.home.hero.exploreAction}
             </Button>
             <Button
               variant="outline"
               className="border-sidebar-foreground/40 text-sidebar-foreground hover:bg-white/8"
+              nativeButton={false}
               render={<Link href={PUBLIC_ROUTES.contact} />}
             >
               {copy.cta.requestAnOffer}

@@ -3,7 +3,6 @@ import Image from "next/image";
 import Link from "next/link";
 
 import {
-  CONTAINER,
   EYEBROW,
   HEADING_2,
   LEAD,
@@ -58,7 +57,7 @@ export default function PortalEntryPage() {
   return (
     <article className="bg-background">
       <div
-        className={`${CONTAINER} grid gap-12 py-[clamp(3.5rem,8vw,7.5rem)] lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:items-center lg:gap-20`}
+        className={`hc-container grid gap-12 py-[clamp(3.5rem,8vw,7.5rem)] lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:items-center lg:gap-20`}
       >
         <div className="relative min-h-[25rem] overflow-hidden rounded-b-2xl rounded-t-[8rem] border border-border bg-muted sm:min-h-[34rem]">
           <Image
@@ -82,7 +81,7 @@ export default function PortalEntryPage() {
         <p className="max-w-[58ch] text-[0.9375rem] leading-[1.6] text-muted-foreground text-pretty">
           {copy.portalEntry.body}
         </p>
-        <Button className="mt-2" render={<Link href={PUBLIC_ROUTES.contact} />}>
+        <Button className="mt-2" nativeButton={false} render={<Link href={PUBLIC_ROUTES.contact} />}>
           {copy.portalEntry.action}
         </Button>
         </div>

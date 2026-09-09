@@ -1,6 +1,10 @@
 import type { Metadata } from "next";
 import { Cairo, Readex_Pro } from "next/font/google";
 import localFont from "next/font/local";
+
+import { LocaleProvider } from "@/components/locale/locale-provider";
+import { preferenceScript } from "@/components/theme/preferences";
+import { ThemeProvider } from "@/components/theme/theme-provider";
 import { I18nProvider } from "@/lib/i18n/config";
 import "./globals.css";
 
@@ -54,12 +58,40 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
+    /*
+     * `suppressHydrationWarning` is required and deliberate (Phase 5.5, UIF-016/UIF-017).
+     *
+     * The blocking script below writes `class`, `lang`, `dir` and `color-scheme` onto this element
+     * BEFORE the body paints — that is what removes the flash of wrong theme and wrong direction.
+     * React also owns `<html>`, so without this attribute it would report those script-applied values
+     * as a hydration mismatch.
+     *
+     * This is React's sanctioned escape hatch for exactly this case (server-injected attributes on
+     * `html`/`body`), and it is scoped to this element only: it suppresses nothing inside `<body>`,
+     * so a genuine mismatch anywhere in the application still surfaces normally.
+     */
     <html
       lang="en"
+      dir="ltr"
+      suppressHydrationWarning
       className={`${benito.variable} ${manrope.variable} ${readexPro.variable} ${cairo.variable} h-full antialiased`}
     >
+      <head>
+        {/*
+          Applied before first paint, ahead of any bundle. Inline and blocking on purpose: a
+          preference read after hydration would paint the wrong theme and the wrong direction first,
+          then visibly correct itself. The script only touches `documentElement` — it sets no cookie
+          and makes no request, so no public route becomes dynamic and the Feature-001 cache
+          architecture is untouched (Constitution XI).
+        */}
+        <script dangerouslySetInnerHTML={{ __html: preferenceScript() }} />
+      </head>
       <body className="min-h-full flex flex-col">
-        <I18nProvider>{children}</I18nProvider>
+        <ThemeProvider>
+          <LocaleProvider>
+            <I18nProvider>{children}</I18nProvider>
+          </LocaleProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

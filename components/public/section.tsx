@@ -43,9 +43,6 @@ const TONE_LEAD: Record<SectionTone, string> = {
   forest: "text-sidebar-foreground/80",
 };
 
-/** Container shared with `PublicShell`'s header and footer so every band aligns. */
-export const CONTAINER = "hc-container";
-
 /** Uppercase tracked eyebrow — the kit's `hc-eyebrow`, at `--text-meta` / `--tracking-label`. */
 export const EYEBROW =
   "hc-eyebrow";
@@ -89,7 +86,7 @@ export function Section({
 
   return (
     <section className={`${TONE_GROUND[tone]} py-[clamp(3.5rem,7vw,7.5rem)]`}>
-      <div className={`${CONTAINER} flex flex-col gap-12`}>
+      <div className="hc-container flex flex-col gap-12">
         {hasHeader ? (
           <div className="flex flex-col gap-6 border-s-2 border-accent/70 ps-5 sm:flex-row sm:items-end sm:justify-between sm:ps-7">
             <div className="flex max-w-[50rem] flex-col gap-3">

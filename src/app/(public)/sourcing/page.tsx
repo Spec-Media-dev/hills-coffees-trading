@@ -3,7 +3,6 @@ import Image from "next/image";
 import Link from "next/link";
 
 import {
-  CONTAINER,
   EYEBROW,
   HEADING_2,
   HEADING_3,
@@ -65,7 +64,7 @@ export default function SourcingPage() {
       {/* Intro — an asymmetric editorial opener, mirroring the homepage hero's composition at a
           quieter, page-tone scale rather than repeating the dark hero treatment. */}
       <div
-        className={`${CONTAINER} grid gap-10 py-[clamp(3rem,7vw,6rem)] lg:grid-cols-[minmax(0,1fr)_minmax(18rem,0.85fr)] lg:items-center lg:gap-16`}
+        className={`hc-container grid gap-10 py-[clamp(3rem,7vw,6rem)] lg:grid-cols-[minmax(0,1fr)_minmax(18rem,0.85fr)] lg:items-center lg:gap-16`}
       >
         <div className="flex flex-col gap-5">
           <span className={`${EYEBROW} text-accent`}>
@@ -95,7 +94,7 @@ export default function SourcingPage() {
 
       {/* Article body — one narrow reading column, not a card grid (the article-measure requirement). */}
       <div className="bg-secondary">
-        <div className={`${CONTAINER} py-[clamp(3rem,7vw,6rem)]`}>
+        <div className={`hc-container py-[clamp(3rem,7vw,6rem)]`}>
           <div className="mx-auto flex max-w-[62ch] flex-col gap-14">
             <section className="flex flex-col gap-3">
               <h2 className={HEADING_3}>
@@ -146,7 +145,7 @@ export default function SourcingPage() {
       {/* Closing commercial CTA — the same pattern established on the homepage and coffee detail. */}
       <div className="bg-sidebar text-sidebar-foreground">
         <div
-          className={`${CONTAINER} flex flex-col gap-8 py-[clamp(3rem,6vw,5rem)] lg:flex-row lg:items-center lg:justify-between`}
+          className={`hc-container flex flex-col gap-8 py-[clamp(3rem,6vw,5rem)] lg:flex-row lg:items-center lg:justify-between`}
         >
           <div className="flex max-w-[46rem] flex-col gap-3">
             <h2 className={HEADING_3}>{copy.sourcing.cta.title}</h2>
@@ -157,6 +156,7 @@ export default function SourcingPage() {
           <Button
             variant="accent"
             className="shrink-0"
+            nativeButton={false}
             render={<Link href={PUBLIC_ROUTES.contact} />}
           >
             {copy.cta.requestAnOffer}

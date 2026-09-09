@@ -1,122 +1,150 @@
 import Image from "next/image";
 import Link from "next/link";
 
+import { LanguageSwitcher } from "@/components/locale/language-switcher";
+import { Bilingual } from "@/components/locale/bilingual";
+import { MobileNav } from "@/components/public/mobile-nav";
+import { PRIMARY_NAV, PUBLIC_ROUTES } from "@/components/public/routes";
+import { SearchControl } from "@/components/public/search-control";
+import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { copy } from "@/lib/public/copy";
 
-/**
- * Public site header (Feature 002, T002 — FR-016, FR-021; PS2, PS4).
- *
- * NAVIGATION PRIORITY follows `docs/design-guidance/Hills-Coffee-Website-Recommendations.md`:
- * Coffee, Origins and Sourcing lead; the commercial CTA ("Request an offer") is primary; the Trading
- * Portal / sign-in entry is present but deliberately **secondary** to it (FR-016).
- *
- * EVERY destination is a real HTML anchor with a concrete path — `next/link` renders an `<a href>`
- * into the server HTML, so the navigation is crawlable and fully traversable with JavaScript
- * disabled (PS2 AS1, FR-006). No `href="#"`, no JS-only control, no button that navigates.
- *
- * `/knowledge` and `/legal` are deliberately ABSENT. No approved content source exists for editorial
- * or legal pages (CONTENT-01), so those routes are withheld rather than linked to a fabricated page.
- * Do not add them here until CONTENT-01 is resolved.
- *
- * The destination routes themselves land in Phases 4–6, so this task is verified structurally;
- * runtime dead-link traversal is verified later by T038 and T050. Do NOT create stub routes.
- *
- * Server Component — zero client JavaScript. It defines no token and no font system: colour, radius
- * and typography all come from Feature 001's Hills token layer in `src/app/globals.css` and the font
- * variables wired in `src/app/layout.tsx` (FR-030).
- */
+export { PUBLIC_ROUTES };
 
 /**
- * The canonical public route paths this feature owns, in enforced trailing-slash form (FR-026).
- * Technical constants, not copy — they never belong in the copy dictionary (contract §3.7).
+ * Public site header — production build (Phase 5.5, UIF-020 — contract §5, §11, §12; plan §6.2).
+ *
+ * ── COMPOSITION ──────────────────────────────────────────────────────────────────────────────────
+ *
+ * Slot order follows the approved reference board and the live Hills site alike:
+ *
+ *   logo · primary navigation · search · theme · language · portal entry · commercial CTA
+ *
+ * NAVIGATION PRIORITY follows the design guidance: Coffee, Origins and Sourcing lead. "Request an
+ * offer" is the primary conversion action and is the only filled button in the header; the Trading
+ * Portal entry sits beside it as a quiet text link, because the guidance is explicit that visitors
+ * must not all be funnelled into the portal (FR-016). The live site has no header CTA at all — this
+ * is a deliberate improvement on it, not a copy of it.
+ *
+ * `/knowledge` and `/legal` are absent by design (CONTENT-01). See `routes.ts`.
+ *
+ * ── SERVER COMPONENT, WITH FOUR NARROW ISLANDS ───────────────────────────────────────────────────
+ *
+ * The header itself ships **zero** client JavaScript: the logo, the navigation and both actions are
+ * real crawlable anchors that work with JavaScript disabled (FR-006, FR-020). Only the four genuinely
+ * interactive controls are client islands — search, theme, language and the mobile drawer — each of
+ * which is on the contract §16 list. The header was not turned into a Client Component to host them.
+ *
+ * Navigation labels are bilingual through `<Bilingual>`, which renders both languages server-side and
+ * lets CSS pick from `<html lang>`. That is what allows the chrome to switch language while staying a
+ * Server Component (contract §12, §16).
+ *
+ * ── CURRENT-PAGE MARKING: A RECORDED LIMITATION ──────────────────────────────────────────────────
+ *
+ * The desktop navigation does not mark the current route. Doing so needs the pathname, which a Server
+ * Component cannot read, and the only fixes are a new client island — contract §16 fixes the island
+ * list, and `UIF-047` audits against it — or reading a request header, which would make every public
+ * route dynamic and damage the verified Feature-001 cache architecture. Neither is worth it here. The
+ * mobile drawer, already a client island, does mark the current route with `aria-current="page"`.
+ * Hover, focus-visible and pressed states are present throughout in both.
+ *
+ * ── STICKY AND SCROLLED TREATMENT ────────────────────────────────────────────────────────────────
+ *
+ * The header is sticky at a fixed `--header-h` (76px) and never changes height, so no scroll state
+ * can cause a layout jump. The scrolled treatment — the shadow deepening as the page moves under it —
+ * is a pure CSS scroll-driven animation defined in `globals.css`; it needs no scroll listener, no
+ * client island and no JavaScript at all. Where the browser does not support scroll timelines, the
+ * header simply keeps its resting treatment, which is fully legible on its own.
  */
-export const PUBLIC_ROUTES = {
-  home: "/",
-  coffee: "/coffee/",
-  origins: "/origins/",
-  sourcing: "/sourcing/",
-  contact: "/contact/",
-  portalEntry: "/portal-entry/",
-} as const;
 
-/** The browsable destinations shown in the header's primary navigation. */
-const PRIMARY_NAV = [
-  { href: PUBLIC_ROUTES.coffee, label: copy.nav.coffee },
-  { href: PUBLIC_ROUTES.origins, label: copy.nav.origins },
-  { href: PUBLIC_ROUTES.sourcing, label: copy.nav.sourcing },
-] as const;
+/** Height and variant of the horizontal lockup. Never below the approved 150px digital minimum. */
+const LOGO_WIDTH = 168;
+const LOGO_HEIGHT = 64;
 
 export function SiteHeader() {
   return (
-    <header className="sticky top-0 z-40 border-b border-border/80 bg-background/95 shadow-[0_8px_28px_rgba(23,60,50,0.05)] supports-[backdrop-filter]:backdrop-blur-md dark:shadow-none">
-      <div className="hc-container flex flex-wrap items-center gap-x-6 gap-y-3 py-3">
+    <header className="hc-header sticky top-0 z-40 border-b border-border/70 bg-[color-mix(in_srgb,var(--surface-page)_88%,transparent)] supports-[backdrop-filter]:[backdrop-filter:var(--blur-panel)]">
+      <div className="hc-container flex h-[var(--header-h)] items-center gap-3 sm:gap-5">
         {/*
-          Two horizontal logo variants (approved brand assets under `public/images/`), swapped by
-          Tailwind's `dark:` variant so the mark stays legible against the page's current theme with
-          no client JavaScript (`@custom-variant dark (&:is(.dark *))` in globals.css). The site has
-          no dark-mode toggle yet, so only the green mark renders today; the white variant is wired in
-          now so a future toggle needs no header change. Both share identical dimensions, so the swap
-          introduces no layout shift. The accessible name lives on the Link (alt is empty on both
-          images to avoid a duplicate announcement).
+          Two approved horizontal lockups swapped by the `dark:` variant — green on light surfaces,
+          cream on dark — so the mark stays legible in either theme with no client JavaScript. Both
+          share identical intrinsic dimensions, so the swap causes no layout shift. `priority` because
+          the logo is above the fold on every public route. The accessible name lives on the Link, so
+          both images carry an empty alt to avoid a duplicate announcement.
         */}
         <Link
           href={PUBLIC_ROUTES.home}
           aria-label={copy.a11y.homeLink}
-          className="shrink-0 rounded-md focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring"
+          className="shrink-0 rounded-[var(--radius-sm)] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--focus-ring)]"
         >
           <Image
             src="/images/hills-logo-dark.png"
             alt=""
-            width={150}
-            height={57}
-            className="block dark:hidden"
+            width={LOGO_WIDTH}
+            height={LOGO_HEIGHT}
+            priority
+            className="block h-auto w-[150px] dark:hidden xl:w-[168px]"
           />
           <Image
             src="/images/hills-logo-light.png"
             alt=""
-            width={150}
-            height={57}
-            className="hidden dark:block"
+            width={LOGO_WIDTH}
+            height={LOGO_HEIGHT}
+            priority
+            className="hidden h-auto w-[150px] dark:block xl:w-[168px]"
           />
         </Link>
 
         <nav
           aria-label={copy.a11y.primaryNavigation}
-          className="order-2 flex w-full items-center gap-6 overflow-x-auto border-t border-border/70 pt-3 sm:order-none sm:w-auto sm:border-0 sm:pt-0"
+          className="ms-4 hidden min-w-0 items-center gap-7 lg:flex xl:ms-8"
         >
           {PRIMARY_NAV.map((item) => (
             <Link
               key={item.href}
               href={item.href}
-              className="inline-flex min-h-11 shrink-0 items-center py-2 text-sm font-medium text-muted-foreground underline-offset-8 transition-colors hover:text-foreground hover:underline hover:decoration-accent hover:decoration-2 focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring"
+              className="relative inline-flex h-[var(--header-h)] shrink-0 items-center text-[var(--text-small)] font-medium text-muted-foreground transition-colors duration-[var(--dur-fast)] after:absolute after:inset-x-0 after:bottom-0 after:h-[2px] after:origin-center after:scale-x-0 after:bg-[var(--gold-on-light)] after:transition-transform after:duration-[var(--dur-fast)] hover:text-foreground hover:after:scale-x-100 focus-visible:rounded-[var(--radius-xs)] focus-visible:outline-2 focus-visible:outline-offset-[-4px] focus-visible:outline-[var(--focus-ring)] dark:after:bg-[var(--gold-on-dark)]"
             >
-              {item.label}
+              <Bilingual pick={(c) => c.nav[item.key]} />
             </Link>
           ))}
         </nav>
 
-        {/*
-          Logical margin keeps the actions at the trailing edge in both LTR and RTL without a second
-          stylesheet (FR-018).
-        */}
-        <div className="order-3 flex w-full items-center justify-between gap-4 sm:order-none sm:ms-auto sm:w-auto sm:justify-start">
+        {/* Logical margin keeps the action cluster at the trailing edge in both directions. */}
+        <div className="ms-auto flex shrink-0 items-center gap-2 sm:gap-3">
+          <SearchControl />
+
+          {/* Theme and language are secondary chrome: present at tablet and up, and carried into the
+              drawer footer below that, so nothing is lost at 390px. */}
+          <div className="hidden items-center gap-2 md:flex">
+            <ThemeToggle />
+            <LanguageSwitcher />
+          </div>
+
           {/*
-            Secondary by design (FR-016): a plain text link beside the filled primary CTA. Until
-            Feature 003 exists it resolves to an explicit, honest placeholder — never a fake sign-in
-            form and never a silent redirect to `/`.
+            Secondary by design (FR-016): a quiet text link beside the filled primary CTA, never a
+            second button. Until Feature 003 owns the real destination it resolves to an explicit,
+            honest entry page — never a fake sign-in form and never a silent redirect to `/`.
           */}
           <Link
             href={PUBLIC_ROUTES.portalEntry}
-            className="inline-flex min-h-11 items-center rounded-sm py-2 text-sm font-medium text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring"
+            className="hidden h-[var(--control-h)] items-center rounded-[var(--radius-sm)] px-2 text-[var(--text-small)] font-medium text-muted-foreground underline-offset-4 transition-colors duration-[var(--dur-fast)] hover:text-foreground hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus-ring)] lg:inline-flex"
           >
-            {copy.nav.portalEntry}
+            <Bilingual pick={(c) => c.nav.portalEntry} />
           </Link>
 
-          {/* Primary commercial CTA — the public site's main conversion action. */}
-          <Button render={<Link href={PUBLIC_ROUTES.contact} />}>
-            {copy.cta.requestAnOffer}
+          {/* The primary commercial CTA — the one filled button in the header. Never gold: gold is
+              selective accent only and is explicitly not the default CTA colour (contract §3). */}
+          <Button
+            className="hidden sm:inline-flex"
+            nativeButton={false}
+            render={<Link href={PUBLIC_ROUTES.contact} />}
+          >
+            <Bilingual pick={(c) => c.cta.requestAnOffer} />
           </Button>
+
+          <MobileNav />
         </div>
       </div>
     </header>

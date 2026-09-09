@@ -8,7 +8,6 @@ import { IntentCards } from "@/components/public/intent-cards";
 import { OriginCard } from "@/components/public/origin-card";
 import { PublicShell } from "@/components/public/public-shell";
 import {
-  CONTAINER,
   EYEBROW,
   HEADING_2,
   LEAD,
@@ -186,7 +185,7 @@ export default async function HomePage() {
       {/* Closing commercial CTA — the page's single conversion action, on the brand's dark ground. */}
       <section className="bg-sidebar text-sidebar-foreground">
         <div
-          className={`${CONTAINER} flex flex-col gap-8 py-[clamp(3rem,7vw,7.5rem)] lg:flex-row lg:items-center lg:justify-between`}
+          className={`hc-container flex flex-col gap-8 py-[clamp(3rem,7vw,7.5rem)] lg:flex-row lg:items-center lg:justify-between`}
         >
           <div className="flex max-w-[46rem] flex-col gap-4">
             <span className={`${EYEBROW} text-sidebar-ring`}>
@@ -200,6 +199,7 @@ export default async function HomePage() {
           <Button
             variant="accent"
             className="shrink-0"
+            nativeButton={false}
             render={<Link href={PUBLIC_ROUTES.contact} />}
           >
             {copy.cta.requestAnOffer}

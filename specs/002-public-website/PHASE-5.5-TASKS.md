@@ -226,7 +226,7 @@ Critical path. Every other block consumes these tokens and primitives.
 **Codex: GPT-5.6 Sol — High · Claude: Opus — High**
 Depends on Block A. Establishes theme, locale and the finished public chrome.
 
-- [ ] UIF-016 Theme architecture and control (`components/theme/*`, `src/app/layout.tsx`)
+- [x] UIF-016 Theme architecture and control (`components/theme/*`, `src/app/layout.tsx`)
   - Scope: dependency-free provider toggling `.dark` on `<html>`; pre-paint blocking inline script reading the stored preference; `ThemeToggle` control; `prefers-color-scheme` as the initial default.
   - Requirement: contract §11; plan §9
   - Depends: UIF-004, UIF-006
@@ -235,7 +235,7 @@ Depends on Block A. Establishes theme, locale and the finished public chrome.
   - Codex: GPT-5.6 Sol — High · Claude: Opus — High
   - Why: the pre-paint/hydration interaction is the classic failure mode, and it touches a locked root file.
 
-- [ ] UIF-017 Locale and direction architecture (`components/locale/*`, `lib/i18n/config.ts`, `lib/public/copy/*`, `src/app/layout.tsx`)
+- [x] UIF-017 Locale and direction architecture (`components/locale/*`, `lib/i18n/config.ts`, `lib/public/copy/*`, `src/app/layout.tsx`)
   - Scope: EN/العربية control; `lang` + `dir` on `<html>` via the same provider/pre-paint script as the theme; an `ar` dictionary sibling fed from the same module; persistence identical to the theme.
   - Requirement: contract §12; plan §8, §9
   - Depends: UIF-016, UIF-002
@@ -244,7 +244,7 @@ Depends on Block A. Establishes theme, locale and the finished public chrome.
   - Codex: GPT-5.6 Sol — High · Claude: Opus — High
   - Why: a formally amended requirement, an honesty constraint on content, and a hydration-sensitive root-file edit in one task.
 
-- [ ] UIF-018 Arabic typography and RTL primitive audit (`components/**`, `src/app/globals.css`)
+- [x] UIF-018 Arabic typography and RTL primitive audit (`components/**`, `src/app/globals.css`)
   - Scope: apply the Arabic font stack and RTL type overrides; sweep every Phase-5.5 primitive for physical-direction rules.
   - Requirement: contract §4, §12
   - Depends: UIF-017, UIF-002
@@ -253,7 +253,7 @@ Depends on Block A. Establishes theme, locale and the finished public chrome.
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — High
   - Why: mechanical sweep with a precise, greppable success condition.
 
-- [ ] UIF-019 Search control architecture (`components/public/search-control.tsx`)
+- [x] UIF-019 Search control architecture (`components/public/search-control.tsx`)
   - Scope: the reusable Search **control** — header placement, pill field, mobile behaviour, dialog/drawer shell, keyboard interaction (open, focus trap, Escape, arrows), focus-visible, both themes and directions. Resolves to the existing `/coffee/` catalogue.
   - Requirement: plan §10 (decision)
   - Depends: UIF-014, UIF-008
@@ -262,7 +262,7 @@ Depends on Block A. Establishes theme, locale and the finished public chrome.
   - Codex: GPT-5.6 Sol — Medium · Claude: Opus — Medium
   - Why: the honesty boundary — this is precisely where an unsafe or fake search would be introduced.
 
-- [ ] UIF-020 Public Header — production build (`components/public/site-header.tsx`)
+- [x] UIF-020 Public Header — production build (`components/public/site-header.tsx`)
   - Scope: 150px+ logo (green on light, cream on dark), navigation hierarchy, 76px header height, sticky + scrolled treatment (transparent over hero → solid on scroll with `--blur-panel`), hover/active states, primary commercial CTA, secondary Trading Portal entry, and deliberate slots for Search, Theme and EN/العربية.
   - Requirement: contract §5, §11, §12; plan §6.2; design README header rules
   - Depends: UIF-006, UIF-007, UIF-016, UIF-017, UIF-019
@@ -271,7 +271,7 @@ Depends on Block A. Establishes theme, locale and the finished public chrome.
   - Codex: GPT-5.6 Sol — High · Claude: Opus — High
   - Why: the most-seen surface in the product; hierarchy judgement plus four interacting controls.
 
-- [ ] UIF-021 Mobile navigation drawer (`components/public/mobile-nav.tsx`)
+- [x] UIF-021 Mobile navigation drawer (`components/public/mobile-nav.tsx`)
   - Scope: 52px rows, slides from the inline-end edge, includes theme + locale controls and the primary CTA in its footer, full keyboard and focus management.
   - Requirement: contract §12, §13, §15; design MobileDrawer spec
   - Depends: UIF-014, UIF-020
@@ -281,16 +281,33 @@ Depends on Block A. Establishes theme, locale and the finished public chrome.
   - Why: standard pattern, but focus and direction correctness are non-negotiable.
 
 
-- [ ] UIF-022 [P] Public Footer — production build (`components/public/site-footer.tsx`)
+- [x] UIF-022 [P] Public Footer — production build (`components/public/site-footer.tsx`)
   - Scope: dark-forest closing composition; grouped navigation (Explore · Account · Contact) over routes that actually exist; cream logo at ≥150px; brand statement; closing line.
   - Requirement: contract §3, §14; plan §6.3 (adoptable footer richness)
   - Depends: UIF-006, UIF-007
   - MUST NOT: link to `/knowledge/*` or `/legal/*` (CONTENT-01); invent a social or legal link that does not exist; use the green logo on the dark surface.
-  - Verify: every footer href resolves to an existing route; cream logo ≥150px on the forest surface; three-column at ≥768px, single-column stack at 390px; contrast passes.
+  - Verify: every footer href either (a) resolves to an existing route with HTTP 200, or (b) is the
+    single **approved deferred destination** `/contact/`, whose owning task is named and unchecked
+    — Feature 002 Phase 6 **`T020`** (`src/app/(public)/contact/page.tsx`); **no other non-resolving
+    href is permitted**, and a href that 404s without a named owning task is a defect; cream logo
+    ≥150px on the forest surface; three-column at ≥768px, single-column stack at 390px; contrast
+    passes.
   - Codex: GPT-5.6 Sol — Low · Claude: Sonnet — Medium
   - Why: composition work whose only trap is linking to unbuilt routes.
+  - **Verify amended 2026-09-09 (narrow reconciliation).** Clause 1 originally read "every footer
+    href resolves to an existing route", which was stricter than the standard this same feature had
+    already accepted and which no footer could satisfy before Phase 6. `T002` — already complete —
+    fixes the approved href set as `/`, `/coffee/`, `/origins/`, `/sourcing/`, `/contact/`,
+    `/portal-entry/`, states that its verification is "**structural, checkable now** — the
+    destination routes are created later in Phases 4–6", defers **runtime dead-link verification to
+    `T038` and `T050`**, and explicitly instructs: "Do **not** create stub routes to make this task's
+    verification pass." `/contact/` is therefore an approved deferred destination with a named
+    owning task (`T020`), not a broken link — and it is additionally required by `UIF-020`'s primary
+    commercial CTA, so it cannot be removed. The amendment encodes exactly that one case and closes
+    it: `/contact/` → `T020` is the only permitted non-resolving href, and any other 404 remains a
+    defect. Runtime dead-link coverage stays owned by `T038`/`T050`; this task does not assume it.
 
-- [ ] UIF-023 PublicShell integration and 96rem adoption (`components/public/public-shell.tsx`, `components/public/section.tsx`)
+- [x] UIF-023 PublicShell integration and 96rem adoption (`components/public/public-shell.tsx`, `components/public/section.tsx`)
   - Scope: adopt the shared container primitive throughout the public shell; retire the local `CONTAINER` constant; keep the skip link first in tab order.
   - Requirement: contract §2
   - Depends: UIF-003, UIF-020, UIF-022

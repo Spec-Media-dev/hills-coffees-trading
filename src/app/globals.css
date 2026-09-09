@@ -200,6 +200,8 @@
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --transition-control: color var(--dur-fast) var(--ease-standard), background-color var(--dur-fast) var(--ease-standard), border-color var(--dur-fast) var(--ease-standard), box-shadow var(--dur-fast) var(--ease-standard), transform var(--dur-fast) var(--ease-standard);
   --container-product: 96rem;
+  --header-h: 76px;
+  --drawer-w: min(420px, 88vw);
   --container-editorial: 80rem;
   --container-article: 47.5rem;
   --background: #eee4d1;
@@ -372,6 +374,54 @@
 .hc-meta { font-size: var(--text-meta); line-height: var(--lh-snug); }
 .hc-micro { font-size: var(--text-micro); line-height: var(--lh-snug); }
 .hc-eyebrow { font-size: var(--text-meta); font-weight: var(--weight-semibold); letter-spacing: var(--tracking-label); text-transform: uppercase; }
+
+/*
+ * Public header — sticky, with a scrolled treatment (Phase 5.5, UIF-020).
+ *
+ * The shadow deepens as the page scrolls under the header. This is a CSS **scroll-driven** animation:
+ * it is bound to the document's scroll progress rather than to time, so it needs no scroll listener,
+ * no `IntersectionObserver` and no client island — the header stays a Server Component.
+ *
+ * It animates `box-shadow` and `border-color` only. The height is fixed at `--header-h` and is never
+ * touched, so no scroll state can produce a layout jump.
+ *
+ * Where scroll timelines are unsupported the `@supports` block simply does not apply and the header
+ * keeps its resting treatment, which is fully legible on its own — a progressive enhancement, not a
+ * dependency. It is additionally gated on `prefers-reduced-motion: no-preference`, so a viewer who
+ * has asked for less motion gets the settled state outright rather than a scroll-linked effect.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  @supports (animation-timeline: scroll()) {
+    .hc-header {
+      animation: hc-header-settle linear both;
+      animation-timeline: scroll(root block);
+      animation-range: 0 var(--header-h);
+    }
+
+    @keyframes hc-header-settle {
+      from {
+        box-shadow: none;
+        border-bottom-color: transparent;
+      }
+      to {
+        box-shadow: var(--shadow-sm);
+        border-bottom-color: var(--border);
+      }
+    }
+  }
+}
+
+/*
+ * Bilingual interface chrome (Phase 5.5, UIF-017).
+ *
+ * `components/locale/bilingual.tsx` renders both language spans into the server HTML; these two
+ * rules pick the active one from the `lang` attribute that the pre-paint script has already placed
+ * on `<html>`. `display: none` also removes the inactive label from the accessibility tree, so a
+ * screen reader announces one label rather than two. This is what lets the public header and footer
+ * stay Server Components while still switching language (contract §12, §16).
+ */
+:root:not([lang="ar"]) .hc-lang-ar { display: none; }
+[lang="ar"] .hc-lang-en { display: none; }
 
 [data-directional-icon="true"] { transition: transform var(--dur-fast) var(--ease-standard); }
 [dir="rtl"] [data-directional-icon="true"] { transform: scaleX(-1); }

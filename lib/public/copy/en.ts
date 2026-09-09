@@ -53,9 +53,36 @@ export const en = {
     requestAnOffer: "Request an offer",
   },
 
+  /**
+   * Names and labels for the shell's interactive controls (Phase 5.5, UIF-016/017/019/021).
+   *
+   * These are accessible names and visible control labels — copy, not technical constants
+   * (contract §3.6). They are the one category of string that also carries approved Arabic in
+   * `ar.ts`, because naming a part of the interface asserts nothing about the business.
+   */
+  controls: {
+    themeToggle: "Switch theme",
+    switchToDark: "Switch to dark theme",
+    switchToLight: "Switch to light theme",
+    /** The switcher shows the language you will GET, not the one you are in (design system). */
+    languageSwitcher: "التبديل إلى العربية",
+    languageSwitcherShort: "AR",
+    openMenu: "Open menu",
+    closeMenu: "Close menu",
+    menuTitle: "Menu",
+    openSearch: "Search",
+    searchTitle: "Search Hills coffee",
+    /** States exactly what submitting does today, and stays true once UIF-030 adds filtering. */
+    searchHint: "Your search opens the published coffee catalogue.",
+    searchPlaceholder: "Search by coffee or origin",
+    searchSubmit: "Browse the coffee catalogue",
+    close: "Close",
+  },
+
   footer: {
     rights: "All rights reserved.",
     exploreHeading: "Explore",
+    accountHeading: "Account",
     commercialHeading: "Trade with Hills",
     brandStatement:
       "Traceable green coffee for roasters, importers and distributors across the Arab region.",

@@ -4,7 +4,6 @@ import { notFound } from "next/navigation";
 
 import { MediaPlaceholder } from "@/components/public/media-placeholder";
 import {
-  CONTAINER,
   EYEBROW,
   HEADING_2,
   HEADING_3,
@@ -102,7 +101,7 @@ export default async function CoffeeDetailPage({ params }: PageProps) {
 
   return (
     <article className="bg-background">
-      <div className={`${CONTAINER} py-[clamp(2.5rem,5vw,4.5rem)]`}>
+      <div className={`hc-container py-[clamp(2.5rem,5vw,4.5rem)]`}>
         <Link href={PUBLIC_ROUTES.coffee} className={LINK_QUIET}>
           {copy.coffee.detail.backToIndex}
         </Link>
@@ -110,7 +109,7 @@ export default async function CoffeeDetailPage({ params }: PageProps) {
 
       {/* Identity: the coffee, its origin, and the media slot — the page's editorial head. */}
       <div
-        className={`${CONTAINER} grid gap-10 pb-[clamp(3rem,6vw,5rem)] lg:grid-cols-[minmax(0,1fr)_minmax(18rem,0.8fr)] lg:gap-16`}
+        className={`hc-container grid gap-10 pb-[clamp(3rem,6vw,5rem)] lg:grid-cols-[minmax(0,1fr)_minmax(18rem,0.8fr)] lg:gap-16`}
       >
         <div className="flex flex-col gap-5">
           {origin ? (
@@ -134,7 +133,7 @@ export default async function CoffeeDetailPage({ params }: PageProps) {
       {/* Specification and origin. Definition lists, because that is what this content is. */}
       <div className="bg-secondary">
         <div
-          className={`${CONTAINER} grid gap-10 py-[clamp(3rem,6vw,5rem)] md:grid-cols-2 lg:gap-16`}
+          className={`hc-container grid gap-10 py-[clamp(3rem,6vw,5rem)] md:grid-cols-2 lg:gap-16`}
         >
           <section className="flex flex-col gap-6">
             <h2 className={HEADING_3}>{copy.coffee.detail.specHeading}</h2>
@@ -206,7 +205,7 @@ export default async function CoffeeDetailPage({ params }: PageProps) {
       {/* Characteristics and certifications — both public taxonomy, both optional. */}
       {coffee.tags.length > 0 || coffee.certifications.length > 0 ? (
         <div
-          className={`${CONTAINER} grid gap-10 py-[clamp(3rem,6vw,5rem)] md:grid-cols-2 lg:gap-16`}
+          className={`hc-container grid gap-10 py-[clamp(3rem,6vw,5rem)] md:grid-cols-2 lg:gap-16`}
         >
           {coffee.tags.length > 0 ? (
             <section className="flex flex-col gap-5">
@@ -255,7 +254,7 @@ export default async function CoffeeDetailPage({ params }: PageProps) {
       {/* Traceability framing — what Hills stands behind, with no unevidenced claim attached. */}
       <div className="bg-secondary">
         <div
-          className={`${CONTAINER} flex flex-col gap-4 py-[clamp(3rem,6vw,5rem)]`}
+          className={`hc-container flex flex-col gap-4 py-[clamp(3rem,6vw,5rem)]`}
         >
           <h2 className={HEADING_3}>{copy.coffee.detail.traceabilityHeading}</h2>
           <p className={`${LEAD} text-muted-foreground text-pretty`}>
@@ -267,7 +266,7 @@ export default async function CoffeeDetailPage({ params }: PageProps) {
       {/* The commercial conversation this page exists to start. */}
       <div className="bg-sidebar text-sidebar-foreground">
         <div
-          className={`${CONTAINER} flex flex-col gap-8 py-[clamp(3rem,6vw,5rem)] lg:flex-row lg:items-center lg:justify-between`}
+          className={`hc-container flex flex-col gap-8 py-[clamp(3rem,6vw,5rem)] lg:flex-row lg:items-center lg:justify-between`}
         >
           <div className="flex max-w-[46rem] flex-col gap-3">
             <h2 className={HEADING_3}>{copy.coffee.detail.rfqHeading}</h2>
@@ -278,6 +277,7 @@ export default async function CoffeeDetailPage({ params }: PageProps) {
           <Button
             variant="accent"
             className="shrink-0"
+            nativeButton={false}
             render={<Link href={PUBLIC_ROUTES.contact} />}
           >
             {copy.cta.requestAnOffer}
