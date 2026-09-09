@@ -5,7 +5,8 @@
 `docs/requirements/Hills-Coffee-SRS-v1.md`,
 `docs/design-guidance/Hills-Coffee-Website-Recommendations.md`, `docs/claude-design/`.
 
-**Status**: Block A (Phases 1–2) **COMPLETE — 12 / 12 verified**. Phases 3–13 not started.
+**Status**: Block A (Phases 1–2) **COMPLETE — 12 / 12 verified**. Block B (Phases 3–4)
+**COMPLETE — 5 / 5 verified**. Phases 5–13 not started.
 **DB-BLOCK-10 is RESOLVED** — the approved policy-scoping migration is applied and the anonymous
 public catalogue boundary is verified live.
 **Prerequisite**: 001-platform-foundation **implemented and verified** (Hills tokens, `StateScreen`,
@@ -142,6 +143,11 @@ visitor. This is what makes the T031 revalidation proof observable without mutat
      the **only** non-public values the `coffees` CHECK constraint allows
      (`DRAFT` | `PUBLISHED` | `ARCHIVED`).
   4. **Public origin** — one `origins` row with `status = 'ACTIVE'`, linked to the region.
+  4b. **Second public origin, deliberately empty** — one further `status = 'ACTIVE'` origin with no
+     coffees linked to it. *(Added during T016: an active origin with zero published coffees must
+     render an honest empty state and still return 200, and the original row set could not express
+     that case — its only ACTIVE origin carries the published coffee. T006a was re-verified after
+     the change.)*
   5. **Non-public origins** — one `status = 'INACTIVE'` and one `status = 'ARCHIVED'` row. These are
      the only non-public values the `origins` CHECK constraint allows
      (`ACTIVE` | `INACTIVE` | `ARCHIVED`).
@@ -227,7 +233,7 @@ visitor. This is what makes the T031 revalidation proof observable without mutat
 
 ## Phase 3 — Homepage (in place)
 
-- [ ] T012 [PS1] Build `components/public/hero.tsx` and `intent-cards.tsx` — Dubai-based regional
+- [x] T012 [PS1] Build `components/public/hero.tsx` and `intent-cards.tsx` — Dubai-based regional
   supply message, two clear actions, three intents (Source coffee / Explore available coffee / Trade
   with Hills), per the design guidance. No retail-café language.
   - Req: FR-021, PS1 | Depends: T000, T001
@@ -235,7 +241,7 @@ visitor. This is what makes the T031 revalidation proof observable without mutat
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — Medium
   - Why: component work guided by an explicit brief, with an originality constraint.
 
-- [ ] T013 [PS1] Compose the homepage **in place** in `src/app/page.tsx` from `PublicShell` +
+- [x] T013 [PS1] Compose the homepage **in place** in `src/app/page.tsx` from `PublicShell` +
   section blocks (hero, intent cards, credibility, featured coffee/origins, RFQ CTA). The file stays
   at its current path.
   - Req: FR-001, FR-021, FR-023, PS1, PS2 | Depends: T001, T002, T012, T007, T008
@@ -247,7 +253,7 @@ visitor. This is what makes the T031 revalidation proof observable without mutat
 
 ## Phase 4 — Coffee & origin routes
 
-- [ ] T014 [PS1] Implement `src/app/(public)/coffee/page.tsx` — server-rendered index of published
+- [x] T014 [PS1] Implement `src/app/(public)/coffee/page.tsx` — server-rendered index of published
   coffees **including its `generateMetadata`** (title, description, canonical, OG). Filters must not
   create indexable weak combinations.
   - Req: FR-002, FR-004, FR-006, FR-010, SC-001 | Depends: T000, T006a, T007, T003
@@ -255,7 +261,7 @@ visitor. This is what makes the T031 revalidation proof observable without mutat
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — Medium
   - Why: standard listing page; metadata is folded in because it edits the same file (it was incorrectly a separate parallel task before).
 
-- [ ] T015 [PS1] Implement `src/app/(public)/coffee/[slug]/page.tsx` — name, description, origin
+- [x] T015 [PS1] Implement `src/app/(public)/coffee/[slug]/page.tsx` — name, description, origin
   (region/country), type, variety, processing method, packaging, tags, certifications, media
   placeholders, traceability framing and a visible RFQ CTA; **`generateMetadata` in the same file**;
   `notFound()` for any non-`PUBLISHED` record.
@@ -266,7 +272,7 @@ visitor. This is what makes the T031 revalidation proof observable without mutat
   - Codex: GPT-5.6 Sol — High · Claude: Opus — High
   - Why: the single most leak-prone page on the public site, and the one most likely to be "helpfully" enriched with member-only data.
 
-- [ ] T016 [PS1] Implement `src/app/(public)/origins/page.tsx` and `[slug]/page.tsx` with their
+- [x] T016 [PS1] Implement `src/app/(public)/origins/page.tsx` and `[slug]/page.tsx` with their
   `generateMetadata`; `notFound()` for non-`ACTIVE` origins; honest empty state when an origin has no
   published coffees.
   - Req: FR-002, FR-005, FR-006, SC-001 | Depends: T000, T006a, T008, T003

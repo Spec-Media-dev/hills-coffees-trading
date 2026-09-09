@@ -198,8 +198,9 @@ const FIXTURES: readonly Fixture[] = [
  *   - one row in each reference table (`UNIQUE (slug)` is the idempotency key);
  *   - one `PUBLISHED` coffee linked to the active origin and to all five reference rows;
  *   - one `DRAFT` and one `ARCHIVED` coffee — the only other values the `coffees` CHECK allows;
- *   - one `ACTIVE` origin, plus one `INACTIVE` and one `ARCHIVED` origin — likewise the only other
- *     values the `origins` CHECK allows;
+ *   - two `ACTIVE` origins (one carrying the published coffee, one deliberately empty so the
+ *     zero-coffee empty state can be exercised), plus one `INACTIVE` and one `ARCHIVED` origin —
+ *     likewise the only other values the `origins` CHECK allows;
  *   - one certification on the published coffee, with the file reference left NULL.
  *
  * WHAT IS DELIBERATELY NOT CREATED: media rows (their file reference is NOT NULL, so a row would
@@ -221,6 +222,7 @@ const CATALOGUE_IDS = {
   originActive: "f0000000-0000-4000-8000-000000000031",
   originInactive: "f0000000-0000-4000-8000-000000000032",
   originArchived: "f0000000-0000-4000-8000-000000000033",
+  originActiveEmpty: "f0000000-0000-4000-8000-000000000034",
   coffeePublished: "f0000000-0000-4000-8000-000000000041",
   coffeeDraft: "f0000000-0000-4000-8000-000000000042",
   coffeeArchived: "f0000000-0000-4000-8000-000000000043",
@@ -237,6 +239,7 @@ const CATALOGUE_SLUGS = {
   originActive: "public-test-origin-active",
   originInactive: "public-test-origin-inactive",
   originArchived: "public-test-origin-archived",
+  originActiveEmpty: "public-test-origin-empty",
   coffeePublished: "public-test-coffee-published",
   coffeeDraft: "public-test-coffee-draft",
   coffeeArchived: "public-test-coffee-archived",
@@ -341,6 +344,20 @@ async function seedCatalogue(admin: SupabaseClient): Promise<void> {
     description: CATALOGUE_CANARIES.originArchived,
     status: "ARCHIVED",
   });
+  // A SECOND ACTIVE origin, deliberately with no coffees linked to it.
+  //
+  // Added when T016 was implemented: an active origin with zero published coffees must render an
+  // honest empty state and still return 200, and the original fixture set could not express that
+  // case — its only ACTIVE origin carries the published coffee. Public data, so no canary.
+  await upsert("origins", {
+    id: CATALOGUE_IDS.originActiveEmpty,
+    region_id: CATALOGUE_IDS.region,
+    name: "Public Test Origin Without Coffees",
+    slug: CATALOGUE_SLUGS.originActiveEmpty,
+    country_code: "ET",
+    description: "Active public test origin with no published coffees. Safe to publish.",
+    status: "ACTIVE",
+  });
 
   // 3. Coffees. The PUBLISHED row is linked to every reference row so the public DTO renders its
   //    full shape; the two non-public rows carry canaries.
@@ -397,7 +414,7 @@ async function seedCatalogue(admin: SupabaseClient): Promise<void> {
   console.log(
     `  published coffee   ${CATALOGUE_SLUGS.coffeePublished}\n` +
       `  non-public coffees ${CATALOGUE_SLUGS.coffeeDraft}, ${CATALOGUE_SLUGS.coffeeArchived}\n` +
-      `  active origin      ${CATALOGUE_SLUGS.originActive}\n` +
+      `  active origins     ${CATALOGUE_SLUGS.originActive}, ${CATALOGUE_SLUGS.originActiveEmpty}\n` +
       `  non-public origins ${CATALOGUE_SLUGS.originInactive}, ${CATALOGUE_SLUGS.originArchived}\n` +
       `  reference rows     region, type, variety, process, packaging, tag\n` +
       `  certification      1 (file reference NULL)`
@@ -423,6 +440,7 @@ async function teardownCatalogue(admin: SupabaseClient): Promise<void> {
     CATALOGUE_IDS.originActive,
     CATALOGUE_IDS.originInactive,
     CATALOGUE_IDS.originArchived,
+    CATALOGUE_IDS.originActiveEmpty,
   ];
 
   const deleteByIds = async (
