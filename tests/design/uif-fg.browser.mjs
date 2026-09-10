@@ -192,15 +192,65 @@ try {
       }
     }
   }
+  const authorizedSettings = [];
+  await client.send("Network.clearBrowserCookies");
+  const memberSession = await signIn(fixtures.member);
+  await client.send("Network.setCookie", {
+    url: baseUrl,
+    name: `sb-${projectRef}-auth-token`,
+    value: `base64-${Buffer.from(JSON.stringify(memberSession)).toString("base64url")}`,
+    path: "/",
+    sameSite: "Lax",
+  });
+  for (const route of ["/dashboard/settings", "/dashboard/settings/"]) {
+    await goto(client, `${baseUrl}${route}`);
+    const surface = await client.evaluate(`({
+      denied: Boolean(document.querySelector('[data-state-screen="unauthorized"], [data-state-screen="forbidden"]')),
+      pathname: location.pathname,
+      body: document.body.innerText.slice(0, 500),
+    })`);
+    assert(!surface.denied && surface.pathname === "/dashboard/settings/", `Authorized member settings failed for ${route}`, { route, surface });
+    authorizedSettings.push({ route, ...surface });
+  }
+  const authorizedShells = [];
+  for (const [surface, email, routes] of [
+    ["member", fixtures.member, ["/dashboard", "/dashboard/"]],
+    ["admin", fixtures.admin, ["/dashboard-admin", "/dashboard-admin/"]],
+  ]) {
+    await client.send("Network.clearBrowserCookies");
+    const session = await signIn(email);
+    await client.send("Network.setCookie", {
+      url: baseUrl,
+      name: `sb-${projectRef}-auth-token`,
+      value: `base64-${Buffer.from(JSON.stringify(session)).toString("base64url")}`,
+      path: "/",
+      sameSite: "Lax",
+    });
+    for (const route of routes) {
+      await goto(client, `${baseUrl}${route}`);
+      const shell = await client.evaluate(`({
+        denied: Boolean(document.querySelector('[data-state-screen="unauthorized"], [data-state-screen="forbidden"]')),
+        pathname: location.pathname,
+        body: document.body.innerText.slice(0, 500),
+      })`);
+      const expectedPath = surface === "member" ? "/dashboard/" : "/dashboard-admin/";
+      assert(!shell.denied && shell.pathname === expectedPath, `Authorized ${surface} shell failed for ${route}`, { route, shell });
+      authorizedShells.push({ surface, route, ...shell });
+    }
+  }
   const denialChecks = [
     { cookie: null, route: "/dashboard" },
     { cookie: null, route: "/dashboard/" },
+    { cookie: null, route: "/dashboard/settings" },
+    { cookie: null, route: "/dashboard/settings/" },
     { cookie: null, route: "/dashboard-admin" },
     { cookie: null, route: "/dashboard-admin/" },
     { cookie: fixtures.member, route: "/dashboard-admin" },
     { cookie: fixtures.member, route: "/dashboard-admin/" },
     { cookie: fixtures.admin, route: "/dashboard" },
     { cookie: fixtures.admin, route: "/dashboard/" },
+    { cookie: fixtures.admin, route: "/dashboard/settings" },
+    { cookie: fixtures.admin, route: "/dashboard/settings/" },
   ];
   const denials = [];
   for (const check of denialChecks) {
@@ -230,7 +280,7 @@ try {
   const reduced = await client.evaluate(`(() => ["--dur-instant", "--dur-fast", "--dur-base", "--dur-slow"].map((name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim()))()`);
   assert(reduced.every((value) => value === "1ms"), "Reduced motion tokens are not collapsed", reduced);
   assert(failures.length === 0 && browserIssues.length === 0, "Browser reported console/runtime issues", { failures, browserIssues });
-  console.log(JSON.stringify({ scenarios: results.length, denialChecks: denialChecks.length, denials, reduced, failures, browserIssues }, null, 2));
+  console.log(JSON.stringify({ scenarios: results.length, authorizedSettings, authorizedShells, denialChecks: denialChecks.length, denials, reduced, failures, browserIssues }, null, 2));
 } finally {
   client?.close();
   if (chrome.exitCode === null) { chrome.kill(); await Promise.race([once(chrome, "exit"), delay(2000)]); }

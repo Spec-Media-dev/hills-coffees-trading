@@ -84,11 +84,9 @@ export const ar: DeepPartial<PublicCopy> = {
   cta: {
     requestAnOffer: "اطلب عرض سعر",
     exploreAllCoffee: "استكشف كل البن",
-    talkToUs: "تحدث معنا",
   },
 
   controls: {
-    themeToggle: "تغيير المظهر",
     switchToDark: "التبديل إلى المظهر الداكن",
     switchToLight: "التبديل إلى المظهر الفاتح",
     languageSwitcher: "Switch to English",
@@ -406,7 +404,6 @@ export const ar: DeepPartial<PublicCopy> = {
       metaTitle: "البن",
       metaDescription: "أنواع البن الأخضر التي تنشرها هيلز كوفي، مع المنشأ وطريقة المعالجة والتعبئة والشهادات للمشترين المحترفين.",
       filter: {
-        legend: "تصفية الدليل",
         searchLabel: "ابحث في البن المنشور",
         searchPlaceholder: "البن أو المنشأ",
         originFacet: "المنشأ",
@@ -419,7 +416,6 @@ export const ar: DeepPartial<PublicCopy> = {
       },
     },
     detail: {
-      originHeading: "المنشأ",
       specHeading: "المواصفات",
       coffeeType: "نوع البن",
       variety: "الصنف",
@@ -438,8 +434,6 @@ export const ar: DeepPartial<PublicCopy> = {
       notSpecified: "غير محدد",
       backToIndex: "كل البن",
       identityEyebrow: "بن منشور",
-      aboutHeading: "عن هذا البن",
-      mediaNote: "تُنشر صور السجل مع البن حين تتوفر.",
       originLinkAction: "اطّلع على المنشأ",
       originConnectionHeading: "من أين يأتي",
     },
@@ -461,7 +455,6 @@ export const ar: DeepPartial<PublicCopy> = {
       coffeesEmpty: "لا يوجد بن منشور من هذا المنشأ في الوقت الحالي. أرسل لنا طلب توريد وسنخبرك بما يمكننا توريده.",
       backToIndex: "كل المناشئ",
       identityEyebrow: "منطقة إنتاج",
-      aboutHeading: "عن هذا المنشأ",
       countryLabel: "الدولة",
       exploreCoffee: "تصفح كل البن",
     },

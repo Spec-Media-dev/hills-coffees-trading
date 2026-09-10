@@ -1,14 +1,15 @@
 # Hills Coffee — Implementation Roadmap
 
-**Last updated**: 2026-09-08
+**Last updated**: 2026-09-10
 **Governing documents**: `.specify/memory/constitution.md` (v2.0.0) →
 `docs/requirements/Hills-Coffee-SRS-v1.md` → `docs/database/` →
 `docs/design-guidance/Hills-Coffee-Website-Recommendations.md` → `docs/claude-design/` → code.
 
 > **Feature 001 (Platform Foundation) is IMPLEMENTED and VERIFIED** — all 50 of its tasks are
 > checked, and every phase carries a COMPLETE — VERIFIED status recorded against executed
-> verification (including live-browser and real-Supabase proofs). **Features 002–012 remain at
-> planning stage**, with every task checkbox unchecked.
+> verification (including live-browser and real-Supabase proofs). **Feature 002 (Public Website)
+> is IMPLEMENTED and VERIFIED through Phase 13 closure (59/59 current tasks, including its
+> separate Phase 5.5 foundation block)**. Features 003–012 remain at planning stage.
 
 This document is the index a new agent reads first. For *what the database can already do*, read
 `docs/architecture/DATABASE-CAPABILITY-MAP.md` — including its list of recorded blockers and the
@@ -21,7 +22,7 @@ commission capability (§8), which is already implemented in the database.
 | # | Feature | Surface | Status | Artefacts |
 |---|---|---|---|---|
 | 001 | Platform Foundation | All three (foundation) | Constitution ✅ · Specify ✅ · Clarify ✅ · Plan ✅ · Tasks ✅ · Analyze ✅ · **Implement ✅ — IMPLEMENTED / VERIFIED (50/50 tasks)** | [spec](../../specs/001-platform-foundation/spec.md) · [plan](../../specs/001-platform-foundation/plan.md) · [tasks](../../specs/001-platform-foundation/tasks.md) · research · data-model · contracts · quickstart · AGENT-HANDOFF |
-| 002 | Public Website | Public `/`, Member `/dashboard` shell, Admin `/dashboard-admin` shell | Planning re-synchronised (59 tasks / 13 phases / 7 contracts) · **Implement IN PROGRESS — 20 / 59 (Phases 1–5, 7 verified)** · **Phase 5.5 Full Product UI Foundation — IMPLEMENTED / VERIFIED — 58 / 58 UIF tasks, all 9 blocks (A–I) closed 2026-09-10** · reference-pack + GSAP amendment reconciled 2026-09-09 (ASSET-REF-01, MOTION-GSAP-01, both still true and unresolved) · Member/Admin application shell (`components/app/*`) and its own copy root (`lib/app/copy`, `CONTENT-AR-01` scope) are new, reusable component inventory for Features 003–012 · Phase 6 (RFQ) NOT started | [spec](../../specs/002-public-website/spec.md) · [plan](../../specs/002-public-website/plan.md) · [tasks](../../specs/002-public-website/tasks.md) · [Phase 5.5 plan](../../specs/002-public-website/PHASE-5.5-UI-FOUNDATION-PLAN.md) · [Phase 5.5 tasks](../../specs/002-public-website/PHASE-5.5-TASKS.md) · [Phase 5.5 handoff](../../specs/002-public-website/PHASE-5.5-IMPLEMENTATION-HANDOFF.md) |
+| 002 | Public Website | Public `/`, Member `/dashboard` shell, Admin `/dashboard-admin` shell | **IMPLEMENTED / VERIFIED / CLOSED — 59 / 59 current tasks through Phase 13 (2026-09-10)** · **Phase 5.5 Full Product UI Foundation — IMPLEMENTED / VERIFIED — 58 / 58 UIF tasks, all 9 blocks (A–I) closed 2026-09-10** · reference-pack + GSAP amendment reconciled 2026-09-09 (ASSET-REF-01, MOTION-GSAP-01, both still true and unresolved) · Member/Admin application shell (`components/app/*`) and its own copy root (`lib/app/copy`, `CONTENT-AR-01` scope) remain reusable inventory for Features 003–012 · business blockers remain recorded in the canonical handoff · [spec](../../specs/002-public-website/spec.md) · [plan](../../specs/002-public-website/plan.md) · [tasks](../../specs/002-public-website/tasks.md) · [canonical handoff](../../specs/002-public-website/IMPLEMENTATION-HANDOFF.md) · [Phase 5.5 plan](../../specs/002-public-website/PHASE-5.5-UI-FOUNDATION-PLAN.md) · [Phase 5.5 tasks](../../specs/002-public-website/PHASE-5.5-TASKS.md) · [Phase 5.5 handoff](../../specs/002-public-website/PHASE-5.5-IMPLEMENTATION-HANDOFF.md) |
 | 003 | Auth, Membership & KYB | Public auth routes + `/dashboard` | Planning prepared · Implement NOT STARTED | [spec](../../specs/003-auth-membership-kyb/spec.md) · [plan](../../specs/003-auth-membership-kyb/plan.md) · [tasks](../../specs/003-auth-membership-kyb/tasks.md) |
 | 004 | Member Dashboard | `/dashboard` | Planning prepared · Implement NOT STARTED | [spec](../../specs/004-member-dashboard/spec.md) · [plan](../../specs/004-member-dashboard/plan.md) · [tasks](../../specs/004-member-dashboard/tasks.md) |
 | 005 | Inventory, Custody & Storage | `/dashboard` + shared layer | Planning prepared · Implement NOT STARTED | [spec](../../specs/005-inventory-custody-storage/spec.md) · [plan](../../specs/005-inventory-custody-storage/plan.md) · [tasks](../../specs/005-inventory-custody-storage/tasks.md) |
@@ -34,15 +35,16 @@ commission capability (§8), which is already implemented in the database.
 | 012 | Disputes, Notifications & Audit | `/dashboard` + `/dashboard-admin` | Planning prepared · Implement NOT STARTED | [spec](../../specs/012-disputes-notifications-audit/spec.md) · [plan](../../specs/012-disputes-notifications-audit/plan.md) · [tasks](../../specs/012-disputes-notifications-audit/tasks.md) |
 
 **Lifecycle legend**: Specify → Clarify → Plan → Tasks → **Analyze** (per-feature preflight before
-implementation) → Implement → Converge. For 002–012, Analyze is pending and should be run
-immediately before that feature's implementation begins, not now.
+implementation) → Implement → Converge. For 003–012, Analyze is pending and should be run
+immediately before that feature's implementation begins, not now. Feature 002's Analyze and
+implementation closure are recorded in its canonical handoff.
 
-**Feature 002 status note**: 002's planning artefacts were re-synchronised on 2026-09-08 after an
-Analyze pass returned NOT READY. The corrections covered the cache API (now `unstable_cache` +
-`revalidateTag`, matching what 001 actually implemented), a shared `PublicShell` for the locked root
-homepage, an explicit public DTO allowlist, honest RFQ/price/lifecycle/media boundaries, real-browser
-verification, trailing-slash canonicalisation, and corrected task dependencies. **002 must be
-re-analyzed before implementation.**
+**Feature 002 status note**: 002's planning artefacts were re-synchronised on 2026-09-08, then
+implemented and independently closed through Phase 13 on 2026-09-10. The delivered boundary uses
+`unstable_cache` + `revalidateTag`, a shared `PublicShell` for the locked root homepage, an explicit
+public DTO allowlist, honest RFQ/price/lifecycle/media boundaries, real-browser verification,
+trailing-slash canonicalisation, and the corrected task dependencies. Remaining business and
+database blockers are recorded without workaround in `specs/002-public-website/IMPLEMENTATION-HANDOFF.md`.
 
 ---
 
@@ -89,8 +91,10 @@ for every `lib/public/copy` and `lib/app/copy` key — Content/Legal sign-off of
 remaining step, recorded in each module's own header comment. `I18N-ROUTE-01` unchanged (no locale
 routing; preference lives in `localStorage`, applied pre-paint). `ASSET-REF-01` and `MOTION-GSAP-01`
 remain true and in force exactly as recorded 2026-09-09 — no reference-board asset is rendered, GSAP
-is approved and Lenis stays uninitialised (`grep -rn "lenis" src components` — empty). `T033`,
-`T034`, `T035`, `T036` remain `[ ]`, untouched by this phase, exactly as the plan requires.
+is approved and Lenis stays uninitialised (`grep -rn "lenis" src components` — empty).
+The full Feature 002 task closure, including those formerly open verification tasks, is recorded
+in the canonical handoff; this Phase 5.5 evidence remains a historical record of the foundation
+block only.
 
 **Verification evidence**: `npm run typecheck` / `npm test` (**122/122**) / `npm run build` all pass
 on final source; product lint (`src components tests scripts lib`) zero findings; the historical
@@ -102,9 +106,9 @@ lifecycle fixtures), `tests/design/uif-fg.browser.mjs` (24 authenticated Member/
 anonymous/cross-surface denial cases against REAL Supabase sessions), `tests/design/
 uif-h-closure.browser.mjs` (keyboard-only drawer open/focus-trap/close/focus-restore, heading order).
 
-**Exact next task**: Feature 002 Phase 6 (RFQ) — NOT started by this phase. Before that, or before
-Feature 003/004/010 begin consuming this inventory, re-run the Analyze pass 002's planning
-artefacts already call for (§ note below the feature index).
+**Exact next task**: Feature 003 (Auth, Membership & KYB) or another dependency-approved successor;
+Feature 002 is closed and Feature 003+ have not been started by this closure. Run that feature's
+Analyze pass immediately before its implementation begins.
 
 ---
 

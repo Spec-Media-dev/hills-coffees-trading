@@ -16,8 +16,15 @@ const canaries = [
   "PRIVATE-CANARY-INTERNAL-001",
   "Foundation Test — Buyer Only",
 ];
-const coffeePath = "/coffee/public-test-coffee-published/";
-const originPath = "/origins/public-test-origin-active/";
+const surfaces = [
+  ["home", "/"],
+  ["coffeeIndex", "/coffee/"],
+  ["coffee", "/coffee/public-test-coffee-published/"],
+  ["originIndex", "/origins/"],
+  ["origin", "/origins/public-test-origin-active/"],
+  ["sourcing", "/sourcing/"],
+  ["contact", "/contact/"],
+];
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const fail = (message) => { throw new Error(message); };
 
@@ -118,7 +125,7 @@ async function renderedDom(path) {
 }
 
 const proof = {};
-for (const [label, path] of [["coffee", coffeePath], ["origin", originPath]]) {
+for (const [label, path] of surfaces) {
   const ssr = await get(path);
   if (!ssr.contentType.includes("text/html")) fail(`${label} SSR did not return HTML`);
   assertClean(`${label} SSR HTML`, ssr.body);

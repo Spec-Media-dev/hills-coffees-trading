@@ -7,8 +7,10 @@
 
 **Status**: Block A (Phases 1–2) **COMPLETE — 12 / 12 verified**. Block B (Phases 3–4)
 **COMPLETE — 5 / 5 verified**. Block C (Phases 5 + 7) **COMPLETE — 3 / 3 verified**.
-**20 / 59 tasks checked.** Phases 6 and 8–13 not started.
-**Phase 5.5 (Full Product UI Foundation) is planned and inserted before Phase 6** — see
+**59 / 59 current tasks checked — Phases 1–13 COMPLETE — VERIFIED.** The `T0NN` line below is a
+documentation template, not a task; the real task set is 59 items (`T000`–`T057` plus `T006a` and
+`T031a`).
+**Phase 5.5 (Full Product UI Foundation) is COMPLETE — VERIFIED and tracked separately** — see
 [`PHASE-5.5-UI-FOUNDATION-PLAN.md`](./PHASE-5.5-UI-FOUNDATION-PLAN.md) and
 [`PHASE-5.5-TASKS.md`](./PHASE-5.5-TASKS.md). Its `UIF-001`–`UIF-058` namespace does not collide with
 `T000`–`T057`, and **no existing task is renumbered or marked complete by it.**
@@ -689,20 +691,20 @@ catalogue rows inside a test, and do not assert against whatever data happens to
 
 ## Phase 13 — Verification & closure
 
-- [ ] T051 Run `npm run lint`, `npm run typecheck`, `npm test`, `npm run build`.
+- [x] T051 Run `npm run lint`, `npm run typecheck`, `npm test`, `npm run build`.
   - Req: SC-011 | Depends: T000, T001, T002, T003, T004, T006, T006a, T007, T008, T009, T010, T011, T012, T013, T014, T015, T016, T017, T018, T019, T020, T021, T022, T023, T024, T025, T026, T027, T028, T029, T030, T031a, T031, T032, T033, T034, T035, T036, T037, T038, T039, T040, T041, T042, T043, T044, T045, T046, T047, T048, T049, T050
   - Verify: typecheck/test/build exit 0; lint shows **zero new findings from this feature**, with the pre-existing `docs/claude-design` baseline (124 errors / 148 warnings) unchanged — that baseline is **not** required to reach zero
   - Codex: GPT-5.6 Sol — Low · Claude: Sonnet — Low
   - Why: mechanical execution against an explicitly-scoped baseline.
 
-- [ ] T052 Manual leakage sweep: view source **and the RSC payload** on homepage, coffee detail,
+- [x] T052 Manual leakage sweep: view source **and the RSC payload** on homepage, coffee detail,
   origin detail, sourcing and contact; confirm zero private values.
   - Req: SC-002, FR-022 | Depends: T006a, T051
   - Verify: no owner identity, contract price, private quantity, warehouse location, commission value or member data appears in any inspected surface
   - Codex: GPT-5.6 Sol — Medium · Claude: Opus — Medium
   - Why: a judgment-based compliance sweep against SEO-APP-02 where a miss is release-blocking.
 
-- [ ] T053 Confirm locked root files are unmoved: `src/app/page.tsx`, `src/app/layout.tsx` and
+- [x] T053 Confirm locked root files are unmoved: `src/app/page.tsx`, `src/app/layout.tsx` and
   `src/app/globals.css` remain at their existing paths. In-place edits are permitted; relocation is
   not.
   - Req: FR-001 | Depends: T051
@@ -710,21 +712,21 @@ catalogue rows inside a test, and do not assert against whatever data happens to
   - Codex: GPT-5.6 Sol — Low · Claude: Sonnet — Low
   - Why: mechanical structural git check — corrected from the earlier version, which wrongly implied only `page.tsx` could be touched.
 
-- [ ] T054 Confirm zero Redis/Upstash/external-cache references, no Cache Components adoption, and no
+- [x] T054 Confirm zero Redis/Upstash/external-cache references, no Cache Components adoption, and no
   service-role usage in this feature.
   - Req: SEC-001, FR-010, Constitution XI | Depends: T051
   - Verify: `grep -rniE "redis|upstash|SERVICE_ROLE" src/app lib components` returns nothing for this feature's files; `grep -rn "use cache\|cacheLife(\|cacheTag(\|updateTag(\|cacheComponents" src lib next.config.ts` returns nothing
   - Codex: GPT-5.6 Sol — Low · Claude: Sonnet — Low
   - Why: mechanical grep verification of two locked constitutional rules.
 
-- [ ] T055 Final Feature 001 authorization regression confirmation after all shared-config and
+- [x] T055 Final Feature 001 authorization regression confirmation after all shared-config and
   metadata edits (`trailingSlash`, dashboard noindex).
   - Req: SC-010, FR-009, FR-026 | Depends: T051
   - Verify (**re-run the full both-forms matrix from T004**): for each of `/dashboard`, `/dashboard/`, `/dashboard/settings`, `/dashboard/settings/`, `/dashboard-admin`, `/dashboard-admin/` — anonymous denied; `buyer-only` denied on the admin forms; `warehouse-admin` denied on the member forms; authorized access still succeeds on its own surface. No trailing-slash redirect produces an authorization bypass, leaks protected content, or yields an indexable response. **001's guard predicates are unchanged in `git diff`** — this planning pass and this feature must not alter them
   - Codex: GPT-5.6 Sol — High · Claude: Opus — High
   - Why: this feature touches shared config and two verified security files — the closure gate must re-prove the boundary, not assume it survived.
 
-- [ ] T057 **Public copy architecture closure check** — confirm Feature 002's user-facing copy did not
+- [x] T057 **Public copy architecture closure check** — confirm Feature 002's user-facing copy did not
   bypass T000's dictionary, per
   [`contracts/public-copy-architecture.md`](./contracts/public-copy-architecture.md) §4. Run it at
   closure, because most consuming components do not exist until later phases.
@@ -733,7 +735,7 @@ catalogue rows inside a test, and do not assert against whatever data happens to
   - Codex: GPT-5.6 Sol — Medium · Claude: Opus — Medium
   - Why: the copy architecture only holds if nothing quietly bypassed it, and the judgment call — copy versus technical constant — needs a human-grade distinction rather than a blunt string sweep.
 
-- [ ] T056 Record remaining blockers (DB-BLOCK-02, CRM-DEST-01, PRICE-011, CONTENT-01, LIFE-01,
+- [x] T056 Record remaining blockers (DB-BLOCK-02, CRM-DEST-01, PRICE-011, CONTENT-01, LIFE-01,
   ABUSE-01, MEDIA-01) in the handoff notes and confirm the roadmap row for 002 is accurate. Confirm
   no blocker was silently resolved.
   - Req: spec Blockers | Depends: T051, T052, T053, T054, T055, T057
@@ -814,9 +816,9 @@ after the restructure, not carried over.
 
 | Metric | Value |
 |---|---|
-| Total tasks | **60** (T000–T057, incl. T006a and T031a) |
+| Total tasks | **59** (T000–T057 plus T006a and T031a; `T0NN` is a format template, not a task) |
 | Phases | **13** |
 | Parallel-safe | **16** |
-| Tasks with both Codex and Claude metadata | **60 / 60** |
-| Tasks checked | **52 / 60** — through Phase 12; Phase 13 onward remains unchecked |
-| Phase 5.5 (`UIF-001`–`UIF-058`) | **58 tasks / 9 blocks**, tracked separately in [`PHASE-5.5-TASKS.md`](./PHASE-5.5-TASKS.md) — 0 checked |
+| Tasks with both Codex and Claude metadata | **59 / 59** |
+| Tasks checked | **59 / 59** — Phases 1–13 complete and verified |
+| Phase 5.5 (`UIF-001`–`UIF-058`) | **58 / 58 tasks / 9 blocks**, tracked separately in [`PHASE-5.5-TASKS.md`](./PHASE-5.5-TASKS.md) |

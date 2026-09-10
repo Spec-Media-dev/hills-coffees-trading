@@ -352,12 +352,107 @@ phase6-8-closure.browser.mjs` exit clean (RFQ + JSON-LD regression, zero console
 
 T033, T034, T035, T036 are now `[x]`. **Phase 10 is closed.**
 
-## Combined Phase 9 + 10 final state
+## Historical combined Phase 9 + 10 checkpoint
 
-`specs/002-public-website/tasks.md`: **38/59** real tasks checked (30 going in, +4 Phase 9, +4 Phase
-10). T037–T057 (Phases 11–13) remain untouched and unchecked. No DB/RLS/migration/guard/proxy change.
-No commit, no push.
+At that checkpoint, `specs/002-public-website/tasks.md` had **38/59** real tasks checked (30 going
+in, +4 Phase 9, +4 Phase 10), and T037–T057 were still untouched and unchecked. This is retained as
+historical evidence only; the final Phase 13 closure below supersedes that state. No DB/RLS/migration/
+guard/proxy change occurred at that checkpoint. No commit, no push.
 
-**Exact next action**: none from this run. Feature 002 Phase 11 (automated tests) is the next
-task-file phase but is explicitly NOT started here — the next permitted work is user review and
-commit of this Phase 9 + Phase 10 working tree.
+**Exact next action at that checkpoint**: Feature 002 Phase 11 (automated tests), followed by the
+remaining phases; this historical note does not describe the current repository state.
+
+---
+
+## Final Phase 13 closure — 2026-09-10
+
+This is the canonical closure record for Feature 002. The repository contains **59 real task-file
+tasks**, not 60: `T0NN` is the format example in the task-template block and is excluded from the
+count. All 59 real tasks are `[x]`; the separate Phase 5.5 foundation remains **58/58 UIF tasks**.
+No Feature 003+ implementation was started, and no commit or push was made by this closure run.
+
+### T051 — final gates
+
+- `npm run typecheck`: PASS.
+- `npm test`: PASS, **225/225 tests** across 24 files; the expected T033 safe-error stderr assertion
+  remained the only intentional application error output, and no GoTrue multiple-client warning was
+  emitted.
+- `npm run build`: PASS. Public routes, protected routes, `/sitemap.xml`, `/robots.txt`, and the
+  guarded cache-proof route retained their expected route classes.
+- `npm run lint`: the established full-repository baseline remains **124 errors / 148 warnings**,
+  all under `docs/claude-design`; no new feature finding. Product scope
+  (`src components tests scripts lib`) is zero findings.
+
+### T052 / T037 — real production privacy proof
+
+One freshly started production server on `127.0.0.1:3235` was used. The real production leakage
+harness inspected SSR HTML, `RSC: 1` Flight payloads, and rendered DOM for `/`, `/coffee/`, the
+published coffee detail, `/origins/`, the published origin detail, `/sourcing/`, and `/contact/`,
+then inspected `/sitemap.xml`. The deterministic private canaries for owner identity, cost/price,
+email, phone, document, internal location and member identity were absent from every representation;
+the harness also proves that an injected canary would fail its assertion. Result: `t037` production
+SSR + RSC/Flight + rendered DOM clean; sitemap clean.
+
+### T053 / T054 — structure and locked runtime rules
+
+- `git diff --summary` reports no rename for `src/app/page.tsx`, `src/app/layout.tsx` or
+  `src/app/globals.css`.
+- No Redis/Upstash/service-role reference exists in `src/app`, `lib` or `components`; no Cache
+  Components API (`use cache`, `cacheLife`, `cacheTag`, `updateTag`, `cacheComponents`) exists in
+  the product; `.next/static` contains no `CACHE_PROOF_ENABLED`/`CACHE_PROOF_SECRET`.
+- No database, RLS, migration, proxy or Feature 001 guard source changed.
+
+### T055 — authorization regression
+
+The real Chrome UIF-F/G harness passed **24 authenticated Member/Admin scenarios** at 390×844,
+768×844 and 1440×844 in Light/Dark and EN/AR RTL, with no console/runtime errors, hydration errors,
+overflow or drawer failure. The final both-forms matrix passed: anonymous denial on all six protected
+routes; buyer-only denial on both admin forms; warehouse-admin denial on all four member forms;
+ buyer-only/member authorization on `/dashboard/settings` and `/dashboard` in both forms;
+ warehouse-admin authorization on `/dashboard-admin` in both forms. Slash normalization never
+ bypassed the layout predicates, and
+protected denial responses were not indexable.
+
+### T057 — public copy architecture
+
+The closure audit found no user-facing literal bypass in `src/app/(public)`, `src/app/page.tsx` or
+`components/public`; technical constants remained out of scope. The dictionary was checked for
+unused leaves (including dynamic marquee/RFQ key sets), and the unused legacy keys were removed.
+`lib/public/copy` has no client-boundary directive, React import or i18next import. `initReactI18next`
+and `i18next.init` occur only in `lib/i18n/config.ts`.
+
+### SEO, lifecycle, RFQ and browser closure
+
+- `tests/public/seo-boundary.production.mjs`: PASS — T040 production SEO boundary.
+- `tests/public/status-lifecycle.production.mjs`: PASS — T039 production lifecycle routes.
+- `tests/design/phase6-8-closure.browser.mjs`: PASS — real contact content, validation, honest RFQ
+  unavailable state (no claimed success), JSON-LD graphs, dark RTL at mobile and desktop, and no
+  console/page errors.
+- Existing T041/T042/T043/T044/T045–T050 evidence remains checked in `tasks.md`; the Phase 13 source
+  changes were limited to verification harness/copy-architecture closure and were re-tested by the
+  final gates above.
+
+### T056 — blockers and honest ownership
+
+These remain recorded with their true status; none was silently resolved or replaced by fake data:
+
+| Blocker | True state | Owner / impact |
+|---|---|---|
+| DB-BLOCK-02 | No approved anonymous RFQ destination | Database/business; RFQ persistence/success |
+| CRM-DEST-01 | No approved CRM/email hand-off | Business; pre-production RFQ delivery |
+| PRICE-011 | Feature 011 and DB-OPEN-08 conversion capability absent | Feature 011; numeric reference price |
+| CONTENT-01 | No approved CMS/article/legal source | Feature 010 / Content-Legal; knowledge/legal sub-flow |
+| LIFE-01 | No alias/redirect/tombstone capability | Database decision; 301/308/410 lifecycle |
+| ABUSE-01 | Throttle is per-instance and non-durable | Infrastructure; production-grade abuse defence |
+| MEDIA-01 | No approved Storage/public file-delivery path | Database decision; real public imagery/documents |
+
+The roadmap row for 002 now states **IMPLEMENTED / VERIFIED / CLOSED — 59/59**, while the blockers
+remain visible. The next feature remains outside this run.
+
+### Final state
+
+- Feature 002 task-file status: **59/59 real tasks checked**.
+- Phase 5.5 status: **58/58 UIF tasks checked**, separate foundation handoff preserved.
+- Temporary production servers used on port 3235 were stopped after verification; no temporary
+  production server remains from this run.
+- Feature 003+, commit and push: not started / not performed.

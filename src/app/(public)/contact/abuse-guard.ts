@@ -5,8 +5,8 @@
  * It is honestly **best-effort, single-instance and non-durable**: a Next.js deployment may run
  * several server instances, each with its own independent counter that resets on redeploy. It raises
  * the cost of casual abuse and nothing more — it is NOT distributed rate limiting, and this module
- * must never be described as one. No Redis, no Upstash, no external cache/rate-limit service
- * (Constitution Principle XI). Durable, multi-instance protection needs an approved edge/WAF
+ * must never be described as one. This module has no external rate-limit service (Constitution
+ * Principle XI). Durable, multi-instance protection needs an approved edge/WAF
  * capability or an approved durable counter, neither of which exists yet.
  *
  * The rejection this guard causes discloses no threshold, no counter and no remaining-attempts

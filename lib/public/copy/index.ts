@@ -2,7 +2,7 @@
  * Typed accessor for the single public copy dictionary (Feature 002 T000; extended by Phase 5.5
  * UIF-017 with the Arabic sibling).
  *
- * Like `en.ts` and `ar.ts`, this module is deliberately neutral: no `"use client"`, no `react`
+ * Like `en.ts` and `ar.ts`, this module is deliberately neutral: no client boundary, no `react`
  * import, no `i18next` import. It is importable from a Server Component, a Client Component, a Route
  * Handler, `generateMetadata`, `sitemap.ts` or a test with identical results and no boundary change.
  *

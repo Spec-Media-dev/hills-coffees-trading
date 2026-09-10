@@ -3,7 +3,7 @@
  *
  * SERVER-SAFE BY CONSTRUCTION — see `specs/002-public-website/contracts/public-copy-architecture.md`:
  *
- *   - no `"use client"` directive
+ *   - no client-boundary directive
  *   - no `react` import
  *   - no `i18next` import
  *
@@ -82,7 +82,6 @@ export const en = {
   cta: {
     requestAnOffer: "Request an offer",
     exploreAllCoffee: "Explore all coffee",
-    talkToUs: "Talk to us",
   },
 
   /**
@@ -93,7 +92,6 @@ export const en = {
    * `ar.ts`, because naming a part of the interface asserts nothing about the business.
    */
   controls: {
-    themeToggle: "Switch theme",
     switchToDark: "Switch to dark theme",
     switchToLight: "Switch to light theme",
     /** The switcher shows the language you will GET, not the one you are in (design system). */
@@ -516,7 +514,6 @@ export const en = {
        * seller facet, and none of those fields exists on the DTO to filter by.
        */
       filter: {
-        legend: "Refine the catalogue",
         searchLabel: "Search published coffees",
         searchPlaceholder: "Coffee or origin",
         originFacet: "Origin",
@@ -531,7 +528,6 @@ export const en = {
       },
     },
     detail: {
-      originHeading: "Origin",
       specHeading: "Specification",
       coffeeType: "Coffee type",
       variety: "Variety",
@@ -552,8 +548,6 @@ export const en = {
       backToIndex: "All coffee",
       /** Section framing for the sourcing dossier (Phase 5.5, UIF-028). */
       identityEyebrow: "Published coffee",
-      aboutHeading: "About this coffee",
-      mediaNote: "Record photography is published with the coffee once it is available.",
       originLinkAction: "See the origin",
       originConnectionHeading: "Where it comes from",
     },
@@ -580,7 +574,6 @@ export const en = {
       backToIndex: "All origins",
       /** Section framing for the place-led origin narrative (Phase 5.5, UIF-029). */
       identityEyebrow: "Producing region",
-      aboutHeading: "About this origin",
       countryLabel: "Country",
       exploreCoffee: "Browse all coffee",
     },
