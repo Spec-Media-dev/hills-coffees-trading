@@ -85,3 +85,22 @@ describe("T029 — public route lifecycle (LIFE-01)", () => {
     }
   });
 });
+
+describe("T040 — SEO boundary closure", () => {
+  it("keeps the cache-proof route permanently outside indexing, even when disabled", () => {
+    const source = readFileSync("src/app/internal-test/cache-proof/route.ts", "utf8");
+    expect(source).toContain('"X-Robots-Tag": "noindex, nofollow"');
+    expect(source).toContain("new NextResponse(null, { status: 404, headers: ROBOTS_HEADER })");
+    expect(STATIC_ROUTES).not.toContain("/internal-test/cache-proof/");
+  });
+
+  it("keeps all three guarded HTML routes explicitly noindex", () => {
+    for (const file of [
+      "src/app/dashboard/layout.tsx",
+      "src/app/dashboard-admin/layout.tsx",
+      "src/app/foundation-status/page.tsx",
+    ]) {
+      expect(readFileSync(file, "utf8"), file).toMatch(/robots:\s*{\s*index:\s*false,\s*follow:\s*false\s*}/);
+    }
+  });
+});

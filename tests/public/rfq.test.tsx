@@ -1,12 +1,14 @@
 import { readFileSync } from "node:fs";
 
 import { cleanup, render, screen } from "@testing-library/react";
-import { afterEach, beforeAll, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { LocaleProvider } from "@/components/locale/locale-provider";
 import { RfqForm } from "@/components/public/rfq-form";
 import { ThemeProvider } from "@/components/theme/theme-provider";
-import { RfqInput } from "@/lib/validation/rfq";
+import { RFQ_UNAVAILABLE, RfqInput } from "@/lib/validation/rfq";
+
+vi.mock("next/headers", () => ({ headers: async () => new Headers({ "x-forwarded-for": "203.0.113.42" }) }));
 
 // jsdom does not implement matchMedia; ThemeProvider subscribes to it on mount.
 beforeAll(() => {
@@ -181,5 +183,45 @@ describe("regression — a \"use server\" file may export ONLY async functions",
         `export "${name}" must be an async function`
       ).toBe(true);
     }
+  });
+});
+
+describe("T042 — RFQ boundary closure", () => {
+  const formData = (values: Record<string, string> = VALID) => {
+    const data = new FormData();
+    for (const [key, value] of Object.entries(values)) data.set(key, value);
+    return data;
+  };
+
+  it("returns honest unavailable only for valid input and never echoes submitted script text", async () => {
+    const { submitRfq } = await import("../../src/app/(public)/contact/actions");
+    const { __resetRfqAbuseGuard } = await import("../../src/app/(public)/contact/abuse-guard");
+    __resetRfqAbuseGuard();
+    const payload = '<script>alert("rfq")</script>';
+    const result = await submitRfq(undefined, formData({ ...VALID, message: payload }));
+    expect(result).toEqual({ ok: false, error: RFQ_UNAVAILABLE });
+    expect(JSON.stringify(result)).not.toContain(payload);
+    expect(JSON.stringify(result)).not.toMatch(/success|submitted/i);
+  });
+
+  it("rejects invalid consent and raw overlength input before an unavailable result", async () => {
+    const { submitRfq } = await import("../../src/app/(public)/contact/actions");
+    const missingConsent = await submitRfq(undefined, formData(Object.fromEntries(Object.entries(VALID).filter(([key]) => key !== "consent"))));
+    if (missingConsent.ok) throw new Error("Invalid RFQ unexpectedly succeeded");
+    expect(missingConsent.error).toBe("Check the highlighted fields.");
+    expect(missingConsent.fieldErrors?.consent).toBeTruthy();
+
+    const overlength = await submitRfq(undefined, formData({ ...VALID, message: "x".repeat(2001) }));
+    expect(overlength).toEqual({ ok: false, error: "One of the fields is too long." });
+  });
+
+  it("applies the abuse safeguard without converting any submission into success or persistence", async () => {
+    const { submitRfq } = await import("../../src/app/(public)/contact/actions");
+    const { __resetRfqAbuseGuard } = await import("../../src/app/(public)/contact/abuse-guard");
+    __resetRfqAbuseGuard();
+    const results = await Promise.all(Array.from({ length: 6 }, () => submitRfq(undefined, formData())));
+    expect(results.slice(0, 5)).toEqual(Array.from({ length: 5 }, () => ({ ok: false, error: RFQ_UNAVAILABLE })));
+    expect(results[5]).toEqual({ ok: false, error: "Please try again shortly." });
+    for (const result of results) expect(result.ok).toBe(false);
   });
 });

@@ -564,7 +564,7 @@ Independent of Phases 3–4. Governed by [`contracts/rfq-contract.md`](./contrac
 fixtures from **T006a** (reached transitively through T007/T008/T014/T015/T016). Do not seed ad-hoc
 catalogue rows inside a test, and do not assert against whatever data happens to be in the database.
 
-- [ ] T037 [P] Write `tests/public/leakage-surfaces.test.ts` — extend T010's canaries **beyond the
+- [x] T037 [P] Write `tests/public/leakage-surfaces.test.ts` — extend T010's canaries **beyond the
   DTO** to every emitted surface: SSR HTML, the RSC/Flight payload, `generateMetadata` output,
   JSON-LD, `sitemap.xml`, and the fully rendered page.
   - Req: SEC-005, SC-002 | Depends: T010, T015, T024, T025, T026
@@ -572,7 +572,7 @@ catalogue rows inside a test, and do not assert against whatever data happens to
   - Codex: GPT-5.6 Sol — High · Claude: Opus — High
   - Why: Feature 001 proved a layout-level guard can look correct while the RSC payload still carries the data — the same class of defect is the top risk here.
 
-- [ ] T038 [P] Write `tests/public/metadata.test.ts` — title/description/canonical/OG on **every**
+- [x] T038 [P] Write `tests/public/metadata.test.ts` — title/description/canonical/OG on **every**
   owned public route: `/`, coffee index, coffee detail, origins index, origin detail, sourcing,
   contact, portal entry. Blocked routes are asserted **absent**, not asserted broken.
   - Req: FR-006, SC-001 | Depends: T006a, T013, T014, T015, T016, T017, T018, T020
@@ -580,7 +580,7 @@ catalogue rows inside a test, and do not assert against whatever data happens to
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — Low
   - Why: mechanical assertions, but coverage must be exhaustive per route rather than sampled.
 
-- [ ] T039 [P] Write `tests/public/status-lifecycle.test.ts` — published coffee → 200; every
+- [x] T039 [P] Write `tests/public/status-lifecycle.test.ts` — published coffee → 200; every
   non-`PUBLISHED` status and unknown slug → identical 404; active origin → 200; inactive/archived →
   404; trailing-slash redirect behaviour. **No 301/410 assertions** (LIFE-01).
   - Req: FR-004, FR-005, FR-026, FR-027 | Depends: T006a, T029, T004
@@ -588,7 +588,7 @@ catalogue rows inside a test, and do not assert against whatever data happens to
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — Medium
   - Why: focused behavioural tests with an explicit instruction about what *not* to assert.
 
-- [ ] T040 [P] Write `tests/public/seo-boundary.test.ts` — sitemap excludes every non-public route
+- [x] T040 [P] Write `tests/public/seo-boundary.test.ts` — sitemap excludes every non-public route
   and matches canonicals; robots disallows `/dashboard`, `/dashboard-admin`, **`/foundation-status`**
   and **`/internal-test/`**; **noindex metadata present on all three of** `/dashboard`,
   `/dashboard-admin` and `/foundation-status` (**regression guard for T028**); and the cache-proof
@@ -600,14 +600,14 @@ catalogue rows inside a test, and do not assert against whatever data happens to
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — Medium
   - Why: mechanical assertions that also pin a security-adjacent property in Feature 001's files — and the one guard that stops an internal proof route drifting back into the index.
 
-- [ ] T041 [P] Write `tests/public/json-ld.test.ts` — structured-data shape, an **XSS payload** that
+- [x] T041 [P] Write `tests/public/json-ld.test.ts` — structured-data shape, an **XSS payload** that
   must not break out of the inline script, and absence of any private field.
   - Req: FR-007, FR-025, SEC-004, SEC-005 | Depends: T024
   - Verify: `npm test -- json-ld` passes all three cases; removing the escaping fails the XSS case
   - Codex: GPT-5.6 Sol — High · Claude: Opus — High
   - Why: directly tests an injection sink; a passing shape test alone would give false confidence.
 
-- [ ] T042 Write `tests/public/rfq.test.ts` — invalid input, missing consent, over-length input,
+- [x] T042 Write `tests/public/rfq.test.ts` — invalid input, missing consent, over-length input,
   abuse-safeguard triggering, and the honest *unavailable* result for valid input. Asserts the
   action never returns success and never escapes its boundary. Includes an escaping check for
   submitted `<script>` content (SEC-004).
@@ -616,14 +616,14 @@ catalogue rows inside a test, and do not assert against whatever data happens to
   - Codex: GPT-5.6 Sol — High · Claude: Opus — High
   - Why: must prove security behaviour *and* commercial honesty without asserting a capability the database does not provide.
 
-- [ ] T043 [P] Write `tests/public/reference-price.test.tsx` — the unavailable state renders with no
+- [x] T043 [P] Write `tests/public/reference-price.test.tsx` — the unavailable state renders with no
   number, source, timestamp or licence claim, and the "not an offer" disclosure is present.
   - Req: FR-012, FR-013, SC-004 | Depends: T023
   - Verify: `npm test -- reference-price` passes; no numeric price fixture exists in the suite
   - Codex: GPT-5.6 Sol — Low · Claude: Sonnet — Low
   - Why: one well-defined render case whose value is in what it refuses to contain.
 
-- [ ] T044 [P] Write `tests/public/media-placeholder.test.tsx` — placeholders render with stable
+- [x] T044 [P] Write `tests/public/media-placeholder.test.tsx` — placeholders render with stable
   dimensions and no constructed file URL.
   - Req: FR-028 | Depends: T006
   - Verify: `npm test -- media-placeholder` passes; no test or component builds a Storage URL
@@ -814,9 +814,9 @@ after the restructure, not carried over.
 
 | Metric | Value |
 |---|---|
-| Total tasks | **59** (T000–T057, incl. T006a and T031a) |
+| Total tasks | **60** (T000–T057, incl. T006a and T031a) |
 | Phases | **13** |
 | Parallel-safe | **16** |
-| Tasks with both Codex and Claude metadata | **59 / 59** |
-| Tasks checked | **20 / 59** — T000–T018, T023 (Blocks A, B, C) |
+| Tasks with both Codex and Claude metadata | **60 / 60** |
+| Tasks checked | **46 / 60** — through Phase 11; Phase 12 onward remains unchecked |
 | Phase 5.5 (`UIF-001`–`UIF-058`) | **58 tasks / 9 blocks**, tracked separately in [`PHASE-5.5-TASKS.md`](./PHASE-5.5-TASKS.md) — 0 checked |

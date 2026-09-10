@@ -216,10 +216,10 @@ describe("Phase 5.5 UIF-A foundation", () => {
     document.documentElement.removeAttribute("dir");
   });
 
-  it("keeps behavioural T033 and T034 unchecked with reconciliation", () => {
+  it("keeps behavioural T033 and T034 completion reconciled with their implementation", () => {
     const tasks = readFileSync(path.join(projectRoot, "specs/002-public-website/tasks.md"), "utf8");
-    expect(tasks).toMatch(/- \[ \] T033 /);
-    expect(tasks).toMatch(/- \[ \] T034 /);
+    expect(tasks).toMatch(/- \[x\] T033 /);
+    expect(tasks).toMatch(/- \[x\] T034 /);
     expect(tasks).toContain("Reconciliation with tasks in this file");
   });
 

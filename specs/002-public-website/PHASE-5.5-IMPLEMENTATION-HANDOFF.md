@@ -850,3 +850,68 @@ not begin from this handoff alone -- the next permitted work is user review and 
 UIF-F through UIF-I working tree.
 
 **VERDICT: GO -- PHASE 5.5 UIF-H + UIF-I -- COMPLETE -- VERIFIED -- PHASE 5.5 CLOSED**
+
+# Phase 11 Execution
+
+## Discovery (2026-09-10)
+
+Started from clean `de17d36` after the committed Phase 6/8/9/10 work. Current `tasks.md` is the
+authority: T037–T044 and T045–T050 are all still unchecked. Existing partial coverage is present in
+`tests/public/{json-ld,rfq,seo-boundary}.test.*` and the Phase-5.5 CDP scripts, but the required
+Phase-11 named suites, `tests/browser/` harness path, exhaustive route matrix, accessibility engine,
+CWV measurements and JS-disabled proof are not yet implemented. No task checkbox changed.
+
+Exact next action: implement T037 first, extending deterministic T006a canaries to SSR/RSC/metadata/
+JSON-LD/sitemap/rendered output; do not start Phase 12 until T037–T044 are all green.
+
+## T037 in progress
+
+Created `tests/public/leakage-surfaces.test.ts`; its initial deterministic-fixture run is green
+(3/3) and proves canaries do not enter public DTO-derived representations or JSON-LD and that an
+inserted canary fails. It is deliberately not checked yet: production-response SSR and real RSC
+Flight inspection still need to be added before the exact T037 Verify is satisfied.
+
+## Phase 11 complete (2026-09-10)
+
+The preceding in-progress note is superseded. T037–T044 are now all `[x]`; Phase 12 remains wholly
+unchecked and was not started. `tasks.md` now reconciles its historical count typo: the actual
+checkbox count is **46/60**, including all eight Phase-11 tasks.
+
+- **T037:** added `tests/public/leakage-surfaces.test.ts` plus the real-production companion
+  `tests/public/leakage-surfaces.production.mjs`. One clean `next build` + `next start` server on
+  port 3231 returned clean HTML, true `text/x-component` RSC/Flight payloads, and Chrome-rendered DOM
+  for the deterministic published coffee and active origin. It also returned a clean sitemap. Measured
+  response sizes: coffee HTML/Flight/DOM `225481/146562/225408`, origin
+  `214814/140977/216896`, sitemap `1301`; all deterministic private canaries were absent. The Vitest
+  suite includes a planted-canary assertion that fails if any emitted representation contains one.
+- **T038:** added exhaustive eight-route metadata coverage in `tests/public/metadata.test.ts`; it
+  proves title, description, canonical and matching Open Graph metadata for `/`, coffee index/detail,
+  origins index/detail, sourcing, contact and portal entry using deterministic fixture DTOs. Knowledge
+  and legal are explicitly asserted absent, not stubbed.
+- **T039:** added anonymous lifecycle tests and production proof. Published coffee/active origin
+  return 200; draft/archived/inactive/unknown return the same 404; unslashed canonical detail routes
+  redirect to their trailing-slash forms. No 301/410 lifecycle behavior is asserted.
+- **T040:** extended `seo-boundary.test.ts` and added production proof: sitemap has no private or
+  withheld paths, robots disallows the four protected/internal prefixes, the three guarded HTML routes
+  retain noindex metadata, and a normal disabled cache-proof request is empty 404 with
+  `X-Robots-Tag: noindex, nofollow`.
+- **T041:** extended JSON-LD coverage with real deterministic DTO canaries. Existing shape and
+  script-breakout proof remains; 10/10 JSON-LD tests pass.
+- **T042:** extended RFQ action tests for valid-unavailable, invalid consent, raw overlength input,
+  abuse throttle and submitted-script non-echoing. It continues to assert no persistence, service
+  role or fabricated success path.
+- **T043/T044:** added unavailable-only reference-price and stable media-placeholder test suites.
+  No numeric price fixture/source/timestamp/licence claim and no fabricated Storage URL are present.
+
+Closure evidence: `npm run typecheck` PASS; targeted Phase-11 suites **48/48** PASS; full `npm test`
+PASS **225/225**; `npm run build` PASS; `npx eslint src components tests scripts lib` PASS with zero
+findings. The test process emitted no Supabase/GoTrue multi-client warning. The only expected stderr
+line is the existing `Public site error (digest: abc123)` exercised by the T033 error-state test.
+`git diff --check` is clean; no `.env` is tracked, no `supabase/` change exists, no migration/RLS/DB
+change was made, and the one production server was stopped and port 3231 confirmed free. No commit and
+no push occurred.
+
+Exact next action: Phase 12 is intentionally out of scope for this run. Do not begin it without a new
+user instruction.
+
+**VERDICT: GO — FEATURE 002 PHASE 11 — COMPLETE — VERIFIED**

@@ -1,4 +1,6 @@
-import { describe, expect, it } from "vitest";
+// @vitest-environment node
+
+import { beforeAll, describe, expect, it } from "vitest";
 
 import {
   buildBreadcrumbJsonLd,
@@ -10,8 +12,15 @@ import {
 } from "@/lib/public/seo";
 import type { PublicCoffeeDetail } from "@/lib/public/coffees";
 import type { PublicOriginDetail } from "@/lib/public/origins";
+import { __fetchCoffeeDetailUncached } from "@/lib/public/coffees";
+import { ALL_CANARIES, CATALOGUE_SLUGS, assertCatalogueFixturesPresent, loadPublicTestEnvironment } from "@/tests/public/fixture-catalogue";
 
 const XSS_PAYLOAD = '</script><script>alert(1)</script>';
+
+beforeAll(async () => {
+  loadPublicTestEnvironment();
+  await assertCatalogueFixturesPresent();
+});
 
 const COFFEE: PublicCoffeeDetail = {
   name: `Yirgacheffe Reserve ${XSS_PAYLOAD}`,
@@ -129,5 +138,16 @@ describe("T024/T025 — one deterministic coffee result, one deterministic origi
     const serialized = JSON.stringify(graph);
     expect(serialized).not.toContain("undefined");
     expect(serialized).not.toContain('"additionalProperty":null');
+  });
+});
+
+describe("T041 — JSON-LD closure", () => {
+  it("keeps every deterministic private canary out of a real public coffee's structured data", async () => {
+    const coffee = await __fetchCoffeeDetailUncached(CATALOGUE_SLUGS.coffeePublished);
+    expect(coffee).not.toBeNull();
+    const serialized = serializeJsonLd(buildJsonLdGraph([
+      buildCoffeeJsonLd(coffee!, "https://example.test/coffee/public-test-coffee-published/"),
+    ]));
+    for (const canary of ALL_CANARIES) expect(serialized, canary).not.toContain(canary);
   });
 });
