@@ -4,6 +4,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 
+import { LogoutConfirmDialog } from "@/components/account/logout-confirm-dialog";
+import { UserAvatar } from "@/components/account/user-avatar";
 import { LanguageSwitcher } from "@/components/locale/language-switcher";
 import { useLocale } from "@/components/locale/locale-provider";
 import { PRIMARY_NAV, PUBLIC_ROUTES } from "@/components/public/routes";
@@ -12,6 +14,15 @@ import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { IconButton } from "@/components/ui/icon-button";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+
+export type MobileNavAuthState =
+  | { signedIn: false }
+  | {
+      signedIn: true;
+      displayName: string;
+      showMemberDashboard: boolean;
+      showAdminConsole: boolean;
+    };
 
 /**
  * Public mobile navigation drawer (Phase 5.5, UIF-021 — contract §12, §13, §15; design MobileDrawer).
@@ -40,11 +51,12 @@ import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/s
  * `aria-current="page"` from `usePathname()`. The desktop navigation in `site-header.tsx` is a Server
  * Component and deliberately stays one — see the note there.
  */
-export function MobileNav() {
+export function MobileNav({ auth }: { auth: MobileNavAuthState }) {
   const pathname = usePathname();
   const { t } = useLocale();
   const [open, setOpen] = useState(false);
   const [shownFor, setShownFor] = useState(pathname);
+  const [logoutDialogOpen, setLogoutDialogOpen] = useState(false);
 
   // A route change while the drawer is open must close it, or the visitor lands on the new page with
   // the drawer still covering it — including on browser back/forward, which no click handler sees.
@@ -113,16 +125,55 @@ export function MobileNav() {
             </Link>
           ))}
 
-          <Link
-            href={PUBLIC_ROUTES.portalEntry}
-            aria-current={isCurrent(PUBLIC_ROUTES.portalEntry) ? "page" : undefined}
-            className="mt-1 flex min-h-[3.25rem] items-center rounded-[var(--radius-sm)] border-t border-border px-4 pt-3 text-[length:var(--text-body)] font-medium text-muted-foreground transition-colors duration-[var(--dur-fast)] hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus-ring)]"
-          >
-            {labels.nav.portalEntry}
-          </Link>
+          {auth.signedIn ? (
+            <>
+              {auth.showMemberDashboard ? (
+                <Link
+                  href="/dashboard/"
+                  aria-current={isCurrent("/dashboard/") ? "page" : undefined}
+                  className="mt-1 flex min-h-[3.25rem] items-center gap-2 rounded-[var(--radius-sm)] border-t border-border px-4 pt-3 text-[length:var(--text-body)] font-medium text-foreground transition-colors duration-[var(--dur-fast)] hover:bg-[color-mix(in_srgb,transparent,var(--forest-700)_7%)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus-ring)]"
+                >
+                  <Icon name="layout-grid" className="size-4" />
+                  {labels.account.dashboard}
+                </Link>
+              ) : null}
+              {auth.showAdminConsole ? (
+                <Link
+                  href="/dashboard-admin/"
+                  aria-current={isCurrent("/dashboard-admin/") ? "page" : undefined}
+                  className="flex min-h-[3.25rem] items-center gap-2 rounded-[var(--radius-sm)] px-4 text-[length:var(--text-body)] font-medium text-foreground transition-colors duration-[var(--dur-fast)] hover:bg-[color-mix(in_srgb,transparent,var(--forest-700)_7%)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus-ring)]"
+                >
+                  <Icon name="shield" className="size-4" />
+                  {labels.account.adminConsole}
+                </Link>
+              ) : null}
+              <button
+                type="button"
+                onClick={() => setLogoutDialogOpen(true)}
+                className="flex min-h-[3.25rem] items-center gap-2 rounded-[var(--radius-sm)] px-4 text-start text-[length:var(--text-body)] font-medium text-destructive transition-colors duration-[var(--dur-fast)] hover:bg-destructive/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus-ring)]"
+              >
+                <Icon name="log-out" className="size-4" />
+                {labels.account.signOut}
+              </button>
+            </>
+          ) : (
+            <Link
+              href="/sign-in/"
+              aria-current={isCurrent("/sign-in/") ? "page" : undefined}
+              className="mt-1 flex min-h-[3.25rem] items-center rounded-[var(--radius-sm)] border-t border-border px-4 pt-3 text-[length:var(--text-body)] font-medium text-muted-foreground transition-colors duration-[var(--dur-fast)] hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus-ring)]"
+            >
+              {labels.account.signIn}
+            </Link>
+          )}
         </nav>
 
         <div className="mt-auto flex flex-col gap-4 border-t border-border p-5">
+          {auth.signedIn ? (
+            <div className="flex items-center gap-3">
+              <UserAvatar displayName={auth.displayName} size="sm" />
+              <span className="truncate text-sm font-medium text-foreground">{auth.displayName}</span>
+            </div>
+          ) : null}
           <Button size="lg" className="w-full" nativeButton={false} render={<Link href={PUBLIC_ROUTES.contact} />}>
             {labels.cta.requestAnOffer}
           </Button>
@@ -132,6 +183,8 @@ export function MobileNav() {
           </div>
         </div>
       </SheetContent>
+
+      {auth.signedIn ? <LogoutConfirmDialog open={logoutDialogOpen} onOpenChange={setLogoutDialogOpen} /> : null}
     </Sheet>
   );
 }

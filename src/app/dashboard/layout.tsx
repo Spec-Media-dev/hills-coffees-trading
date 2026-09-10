@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 
 import { AppShell } from "@/components/app/app-shell";
 import { buildMemberNavGroups } from "@/components/app/member-navigation";
+import { OrganizationSelector } from "@/components/account/organization-selector";
+import { ResendVerificationButton } from "@/components/account/resend-verification-button";
 import { AppBilingual } from "@/components/locale/app-bilingual";
 import { StateScreen } from "@/components/layout/state-screen";
 import { appCopy } from "@/lib/app/copy";
@@ -53,6 +55,24 @@ export default async function DashboardLayout({
 
   if (identity.kind !== "authenticated") {
     return <StateScreen kind="unauthorized" />;
+  }
+
+  // Feature 003 T007 — gates everything past this point; an unverified email is denied the shell
+  // outright, never merely shown a warning banner over otherwise-accessible content.
+  if (!identity.isEmailVerified) {
+    return (
+      <StateScreen kind="forbidden" title={appCopy.emailNotVerified.title} description={appCopy.emailNotVerified.description}>
+        <ResendVerificationButton />
+      </StateScreen>
+    );
+  }
+
+  // Feature 003 T002 — a multi-organization user with no valid acting-org selection yet is shown
+  // the honest choice, never silently routed under the wrong organization and never conflated with
+  // "no organization at all" (the check immediately below, which only ever triggers once this one
+  // has ruled out the ambiguous case).
+  if (identity.requiresOrganizationSelection) {
+    return <OrganizationSelector organizations={identity.organizations} redirectTo="/dashboard/" />;
   }
 
   if (identity.organization === null) {

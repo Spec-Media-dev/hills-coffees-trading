@@ -25,14 +25,10 @@ import { NextResponse, type NextRequest } from "next/server";
  */
 
 /**
- * Where an obviously-anonymous visitor is sent.
- *
- * 001 (platform foundation) ships no sign-in route — the authentication experience is
- * 003-auth-membership-kyb's scope. Pointing at a route that does not exist would produce a 404, so
- * this deliberately targets the public home route for now. 003 updates this single constant to its
- * real sign-in route.
+ * Where an obviously-anonymous visitor is sent — the real sign-in route (Feature 003, T004/T005).
+ * Public, non-indexable (`src/app/(auth)/layout.tsx`).
  */
-const SIGN_IN_PATH = "/";
+const SIGN_IN_PATH = "/sign-in/";
 
 /** Supabase (`@supabase/ssr`) writes its auth token to `sb-<project-ref>-auth-token`, which may be
  * split into chunked cookies (`...auth-token.0`, `...auth-token.1`). Presence of any chunk counts. */

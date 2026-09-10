@@ -1,4 +1,5 @@
 import { cache } from "react";
+import { cookies } from "next/headers";
 
 import { createClient } from "@/lib/supabase/server";
 import type {
@@ -6,6 +7,15 @@ import type {
   OrganizationMembership,
   RequestIdentity,
 } from "@/lib/auth/types";
+
+/**
+ * Cookie holding the caller's chosen acting-organization id (003, T002). This is a PREFERENCE
+ * pointer only, never authorization truth by itself: every read below re-verifies the pointed-at id
+ * against this same request's own fresh, RLS-scoped membership rows before trusting it, so a forged
+ * or stale cookie value can, at worst, fail to resolve an acting organization — never grant one the
+ * caller does not actually belong to. Set only by `lib/auth/eligibility.ts#setActingOrganization`.
+ */
+export const ACTING_ORGANIZATION_COOKIE = "hills-acting-org";
 
 /**
  * Data Access Layer — the platform's single per-request authorization resolver.
@@ -70,59 +80,91 @@ async function resolveOperationalRoles(
   return results.filter((role): role is OperationalRole => role !== null);
 }
 
-async function resolveOrganization(
+/**
+ * Every ACTIVE organization the caller belongs to (003, T002 — supersedes the earlier
+ * single-membership foundation, which resolved only the earliest row by `created_at`). RLS
+ * (`members_own_org`) already scopes the base read to rows the caller may see; `is_active` mirrors
+ * the same condition `is_org_member()` enforces. Each membership is re-verified through the
+ * database's own SECURITY DEFINER function rather than trusting the row read alone (defence in
+ * depth) — a membership that fails that re-check is dropped, never silently kept.
+ */
+async function resolveOrganizations(
   supabase: SupabaseServerClient,
   userId: string
-): Promise<OrganizationMembership | null> {
-  // Read the caller's own ACTIVE membership rows. RLS (`members_own_org`) already scopes this to
-  // rows the caller may see; `is_active` mirrors the same condition `is_org_member()` enforces.
-  //
-  // A user may belong to more than one organization. Selecting the ACTING organization for a
-  // multi-membership user is explicitly 003-auth-membership-kyb's scope; this foundation resolves
-  // the earliest active membership deterministically so behaviour is stable and testable.
+): Promise<OrganizationMembership[]> {
   const { data: memberships, error: membershipError } = await supabase
     .from("organization_members")
     .select("organization_id, member_role")
     .eq("user_id", userId)
     .eq("is_active", true)
-    .order("created_at", { ascending: true })
-    .limit(1);
+    .order("created_at", { ascending: true });
 
-  if (membershipError || !memberships || memberships.length === 0) return null;
+  if (membershipError || !memberships || memberships.length === 0) return [];
 
-  const membership = memberships[0];
-  const organizationId: string = membership.organization_id;
+  const resolved = await Promise.all(
+    memberships.map(async (membership) => {
+      const organizationId: string = membership.organization_id;
 
-  // Defence in depth: re-verify membership through the database's own SECURITY DEFINER function
-  // rather than trusting the row read alone.
-  const isMember = await callBooleanRpc(supabase, "is_org_member", {
-    p_organization_id: organizationId,
-  });
-  if (!isMember) return null;
+      const isMember = await callBooleanRpc(supabase, "is_org_member", {
+        p_organization_id: organizationId,
+      });
+      if (!isMember) return null;
 
-  const [organizationRow, canBuy, canSell] = await Promise.all([
-    supabase
-      .from("organizations")
-      .select("id, display_name")
-      .eq("id", organizationId)
-      .maybeSingle(),
-    callBooleanRpc(supabase, "organization_can_buy", {
-      p_organization_id: organizationId,
-    }),
-    callBooleanRpc(supabase, "organization_can_sell", {
-      p_organization_id: organizationId,
-    }),
-  ]);
+      const [organizationRow, canBuy, canSell] = await Promise.all([
+        supabase
+          .from("organizations")
+          .select("id, display_name")
+          .eq("id", organizationId)
+          .maybeSingle(),
+        callBooleanRpc(supabase, "organization_can_buy", {
+          p_organization_id: organizationId,
+        }),
+        callBooleanRpc(supabase, "organization_can_sell", {
+          p_organization_id: organizationId,
+        }),
+      ]);
 
-  if (organizationRow.error || !organizationRow.data) return null;
+      if (organizationRow.error || !organizationRow.data) return null;
 
-  return {
-    organizationId,
-    displayName: organizationRow.data.display_name ?? "",
-    memberRole: membership.member_role ?? "",
-    canBuy,
-    canSell,
-  };
+      const result: OrganizationMembership = {
+        organizationId,
+        displayName: organizationRow.data.display_name ?? "",
+        memberRole: membership.member_role ?? "",
+        canBuy,
+        canSell,
+      };
+      return result;
+    })
+  );
+
+  return resolved.filter((membership): membership is OrganizationMembership => membership !== null);
+}
+
+/**
+ * Resolves the ACTING organization from the caller's full membership list (003, T002).
+ *
+ * - Zero memberships → `{ organization: null, requiresSelection: false }` (genuinely unattached).
+ * - Exactly one → that membership, implicitly — no selection needed or possible.
+ * - More than one → the `ACTING_ORGANIZATION_COOKIE` value is honoured ONLY if it matches one of
+ *   THIS request's own freshly-resolved `organizations` (never trusted as a bare id); otherwise
+ *   `organization: null` and `requiresSelection: true` — the caller must choose explicitly. The
+ *   first array element is never chosen as a fallback: an ambiguous acting context is a real
+ *   authorization hazard (acting for the wrong organization), not a UX inconvenience to smooth over.
+ */
+async function resolveActingOrganization(
+  organizations: OrganizationMembership[]
+): Promise<{ organization: OrganizationMembership | null; requiresSelection: boolean }> {
+  if (organizations.length === 0) return { organization: null, requiresSelection: false };
+  if (organizations.length === 1) return { organization: organizations[0], requiresSelection: false };
+
+  const cookieStore = await cookies();
+  const requestedId = cookieStore.get(ACTING_ORGANIZATION_COOKIE)?.value;
+  const matched = requestedId
+    ? organizations.find((organization) => organization.organizationId === requestedId)
+    : undefined;
+
+  if (matched) return { organization: matched, requiresSelection: false };
+  return { organization: null, requiresSelection: true };
 }
 
 /**
@@ -141,15 +183,18 @@ export const getRequestIdentity = cache(async (): Promise<RequestIdentity> => {
 
   if (error || !user) return { kind: "anonymous" };
 
-  const [profileRow, organization, operationalRoles] = await Promise.all([
+  const [profileRow, organizations, isAuthorizedMember, operationalRoles] = await Promise.all([
     supabase
       .from("profiles")
       .select("full_name, company_name")
       .eq("id", user.id)
       .maybeSingle(),
-    resolveOrganization(supabase, user.id),
+    resolveOrganizations(supabase, user.id),
+    callBooleanRpc(supabase, "is_authorized_member"),
     resolveOperationalRoles(supabase),
   ]);
+
+  const { organization, requiresSelection } = await resolveActingOrganization(organizations);
 
   return {
     kind: "authenticated",
@@ -158,7 +203,11 @@ export const getRequestIdentity = cache(async (): Promise<RequestIdentity> => {
       fullName: profileRow.data?.full_name ?? null,
       companyName: profileRow.data?.company_name ?? null,
     },
+    organizations,
     organization,
+    requiresOrganizationSelection: requiresSelection,
+    isAuthorizedMember,
+    isEmailVerified: user.email_confirmed_at != null,
     operationalRoles,
   };
 });

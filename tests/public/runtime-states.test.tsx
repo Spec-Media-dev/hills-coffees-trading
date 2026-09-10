@@ -22,14 +22,11 @@ describe("T033 — public runtime state coverage", () => {
     expect(rootError).toMatch(/RouteError/);
   });
 
-  it("the (public) error boundary does not double-wrap PublicShell (the group layout already does)", () => {
+  it("neither error boundary wraps PublicShell — it now transitively depends on next/headers via the auth-aware SiteHeader, which a Client Component boundary cannot import (a real next-build error this project hit and fixed)", () => {
     const publicError = readFileSync("src/app/(public)/error.tsx", "utf8");
-    expect(publicError).not.toMatch(/<PublicShell/);
-  });
-
-  it("the root error boundary DOES wrap PublicShell (no enclosing layout supplies one)", () => {
     const rootError = readFileSync("src/app/error.tsx", "utf8");
-    expect(rootError).toMatch(/<PublicShell/);
+    expect(publicError).not.toMatch(/<PublicShell/);
+    expect(rootError).not.toMatch(/<PublicShell/);
   });
 
   it("RouteError never logs the raw error message or stack — digest only", () => {

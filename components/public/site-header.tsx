@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 
+import { AccountMenu } from "@/components/account/account-menu";
 import { LanguageSwitcher } from "@/components/locale/language-switcher";
 import { Bilingual } from "@/components/locale/bilingual";
 import { MobileNav } from "@/components/public/mobile-nav";
@@ -8,6 +9,7 @@ import { MEGA_MENU, PRIMARY_NAV, PUBLIC_ROUTES, type MegaMenuKey } from "@/compo
 import { SearchControl } from "@/components/public/search-control";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { Icon } from "@/components/ui/icon";
+import { getRequestIdentity } from "@/lib/auth/dal";
 import { copy } from "@/lib/public/copy";
 
 export { PUBLIC_ROUTES };
@@ -23,9 +25,24 @@ export { PUBLIC_ROUTES };
  *
  * The lockup is larger than the 150px floor (176px, 200px at `xl`) inside an 84px bar, so the mark
  * reads with confidence without the bar becoming oversized. "Request an offer" is still the only
- * filled button; the Trading Portal entry stays a quiet text link beside it (FR-016). No sign-in
- * link exists because no sign-in route exists — Feature 003 owns it, and a link to nowhere would be
- * exactly the fake affordance the brief forbids. The portal entry page states that honestly.
+ * filled button.
+ *
+ * ── AUTH-AWARE ACCOUNT SLOT (Feature 003) ────────────────────────────────────────────────────────
+ *
+ * The quiet text link beside the CTA is now the REAL sign-in/account control, replacing the
+ * "Trading Portal" placeholder that pointed at `/portal-entry/` while Feature 003 did not exist yet
+ * (that page's own copy said sign-in wasn't open — now that it is, this Header no longer routes
+ * there). Resolved server-side via `getRequestIdentity()` — the SAME per-request resolver every
+ * protected surface uses, called once here — so the correct state renders in the initial HTML with
+ * no client-side auth flash. This is presentation only (contract: showing/hiding a link grants
+ * nothing); every destination it links to re-verifies authorization itself.
+ *
+ * Making this Server Component call `getRequestIdentity()` means every page that renders
+ * `PublicShell`/`SiteHeader` is no longer eligible for static/ISR prerendering (a dynamic API is now
+ * in the render tree) — a deliberate, accepted trade-off of wiring real per-request auth state into
+ * a Header that previously rendered identically for every visitor. The underlying `lib/public/*`
+ * catalogue reads keep their own `unstable_cache` entries regardless, so per-request cost stays a
+ * cache lookup for that data; only the page shell itself now renders fresh per request.
  *
  * ── INTEGRATED WITH THE HERO, WITHOUT A SCROLL LISTENER ──────────────────────────────────────────
  *
@@ -119,7 +136,9 @@ function MegaPanel({ menuKey }: { menuKey: MegaMenuKey }) {
   );
 }
 
-export function SiteHeader() {
+export async function SiteHeader() {
+  const identity = await getRequestIdentity();
+
   return (
     <header className="hc-header sticky top-0 z-40 border-b supports-[backdrop-filter]:[backdrop-filter:var(--blur-panel)]">
       <div className="hc-container flex h-[var(--header-h)] items-center gap-3 lg:gap-5">
@@ -190,14 +209,27 @@ export function SiteHeader() {
             <LanguageSwitcher />
           </div>
 
-          {/* Secondary by design (FR-016): a quiet text link beside the filled CTA. It resolves to the
-              honest portal-entry page until Feature 003 owns the real destination. */}
-          <Link
-            href={PUBLIC_ROUTES.portalEntry}
-            className="hidden h-[var(--control-h)] items-center rounded-[var(--radius-sm)] px-2 text-[length:var(--text-small)] font-medium underline-offset-4 transition-colors duration-[var(--dur-fast)] hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus-ring)] xl:inline-flex"
-          >
-            <Bilingual pick={(c) => c.nav.portalEntry} />
-          </Link>
+          {/* Secondary by design (FR-016): a quiet text link (anonymous) or the account trigger
+              (authenticated) beside the filled CTA — see the Feature 003 header comment above. */}
+          {identity.kind === "authenticated" ? (
+            <AccountMenu
+              displayName={identity.profile.fullName ?? identity.profile.companyName ?? "Account"}
+              organizationName={identity.organization?.displayName ?? null}
+              showMemberDashboard={
+                identity.organizations.length > 0 ||
+                identity.requiresOrganizationSelection ||
+                identity.operationalRoles.length === 0
+              }
+              showAdminConsole={identity.operationalRoles.length > 0}
+            />
+          ) : (
+            <Link
+              href="/sign-in/"
+              className="hidden h-[var(--control-h)] items-center rounded-[var(--radius-sm)] px-2 text-[length:var(--text-small)] font-medium underline-offset-4 transition-colors duration-[var(--dur-fast)] hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus-ring)] sm:inline-flex"
+            >
+              <Bilingual pick={(c) => c.account.signIn} />
+            </Link>
+          )}
 
           {/* The one filled button. Over the hero it is cream-on-photo; settled, it is the primary
               forest button — both derived from `--hdr-p` in `globals.css` (never gold, contract §3). */}
@@ -208,7 +240,21 @@ export function SiteHeader() {
             <Bilingual pick={(c) => c.cta.requestAnOffer} />
           </Link>
 
-          <MobileNav />
+          <MobileNav
+            auth={
+              identity.kind === "authenticated"
+                ? {
+                    signedIn: true,
+                    displayName: identity.profile.fullName ?? identity.profile.companyName ?? "Account",
+                    showMemberDashboard:
+                      identity.organizations.length > 0 ||
+                      identity.requiresOrganizationSelection ||
+                      identity.operationalRoles.length === 0,
+                    showAdminConsole: identity.operationalRoles.length > 0,
+                  }
+                : { signedIn: false }
+            }
+          />
         </div>
       </div>
     </header>

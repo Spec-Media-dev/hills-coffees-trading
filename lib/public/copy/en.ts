@@ -672,4 +672,94 @@ export const en = {
     stageNote: "Reference information is not available to view yet.",
     disclosure: "Reference information, not an offer.",
   },
+
+  /**
+   * Authentication experience (Feature 003, T004–T010). Public, non-indexable routes under
+   * `src/app/(auth)/`. No account-existence disclosure lives in this copy — every failure path uses
+   * the SAME generic strings regardless of cause (spec FR-002, SC-005).
+   */
+  auth: {
+    signIn: {
+      eyebrow: "Trading Portal",
+      title: "Sign in",
+      lead: "Sign in with your Hills account to continue to your organization's workspace.",
+      email: "Email",
+      password: "Password",
+      submit: "Sign in",
+      submitting: "Signing in…",
+      forgotPassword: "Forgot your password?",
+      genericError: "That email and password combination isn't recognised. Please try again.",
+      metaTitle: "Sign in",
+    },
+    signOutConfirm: {
+      title: "Sign out?",
+      description: "You'll need to sign in again to access your workspace.",
+      cancel: "Cancel",
+      confirm: "Sign out",
+      confirming: "Signing out…",
+    },
+    verifyEmail: {
+      eyebrow: "One step left",
+      title: "Verify your email",
+      lead: "We sent a verification link to your email address. Open it to confirm your account before continuing.",
+      resend: "Resend verification email",
+      resending: "Sending…",
+      resent: "Verification email sent — check your inbox.",
+      metaTitle: "Verify your email",
+      gatedTitle: "Verify your email to continue",
+      gatedDescription: "This area requires a verified email address. Check your inbox for the verification link, or request a new one.",
+    },
+    resetPassword: {
+      eyebrow: "Account recovery",
+      title: "Reset your password",
+      lead: "Enter your account email and we'll send you a link to reset your password.",
+      email: "Email",
+      submit: "Send reset link",
+      submitting: "Sending…",
+      acknowledgement:
+        "If an account exists for that email address, a password reset link has been sent to it.",
+      metaTitle: "Reset password",
+      confirmTitle: "Choose a new password",
+      confirmLead: "Enter a new password for your account.",
+      newPassword: "New password",
+      confirmNewPassword: "Confirm new password",
+      confirmSubmit: "Save new password",
+      confirmSubmitting: "Saving…",
+      confirmSuccess: "Your password has been updated. You can sign in with it now.",
+      passwordMismatch: "Those passwords don't match.",
+      invalidLink: "This reset link is invalid or has expired. Request a new one.",
+      metaTitleConfirm: "Choose a new password",
+    },
+    mfa: {
+      challengeEyebrow: "Extra verification",
+      challengeTitle: "Enter your authentication code",
+      challengeLead: "Open your authenticator app and enter the 6-digit code to finish signing in.",
+      code: "Authentication code",
+      verify: "Verify",
+      verifying: "Verifying…",
+      invalidCode: "That code isn't correct. Please try again.",
+      metaTitleChallenge: "Verify your identity",
+      enrollEyebrow: "Account security",
+      enrollTitle: "Set up two-factor authentication",
+      enrollLead: "Scan this code with your authenticator app, then enter the 6-digit code it generates to finish enrolling.",
+      enrollConfirm: "Confirm and enable",
+      enrollConfirming: "Confirming…",
+      enrollSuccess: "Two-factor authentication is now enabled on your account.",
+      alreadyEnrolled: "Two-factor authentication is already enabled on your account.",
+      metaTitleEnroll: "Set up two-factor authentication",
+    },
+    layout: {
+      backToSite: "Back to Hills Coffee",
+    },
+  },
+
+  /** Public Header account state (Feature 003 — anonymous sign-in link, authenticated account menu). */
+  account: {
+    signIn: "Sign in",
+    menuLabel: "Account menu",
+    dashboard: "Dashboard",
+    adminConsole: "Operations console",
+    signOut: "Log out",
+    chooseOrganization: "Choose organization",
+  },
 } as const;

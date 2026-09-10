@@ -66,6 +66,18 @@ export const en = {
       description:
         "Your account is not yet linked to an approved organization, so the member portal is unavailable. Hills Coffee operations complete this step as part of membership onboarding.",
     },
+    organizationSelection: {
+      title: "Choose which organization to act for",
+      description:
+        "Your account belongs to more than one organization. Choose which one you're acting for — you can switch later.",
+      confirm: "Continue",
+    },
+    emailNotVerified: {
+      title: "Verify your email to continue",
+      description:
+        "This area requires a verified email address. Check your inbox for the verification link, or request a new one.",
+      resend: "Resend verification email",
+    },
     noOperationalRole: {
       title: "Operations access required",
       description:

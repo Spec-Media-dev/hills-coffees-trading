@@ -22,7 +22,7 @@ components, i18n, test tooling + fixtures).
 
 ## Phase 1 — Eligibility layer (the gate everything else uses)
 
-- [ ] T001 [PS6] Create `lib/auth/eligibility.ts` translating 001's `RequestIdentity` into
+- [x] T001 [PS6] Create `lib/auth/eligibility.ts` translating 001's `RequestIdentity` into
   presentation answers (`canReachTrading`, `canBuy`, `canSell`, `blockingReason`, `nextAction`)
   using only the approved DB functions — no re-derivation of "ACTIVE + approved KYB".
   - Req: FR-005, FR-006, SC-001 | Depends: —
@@ -30,14 +30,14 @@ components, i18n, test tooling + fixtures).
   - Codex: GPT-5.6 Sol — High · Claude: Opus — High
   - Why: the single translation point between the database's authorization truth and every UI gate; a wrong abstraction here propagates into every later feature.
 
-- [ ] T002 [PS6] Add acting-organization resolution for multi-membership users (explicit selection,
+- [x] T002 [PS6] Add acting-organization resolution for multi-membership users (explicit selection,
   implicit when exactly one) in `lib/auth/eligibility.ts` + identity extension.
   - Req: FR-005, Edge Cases | Depends: T001
   - Verify: a user seeded into two organizations must choose; every mutation records the acting org id
   - Codex: GPT-5.6 Sol — High · Claude: Opus — High
   - Why: ambiguous acting context is a real authorization hazard (acting for the wrong org).
 
-- [ ] T003 [P] Create `lib/auth/agreements.ts` — current agreement types/versions/hashes registry and
+- [x] T003 [P] Create `lib/auth/agreements.ts` — current agreement types/versions/hashes registry and
   a gate check for "has this org accepted the current version?".
   - Req: FR-014, PS5 | Depends: —
   - Verify: bumping a version in the registry causes the gate to report unaccepted for previously-accepted orgs
@@ -48,48 +48,48 @@ components, i18n, test tooling + fixtures).
 
 ## Phase 2 — Authentication experience
 
-- [ ] T004 Create the public, non-indexable `src/app/(auth)/layout.tsx` shell.
+- [x] T004 Create the public, non-indexable `src/app/(auth)/layout.tsx` shell.
   - Req: FR-018, FR-019 | Depends: —
   - Verify: route emits non-indexable metadata; renders 001's state components
   - Codex: GPT-5.6 Sol — Low · Claude: Sonnet — Low
   - Why: small layout with an explicit metadata requirement.
 
-- [ ] T005 [PS1] Implement sign-in (`src/app/(auth)/sign-in/page.tsx` + `actions.ts`) with Zod
+- [x] T005 [PS1] Implement sign-in (`src/app/(auth)/sign-in/page.tsx` + `actions.ts`) with Zod
   validation, generic failure messaging, and post-sign-in routing based on `eligibility.ts`.
   - Req: FR-001, FR-002, SC-005 | Depends: T001, T004
   - Verify: wrong password and unknown email produce byte-identical responses; a member with no org lands on the onboarding state, not a broken dashboard
   - Codex: GPT-5.6 Sol — High · Claude: Sonnet — High
   - Why: authentication entry point; the non-disclosure requirement is easy to violate accidentally.
 
-- [ ] T006 [PS1] Implement sign-out (`src/app/(auth)/sign-out/actions.ts`) clearing the session
+- [x] T006 [PS1] Implement sign-out (`src/app/(auth)/sign-out/actions.ts`) clearing the session
   server-side.
   - Req: FR-003 | Depends: T004
   - Verify: after sign-out, the next `/dashboard` request is denied server-side with no cache purge
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — Medium
   - Why: small, but session-teardown correctness is security-relevant.
 
-- [ ] T007 [P] [PS7] Implement email verification handling (`verify-email/page.tsx`) and the gated-
+- [x] T007 [P] [PS7] Implement email verification handling (`verify-email/page.tsx`) and the gated-
   action prompt for unverified users.
   - Req: FR-001, PS7 | Depends: T004
   - Verify: an unverified user attempting a gated action is prompted to verify first
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — Medium
   - Why: standard provider flow wiring.
 
-- [ ] T008 [P] [PS7] Implement password reset request + completion (`reset-password/`) with identical
+- [x] T008 [P] [PS7] Implement password reset request + completion (`reset-password/`) with identical
   responses regardless of account existence.
   - Req: FR-002, PS7, SC-005 | Depends: T004
   - Verify: responses for existing and non-existing addresses are indistinguishable
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — High
   - Why: enumeration-resistance is a security property that must be verified, not assumed.
 
-- [ ] T009 [PS7] Implement MFA enrolment and challenge (`mfa/page.tsx` + `actions.ts`) using Supabase
+- [x] T009 [PS7] Implement MFA enrolment and challenge (`mfa/page.tsx` + `actions.ts`) using Supabase
   Auth factors; enforcement flag left configurable pending the policy decision.
   - Req: FR-001, SEC-005 | Depends: T005
   - Verify: an enrolled user cannot reach protected data before completing the challenge
   - Codex: GPT-5.6 Sol — High · Claude: Opus — High
   - Why: MFA bypass is a critical failure mode; the challenge must gate data, not just UI.
 
-- [ ] T010 Confirm no global rate limiter was introduced and Supabase-native auth protections are
+- [x] T010 Confirm no global rate limiter was introduced and Supabase-native auth protections are
   relied upon.
   - Req: FR-004 | Depends: T005–T009
   - Verify: `grep -rniE "ratelimit|redis|upstash" src/app/\(auth\) lib/auth` returns nothing

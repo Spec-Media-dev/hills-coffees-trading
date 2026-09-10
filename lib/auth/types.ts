@@ -54,6 +54,13 @@ export type RequestProfile = {
  * row and no `organization_members` row has `organization: null` and a non-empty
  * `operationalRoles`, and vice versa. Admin access never implies member access, and member access
  * never implies admin access (spec FR-004, Edge Cases).
+ *
+ * **Multi-organization acting context (003, T002)**: `organizations` lists EVERY active membership;
+ * `organization` is the resolved ACTING one. With exactly one membership it resolves implicitly.
+ * With more than one, `organization` is `null` and `requiresOrganizationSelection` is `true` until
+ * the user explicitly chooses via `lib/auth/eligibility.ts#setActingOrganization` — never the first
+ * row by array/database order. A selection is honoured only after being re-verified against this
+ * same request's fresh `organizations` list (never a raw client-supplied id trusted directly).
  */
 export type RequestIdentity =
   | { kind: "anonymous" }
@@ -62,8 +69,23 @@ export type RequestIdentity =
       /** `auth.uid()` */
       userId: string;
       profile: RequestProfile;
-      /** `null` when the user has no active `organization_members` row — a valid, expected state. */
+      /** Every organization this user actively belongs to. `[]` is a valid, expected state. */
+      organizations: OrganizationMembership[];
+      /**
+       * The unambiguous acting organization for this request, or `null` when the user has none, or
+       * has more than one and has not yet made an explicit, membership-verified selection.
+       */
       organization: OrganizationMembership | null;
+      /** `true` exactly when `organizations.length > 1` and no valid selection is in effect yet. */
+      requiresOrganizationSelection: boolean;
+      /**
+       * `is_authorized_member()` — whole-user, any-organization trading access (signed in, not
+       * blocked, and at least one active membership where `organization_can_buy` is true). Distinct
+       * from the ACTING organization's own `canBuy`/`canSell`, which apply only to that org.
+       */
+      isAuthorizedMember: boolean;
+      /** `auth.users.email_confirmed_at !== null` — from the SAME verified `getUser()` call (003 T007). */
+      isEmailVerified: boolean;
       /** `[]` when the user has no `platform_admins` row. */
       operationalRoles: OperationalRole[];
     };
