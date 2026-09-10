@@ -44,7 +44,7 @@ export function PublicShell({ children }: PublicShellProps) {
       */}
       <a
         href={`#${MAIN_CONTENT_ID}`}
-        className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:m-3 focus:inline-flex focus:h-[var(--control-h)] focus:items-center focus:rounded-[var(--radius-sm)] focus:bg-primary focus:px-5 focus:text-[var(--text-small)] focus:font-semibold focus:text-primary-foreground focus:outline-2 focus:outline-offset-2 focus:outline-[var(--focus-ring)]"
+        className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:m-3 focus:inline-flex focus:h-[var(--control-h)] focus:items-center focus:rounded-[var(--radius-sm)] focus:bg-primary focus:px-5 focus:text-[length:var(--text-small)] focus:font-semibold focus:text-primary-foreground focus:outline-2 focus:outline-offset-2 focus:outline-[var(--focus-ring)]"
       >
         <Bilingual pick={(c) => c.a11y.skipToContent} />
       </a>

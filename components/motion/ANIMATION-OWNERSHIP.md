@@ -16,5 +16,18 @@ One interaction has one engine, and one rendered property has one owner. Later F
 | Presence | component/image enter and exit | Motion | opacity |
 | HoverLift | interactive card hover lift | Motion | translate-y |
 | Story timeline | seekable, multi-step synchronised sequence | GSAP | clip-path, x-percent, timeline progress |
+| AnimatedHero (UIF-024) | hero entrance sequence | GSAP | clip-path, scale, opacity, translate-y |
+| InteractiveStorySection (UIF-054) | timed item advance: rail fill + active state + image crossfade | GSAP | scaleY, opacity, scale |
 
-GSAP may only be created by `useGsapTimeline`, inside `gsap.context()` scoped to a mounted element. The hook kills its timeline and reverts its context on unmount. It must not own opacity or translate-y because Motion owns those properties for reveal/presence surfaces. Lenis is not initialized.
+GSAP is only created inside a `gsap.context()` scoped to a mounted element — via `useGsapTimeline`, or
+directly in a component's own `useLayoutEffect` as `AnimatedHero` and `InteractiveStorySection` do.
+Every context is reverted and every timeline killed on unmount, so a mount -> unmount -> remount cycle
+leaves the global timeline child count unchanged.
+
+**Property ownership is per surface, not global.** `Reveal`, `Presence` and `HoverLift` are Motion
+surfaces, so GSAP must never write opacity or translate-y on *those* nodes. On a surface that is
+GSAP-owned end to end — the hero entrance and the story advance — Motion is not mounted at all, so
+GSAP owns opacity and transform there without any conflict. The invariant is one engine per
+interaction and one owner per rendered property, never a globally reserved property list.
+
+Lenis is not initialized.

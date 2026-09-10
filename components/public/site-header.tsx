@@ -104,7 +104,7 @@ export function SiteHeader() {
             <Link
               key={item.href}
               href={item.href}
-              className="relative inline-flex h-[var(--header-h)] shrink-0 items-center text-[var(--text-small)] font-medium text-muted-foreground transition-colors duration-[var(--dur-fast)] after:absolute after:inset-x-0 after:bottom-0 after:h-[2px] after:origin-center after:scale-x-0 after:bg-[var(--gold-on-light)] after:transition-transform after:duration-[var(--dur-fast)] hover:text-foreground hover:after:scale-x-100 focus-visible:rounded-[var(--radius-xs)] focus-visible:outline-2 focus-visible:outline-offset-[-4px] focus-visible:outline-[var(--focus-ring)] dark:after:bg-[var(--gold-on-dark)]"
+              className="relative inline-flex h-[var(--header-h)] shrink-0 items-center text-[length:var(--text-small)] font-medium text-muted-foreground transition-colors duration-[var(--dur-fast)] after:absolute after:inset-x-0 after:bottom-0 after:h-[2px] after:origin-center after:scale-x-0 after:bg-[var(--gold-on-light)] after:transition-transform after:duration-[var(--dur-fast)] hover:text-foreground hover:after:scale-x-100 focus-visible:rounded-[var(--radius-xs)] focus-visible:outline-2 focus-visible:outline-offset-[-4px] focus-visible:outline-[var(--focus-ring)] dark:after:bg-[var(--gold-on-dark)]"
             >
               <Bilingual pick={(c) => c.nav[item.key]} />
             </Link>
@@ -129,7 +129,7 @@ export function SiteHeader() {
           */}
           <Link
             href={PUBLIC_ROUTES.portalEntry}
-            className="hidden h-[var(--control-h)] items-center rounded-[var(--radius-sm)] px-2 text-[var(--text-small)] font-medium text-muted-foreground underline-offset-4 transition-colors duration-[var(--dur-fast)] hover:text-foreground hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus-ring)] lg:inline-flex"
+            className="hidden h-[var(--control-h)] items-center rounded-[var(--radius-sm)] px-2 text-[length:var(--text-small)] font-medium text-muted-foreground underline-offset-4 transition-colors duration-[var(--dur-fast)] hover:text-foreground hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus-ring)] lg:inline-flex"
           >
             <Bilingual pick={(c) => c.nav.portalEntry} />
           </Link>

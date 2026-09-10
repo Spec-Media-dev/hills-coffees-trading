@@ -63,7 +63,7 @@ const GROUP_HEADING =
   "hc-eyebrow text-[var(--gold-on-dark)]";
 
 const FOOTER_LINK =
-  "inline-flex min-h-11 items-center rounded-[var(--radius-xs)] text-[var(--text-small)] text-sidebar-foreground/80 underline-offset-4 transition-colors duration-[var(--dur-fast)] hover:text-sidebar-foreground hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--sidebar-ring)]";
+  "inline-flex min-h-11 items-center rounded-[var(--radius-xs)] text-[length:var(--text-small)] text-sidebar-foreground/80 underline-offset-4 transition-colors duration-[var(--dur-fast)] hover:text-sidebar-foreground hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--sidebar-ring)]";
 
 export function SiteFooter() {
   return (
@@ -126,7 +126,7 @@ export function SiteFooter() {
           </div>
         </div>
 
-        <div className="flex flex-col gap-2 pt-7 text-[var(--text-meta)] text-sidebar-foreground/60 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-2 pt-7 text-[length:var(--text-meta)] text-sidebar-foreground/60 sm:flex-row sm:items-center sm:justify-between">
           <p>
             <EnglishCopy>{copy.site.name}</EnglishCopy>. <Bilingual pick={(c) => c.footer.rights} />
           </p>

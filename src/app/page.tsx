@@ -1,20 +1,18 @@
 import type { Metadata } from "next";
-import Image from "next/image";
 import Link from "next/link";
 
+import { EnglishCopy } from "@/components/locale/bilingual";
 import { CoffeeCard } from "@/components/public/coffee-card";
 import { Hero } from "@/components/public/hero";
 import { IntentCards } from "@/components/public/intent-cards";
+import { InteractiveStorySection } from "@/components/public/interactive-story-section";
 import { OriginCard } from "@/components/public/origin-card";
+import { ProcessJourney } from "@/components/public/process-journey";
 import { PublicShell } from "@/components/public/public-shell";
-import {
-  EYEBROW,
-  HEADING_2,
-  LEAD,
-  LINK_QUIET,
-  Section,
-} from "@/components/public/section";
-import { PUBLIC_ROUTES } from "@/components/public/site-header";
+import { ReferencePrice } from "@/components/public/reference-price";
+import { PUBLIC_ROUTES } from "@/components/public/routes";
+import { EYEBROW, HEADING_2, LEAD, LINK_QUIET, Section } from "@/components/public/section";
+import { TraceabilityBand } from "@/components/public/traceability-band";
 import { Button } from "@/components/ui/button";
 import { getPublicCoffeeIndex } from "@/lib/public/coffees";
 import { copy } from "@/lib/public/copy";
@@ -22,33 +20,51 @@ import { getPublicOriginIndex } from "@/lib/public/origins";
 import { canonicalUrl } from "@/lib/public/site";
 
 /**
- * Hills Coffee public homepage (Feature 002, T013 — FR-001, FR-021, FR-023; PS1, PS2).
+ * Hills Coffee public homepage (Feature 002 T013; composition rebuilt by Phase 5.5 UIF-025/UIF-026).
  *
  * IMPLEMENTED IN PLACE. This file stays at `src/app/page.tsx`, the path Constitution Principle IV
  * locks. It is edited, never moved, and never duplicated into the `(public)` route group.
  *
  * WHY IT WRAPS ITSELF IN `PublicShell`: the root page sits OUTSIDE `src/app/(public)/`, so it does
- * not inherit that group's layout. Composing the very same `PublicShell` component here is what
- * makes the header and footer byte-identical to every grouped public route (FR-023) — the specific
- * defect this structure exists to prevent.
+ * not inherit that group's layout. Composing the very same `PublicShell` component here is what makes
+ * the header and footer byte-identical to every grouped public route (FR-023).
  *
- * Section order, following the approved public-website kit's page model: hero → intents →
- * credibility → featured coffee → featured origins → commercial CTA.
+ * ── THE NARRATIVE (UIF-025) ──────────────────────────────────────────────────────────────────────
  *
- * DATA comes only through Block A's verified public read layer (`lib/public/*`), never from an ad-hoc
- * query. That layer reads as an anonymous client under RLS, applies explicit column allowlists and
- * returns named DTOs, so no private field can reach this page even by mistake. Nothing here is
- * fabricated: when the catalogue is empty the section says so plainly rather than inventing content.
+ * One continuous commercial story, in the order the task documents:
  *
- * Server Component with no client JavaScript. The RFQ form itself belongs to Phase 6; this page only
- * routes visitors toward it.
+ *   hero → commercial intent → credibility → coffee discovery → origins → traceability →
+ *   sourcing + how Hills works → reference information → final CTA
+ *
+ * ── RHYTHM: NO TWO CONSECUTIVE SECTIONS SHARE A LAYOUT PATTERN ───────────────────────────────────
+ *
+ *   1 hero              asymmetric forest split, arch media, full-bleed photo ground on mobile
+ *   2 intent            three-card grid on the page ground
+ *   3 credibility       timed media/list split on the cream band  (InteractiveStorySection)
+ *   4 coffee            section header + full-width card grid, page ground
+ *   5 origins           asymmetric editorial column + card stack, cream band
+ *   6 traceability      full-bleed photographic band, forest ground
+ *   7 sourcing/journey  numbered editorial rail, page ground     (ProcessJourney)
+ *   8 reference         narrow centred editorial, cream band
+ *   9 final CTA         split forest band
+ *
+ * Sections 2 and 4 are both grids but are never adjacent; every neighbouring pair differs
+ * structurally, in ground colour, or in both. Photography appears in 1, 3, 6 and 7 only — the quiet
+ * typography-led sections between them are what make the image moments land.
+ *
+ * ── DATA AND HONESTY ─────────────────────────────────────────────────────────────────────────────
+ *
+ * Data comes only through Block A's verified public read layer (`lib/public/*`), which reads as an
+ * anonymous client under RLS with explicit column allowlists. No grade, cup score, crop year,
+ * quantity, MOQ, availability, seller, warehouse or price appears anywhere on this page. Nothing is
+ * fabricated: empty catalogues say so plainly, and no statistic, certification or partner count is
+ * invented. The reference band renders the honest unavailable state (PRICE-011).
+ *
+ * Server Component. The only client JavaScript this page introduces is the two documented islands it
+ * mounts — `AnimatedHero` (island 7) and `InteractiveStorySection` (island 8). The page tree itself
+ * is never hydrated, and no DTO is passed into either island.
  */
 
-/**
- * Homepage metadata. The root layout still carries Feature 001's scaffold title, so without this the
- * public homepage would ship as "Create Next App" — every owned public route needs its own title,
- * description and canonical (FR-006). Structured data and the sitemap belong to Phase 8, not here.
- */
 export const metadata: Metadata = {
   title: `${copy.site.name} — ${copy.home.hero.eyebrow}`,
   description: copy.home.hero.lead,
@@ -77,59 +93,18 @@ export default async function HomePage() {
 
   return (
     <PublicShell>
+      {/* 1 — Hero */}
       <Hero />
 
-      <Section
-        tone="page"
-        eyebrow={copy.home.intents.eyebrow}
-        title={copy.home.intents.title}
-      >
+      {/* 2 — Commercial intent: the three approved public journeys, side by side. */}
+      <Section tone="page" eyebrow={copy.home.intents.eyebrow} title={copy.home.intents.title}>
         <IntentCards />
       </Section>
 
-      {/*
-        Credibility. Deliberately NOT a fourth card grid — a bordered definition list keeps the page
-        from becoming a wall of identical rounded boxes, and reads as an editorial statement of how
-        the business works. Every claim describes the approved operating model; none asserts a
-        figure or certification Hills has not evidenced.
-      */}
-      <Section
-        tone="cream"
-        eyebrow={copy.home.credibility.eyebrow}
-        title={copy.home.credibility.title}
-        lead={copy.home.credibility.lead}
-      >
-        <div className="grid gap-12 lg:grid-cols-[minmax(0,1.05fr)_minmax(20rem,0.95fr)] lg:items-stretch">
-          <dl className="grid gap-x-10 gap-y-9 border-t border-border pt-9 sm:grid-cols-2">
-            {[
-              copy.home.credibility.origin,
-              copy.home.credibility.quality,
-              copy.home.credibility.custody,
-              copy.home.credibility.membership,
-            ].map((item) => (
-              <div key={item.title} className="flex flex-col gap-3">
-                <dt className="text-base font-semibold tracking-[-0.01em] text-foreground">
-                  {item.title}
-                </dt>
-                <dd className="max-w-[52ch] text-[0.9375rem] leading-[1.7] text-muted-foreground text-pretty">
-                  {item.body}
-                </dd>
-              </div>
-            ))}
-          </dl>
+      {/* 3 — Credibility, as the timed editorial story rather than a definition list. */}
+      <InteractiveStorySection />
 
-          <div className="relative min-h-[24rem] overflow-hidden rounded-b-2xl rounded-t-[7rem] border border-border bg-muted sm:min-h-[30rem]">
-            <Image
-              src="/images/farmer-partnership.jpg"
-              alt={copy.home.credibility.imageAlt}
-              fill
-              sizes="(min-width: 1024px) 42vw, 90vw"
-              className="object-cover"
-            />
-          </div>
-        </div>
-      </Section>
-
+      {/* 4 — Coffee discovery. Public DTO fields only. */}
       <Section
         tone="page"
         eyebrow={copy.home.featuredCoffee.eyebrow}
@@ -150,53 +125,85 @@ export default async function HomePage() {
             ))}
           </ul>
         ) : (
-          <p className="text-[0.9375rem] text-muted-foreground">
-            {copy.home.featuredCoffee.empty}
-          </p>
+          <p className="hc-body text-muted-foreground">{copy.home.featuredCoffee.empty}</p>
         )}
       </Section>
 
-      <Section
-        tone="cream"
-        eyebrow={copy.home.featuredOrigins.eyebrow}
-        title={copy.home.featuredOrigins.title}
-        lead={copy.home.featuredOrigins.lead}
-        action={
-          featuredOrigins.length > 0 ? (
-            <Link href={PUBLIC_ROUTES.origins} className={LINK_QUIET}>
-              {copy.home.featuredOrigins.action}
-            </Link>
-          ) : null
-        }
-      >
-        {featuredOrigins.length > 0 ? (
-          <ul className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {featuredOrigins.map((origin) => (
-              <OriginCard key={origin.slug} origin={origin} />
-            ))}
-          </ul>
-        ) : (
-          <p className="text-[0.9375rem] text-muted-foreground">
-            {copy.home.featuredOrigins.empty}
-          </p>
-        )}
-      </Section>
-
-      {/* Closing commercial CTA — the page's single conversion action, on the brand's dark ground. */}
-      <section className="bg-sidebar text-sidebar-foreground">
-        <div
-          className={`hc-container flex flex-col gap-8 py-[clamp(3rem,7vw,7.5rem)] lg:flex-row lg:items-center lg:justify-between`}
-        >
-          <div className="flex max-w-[46rem] flex-col gap-4">
-            <span className={`${EYEBROW} text-sidebar-ring`}>
-              {copy.nav.contact}
+      {/*
+        5 — Origins. Deliberately NOT a second full-width card grid directly after the coffee grid:
+        an editorial column holds the framing on the inline-start while the cards stack on the
+        inline-end. Structurally different from section 4, and it leaves the horizontal origins
+        showcase (UIF-055, Block D) unbuilt rather than pre-empting it.
+      */}
+      <section className="bg-secondary py-[clamp(3.5rem,7vw,7.5rem)] text-foreground">
+        <div className="hc-container grid gap-10 lg:grid-cols-[minmax(0,0.72fr)_minmax(0,1.28fr)] lg:gap-16">
+          <div className="flex flex-col gap-4 lg:sticky lg:top-[calc(var(--header-h)+2.5rem)] lg:self-start">
+            <span className={`${EYEBROW} text-[var(--gold-on-light)] dark:text-[var(--gold-on-dark)]`}>
+              {copy.home.featuredOrigins.eyebrow}
             </span>
-            <h2 className={HEADING_2}>{copy.home.rfq.title}</h2>
-            <p className={`${LEAD} text-sidebar-foreground/85 text-pretty`}>
-              {copy.home.rfq.lead}
+            <h2 className={HEADING_2}>{copy.home.featuredOrigins.title}</h2>
+            <p className={`${LEAD} text-muted-foreground text-pretty`}>
+              {copy.home.featuredOrigins.lead}
+            </p>
+            {featuredOrigins.length > 0 ? (
+              <Link href={PUBLIC_ROUTES.origins} className={`${LINK_QUIET} mt-2 self-start`}>
+                {copy.home.featuredOrigins.action}
+              </Link>
+            ) : null}
+          </div>
+
+          {featuredOrigins.length > 0 ? (
+            <ul className="grid gap-5 sm:grid-cols-2">
+              {featuredOrigins.map((origin) => (
+                <OriginCard key={origin.slug} origin={origin} />
+              ))}
+            </ul>
+          ) : (
+            <p className="hc-body text-muted-foreground">{copy.home.featuredOrigins.empty}</p>
+          )}
+        </div>
+      </section>
+
+      {/* 6 — Traceability: the page's single full-bleed photographic moment. */}
+      <TraceabilityBand />
+
+      {/* 7 — Sourcing and how Hills works, as a numbered editorial rail. */}
+      <ProcessJourney />
+
+      {/*
+        8 — Reference information. Narrow and centred: the quietest section on the page, which is
+        appropriate for a disclosure. The component itself renders only the honest unavailable state;
+        no number, source, timestamp or licence claim exists to show (PRICE-011).
+      */}
+      <section className="bg-secondary py-[clamp(3.5rem,7vw,7rem)] text-foreground">
+        <div className="hc-container">
+          <div className="mx-auto flex max-w-[46rem] flex-col items-center gap-4 text-center">
+            <span className={`${EYEBROW} text-[var(--gold-on-light)] dark:text-[var(--gold-on-dark)]`}>
+              <EnglishCopy>{copy.home.reference.eyebrow}</EnglishCopy>
+            </span>
+            <h2 className={HEADING_2}>
+              <EnglishCopy>{copy.home.reference.title}</EnglishCopy>
+            </h2>
+            <p className={`${LEAD} text-muted-foreground text-pretty`}>
+              <EnglishCopy>{copy.home.reference.lead}</EnglishCopy>
             </p>
           </div>
+          <div className="mx-auto mt-10 max-w-[34rem]">
+            <ReferencePrice />
+          </div>
+        </div>
+      </section>
+
+      {/* 9 — Closing commercial CTA, on the brand's dark ground, mirroring the footer's action. */}
+      <section className="bg-sidebar text-sidebar-foreground">
+        <div className="hc-container flex flex-col gap-8 py-[clamp(3rem,7vw,7.5rem)] lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex max-w-[46rem] flex-col gap-4">
+            <span className={`${EYEBROW} text-[var(--gold-on-dark)]`}>{copy.nav.contact}</span>
+            <h2 className={HEADING_2}>{copy.home.rfq.title}</h2>
+            <p className={`${LEAD} text-sidebar-foreground/85 text-pretty`}>{copy.home.rfq.lead}</p>
+          </div>
           <Button
+            size="lg"
             variant="accent"
             className="shrink-0"
             nativeButton={false}

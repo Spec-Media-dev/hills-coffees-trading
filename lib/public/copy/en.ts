@@ -179,6 +179,64 @@ export const en = {
       action: "See all origins",
       empty: "No origins are published right now.",
     },
+    /**
+     * Framing for the interactive story section (Phase 5.5, UIF-054).
+     *
+     * The four STORY ITEMS themselves are not defined here — they are the already-approved
+     * `home.credibility.{origin,quality,custody,membership}` pillars, rendered image-led and timed
+     * instead of as a flat definition list. Only the section's own framing, the per-item alt text and
+     * the control labels live here, so the section introduces **no new business claim**.
+     */
+    story: {
+      eyebrow: "How we work",
+      title: "Four commitments behind every lot",
+      lead:
+        "Green coffee is a commitment of capital months before it reaches a roaster. These are the parts of that commitment Hills takes responsibility for.",
+      /** Accessible names for the timed selector. Copy, not technical constants (contract §3.6). */
+      listLabel: "Our commitments",
+      previous: "Previous commitment",
+      next: "Next commitment",
+      /** `01 / 04` position counter, filled at render. */
+      positionLabel: "Item {current} of {total}",
+      alt: {
+        origin: "A coffee grower selecting ripe cherries by hand at origin.",
+        quality: "Green coffee beans being inspected by hand inside a jute sack.",
+        custody: "Coffee drying on raised beds under a covered processing area.",
+        membership: "Green coffee beans resting in an open jute sack.",
+      },
+    },
+
+    /**
+     * Traceability band (Phase 5.5, UIF-025). The claim is the reviewed one already used on the
+     * coffee detail page — it is not restated more strongly here.
+     */
+    traceability: {
+      eyebrow: "Traceability",
+      title: "The link back to where it grew",
+      imageAlt: "Coffee drying beds spread across a hillside at origin.",
+    },
+
+    /**
+     * Process / journey section (Phase 5.5, UIF-056). Step BODIES come from the approved
+     * `copy.sourcing.*` pillars; only the section framing and the step numerals' label live here.
+     * The numerals are rendered as text so they mirror under RTL and translate under `ar`.
+     */
+    journey: {
+      eyebrow: "How Hills works",
+      title: "From the producing region to your delivery point",
+      lead:
+        "Four stages, each one accounted for. Nothing here describes a capability Hills does not operate.",
+      stepLabel: "Stage",
+    },
+
+    /** Reference information band (Phase 5.5, UIF-025). PRICE-011 governs the value itself. */
+    reference: {
+      eyebrow: "Reference information",
+      title: "Benchmark pricing, kept separate",
+      lead:
+        "Reference benchmarks are published separately from Hills commercial quotes and from member resale prices. They are never the same number.",
+    },
+
     rfq: {
       title: "Tell us what you need",
       lead:

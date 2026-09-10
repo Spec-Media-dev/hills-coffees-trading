@@ -324,7 +324,7 @@ Depends on Block A. Establishes theme, locale and the finished public chrome.
 Raised from Medium/High by the 2026-09-09 amendment: this block now carries the hero choreography
 (UIF-024), the locked interactive story section (UIF-054) and the process/journey section (UIF-056).
 
-- [ ] UIF-024 Homepage Hero — imagery, composition **and** choreography (`components/public/hero.tsx`)
+- [x] UIF-024 Homepage Hero — imagery, composition **and** choreography (`components/public/hero.tsx`)
   - Scope: **(a) imagery/composition** — a genuinely strong hero built on a hero-grade root asset (`hero-banner.jpg`, 1288×1600 portrait, drying beds at origin; `farm-landscape.jpg` / `coffee-lot-*.jpg` as landscape alternates) with a scrim, Benito display type, deliberate negative space, eyebrow, primary + secondary CTA, and a mobile-specific composition and crop. Board 2 supplies the hero *shape* only. **(b) choreography** — a GSAP-owned entrance timeline: media reveal → eyebrow → headline sequencing → supporting copy → CTA pair, with a subtle image scale settle, controlled depth, a tasteful scroll response and a transition rhythm into the next section. **The hero entrance is one interaction and is GSAP end to end — Motion is not used inside it** (contract §13.2a); CSS owns hover/focus. The animated subtree is the `AnimatedHero` client island (contract §16 island 7); the page tree stays a Server Component.
   - Requirement: plan §11, §11.1, §13; contract §4, §13.1, §13.2, §13.3, §13.5, §14, §14.1; design guidance hero row
   - Depends: UIF-015, UIF-020, UIF-023, UIF-052, UIF-053
@@ -333,7 +333,7 @@ Raised from Medium/High by the 2026-09-09 amendment: this block now carries the 
   - Codex: GPT-5.6 Sol — High · Claude: Opus — High
   - Why: the single highest-impact visual decision in the product, and now the most complex choreography — composition judgement plus timeline discipline, not markup.
 
-- [ ] UIF-025 Homepage narrative composition (`src/app/page.tsx`, `components/public/*`)
+- [x] UIF-025 Homepage narrative composition (`src/app/page.tsx`, `components/public/*`)
   - Scope: one continuous commercial story — hero → commercial intent → credibility → coffee discovery → origins → traceability → sourcing → how Hills works → reference information → final CTA. Visual rhythm via alternating forest/cream bands, split editorial layouts, asymmetry, typography-led sections and **selective** cards.
   - Requirement: plan §6.2, §6.3; contract §2, §3
   - Depends: UIF-024, UIF-013
@@ -342,7 +342,7 @@ Raised from Medium/High by the 2026-09-09 amendment: this block now carries the 
   - Codex: GPT-5.6 Sol — Medium · Claude: Opus — High
   - Why: narrative rhythm is a design judgement that a checklist cannot capture.
 
-- [ ] UIF-026 Homepage imagery and motion application (`src/app/page.tsx`, `components/public/*`)
+- [x] UIF-026 Homepage imagery and motion application (`src/app/page.tsx`, `components/public/*`)
   - Scope: compositional placement of the audited static assets across the narrative; section reveal and hover feedback bound to the motion foundation.
   - Requirement: plan §11; contract §13, §14
   - Depends: UIF-025, UIF-015
@@ -351,7 +351,7 @@ Raised from Medium/High by the 2026-09-09 amendment: this block now carries the 
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — High
   - Why: restraint — the failure mode is over-decorating, and the MEDIA-01 line must hold.
 
-- [ ] UIF-054 Interactive vertical story section (`components/public/interactive-story-section.tsx`, `src/app/page.tsx`)
+- [x] UIF-054 Interactive vertical story section (`components/public/interactive-story-section.tsx`, `src/app/page.tsx`)
   - Scope: the **locked** reference-driven section (contract §18.1–§18.11) as a real functional client island over static approved content. Desktop split composition: ~4 stacked story items (title + concise approved copy, one active) · a vertical progress/timeline rail beside them · a large corresponding static image opposite that changes with the active item · position counter · previous/next where the composition renders them. Autoplay ~3s per item, advancing 1→2→3→4→**loop to 1**, with the rail visibly consuming each interval. Hover pauses and freezes progress; leaving resumes **from the frozen state**. Click/tap activates an item immediately, swaps the image, updates active styling and rail position, and restarts timing from that item. Previous/next wrap in both directions. Image transition is a crossfade, optionally with a subtle settle, in a reserved box (zero layout shift). **The item advance — progress fill, active-item state and image transition — is one interaction and is GSAP end to end; Motion is not used inside it** (contract §13.2a); CSS owns hover/focus. The island is the animated subtree only (contract §16 island 8).
   - Requirement: contract §18.1–§18.11, §13.1, §13.2, §13.3, §16; plan §11.1, §13
   - Depends: UIF-053, UIF-015, UIF-023, UIF-052, UIF-013
@@ -360,7 +360,7 @@ Raised from Medium/High by the 2026-09-09 amendment: this block now carries the 
   - Codex: GPT-5.6 Sol — High · Claude: Opus — High
   - Why: the most behaviourally demanding task in the phase — timing, pause/resume state, wrapping, cleanup, a11y and reduced motion all have to hold simultaneously, and every one of them is a silent failure.
 
-- [ ] UIF-056 Process / journey editorial section (`components/public/process-journey.tsx`, `src/app/page.tsx`)
+- [x] UIF-056 Process / journey editorial section (`components/public/process-journey.tsx`, `src/app/page.tsx`)
   - Scope: board 3 concept 2 adapted to Hills — a step-based vertical navigation (numbered rail, title + concise approved copy per step) with corresponding side thumbnails and a main image. Static editorial content telling the sourcing-to-delivery story. Reuses the UIF-054 interaction primitives where a selector is warranted; a purely static presentation is acceptable if the selector adds nothing. If a selector is rendered it becomes the conditional `ProcessJourneySection` client island (contract §16 island 10) and its advance is one interaction with a single primary engine; if static, it stays a Server Component and that island MUST NOT exist.
   - Requirement: contract §18.12, §14.1; plan §11.1; design guidance sourcing/traceability rows
   - Depends: UIF-054, UIF-052

@@ -60,7 +60,7 @@ type StatusBadgeProps = Omit<ComponentProps<"span">, "children"> & { status: Sta
 
 function StatusBadge({ status, className, ...props }: StatusBadgeProps) {
   return (
-    <span data-slot="status-badge" data-status={status} className={cn("inline-flex min-h-6 w-fit items-center gap-2 rounded-[var(--radius-pill)] px-2.5 py-1 text-[var(--text-micro)] font-semibold", statusTone[status], className)} {...props}>
+    <span data-slot="status-badge" data-status={status} className={cn("inline-flex min-h-6 w-fit items-center gap-2 rounded-[var(--radius-pill)] px-2.5 py-1 text-[length:var(--text-micro)] font-semibold", statusTone[status], className)} {...props}>
       <span aria-hidden="true" className="size-1.5 shrink-0 rounded-full bg-current" />
       <span>{status}</span>
     </span>

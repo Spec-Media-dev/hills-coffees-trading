@@ -107,7 +107,7 @@ export function MobileNav() {
               key={item.href}
               href={item.href}
               aria-current={isCurrent(item.href) ? "page" : undefined}
-              className="flex min-h-[3.25rem] items-center rounded-[var(--radius-sm)] px-4 text-[var(--text-body)] font-medium text-foreground transition-colors duration-[var(--dur-fast)] hover:bg-[color-mix(in_srgb,transparent,var(--forest-700)_7%)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus-ring)] aria-[current=page]:bg-[color-mix(in_srgb,transparent,var(--forest-700)_8%)] aria-[current=page]:font-semibold"
+              className="flex min-h-[3.25rem] items-center rounded-[var(--radius-sm)] px-4 text-[length:var(--text-body)] font-medium text-foreground transition-colors duration-[var(--dur-fast)] hover:bg-[color-mix(in_srgb,transparent,var(--forest-700)_7%)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus-ring)] aria-[current=page]:bg-[color-mix(in_srgb,transparent,var(--forest-700)_8%)] aria-[current=page]:font-semibold"
             >
               {labels.nav[item.key]}
             </Link>
@@ -116,7 +116,7 @@ export function MobileNav() {
           <Link
             href={PUBLIC_ROUTES.portalEntry}
             aria-current={isCurrent(PUBLIC_ROUTES.portalEntry) ? "page" : undefined}
-            className="mt-1 flex min-h-[3.25rem] items-center rounded-[var(--radius-sm)] border-t border-border px-4 pt-3 text-[var(--text-body)] font-medium text-muted-foreground transition-colors duration-[var(--dur-fast)] hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus-ring)]"
+            className="mt-1 flex min-h-[3.25rem] items-center rounded-[var(--radius-sm)] border-t border-border px-4 pt-3 text-[length:var(--text-body)] font-medium text-muted-foreground transition-colors duration-[var(--dur-fast)] hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus-ring)]"
           >
             {labels.nav.portalEntry}
           </Link>

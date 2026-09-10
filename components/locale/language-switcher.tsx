@@ -30,7 +30,7 @@ export function LanguageSwitcher({ className }: { className?: string }) {
       title={labels.languageSwitcher}
       lang={locale === "ar" ? "en" : "ar"}
       className={cn(
-        "rounded-[var(--radius-pill)] px-4 text-[var(--text-meta)] tracking-[0.06em]",
+        "rounded-[var(--radius-pill)] px-4 text-[length:var(--text-meta)] tracking-[0.06em]",
         className,
       )}
     >
