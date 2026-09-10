@@ -17,6 +17,9 @@ import { RecomputeButton } from "./recompute-button";
  */
 export const metadata: Metadata = {
   title: "Foundation status",
+  // T028 (Feature 002 Phase 8) — defence in depth alongside robots.ts's Disallow. Metadata-only:
+  // no guard predicate or cache/revalidation behaviour on this route changes.
+  robots: { index: false, follow: false },
 };
 
 export default async function FoundationStatusPage() {

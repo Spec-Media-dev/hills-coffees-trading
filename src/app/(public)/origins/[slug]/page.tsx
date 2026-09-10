@@ -4,12 +4,20 @@ import { notFound } from "next/navigation";
 
 import { Bilingual } from "@/components/locale/bilingual";
 import { CoffeeCard, COFFEE_GRID } from "@/components/public/coffee-card";
+import { JsonLd } from "@/components/public/json-ld";
 import { PUBLIC_ROUTES } from "@/components/public/routes";
 import { Icon } from "@/components/ui/icon";
 import { Button } from "@/components/ui/button";
 import { getPublicCoffeeIndex } from "@/lib/public/coffees";
 import { copy } from "@/lib/public/copy";
 import { getPublicOriginBySlug } from "@/lib/public/origins";
+import {
+  buildBreadcrumbJsonLd,
+  buildJsonLdGraph,
+  buildOrganizationJsonLd,
+  buildOriginJsonLd,
+  serializeJsonLd,
+} from "@/lib/public/seo";
 import { canonicalUrl } from "@/lib/public/site";
 
 /**
@@ -17,9 +25,10 @@ import { canonicalUrl } from "@/lib/public/site";
  *
  * STATUS GATING — UNCHANGED BY THE VISUAL WORK. `getPublicOriginBySlug` returns `null` for an
  * `INACTIVE` or `ARCHIVED` origin exactly as it does for a slug that never existed, and both land on
- * the same `notFound()` — an anonymous visitor cannot distinguish a withdrawn origin from one that
- * never existed. `generateMetadata` resolves identically, so nothing leaks through the document head
- * either.
+ * the same `notFound()` — a real 404, never a fabricated 301/308/410 the database cannot support
+ * (**LIFE-01**, T029). An anonymous visitor cannot distinguish a withdrawn origin from one that never
+ * existed. `generateMetadata` resolves identically, so nothing leaks through the document head
+ * either, and structured data (T025) is only ever built for a resolved, active `origin`.
  *
  * COFFEES FROM THIS ORIGIN are filtered from the already-cached public coffee index rather than
  * issued as a second query. That reuses a warm public cache entry, keeps every read inside the one
@@ -77,9 +86,23 @@ export default async function OriginDetailPage({ params }: PageProps) {
 
   const coffees = await getPublicCoffeeIndex();
   const fromThisOrigin = coffees.filter((coffee) => coffee.origin?.slug === origin.slug);
+  const canonical = canonicalUrl(`/origins/${origin.slug}/`);
+
+  const jsonLd = serializeJsonLd(
+    buildJsonLdGraph([
+      buildOrganizationJsonLd(copy.site.name, copy.site.tagline),
+      buildOriginJsonLd(origin, canonical),
+      buildBreadcrumbJsonLd([
+        { name: copy.site.name, url: canonicalUrl("/") },
+        { name: copy.origins.index.metaTitle, url: canonicalUrl("/origins/") },
+        { name: origin.name, url: canonical },
+      ]),
+    ])
+  );
 
   return (
     <article>
+      <JsonLd json={jsonLd} />
       {/* ── IDENTITY ── the country code as the place marker, on the forest ground ── */}
       <section data-page-opener="dark" className="relative isolate -mt-[var(--header-h)] overflow-hidden bg-sidebar pt-[var(--header-h)] text-sidebar-foreground">
         {origin.countryCode ? (

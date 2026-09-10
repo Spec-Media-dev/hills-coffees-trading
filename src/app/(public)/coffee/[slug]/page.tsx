@@ -3,12 +3,20 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { Bilingual } from "@/components/locale/bilingual";
+import { JsonLd } from "@/components/public/json-ld";
 import { MediaPlaceholder } from "@/components/public/media-placeholder";
 import { PUBLIC_ROUTES } from "@/components/public/routes";
 import { Icon } from "@/components/ui/icon";
 import { Button } from "@/components/ui/button";
 import { getPublicCoffeeBySlug } from "@/lib/public/coffees";
 import { copy } from "@/lib/public/copy";
+import {
+  buildBreadcrumbJsonLd,
+  buildCoffeeJsonLd,
+  buildJsonLdGraph,
+  buildOrganizationJsonLd,
+  serializeJsonLd,
+} from "@/lib/public/seo";
 import { canonicalUrl } from "@/lib/public/site";
 
 /**
@@ -41,10 +49,12 @@ import { canonicalUrl } from "@/lib/public/site";
  * ============================================================================
  *
  * `getPublicCoffeeBySlug` returns `null` for a DRAFT or ARCHIVED record exactly as it does for a
- * slug that never existed, and both land on the same `notFound()`. An anonymous visitor therefore
- * cannot tell an unpublished coffee from a nonexistent one — no probing the catalogue for unreleased
+ * slug that never existed, and both land on the same `notFound()` — a real 404, never a fabricated
+ * 301/308/410 the database cannot support (**LIFE-01**, T029). An anonymous visitor therefore cannot
+ * tell an unpublished coffee from a nonexistent one — no probing the catalogue for unreleased
  * content. `generateMetadata` resolves the same way, so a non-public slug leaks nothing through the
- * document head either. UIF-028 changed the composition around this logic and not the logic itself.
+ * document head either, and structured data (T025) is only ever built for a resolved, published
+ * `coffee`. UIF-028 changed the composition around this logic and not the logic itself.
  *
  * ============================================================================
  * COMPOSITION
@@ -100,6 +110,21 @@ export default async function CoffeeDetailPage({ params }: PageProps) {
   if (!coffee) notFound();
 
   const origin = coffee.origin;
+  const canonical = canonicalUrl(`/coffee/${coffee.slug}/`);
+
+  // T025: structured data from the SAME DTO this page renders — see lib/public/seo.ts's header for
+  // why no offer/rating/sku/brand field is emitted.
+  const jsonLd = serializeJsonLd(
+    buildJsonLdGraph([
+      buildOrganizationJsonLd(copy.site.name, copy.site.tagline),
+      buildCoffeeJsonLd(coffee, canonical),
+      buildBreadcrumbJsonLd([
+        { name: copy.site.name, url: canonicalUrl("/") },
+        { name: copy.coffee.index.metaTitle, url: canonicalUrl("/coffee/") },
+        { name: coffee.name, url: canonical },
+      ]),
+    ])
+  );
 
   /** The four specification facts the public DTO carries. Nothing else is available to show. */
   const specifications = [
@@ -111,6 +136,7 @@ export default async function CoffeeDetailPage({ params }: PageProps) {
 
   return (
     <article>
+      <JsonLd json={jsonLd} />
       {/* ── IDENTITY ── the forest band, matching the homepage hero's ground and rhythm ── */}
       <section data-page-opener="dark" className="-mt-[var(--header-h)] bg-sidebar pt-[var(--header-h)] text-sidebar-foreground">
         <div className="hc-container grid gap-10 py-[clamp(2.5rem,6vw,5rem)] lg:grid-cols-[minmax(0,1.15fr)_minmax(16rem,0.85fr)] lg:items-center lg:gap-16">

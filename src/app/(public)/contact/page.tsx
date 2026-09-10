@@ -5,27 +5,31 @@ import Link from "next/link";
 import { Bilingual } from "@/components/locale/bilingual";
 import { Reveal } from "@/components/motion/reveal";
 import { PUBLIC_ROUTES } from "@/components/public/routes";
+import { RfqForm } from "@/components/public/rfq-form";
 import { Icon } from "@/components/ui/icon";
 import { copy } from "@/lib/public/copy";
 import type { PublicCopy } from "@/lib/public/copy";
 import { canonicalUrl } from "@/lib/public/site";
 
 /**
- * Public Contact page — honest static surface (public design convergence pass).
+ * Public Contact page — honest static surface, now carrying the real RFQ form (Feature 002 T020).
  *
- * ── WHAT THIS PAGE IS, AND DELIBERATELY IS NOT ───────────────────────────────────────────────────
+ * ── WHAT THIS PAGE IS ────────────────────────────────────────────────────────────────────────────
  *
- * `/contact/` is the destination of every "Request an offer" CTA in the product, and until now it
- * returned 404 (recorded as the approved deferred destination in the UIF-022 reconciliation). This
- * page makes the route real as a **static communication page**: what a conversation with Hills
- * covers, where each intent leads, and where the business operates.
+ * `/contact/` is the destination of every "Request an offer" CTA in the product: what a conversation
+ * with Hills covers, where each intent leads, the request form itself, and where the business
+ * operates.
  *
- * THERE IS NO FORM HERE, AND NO PRETENCE OF ONE. The request-for-quote form, its Zod schema, its
- * Server Action and its abuse safeguards are owned by Feature 002 Phase 6 (T019–T022) and are
- * blocked on **DB-BLOCK-02** (no approved anonymous RFQ destination) and **CRM-DEST-01** (no approved
- * CRM hand-off). A form that could not deliver its submission would be a fake affordance, so this
- * page says plainly that the structured form is the next stage and describes what to prepare. When
- * T020 lands, the form slots into this page beneath the intents; nothing here needs to be undone.
+ * ── THE FORM IS REAL, AND HONEST ABOUT WHERE IT STOPS ───────────────────────────────────────────
+ *
+ * `RfqForm` (`components/public/rfq-form.tsx`) is the one narrow Client Component on this page: an
+ * accessible React Hook Form validated against the SAME Zod schema (`lib/validation/rfq.ts`) the
+ * Server Action (`./actions.ts`) enforces. **DB-BLOCK-02** (no approved anonymous-RFQ persistence
+ * destination) and **CRM-DEST-01** (no approved CRM hand-off) are still unresolved, so a genuinely
+ * valid submission returns the documented *unavailable* result — never a success claim — with the
+ * alternative contact route already on this page. This page's own server-rendered content (title,
+ * H1, intents, operating locations) exists and is crawlable whether or not the form's client JS ever
+ * loads (contract §10, §26).
  *
  * NO CONTACT DETAIL IS INVENTED. No email, phone, street address, map or social handle appears —
  * none is approved for this surface — and the boards' sample details are not reproduced (contract
@@ -33,9 +37,9 @@ import { canonicalUrl } from "@/lib/public/site";
  *
  * ── COMPOSITION ──────────────────────────────────────────────────────────────────────────────────
  *
- * A dark photographic opener the header dissolves into; three hairline-divided intent panels on
- * the page ground, each with its real destination where one exists; a gold-ruled notice about the
- * form; and the operating-locations block. Server Component; the only client code is `Reveal`.
+ * A dark photographic opener the header dissolves into; three hairline-divided intent panels on the
+ * page ground, each with its real destination where one exists; the RFQ form; and the
+ * operating-locations block. Server Component; the only client code is `Reveal` and `RfqForm`.
  */
 
 const PATH = "/contact/";
@@ -149,21 +153,26 @@ export default function ContactPage() {
         </div>
       </section>
 
-      {/* ── THE FORM, HONESTLY ── and where Hills operates. */}
+      {/* ── THE REQUEST FORM ── and where Hills operates. */}
       <section className="bg-secondary py-[clamp(4rem,8vw,8rem)] text-foreground">
         <div className="hc-container grid gap-10 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)] lg:gap-16">
           {/*
-            DB-BLOCK-02 / CRM-DEST-01: no approved destination exists for an anonymous request, so no
-            form is rendered. This panel states that plainly rather than shipping a control that
-            cannot deliver. The form arrives with T019–T022.
+            DB-BLOCK-02 / CRM-DEST-01: the form is real (T019–T022), but a genuinely valid submission
+            still returns the documented *unavailable* result — RfqForm renders that honestly rather
+            than claiming success. RfqForm resolves its own copy client-side via useLocale(), so this
+            server-rendered wrapper only supplies the heading through Bilingual, exactly like every
+            other server-rendered string on this page.
           */}
-          <div className="flex flex-col gap-4 rounded-[var(--radius-xl)] border border-[color-mix(in_srgb,var(--gold-on-light)_45%,transparent)] bg-card p-7 shadow-[var(--shadow-md)] sm:p-9 dark:border-[color-mix(in_srgb,var(--gold-on-dark)_40%,transparent)] dark:shadow-none">
-            <span className="hc-eyebrow text-[var(--gold-on-light)] dark:text-[var(--gold-on-dark)]">
-              <Bilingual pick={(c) => c.contact.formNotice.title} />
-            </span>
-            <p className="max-w-[56ch] text-[length:var(--text-body)] leading-[1.7] text-muted-foreground text-pretty">
-              <Bilingual pick={(c) => c.contact.formNotice.body} />
-            </p>
+          <div className="flex flex-col gap-6 rounded-[var(--radius-xl)] border border-[color-mix(in_srgb,var(--gold-on-light)_45%,transparent)] bg-card p-7 shadow-[var(--shadow-md)] sm:p-9 dark:border-[color-mix(in_srgb,var(--gold-on-dark)_40%,transparent)] dark:shadow-none">
+            <div className="flex flex-col gap-2">
+              <span className="hc-eyebrow text-[var(--gold-on-light)] dark:text-[var(--gold-on-dark)]">
+                <Bilingual pick={(c) => c.contact.rfq.heading} />
+              </span>
+              <p className="max-w-[56ch] text-[length:var(--text-body)] leading-[1.7] text-muted-foreground text-pretty">
+                <Bilingual pick={(c) => c.contact.rfq.lead} />
+              </p>
+            </div>
+            <RfqForm />
           </div>
 
           <div className="flex flex-col gap-4">

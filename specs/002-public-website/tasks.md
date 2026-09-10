@@ -344,7 +344,7 @@ and the shared component system.
 
 Independent of Phases 3–4. Governed by [`contracts/rfq-contract.md`](./contracts/rfq-contract.md).
 
-- [ ] T019 [P] [PS3] Create the RFQ Zod schema in `lib/validation/rfq.ts` — the field set, length
+- [x] T019 [P] [PS3] Create the RFQ Zod schema in `lib/validation/rfq.ts` — the field set, length
   limits and required explicit consent from `contracts/rfq-contract.md` §2. One schema, imported by
   both client and server. **No disposable-email policy** (none is approved).
   - Req: FR-014, SEC-003 | Depends: —
@@ -352,7 +352,7 @@ Independent of Phases 3–4. Governed by [`contracts/rfq-contract.md`](./contrac
   - Codex: GPT-5.6 Sol — Low · Claude: Sonnet — Low
   - Why: mechanical schema from an explicit, sourced field list.
 
-- [ ] T020 [PS3] Build `components/public/rfq-form.tsx` (React Hook Form + zodResolver against T019's
+- [x] T020 [PS3] Build `components/public/rfq-form.tsx` (React Hook Form + zodResolver against T019's
   schema, accessible labels, error association, preserved input) and
   `src/app/(public)/contact/page.tsx`.
   - Req: FR-014, FR-017, FR-029 | Depends: T000, T019, T003
@@ -360,7 +360,7 @@ Independent of Phases 3–4. Governed by [`contracts/rfq-contract.md`](./contrac
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — Medium
   - Why: accessible form work over a defined schema, reusing 001's proven RHF + Server Action pattern.
 
-- [ ] T021 [PS3] Implement the RFQ Server Action in `src/app/(public)/contact/actions.ts`:
+- [x] T021 [PS3] Implement the RFQ Server Action in `src/app/(public)/contact/actions.ts`:
   validate → abuse safeguard → **stop at the blocked boundary** → safe error mapping. Returns the
   documented *unavailable* outcome for valid input; **never** `ok: true`. No shadow table, no
   browser storage, no service-role, no unapproved outbound destination, no cache revalidation.
@@ -369,7 +369,7 @@ Independent of Phases 3–4. Governed by [`contracts/rfq-contract.md`](./contrac
   - Codex: GPT-5.6 Sol — High · Claude: Opus — High
   - Why: the discipline of *stopping at a blocker* and refusing to claim success is a judgment call with direct commercial-honesty consequences.
 
-- [ ] T022 [PS3] Add endpoint-local abuse safeguards to the RFQ action (input-size bounds, early
+- [x] T022 [PS3] Add endpoint-local abuse safeguards to the RFQ action (input-size bounds, early
   shape rejection, per-instance in-memory throttle), documented in code as **best-effort,
   single-instance, non-durable**. Rejection discloses no threshold or counter.
   - Req: FR-015 | Depends: T021
@@ -393,7 +393,7 @@ Independent of Phases 3–4. Governed by [`contracts/rfq-contract.md`](./contrac
 
 ## Phase 8 — SEO technical layer
 
-- [ ] T024 [PS6] Implement `lib/public/seo.ts` — metadata builders and **safely serialized** JSON-LD
+- [x] T024 [PS6] Implement `lib/public/seo.ts` — metadata builders and **safely serialized** JSON-LD
   (`@graph`) for organisation, coffee and origin entities. Inline structured data escapes `<` and
   the `</script` sequence (or uses an equivalent approved safe serializer).
   - Req: FR-007, FR-025, SEC-004, SEC-005 | Depends: T007, T008
@@ -401,14 +401,14 @@ Independent of Phases 3–4. Governed by [`contracts/rfq-contract.md`](./contrac
   - Codex: GPT-5.6 Sol — High · Claude: Opus — High
   - Why: an XSS sink on the anonymous surface — untrusted catalogue text flows straight into an inline script tag.
 
-- [ ] T025 [PS6] Attach structured data to the coffee and origin routes via T024's builders.
+- [x] T025 [PS6] Attach structured data to the coffee and origin routes via T024's builders.
   **Not `[P]`**: it edits the route files owned by T014/T015/T016.
   - Req: FR-007, FR-025 | Depends: T024, T014, T015, T016
   - Verify: structured data validates on one coffee and one origin page and contains no private field
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — Medium
   - Why: mechanical wiring whose only hazard is file contention — hence sequenced, not parallel.
 
-- [ ] T026 [PS6] Implement `src/app/sitemap.ts` from the public read layer (published/active content
+- [x] T026 [PS6] Implement `src/app/sitemap.ts` from the public read layer (published/active content
   only), emitting **canonical trailing-slash URLs** that match each page's canonical, with
   splitting/pagination if the catalogue grows large. Excludes `/knowledge/*` and `/legal/*`
   (CONTENT-01).
@@ -417,7 +417,7 @@ Independent of Phases 3–4. Governed by [`contracts/rfq-contract.md`](./contrac
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — Medium
   - Why: data-driven generation whose correctness is judged by exact agreement with canonicals.
 
-- [ ] T027 [P] [PS6] Implement `src/app/robots.ts` disallowing `/dashboard`, `/dashboard-admin`,
+- [x] T027 [P] [PS6] Implement `src/app/robots.ts` disallowing `/dashboard`, `/dashboard-admin`,
   **`/foundation-status`**, **`/internal-test/`** (the T031a cache-proof namespace — the exact path
   fixed in `contracts/public-cache-policy.md` §5.3), and any other private or non-product prefix.
   `/foundation-status` is Feature 001's cache-proof route: it is live, crawlable and currently has
@@ -429,7 +429,7 @@ Independent of Phases 3–4. Governed by [`contracts/rfq-contract.md`](./contrac
   - Codex: GPT-5.6 Sol — Low · Claude: Sonnet — Low
   - Why: small, explicit configuration file — the only subtlety is remembering the two non-product routes that are easy to overlook.
 
-- [ ] T028 [PS6] Verify — and only if genuinely absent, narrowly add — route-level non-indexable
+- [x] T028 [PS6] Verify — and only if genuinely absent, narrowly add — route-level non-indexable
   metadata so exclusion never depends on `robots.txt` alone (**defence in depth**), on:
   (a) the existing `/dashboard` and `/dashboard-admin` layouts — 001 already sets
   `robots: { index: false, follow: false }`; **confirm before editing**;
@@ -443,7 +443,7 @@ Independent of Phases 3–4. Governed by [`contracts/rfq-contract.md`](./contrac
   - Codex: GPT-5.6 Sol — Medium · Claude: Opus — High
   - Why: a small edit inside verified, security- and proof-critical files; the risk is collateral damage to guards or to 001's cache proof, not the metadata itself.
 
-- [ ] T029 [PS6] Implement the supported public route lifecycle: **200 for active/public, 404 for
+- [x] T029 [PS6] Implement the supported public route lifecycle: **200 for active/public, 404 for
   unknown/non-public**, with non-public indistinguishable from never-existed. **Do not implement or
   fake 301/308/410** — record LIFE-01 instead.
   - Req: FR-027, PS6 | Depends: T015, T016

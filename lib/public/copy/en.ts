@@ -452,10 +452,42 @@ export const en = {
         action: "About the Trading Portal",
       },
     },
-    formNotice: {
-      title: "The request form is being prepared",
-      body:
-        "A structured request-for-quote form is part of the next stage of this website. Until it is live, this page describes the conversation so you know what to prepare.",
+    rfq: {
+      heading: "Send a request",
+      lead:
+        "Tell us about your business and what you're sourcing. A member of our commercial team reviews every request.",
+      fields: {
+        companyName: "Company name",
+        buyerType: "What best describes your business",
+        buyerTypeOptions: {
+          roaster: "Roaster",
+          importer: "Importer",
+          distributor: "Distributor",
+          other: "Other",
+        },
+        selectPlaceholder: "Select an option",
+        countryCode: "Country",
+        countryPlaceholder: "Select your country",
+        estimatedVolumeKg: "Estimated volume (kg)",
+        coffeePreference: "Coffee or origin preference",
+        timing: "Timing",
+        deliveryLocation: "Delivery location",
+        incoterm: "Incoterm",
+        contactName: "Your name",
+        contactEmail: "Email",
+        contactPhone: "Phone",
+        message: "Anything else we should know?",
+        consent: "I agree to be contacted about this request.",
+        optional: "optional",
+      },
+      submit: "Send request",
+      submitting: "Sending…",
+      unavailable: {
+        title: "Online submission isn't live yet",
+        body:
+          "We couldn't send this automatically. Nothing you entered was lost — please reach us using the details below and we'll pick up the conversation directly.",
+      },
+      genericError: "Something went wrong. Please try again shortly.",
     },
     detailsHeading: "Where we operate",
     detailsBody:

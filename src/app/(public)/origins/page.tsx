@@ -2,10 +2,18 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { Bilingual } from "@/components/locale/bilingual";
+import { JsonLd } from "@/components/public/json-ld";
 import { PUBLIC_ROUTES } from "@/components/public/routes";
 import { Icon } from "@/components/ui/icon";
 import { copy } from "@/lib/public/copy";
 import { getPublicOriginIndex } from "@/lib/public/origins";
+import {
+  buildBreadcrumbJsonLd,
+  buildJsonLdGraph,
+  buildOrganizationJsonLd,
+  buildWebPageJsonLd,
+  serializeJsonLd,
+} from "@/lib/public/seo";
 import { canonicalUrl } from "@/lib/public/site";
 
 /**
@@ -58,9 +66,27 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function OriginsIndexPage() {
   const origins = await getPublicOriginIndex();
+  const canonical = canonicalUrl(PATH);
+
+  const jsonLd = serializeJsonLd(
+    buildJsonLdGraph([
+      buildOrganizationJsonLd(copy.site.name, copy.site.tagline),
+      buildWebPageJsonLd({
+        name: copy.origins.index.metaTitle,
+        description: copy.origins.index.metaDescription,
+        url: canonical,
+        isCollection: true,
+      }),
+      buildBreadcrumbJsonLd([
+        { name: copy.site.name, url: canonicalUrl("/") },
+        { name: copy.origins.index.metaTitle, url: canonical },
+      ]),
+    ])
+  );
 
   return (
     <>
+      <JsonLd json={jsonLd} />
       {/* Page opening — the same forest band the coffee index uses, so the two indexes are siblings. */}
       <section data-page-opener="dark" className="-mt-[var(--header-h)] bg-sidebar pt-[var(--header-h)] text-sidebar-foreground">
         <div className="hc-container flex flex-col gap-5 py-[clamp(3rem,6vw,5.5rem)]">

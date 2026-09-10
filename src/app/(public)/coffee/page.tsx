@@ -2,8 +2,16 @@ import type { Metadata } from "next";
 
 import { Bilingual } from "@/components/locale/bilingual";
 import { CatalogueFilter } from "@/components/public/catalogue-filter";
+import { JsonLd } from "@/components/public/json-ld";
 import { getPublicCoffeeIndex } from "@/lib/public/coffees";
 import { copy } from "@/lib/public/copy";
+import {
+  buildBreadcrumbJsonLd,
+  buildJsonLdGraph,
+  buildOrganizationJsonLd,
+  buildWebPageJsonLd,
+  serializeJsonLd,
+} from "@/lib/public/seo";
 import { canonicalUrl } from "@/lib/public/site";
 
 /**
@@ -59,9 +67,28 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function CoffeeIndexPage() {
   const coffees = await getPublicCoffeeIndex();
+  const canonical = canonicalUrl(PATH);
+
+  // T025: structured data from the SAME data this page renders — no separate SEO query.
+  const jsonLd = serializeJsonLd(
+    buildJsonLdGraph([
+      buildOrganizationJsonLd(copy.site.name, copy.site.tagline),
+      buildWebPageJsonLd({
+        name: copy.coffee.index.metaTitle,
+        description: copy.coffee.index.metaDescription,
+        url: canonical,
+        isCollection: true,
+      }),
+      buildBreadcrumbJsonLd([
+        { name: copy.site.name, url: canonicalUrl("/") },
+        { name: copy.coffee.index.metaTitle, url: canonical },
+      ]),
+    ])
+  );
 
   return (
     <>
+      <JsonLd json={jsonLd} />
       {/* Page opening — the forest band that ties every public index to the homepage hero. */}
       <section data-page-opener="dark" className="-mt-[var(--header-h)] bg-sidebar pt-[var(--header-h)] text-sidebar-foreground">
         <div className="hc-container flex flex-col gap-5 py-[clamp(3rem,6vw,5.5rem)]">
