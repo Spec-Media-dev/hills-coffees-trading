@@ -502,3 +502,32 @@ Confirmation: no reference-only fact, figure, quote, contact detail, generated l
 paragraph was copied; the convergence suite asserts the statistic row, sample contact details and
 every restricted asset are absent from all seven public routes.
 
+## UIF-E execution (live)
+
+Last completed checkpoint: UIF-D committed at `55cb22b`; working tree was clean at UIF-E start.
+Current checkpoint: **UIF-E CLOSED — VERIFIED**. No later block has started.
+
+Tasks: `UIF-031`, `UIF-032`, `UIF-033`, `UIF-034` (4 total; all unchecked at start). Dependencies
+were already satisfied by UIF-A–D. Reconciliation classification: UIF-031/032/033 were already
+implemented and needed exact verification; UIF-034 was partial because the root App Router
+`not-found.tsx` did not exist.
+
+Current files: `src/app/not-found.tsx`, `lib/public/copy/en.ts`, `lib/public/copy/ar.ts`,
+`components/public/reference-price.tsx`, `tests/design/uif-e.test.tsx`, this handoff, and the
+Phase-5.5 task checklist. Completed work: added the branded, bilingual root 404 presentation using
+the existing PublicShell and CTA primitives; preserved all existing `notFound()` decisions and route
+semantics. Removed table-name text from a ReferencePrice comment so UIF-033's exact no-price-query
+grep is a true executable boundary, not a comment-only false failure. No database, RLS, cache,
+service-role, auth, or Phase 6+ change.
+
+Verification: `npm test -- uif-e hills-tokens` **22/22 pass**; full `npm test` **80/80 pass**;
+`npm run typecheck` PASS; `npm run build` PASS; product lint adds no finding and the established
+repository baseline remains exactly **124 errors / 148 warnings** in `docs/claude-design`. Exact
+private-table and price-table greps are empty; `git diff --check` passes. A clean production server
+on :3003 was inspected in installed Chrome: `/sourcing/`, `/portal-entry/`, the homepage reference
+stage and a root unknown path at 390/768/1440, Light/Dark and EN/Arabic RTL. No clipping or horizontal
+overflow was observed. The numeric browser proof reports 390px `scrollWidth === clientWidth === 390`,
+visible RTL heading and 52px CTA, Arabic typography, zero layout shift, and all reduced-motion tokens
+at 1ms. Unknown, DRAFT, ARCHIVED and INACTIVE catalogue routes all return 404; `T033` remains `[ ]`.
+Known defects: none. Exact next action: user review and separate commit of UIF-E; do not start UIF-F
+without a new request.

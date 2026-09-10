@@ -122,7 +122,13 @@ try {
   const mobile = await client.evaluate(`(() => {
     const root = document.documentElement;
     const heading = document.querySelector("h1");
-    const button = document.querySelector('[data-slot="button"]');
+    // A public CTA may be rendered as a native button or as the accessible link produced by the
+    // Hills Button primitive. Verify the visible control, not an element-specific implementation.
+    const button = [...document.querySelectorAll('[data-slot="button"], main a[href]')]
+      .find((control) => {
+        const rect = control.getBoundingClientRect();
+        return rect.width > 0 && rect.height > 0;
+      });
     const paragraph = document.querySelector("main p");
     root.dir = "rtl";
     root.lang = "ar";

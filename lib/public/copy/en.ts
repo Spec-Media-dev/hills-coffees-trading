@@ -622,6 +622,16 @@ export const en = {
       "The Hills Trading Portal entry point. Membership and sign-in are not yet open on the public site.",
   },
 
+  /** Public route-level not-found state (Phase 5.5, UIF-034). */
+  notFound: {
+    eyebrow: "Page not found",
+    title: "This page is not available.",
+    body:
+      "The address may be incorrect, or the page may no longer be published. You can return to the homepage or explore the published coffee catalogue.",
+    homeAction: "Return home",
+    coffeeAction: "Explore coffee",
+  },
+
   /**
    * Reference-price presentation (T023). Feature 002 implements only the unavailable state — see
    * `contracts/reference-price-presentation.md`. The disclosure line is the mandatory wording that
@@ -632,6 +642,9 @@ export const en = {
     unavailableTitle: "Reference pricing is not published yet",
     unavailableBody:
       "This section will show a reference benchmark price once Hills publishes one for this coffee.",
+    stageLabel: "Reference information",
+    stageState: "Not published",
+    stageNote: "Reference information is not available to view yet.",
     disclosure: "Reference information, not an offer.",
   },
 } as const;

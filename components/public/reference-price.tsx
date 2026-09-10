@@ -6,8 +6,8 @@ import { Bilingual } from "@/components/locale/bilingual";
  *
  * ONLY THE UNAVAILABLE STATE IS IMPLEMENTED. Feature 011 owns real reference-price data — a numeric
  * value, source identity, observation timestamp, licence state, unit and currency. None of it exists
- * in a form this feature may present, and this component deliberately queries none of the three
- * price-data tables named in `contracts/reference-price-presentation.md` §1. PRICE-011 remains an
+ * in a form this feature may present, and this component deliberately makes no price-data query.
+ * PRICE-011 remains an
  * open sub-flow blocker; this component does not work around it, and it renders no fixture or
  * example numeric price anywhere.
  *
@@ -87,15 +87,15 @@ function UnavailableReferencePrice() {
               className="inline-flex size-2.5 shrink-0 rounded-full border border-[var(--gold-on-light)] dark:border-[var(--gold-on-dark)]"
             />
             <span className="hc-eyebrow text-muted-foreground">
-              <Bilingual pick={(c) => c.home.reference.stageLabel} />
+              <Bilingual pick={(c) => c.referencePrice.stageLabel} />
               <span aria-hidden="true"> · </span>
               <span className="text-foreground">
-                <Bilingual pick={(c) => c.home.reference.stageState} />
+                <Bilingual pick={(c) => c.referencePrice.stageState} />
               </span>
             </span>
           </div>
           <p className="max-w-[44ch] text-[length:var(--text-small)] leading-[1.7] text-muted-foreground text-pretty">
-            <Bilingual pick={(c) => c.home.reference.stageNote} />
+            <Bilingual pick={(c) => c.referencePrice.stageNote} />
           </p>
           <p className="border-t border-border pt-4 text-[length:var(--text-small)] font-semibold">
             <Bilingual pick={(c) => c.referencePrice.disclosure} />

@@ -428,7 +428,7 @@ wrapping-control behaviour is judgement-heavy.
 
 **Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — High**
 
-- [ ] UIF-031 Sourcing — flagship storytelling surface (`src/app/(public)/sourcing/page.tsx`)
+- [x] UIF-031 Sourcing — flagship storytelling surface (`src/app/(public)/sourcing/page.tsx`)
   - Scope: strongest public narrative — sourcing relationships, custody, logistics, quality documentation, traceability — using audited static imagery and the 760px article measure.
   - Requirement: contract §2, §14; plan §6.2
   - Depends: UIF-025, UIF-013
@@ -437,7 +437,7 @@ wrapping-control behaviour is judgement-heavy.
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — High
   - Why: the page most tempting to back with real warehouse rows, which would publish owner identity and exact locations.
 
-- [ ] UIF-032 [P] Portal Entry — polished commercial transition (`src/app/(public)/portal-entry/page.tsx`)
+- [x] UIF-032 [P] Portal Entry — polished commercial transition (`src/app/(public)/portal-entry/page.tsx`)
   - Scope: an editorial split with approved static imagery and a clear, honest unavailable-state hierarchy; commercial contact route as the working action.
   - Requirement: contract §10; plan §3 (003 ownership)
   - Depends: UIF-013, UIF-023
@@ -446,7 +446,7 @@ wrapping-control behaviour is judgement-heavy.
   - Codex: GPT-5.6 Sol — Low · Claude: Sonnet — Medium
   - Why: visually straightforward; the honesty requirement is the whole point.
 
-- [ ] UIF-033 [P] Reference Price presentation (`components/public/reference-price.tsx`)
+- [x] UIF-033 [P] Reference Price presentation (`components/public/reference-price.tsx`)
   - Scope: restrained unavailable-state hierarchy with the mandatory "reference information, not an offer" disclosure; the discriminated union preserved for Feature 011.
   - Requirement: `contracts/reference-price-presentation.md`; contract §10
   - Depends: UIF-013
@@ -455,7 +455,7 @@ wrapping-control behaviour is judgement-heavy.
   - Codex: GPT-5.6 Sol — Low · Claude: Sonnet — Medium
   - Why: the failure path *is* the feature; a plausible sample number would be a false commercial claim.
 
-- [ ] UIF-034 Public not-found and state integration (`src/app/not-found.tsx`, public routes)
+- [x] UIF-034 Public not-found and state integration (`src/app/not-found.tsx`, public routes)
   - Scope: a branded public not-found presentation and the integration of the UIF-013 state visuals across the public routes.
   - Requirement: contract §10; plan §12
   - Depends: UIF-013, UIF-023
