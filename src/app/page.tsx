@@ -1,26 +1,28 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 
-import { EnglishCopy } from "@/components/locale/bilingual";
-import { CoffeeCard } from "@/components/public/coffee-card";
+import { Bilingual } from "@/components/locale/bilingual";
+import { CoffeeMarquee } from "@/components/public/coffee-marquee";
+import { CoffeeShowcase } from "@/components/public/coffee-showcase";
+import { FinalCta } from "@/components/public/final-cta";
 import { Hero } from "@/components/public/hero";
 import { IntentCards } from "@/components/public/intent-cards";
 import { InteractiveStorySection } from "@/components/public/interactive-story-section";
-import { OriginCard } from "@/components/public/origin-card";
+import { OriginsShowcase } from "@/components/public/origins-showcase";
 import { ProcessJourney } from "@/components/public/process-journey";
 import { PublicShell } from "@/components/public/public-shell";
 import { ReferencePrice } from "@/components/public/reference-price";
 import { PUBLIC_ROUTES } from "@/components/public/routes";
-import { EYEBROW, HEADING_2, LEAD, LINK_QUIET, Section } from "@/components/public/section";
 import { TraceabilityBand } from "@/components/public/traceability-band";
-import { Button } from "@/components/ui/button";
-import { getPublicCoffeeIndex } from "@/lib/public/coffees";
+import { Icon } from "@/components/ui/icon";
 import { copy } from "@/lib/public/copy";
 import { getPublicOriginIndex } from "@/lib/public/origins";
 import { canonicalUrl } from "@/lib/public/site";
 
 /**
- * Hills Coffee public homepage (Feature 002 T013; composition rebuilt by Phase 5.5 UIF-025/UIF-026).
+ * Hills Coffee public homepage (Feature 002 T013; composition rebuilt by Phase 5.5 UIF-025/UIF-026;
+ * art direction converged by the public design convergence pass).
  *
  * IMPLEMENTED IN PLACE. This file stays at `src/app/page.tsx`, the path Constitution Principle IV
  * locks. It is edited, never moved, and never duplicated into the `(public)` route group.
@@ -36,33 +38,37 @@ import { canonicalUrl } from "@/lib/public/site";
  *   hero → commercial intent → credibility → coffee discovery → origins → traceability →
  *   sourcing + how Hills works → reference information → final CTA
  *
- * ── RHYTHM: NO TWO CONSECUTIVE SECTIONS SHARE A LAYOUT PATTERN ───────────────────────────────────
+ * ── RHYTHM: A DESCENT FROM THE MOUNTAIN ──────────────────────────────────────────────────────────
  *
- *   1 hero              asymmetric forest split, arch media, full-bleed photo ground on mobile
- *   2 intent            three-card grid on the page ground
- *   3 credibility       timed media/list split on the cream band  (InteractiveStorySection)
- *   4 coffee            section header + full-width card grid, page ground
- *   5 origins           asymmetric editorial column + card stack, cream band
- *   6 traceability      full-bleed photographic band, forest ground
- *   7 sourcing/journey  numbered editorial rail, page ground     (ProcessJourney)
- *   8 reference         narrow centred editorial, cream band
- *   9 final CTA         split forest band
+ *   1 hero              full-viewport photograph, header dissolved into it, glass panel   dark
+ *   2 intents           three hairline-divided pathway panels, asymmetric                 page
+ *   3 story             timed editorial: rail + items, framed image stage                 forest-900
+ *   4 showcase          asymmetric image-led grid — what a published coffee carries       cream
+ *   5 marquee           continuous full-bleed strip from origin                           forest-800
+ *   6 origins           dark editorial panel inset on the page ground, horizontal slider  page
+ *   7 traceability      2 × 2 glass chain over photography, drawn connector               forest-900
+ *   8 journey           four image-led stages on one drawn path                           page
+ *   9 reference         wide ruled data stage, locked state                               cream
+ *  10 final CTA         display headline over photography, two-button close               forest-800
  *
- * Sections 2 and 4 are both grids but are never adjacent; every neighbouring pair differs
- * structurally, in ground colour, or in both. Photography appears in 1, 3, 6 and 7 only — the quiet
- * typography-led sections between them are what make the image moments land.
+ * No two neighbours share a layout pattern or a ground, and dark bands alternate with light ones so
+ * the page reads as a sequence of moments rather than a wall. Photography appears in 1, 3, 4, 5, 7,
+ * 8 and 10 — but never twice in the same way.
  *
  * ── DATA AND HONESTY ─────────────────────────────────────────────────────────────────────────────
  *
- * Data comes only through Block A's verified public read layer (`lib/public/*`), which reads as an
- * anonymous client under RLS with explicit column allowlists. No grade, cup score, crop year,
- * quantity, MOQ, availability, seller, warehouse or price appears anywhere on this page. Nothing is
- * fabricated: empty catalogues say so plainly, and no statistic, certification or partner count is
- * invented. The reference band renders the honest unavailable state (PRICE-011).
+ * The only database read is the public origins index, through Block A's verified read layer
+ * (`lib/public/*`, anonymous client under RLS, explicit column allowlist), for the showcase. The
+ * coffee sections are deliberately static and editorial until record photography exists (MEDIA-01)
+ * — see `coffee-showcase.tsx` — and hand off to the real dynamic `/coffee/` index. No grade, cup
+ * score, crop year, quantity, MOQ, availability, seller, warehouse or price appears anywhere on
+ * this page. Nothing is fabricated: empty states say so plainly, no statistic, certification or
+ * partner count is invented, and the reference band renders the honest unavailable state
+ * (PRICE-011).
  *
- * Server Component. The only client JavaScript this page introduces is the two documented islands it
- * mounts — `AnimatedHero` (island 7) and `InteractiveStorySection` (island 8). The page tree itself
- * is never hydrated, and no DTO is passed into either island.
+ * Server Component. Client JavaScript on this page is limited to the documented islands —
+ * `AnimatedHero` (7), `InteractiveStorySection` (8), `OriginsShowcase` (9) — plus the motion
+ * wrappers of island 5 (`Reveal`, `GsapScrollReveal`). The page tree itself is never hydrated.
  */
 
 export const metadata: Metadata = {
@@ -78,141 +84,131 @@ export const metadata: Metadata = {
   },
 };
 
-/** How many catalogue entries the homepage previews before handing off to the full index. */
-const FEATURED_LIMIT = 3;
-
 export default async function HomePage() {
-  // Both reads are independent, so they run concurrently rather than in series.
-  const [coffees, origins] = await Promise.all([
-    getPublicCoffeeIndex(),
-    getPublicOriginIndex(),
-  ]);
-
-  const featuredCoffees = coffees.slice(0, FEATURED_LIMIT);
-  const featuredOrigins = origins.slice(0, FEATURED_LIMIT);
+  const origins = await getPublicOriginIndex();
 
   return (
     <PublicShell>
       {/* 1 — Hero */}
       <Hero />
 
-      {/* 2 — Commercial intent: the three approved public journeys, side by side. */}
-      <Section tone="page" eyebrow={copy.home.intents.eyebrow} title={copy.home.intents.title}>
-        <IntentCards />
-      </Section>
-
-      {/* 3 — Credibility, as the timed editorial story rather than a definition list. */}
-      <InteractiveStorySection />
-
-      {/* 4 — Coffee discovery. Public DTO fields only. */}
-      <Section
-        tone="page"
-        eyebrow={copy.home.featuredCoffee.eyebrow}
-        title={copy.home.featuredCoffee.title}
-        lead={copy.home.featuredCoffee.lead}
-        action={
-          featuredCoffees.length > 0 ? (
-            <Link href={PUBLIC_ROUTES.coffee} className={LINK_QUIET}>
-              {copy.home.featuredCoffee.action}
-            </Link>
-          ) : null
-        }
-      >
-        {featuredCoffees.length > 0 ? (
-          <ul className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {featuredCoffees.map((coffee) => (
-              <CoffeeCard key={coffee.slug} coffee={coffee} />
-            ))}
-          </ul>
-        ) : (
-          <p className="hc-body text-muted-foreground">{copy.home.featuredCoffee.empty}</p>
-        )}
-      </Section>
-
-      {/*
-        5 — Origins. Deliberately NOT a second full-width card grid directly after the coffee grid:
-        an editorial column holds the framing on the inline-start while the cards stack on the
-        inline-end. Structurally different from section 4, and it leaves the horizontal origins
-        showcase (UIF-055, Block D) unbuilt rather than pre-empting it.
-      */}
-      <section className="bg-secondary py-[clamp(3.5rem,7vw,7.5rem)] text-foreground">
-        <div className="hc-container grid gap-10 lg:grid-cols-[minmax(0,0.72fr)_minmax(0,1.28fr)] lg:gap-16">
-          <div className="flex flex-col gap-4 lg:sticky lg:top-[calc(var(--header-h)+2.5rem)] lg:self-start">
-            <span className={`${EYEBROW} text-[var(--gold-on-light)] dark:text-[var(--gold-on-dark)]`}>
-              {copy.home.featuredOrigins.eyebrow}
+      {/* 2 — Commercial intent: three pathways, side by side. */}
+      <section className="bg-background py-[clamp(4rem,8vw,8.5rem)] text-foreground">
+        <div className="hc-container flex flex-col gap-12">
+          <div className="flex max-w-[46rem] flex-col gap-3">
+            <span className="hc-eyebrow text-[var(--gold-on-light)] dark:text-[var(--gold-on-dark)]">
+              <Bilingual pick={(c) => c.home.intents.eyebrow} />
             </span>
-            <h2 className={HEADING_2}>{copy.home.featuredOrigins.title}</h2>
-            <p className={`${LEAD} text-muted-foreground text-pretty`}>
-              {copy.home.featuredOrigins.lead}
+            <h2 className="hc-heading-2 font-semibold text-balance">
+              <Bilingual pick={(c) => c.home.intents.title} />
+            </h2>
+            <p className="hc-body-lg max-w-[58ch] text-muted-foreground text-pretty">
+              <Bilingual pick={(c) => c.home.intents.lead} />
             </p>
-            {featuredOrigins.length > 0 ? (
-              <Link href={PUBLIC_ROUTES.origins} className={`${LINK_QUIET} mt-2 self-start`}>
-                {copy.home.featuredOrigins.action}
-              </Link>
-            ) : null}
           </div>
-
-          {featuredOrigins.length > 0 ? (
-            <ul className="grid gap-5 sm:grid-cols-2">
-              {featuredOrigins.map((origin) => (
-                <OriginCard key={origin.slug} origin={origin} />
-              ))}
-            </ul>
-          ) : (
-            <p className="hc-body text-muted-foreground">{copy.home.featuredOrigins.empty}</p>
-          )}
+          <IntentCards />
         </div>
       </section>
 
-      {/* 6 — Traceability: the page's single full-bleed photographic moment. */}
+      {/* 3 — Credibility, as the timed lifecycle story. */}
+      <InteractiveStorySection />
+
+      {/* 4 — Coffee discovery, static and editorial for now (see the component). */}
+      <CoffeeShowcase />
+
+      {/* 5 — Coffee discovery, moving. */}
+      <CoffeeMarquee />
+
+      {/*
+        6 — Origins. The board's dark editorial environment is built as an inset panel on the page
+        ground: a forest surface with an origin landscape held faintly behind it, the framing on top,
+        and the real horizontal showcase (UIF-055, fed the already-fetched public DTO) running through
+        it in its dark tone. The panel's inline padding equals the page gutter so the track's
+        full-bleed edges land exactly on the panel's edges.
+      */}
+      <section className="bg-background py-[clamp(3rem,6vw,6rem)] text-foreground">
+        <div className="hc-container">
+          <div className="relative isolate overflow-hidden rounded-[var(--radius-2xl)] bg-[var(--forest-700)] px-[var(--gutter-page)] py-[clamp(3rem,6vw,5.5rem)] text-[var(--brand-cream)]">
+            <div aria-hidden="true" className="absolute inset-0 -z-10">
+              <Image
+                src="/images/farm-landscape.jpg"
+                alt=""
+                fill
+                sizes="(min-width: 1536px) 1536px, 100vw"
+                className="object-cover object-[50%_60%] opacity-[0.22]"
+              />
+              <span className="absolute inset-0 bg-[linear-gradient(180deg,color-mix(in_srgb,var(--forest-700)_20%,transparent)_0%,color-mix(in_srgb,var(--forest-700)_78%,transparent)_55%,var(--forest-700)_100%)]" />
+            </div>
+
+            <div className="flex flex-col gap-10">
+              <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
+                <div className="flex max-w-[44rem] flex-col gap-3">
+                  <span className="hc-eyebrow text-[var(--gold-on-dark)]">
+                    <Bilingual pick={(c) => c.home.featuredOrigins.eyebrow} />
+                  </span>
+                  <h2 className="hc-heading-2 font-semibold text-balance">
+                    <Bilingual pick={(c) => c.home.featuredOrigins.title} />
+                  </h2>
+                  <p className="hc-body-lg max-w-[56ch] text-[color-mix(in_srgb,var(--brand-cream)_74%,transparent)] text-pretty">
+                    <Bilingual pick={(c) => c.home.featuredOrigins.lead} />
+                  </p>
+                </div>
+                {origins.length > 0 ? (
+                  <Link
+                    href={PUBLIC_ROUTES.origins}
+                    className="group/cta inline-flex min-h-11 shrink-0 items-center gap-2 text-[length:var(--text-small)] font-semibold text-[var(--brand-cream)] underline-offset-4 decoration-[var(--gold-on-dark)] decoration-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--gold-on-dark)]"
+                  >
+                    <Bilingual pick={(c) => c.home.featuredOrigins.action} />
+                    <Icon
+                      name="arrow-right"
+                      data-directional-icon="true"
+                      className="size-4 transition-transform duration-[var(--dur-base)] group-hover/cta:translate-x-1 rtl:group-hover/cta:-translate-x-1"
+                    />
+                  </Link>
+                ) : null}
+              </div>
+
+              {origins.length > 0 ? (
+                <OriginsShowcase origins={origins} tone="dark" />
+              ) : (
+                <p className="hc-body text-[color-mix(in_srgb,var(--brand-cream)_74%,transparent)]">
+                  <Bilingual pick={(c) => c.home.featuredOrigins.empty} />
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* 7 — Traceability: the chain of responsibility over photography. */}
       <TraceabilityBand />
 
-      {/* 7 — Sourcing and how Hills works, as a numbered editorial rail. */}
+      {/* 8 — Sourcing and how Hills works, as a drawn journey. */}
       <ProcessJourney />
 
       {/*
-        8 — Reference information. Narrow and centred: the quietest section on the page, which is
-        appropriate for a disclosure. The component itself renders only the honest unavailable state;
-        no number, source, timestamp or licence claim exists to show (PRICE-011).
+        9 — Reference information. A wide, deliberately locked data stage. The component renders only
+        the honest unavailable state; no number, source, timestamp or licence claim exists (PRICE-011).
       */}
-      <section className="bg-secondary py-[clamp(3.5rem,7vw,7rem)] text-foreground">
-        <div className="hc-container">
-          <div className="mx-auto flex max-w-[46rem] flex-col items-center gap-4 text-center">
-            <span className={`${EYEBROW} text-[var(--gold-on-light)] dark:text-[var(--gold-on-dark)]`}>
-              <EnglishCopy>{copy.home.reference.eyebrow}</EnglishCopy>
+      <section className="bg-secondary py-[clamp(4rem,8vw,8rem)] text-foreground">
+        <div className="hc-container flex flex-col gap-10">
+          <div className="flex max-w-[46rem] flex-col gap-3">
+            <span className="hc-eyebrow text-[var(--gold-on-light)] dark:text-[var(--gold-on-dark)]">
+              <Bilingual pick={(c) => c.home.reference.eyebrow} />
             </span>
-            <h2 className={HEADING_2}>
-              <EnglishCopy>{copy.home.reference.title}</EnglishCopy>
+            <h2 className="hc-heading-2 font-semibold text-balance">
+              <Bilingual pick={(c) => c.home.reference.title} />
             </h2>
-            <p className={`${LEAD} text-muted-foreground text-pretty`}>
-              <EnglishCopy>{copy.home.reference.lead}</EnglishCopy>
+            <p className="hc-body-lg max-w-[58ch] text-muted-foreground text-pretty">
+              <Bilingual pick={(c) => c.home.reference.lead} />
             </p>
           </div>
-          <div className="mx-auto mt-10 max-w-[34rem]">
-            <ReferencePrice />
-          </div>
+          <ReferencePrice />
         </div>
       </section>
 
-      {/* 9 — Closing commercial CTA, on the brand's dark ground, mirroring the footer's action. */}
-      <section className="bg-sidebar text-sidebar-foreground">
-        <div className="hc-container flex flex-col gap-8 py-[clamp(3rem,7vw,7.5rem)] lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex max-w-[46rem] flex-col gap-4">
-            <span className={`${EYEBROW} text-[var(--gold-on-dark)]`}>{copy.nav.contact}</span>
-            <h2 className={HEADING_2}>{copy.home.rfq.title}</h2>
-            <p className={`${LEAD} text-sidebar-foreground/85 text-pretty`}>{copy.home.rfq.lead}</p>
-          </div>
-          <Button
-            size="lg"
-            variant="accent"
-            className="shrink-0"
-            nativeButton={false}
-            render={<Link href={PUBLIC_ROUTES.contact} />}
-          >
-            {copy.cta.requestAnOffer}
-          </Button>
-        </div>
-      </section>
+      {/* 10 — Closing commercial moment. */}
+      <FinalCta />
     </PublicShell>
   );
 }

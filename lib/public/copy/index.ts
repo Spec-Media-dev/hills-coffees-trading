@@ -31,23 +31,16 @@ export type { PublicCopy };
 export const copy: PublicCopy = en;
 
 /**
- * Namespaces that carry **no** approved Arabic and therefore resolve to the reviewed English.
+ * Namespaces that carry **no** Arabic and therefore resolve to the reviewed English.
  *
- * This list is the explicit marking required by UIF-017: untranslated keys fall back to reviewed
- * English *and are declared*, so nobody has to infer whether a missing translation was an oversight.
- * It is not a TODO — it is the recorded scope boundary of `CONTENT-AR-01`: approved Arabic marketing,
- * commercial, legal and compliance copy is owned by Content/Legal and has not been supplied. No
- * Arabic business claim is invented to fill a gap.
+ * Empty since the public design convergence pass (2026-09-10): every namespace now carries a
+ * faithful Arabic rendering of its approved English value. The list is kept — rather than deleted —
+ * because it is the mechanism UIF-017 specified for declaring a gap, and because the remaining
+ * obligation of `CONTENT-AR-01` is unchanged in kind: Content/Legal sign-off of the Arabic wording
+ * before production. Should a namespace be withdrawn from Arabic during that review, it is listed
+ * here again and falls back to English automatically.
  */
-export const UNTRANSLATED_NAMESPACES = [
-  "media",
-  "home",
-  "coffee",
-  "origins",
-  "sourcing",
-  "portalEntry",
-  "referencePrice",
-] as const satisfies readonly (keyof PublicCopy)[];
+export const UNTRANSLATED_NAMESPACES = [] as const satisfies readonly (keyof PublicCopy)[];
 
 /** Recursively overlays a partial translation onto the English source. */
 function overlay<T>(base: T, patch: DeepPartial<T> | undefined): T {

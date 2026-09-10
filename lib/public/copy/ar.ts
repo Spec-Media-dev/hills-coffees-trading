@@ -7,40 +7,38 @@
  * cannot be invented here.
  *
  * ────────────────────────────────────────────────────────────────────────────────────────────────
- * THE HONESTY RULE THAT GOVERNS THIS FILE
+ * SCOPE — amended by the public design convergence pass (2026-09-10)
  * ────────────────────────────────────────────────────────────────────────────────────────────────
  *
- * Phase 5.5 owns the EN/العربية **infrastructure**. It does NOT own approved Arabic **content**.
- * Marketing, commercial, legal and compliance copy is owned by Content/Legal and has not been
- * supplied (`CONTENT-AR-01`).
+ * UIF-017 shipped the EN/العربية infrastructure with interface chrome only, because approved Arabic
+ * *content* had not been supplied (`CONTENT-AR-01`). The product owner has since directed that the
+ * public experience must not show English business copy to an Arabic visitor, and authorised this
+ * pass to carry the approved English across.
  *
- * So this file translates exactly one category of string:
+ * What that authorisation does and does not mean:
  *
- *   ✔ INTERFACE CHROME — navigation labels, control names, landmark names, generic actions, menu and
- *     search labels. These name a part of the interface. Translating "Coffee" as the label of the
- *     coffee catalogue link asserts nothing about the business.
+ *   ✔ Every string here is a FAITHFUL RENDERING of the reviewed English value of the same key.
+ *     Meaning, scope and hedging are preserved sentence by sentence. Where the English says "only
+ *     what we can evidence", the Arabic says the same and no more.
  *
- * and deliberately omits every other category:
+ *   ✘ No Arabic claim exists that has no English counterpart. No figure, certification, partner,
+ *     origin count, legal statement or capability was added. Business names, routes and the Trading
+ *     Portal name are transliterated consistently.
  *
- *   ✘ BUSINESS AND MARKETING CLAIMS — headlines, leads, credibility copy, sourcing and custody
- *     descriptions, traceability wording, portal-entry explanations, price disclosures, page
- *     descriptions. Translating these would be *writing new Arabic commercial claims* that no
- *     reviewer has approved. Every one of these keys is therefore ABSENT here and resolves to the
- *     reviewed English through `getCopy()`.
+ *   ⚠ `CONTENT-AR-01` is NOT closed by this file. It is re-scoped: the translations are supplied and
+ *     the remaining obligation is Content/Legal sign-off of the wording before production. Until
+ *     then the source of truth for meaning remains `en.ts`, and any conflict is resolved toward the
+ *     English.
  *
- * Untranslated is a **content** gap, never a **layout** gap: an Arabic viewer still gets a correct
- * RTL layout with Arabic typography, which is precisely what stops a future Arabic redesign.
- *
- * TO ADD APPROVED ARABIC LATER: add the key here once Content/Legal has approved the wording, and
- * remove the namespace from `UNTRANSLATED_NAMESPACES` in `./index.ts`. Never add a key by
- * translating the English yourself.
+ * Register: professional Modern Standard Arabic for a B2B audience — no colloquialism, no marketing
+ * hyperbole beyond what the English carries. Hills Coffee is written as "هيلز كوفي".
  */
 import type { DeepPartial, PublicCopy } from "./types";
 
 export const ar: DeepPartial<PublicCopy> = {
   site: {
-    // A brand name, not a claim — the business already trades under this name in Arabic markets.
     name: "هيلز كوفي",
+    tagline: "توريد البن الأخضر من دبي إلى المنطقة العربية.",
   },
 
   a11y: {
@@ -54,12 +52,39 @@ export const ar: DeepPartial<PublicCopy> = {
     coffee: "البن",
     origins: "المناشئ",
     sourcing: "التوريد",
+    about: "من نحن",
     contact: "تواصل معنا",
     portalEntry: "بوابة التداول",
   },
 
+  megaMenu: {
+    coffee: {
+      title: "البن المنشور",
+      body: "كل بن تنشره هيلز حاليًا، مع منشئه وطريقة معالجته وتعبئته.",
+      primary: "تصفح الدليل",
+    },
+    origins: {
+      title: "مناطق الإنتاج",
+      body: "المناطق التي تورّد منها هيلز، وكل منها مرتبط بالبن المنشور منها.",
+      primary: "استعرض المناشئ",
+    },
+    sourcing: {
+      title: "كيف نورّد البن ونحتفظ به",
+      body: "علاقات المنشأ، والحيازة، والخدمات اللوجستية، وتوثيق الجودة، بعبارات واضحة.",
+      primary: "اقرأ كيف نعمل",
+    },
+    about: {
+      title: "هيلز كوفي",
+      body: "شركة لتوريد البن الأخضر وتداوله، وُلدت في دبي وتخدم المنطقة العربية.",
+      primary: "عن هيلز",
+    },
+    relatedHeading: "انظر أيضًا",
+  },
+
   cta: {
     requestAnOffer: "اطلب عرض سعر",
+    exploreAllCoffee: "استكشف كل البن",
+    talkToUs: "تحدث معنا",
   },
 
   controls: {
@@ -72,22 +97,400 @@ export const ar: DeepPartial<PublicCopy> = {
     closeMenu: "إغلاق القائمة",
     menuTitle: "القائمة",
     openSearch: "بحث",
+    searchFieldLabel: "ابحث عن بن أو منشأ",
     searchTitle: "ابحث في بن هيلز",
     searchHint: "سيفتح بحثك دليل البن المنشور.",
     searchPlaceholder: "ابحث حسب البن أو المنشأ",
-    searchSubmit: "تصفح البن",
+    searchSubmit: "تصفح دليل البن",
     close: "إغلاق",
   },
 
   footer: {
-    exploreHeading: "استكشف",
-    accountHeading: "الحساب",
-    commercialHeading: "تواصل تجاري",
     rights: "جميع الحقوق محفوظة.",
+    exploreHeading: "استكشف",
+    companyHeading: "الشركة",
+    accountHeading: "الحساب",
+    commercialHeading: "تعامل مع هيلز",
+    closingLine: "بن أخضر، يُورَّد من المنشأ ويُحفظ في دبي.",
+    brandStatement:
+      "بن أخضر قابل للتتبع لمحامص البن والمستوردين والموزعين في أنحاء المنطقة العربية.",
+    commercialBody:
+      "شاركنا نوع البن والكمية والتوقيت ونقطة التسليم التي تعمل عليها، وسيتابع فريقنا التجاري الحديث معك مباشرة.",
     locationLine: "دبي · مصر",
-    // brandStatement and commercialBody are business claims — English fallback (CONTENT-AR-01).
   },
 
-  // Every remaining namespace (home, coffee, origins, sourcing, portalEntry, referencePrice, media)
-  // is intentionally absent. See UNTRANSLATED_NAMESPACES in ./index.ts.
+  media: {
+    placeholderLabel: "الصور قادمة قريبًا",
+    placeholderDescription: "لم تُنشر صور هذا العنصر بعد.",
+  },
+
+  home: {
+    hero: {
+      eyebrow: "توريد البن الأخضر وتداوله",
+      headline: "بن أخضر، يُورَّد من المنشأ ويُحفظ في دبي.",
+      lead:
+        "تورّد هيلز كوفي البن الأخضر من مناطق الإنتاج وتحتفظ به في حيازة معتمدة من هيلز. تتعاقد معنا محامص البن والمستوردون والموزعون في أنحاء المنطقة العربية للحصول على إمداد يمكنهم تتبعه إلى مكان زراعته.",
+      exploreAction: "استكشف البن",
+      imageAlt: "مزارع بن يعمل بين أحواض التجفيف المرتفعة في المنشأ.",
+      landscapeAlt: "مزارع يقطف ثمار البن الناضجة على سفح تل يطل على وادٍ جبلي.",
+      scrollCue: "مرّر للأسفل",
+    },
+    intents: {
+      eyebrow: "ابدأ من هنا",
+      title: "ثلاث طرق للعمل معنا",
+      lead: "كل مسار يقودك إلى وجهة مختلفة. اختر ما يناسب احتياجك اليوم.",
+      source: {
+        title: "توريد البن",
+        body:
+          "أخبرنا بالمواصفات والكمية ونقطة التسليم التي تحتاجها. نتوجه إلى مناطق الإنتاج ونعود إليك بما يمكننا توريده.",
+        action: "أرسل طلب توريد",
+      },
+      explore: {
+        title: "استكشف البن المتاح",
+        body: "تصفح أنواع البن التي تنشرها هيلز، كلٌّ منها مع منشئه وطريقة معالجته وتعبئته وشهاداته.",
+        action: "اطّلع على البن",
+      },
+      trade: {
+        title: "تعامل مع هيلز",
+        body:
+          "يشتري الأعضاء المعتمدون البن ويحتفظون به ويعيدون بيعه عبر بوابة هيلز للتداول. تُراجَع العضوية قبل تفعيل أي تداول.",
+        action: "عن العضوية",
+      },
+    },
+    credibility: {
+      eyebrow: "كيف نعمل",
+      title: "إمداد يمكنك الاعتماد عليه",
+      lead:
+        "البن الأخضر التزام برأس المال قبل أشهر من وصوله إلى المحمصة. هذه هي أجزاء ذلك الالتزام التي نتحمل مسؤوليتها.",
+      origin: {
+        title: "علاقات مباشرة مع المنشأ",
+        body: "نشتري من مناطق إنتاج نعرفها، ونحافظ على الصلة بين البن ومكان زراعته.",
+      },
+      quality: {
+        title: "جودة موثقة",
+        body: "تنتقل الشهادات وأدلة الجودة مع البن. لا ننشر إلا ما يمكننا إثباته وما نحن مخولون بالإفصاح عنه.",
+      },
+      custody: {
+        title: "حيازة حتى نقل الملكية",
+        body:
+          "يبقى البن في حيازة معتمدة من هيلز حتى تنتقل الملكية إلى المشتري، فلا تكون المسؤولية غامضة أبدًا.",
+      },
+      membership: {
+        title: "عضوية مُراجَعة",
+        body: "يُراجَع كل حساب تداول ويُعتمد قبل أن يتمكن من إجراء أي معاملة. التسجيل وحده لا يخوّل التداول أبدًا.",
+      },
+      imageAlt: "ثمار بن طازجة مجموعة في المنشأ بعد الحصاد.",
+    },
+    featuredCoffee: {
+      eyebrow: "البن",
+      title: "ما نحمله حاليًا",
+      lead: "مجموعة مختارة من أنواع البن التي تنشرها هيلز حاليًا.",
+      action: "اطّلع على كل البن",
+      empty: "لا يوجد بن منشور في الوقت الحالي.",
+    },
+    featuredOrigins: {
+      eyebrow: "المناشئ",
+      title: "من أين يأتي",
+      lead: "مناطق الإنتاج التي يأتي منها البن الذي نحمله.",
+      action: "اطّلع على كل المناشئ",
+      empty: "لا توجد مناشئ منشورة في الوقت الحالي.",
+    },
+    story: {
+      eyebrow: "من الثمرة إلى البن الأخضر",
+      title: "ما يحدث قبل نشر أي دفعة",
+      lead: "أربع لحظات في الطريق من الشجرة إلى بن يمكن لهيلز نشره. في كل واحدة منها يُصنع جزء من سجل البن.",
+      listLabel: "مراحل البن",
+      previous: "المرحلة السابقة",
+      next: "المرحلة التالية",
+      positionLabel: "المرحلة {current} من {total}",
+      items: {
+        cherry: {
+          title: "ثمار تُقطف في المنشأ",
+          body:
+            "تُنتقى الثمار الناضجة يدويًا في مناطق الإنتاج التي تشتري منها هيلز. من هنا تبدأ الصلة بين البن ومكان زراعته.",
+          alt: "مزارع ينتقي ثمار البن الحمراء الناضجة يدويًا من الغصن.",
+        },
+        drying: {
+          title: "التجفيف والمعالجة",
+          body: "تُعالَج الثمار وتُجفَّف في المنشأ. وتنتقل طريقة المعالجة مع البن إلى ملفه المنشور.",
+          alt: "بن يجف على أحواض طويلة مرتفعة تحت منطقة معالجة مغطاة في المنشأ.",
+        },
+        inspection: {
+          title: "الفرز والفحص",
+          body: "يُفحص البن الأخضر قبل نشره. تُراجَع الشهادات وأدلة الجودة، وتُشارَك مع المشترين المعتمدين.",
+          alt: "يد تفحص حبوب البن الأخضر داخل كيس خيش مفتوح.",
+        },
+        green: {
+          title: "بن أخضر جاهز للتوريد",
+          body: "ينتقل البن الأخضر المُجهَّز إلى حيازة معتمدة من هيلز ويبقى فيها حتى تنتقل الملكية إلى المشتري.",
+          alt: "حبوب بن أخضر تنسكب من كيس خيش مفتوح على سطح خشبي.",
+        },
+      },
+    },
+    showcase: {
+      eyebrow: "البن",
+      title: "ما يحمله كل بن منشور",
+      lead: "لا تنشر هيلز أي بن إلا ومعه سجله. الدليل مرجع للتوريد، وليس دفتر طلبات مباشرًا.",
+      origin: {
+        title: "المنشأ والمنطقة",
+        body: "مكان زراعة البن، مرتبطًا بملف منشأ منشور.",
+      },
+      process: {
+        title: "طريقة المعالجة والصنف",
+        body: "كيف تحولت الثمرة إلى بن أخضر، وما الذي زُرع.",
+      },
+      packaging: {
+        title: "التعبئة والشهادات",
+        body: "كيف يُشحن، والوثائق التي تنتقل معه.",
+      },
+      action: "اطّلع على كل البن",
+      alt: {
+        origin: "سلة حصاد مليئة بثمار البن وخلفها تلال يغطيها الضباب.",
+        process: "بن أخضر وآخر مجفف مرصوصان في صفوف على منضدة خشبية وخلفهما الحقول.",
+        packaging: "كيس خيش وبن أخضر وثمار طازجة على حافة حجرية في ضوء دافئ.",
+      },
+    },
+    marquee: {
+      eyebrow: "في المنشأ",
+      title: "البن كما نراه قبل أن يصبح دفعة",
+      trackLabel: "صور من المنشأ",
+      captions: {
+        cherries: "ثمار على الغصن",
+        basket: "سلة الحصاد",
+        ripening: "ثمار في طور النضج",
+        sorting: "فرز البن الأخضر",
+        sackCherries: "بن أخضر وثمار",
+        beds: "أحواض تجفيف مرتفعة",
+        grower: "مزارع في المنشأ",
+        hands: "قطف يدوي",
+      },
+    },
+    traceability: {
+      eyebrow: "التتبع",
+      title: "الصلة بمكان الزراعة",
+      lead: "تحافظ هيلز على الصلة بين البن ومنشئه دون انقطاع، من منطقة الإنتاج إلى المشتري الذي تنتقل إليه الملكية.",
+      imageAlt: "بن يجف على أحواض مرتفعة في ضوء المساء الدافئ في المنشأ.",
+      chainLabel: "سلسلة المسؤولية",
+      links: {
+        origin: "أين زُرع",
+        quality: "ما ينتقل معه",
+        custody: "من يحوزه",
+        membership: "من يمكنه تداوله",
+      },
+    },
+    journey: {
+      eyebrow: "كيف تعمل هيلز",
+      title: "من منطقة الإنتاج إلى نقطة التسليم",
+      lead: "أربع مراحل، كل واحدة منها محسوبة. لا شيء هنا يصف قدرة لا تمارسها هيلز.",
+      stepLabel: "المرحلة",
+      alt: {
+        relationships: "مزارع يقف بين شجيرات البن وخلفه الجبال.",
+        custody: "أكياس خيش من البن الأخضر مرصوصة على منصات تحت سقف عالٍ.",
+        logistics: "أكياس بن أخضر مصفوفة تحت نوافذ مقوسة عالية.",
+        quality: "بن أخضر منثور على طاولة فرز للفحص.",
+      },
+    },
+    reference: {
+      eyebrow: "معلومات مرجعية",
+      title: "أسعار مرجعية، منفصلة تمامًا",
+      lead: "تُنشر المؤشرات المرجعية بمعزل عن عروض هيلز التجارية وعن أسعار إعادة البيع بين الأعضاء. ولا تكون الرقم نفسه أبدًا.",
+      stageLabel: "المؤشر المرجعي",
+      stageState: "لم يُنشر بعد",
+      stageNote: "عندما تنشر هيلز مؤشرًا مرجعيًا سيظهر هنا مع مصدره وتاريخ رصده، وسيبقى مع ذلك ليس عرضًا.",
+    },
+    rfq: {
+      title: "أخبرنا بما تحتاجه",
+      lead: "أرسل نوع البن والكمية والتوقيت ونقطة التسليم التي تعمل عليها، وسيتابع أحد أعضاء الفريق التجاري الأمر من هناك.",
+      imageAlt: "ثمار بن ناضجة على غصن بجانب بن أخضر فوق كيس خيش.",
+    },
+  },
+
+  about: {
+    eyebrow: "عن هيلز",
+    title: "شركة بن أخضر أُسست للمنطقة العربية",
+    lead:
+      "تورّد هيلز كوفي البن الأخضر من مناطق الإنتاج وتحتفظ به في حيازة معتمدة من هيلز في دبي، لمحامص البن والمستوردين والموزعين الذين يريدون إمدادًا يمكنهم الاعتماد عليه.",
+    identity: {
+      title: "وُلدت في دبي، وتركز على المنشأ",
+      body: "هيلز شركة وُلدت في دبي ولها مكتب تشغيلي في مصر. نشتري من مناطق إنتاج نعرفها ونحافظ على الصلة بين البن ومكان زراعته.",
+    },
+    model: {
+      title: "شريك توريد، لا بورصة",
+      body:
+        "الموقع العام هو حيث يبدأ حديث التوريد. أما التداول فيتم داخل بوابة هيلز للتداول بين أعضاء رُوجعت حساباتهم واعتُمدت.",
+    },
+    custody: {
+      title: "حيازة يمكنك الإشارة إليها",
+      body: "يبقى البن الذي تورّده هيلز في حيازة معتمدة من هيلز حتى تنتقل الملكية إلى المشتري، فلا تُقسَّم المسؤولية عنه ولا تبقى غامضة.",
+    },
+    evidence: {
+      title: "فقط ما يمكننا إثباته",
+      body: "لا تُنشر الشهادات وأدلة الجودة ومعلومات المنشأ إلا عندما تستطيع هيلز إثباتها وتكون مخولة بالإفصاح عنها.",
+    },
+    ctaTitle: "ابدأ حديثًا معنا",
+    ctaLead: "أخبرنا بما تورّده وأين يجب أن يصل.",
+    imageAlt: "مزارع يقف في مزرعة بن على سفح تل تحت جبال تغطيها السحب.",
+    metaTitle: "عن هيلز",
+    metaDescription: "هيلز كوفي شركة لتوريد البن الأخضر وتداوله، وُلدت في دبي وتخدم محامص البن والمستوردين والموزعين في أنحاء المنطقة العربية.",
+  },
+
+  contact: {
+    eyebrow: "تواصل معنا",
+    title: "أخبرنا بما تحتاجه",
+    lead: "شاركنا نوع البن والكمية والتوقيت ونقطة التسليم التي تعمل عليها، وسيتابع فريقنا التجاري الحديث معك مباشرة.",
+    intentsHeading: "ما الذي يشمله الحديث",
+    intents: {
+      sourcing: {
+        title: "طلب توريد",
+        body: "المواصفات والكمية ونقطة التسليم التي تحتاجها. نتوجه إلى مناطق الإنتاج ونعود إليك بما يمكننا توريده.",
+      },
+      coffee: {
+        title: "بن منشور بعينه",
+        body: "أي بن في الدليل. نشارك وثائق جودته وشهاداته مع المشترين المعتمدين أثناء الحديث.",
+        action: "تصفح الدليل",
+      },
+      membership: {
+        title: "عضوية التداول",
+        body: "كيف تعمل العضوية المُراجَعة، وما الغرض من بوابة هيلز للتداول.",
+        action: "عن بوابة التداول",
+      },
+    },
+    formNotice: {
+      title: "نموذج الطلب قيد الإعداد",
+      body: "نموذج منظم لطلب عرض السعر جزء من المرحلة التالية لهذا الموقع. وإلى أن يُتاح، تصف هذه الصفحة الحديث لتعرف ما الذي تُجهّزه.",
+    },
+    detailsHeading: "أين نعمل",
+    detailsBody: "هيلز كوفي شركة وُلدت في دبي ولها مكتب تشغيلي في مصر. تُنشر بيانات التواصل الخاصة بهذه الواجهة بعد اعتمادها للنشر.",
+    imageAlt: "أكياس بن أخضر مرصوصة على منصات خشبية.",
+    metaTitle: "تواصل معنا",
+    metaDescription: "ابدأ حديث توريد مع هيلز كوفي: شاركنا نوع البن والكمية والتوقيت ونقطة التسليم التي تعمل عليها.",
+  },
+
+  coffee: {
+    index: {
+      eyebrow: "الدليل",
+      title: "البن",
+      lead: "كل بن تنشره هيلز حاليًا، مع منشئه وطريقة معالجته وتعبئته. هذا دليل للتوريد، وليس دفتر طلبات مباشرًا.",
+      empty: "لا يوجد بن منشور في الوقت الحالي. أرسل لنا طلب توريد وسنخبرك بما يمكننا توريده.",
+      metaTitle: "البن",
+      metaDescription: "أنواع البن الأخضر التي تنشرها هيلز كوفي، مع المنشأ وطريقة المعالجة والتعبئة والشهادات للمشترين المحترفين.",
+      filter: {
+        legend: "تصفية الدليل",
+        searchLabel: "ابحث في البن المنشور",
+        searchPlaceholder: "البن أو المنشأ",
+        originFacet: "المنشأ",
+        processFacet: "طريقة المعالجة",
+        typeFacet: "نوع البن",
+        all: "الكل",
+        clear: "مسح التصفية",
+        resultCount: "عرض {shown} من أصل {total} من البن المنشور",
+        noResults: "لا يوجد بن منشور يطابق هذه التصفية. امسحها لعرض الدليل كاملًا.",
+      },
+    },
+    detail: {
+      originHeading: "المنشأ",
+      specHeading: "المواصفات",
+      coffeeType: "نوع البن",
+      variety: "الصنف",
+      processingMethod: "طريقة المعالجة",
+      packaging: "التعبئة",
+      region: "المنطقة",
+      country: "الدولة",
+      tagsHeading: "الخصائص",
+      certificationsHeading: "الشهادات",
+      certificationValidUntil: "سارية حتى",
+      traceabilityHeading: "التتبع",
+      traceabilityBody:
+        "تحافظ هيلز على الصلة بين هذا البن والمنطقة التي زُرع فيها. تُشارَك وثائق الجودة والشهادات مع المشترين المعتمدين أثناء الحديث التجاري، ولا ننشر إلا ما يمكننا إثباته.",
+      rfqHeading: "مهتم بهذا البن؟",
+      rfqLead: "أرسل لنا الكمية والتوقيت ونقطة التسليم التي تحتاجها وسنعود إليك بما يمكننا توريده.",
+      notSpecified: "غير محدد",
+      backToIndex: "كل البن",
+      identityEyebrow: "بن منشور",
+      aboutHeading: "عن هذا البن",
+      mediaNote: "تُنشر صور السجل مع البن حين تتوفر.",
+      originLinkAction: "اطّلع على المنشأ",
+      originConnectionHeading: "من أين يأتي",
+    },
+  },
+
+  origins: {
+    index: {
+      eyebrow: "المناشئ",
+      title: "المناشئ",
+      lead: "مناطق الإنتاج التي تورّد منها هيلز. يرتبط كل ملف بالبن الذي ننشره حاليًا من ذلك المنشأ.",
+      empty: "لا توجد مناشئ منشورة في الوقت الحالي.",
+      metaTitle: "المناشئ",
+      metaDescription: "مناطق الإنتاج التي تورّد منها هيلز كوفي البن الأخضر، والبن المنشور من كل منشأ.",
+    },
+    detail: {
+      regionLabel: "المنطقة",
+      partOfLabel: "جزء من",
+      coffeesHeading: "البن من هذا المنشأ",
+      coffeesEmpty: "لا يوجد بن منشور من هذا المنشأ في الوقت الحالي. أرسل لنا طلب توريد وسنخبرك بما يمكننا توريده.",
+      backToIndex: "كل المناشئ",
+      identityEyebrow: "منطقة إنتاج",
+      aboutHeading: "عن هذا المنشأ",
+      countryLabel: "الدولة",
+      exploreCoffee: "تصفح كل البن",
+    },
+    showcase: {
+      previous: "المناشئ السابقة",
+      next: "المناشئ التالية",
+      trackLabel: "المناشئ",
+      progressLabel: "موضع العرض",
+    },
+  },
+
+  sourcing: {
+    eyebrow: "التوريد",
+    title: "كيف نورّد البن ونحتفظ به",
+    lead: "توريد البن الأخضر سلسلة من القرارات تُتخذ قبل أشهر من وصول الكيس إلى المحمصة. هكذا تتخذها هيلز.",
+    relationships: {
+      title: "علاقات المنشأ",
+      body: "نعمل مباشرة مع مناطق الإنتاج التي نورّد منها، فيحمل البن الذي ننشره صلة حقيقية قابلة للتتبع بمكان زراعته.",
+    },
+    custody: {
+      title: "الحيازة",
+      body:
+        "ينتقل البن الذي تورّده هيلز إلى حيازة معتمدة من هيلز ويبقى فيها حتى تنتقل الملكية إلى المشتري. لا تُقسَّم المسؤولية عن البن ولا تبقى غامضة.",
+    },
+    logistics: {
+      title: "الخدمات اللوجستية",
+      body: "يتم التسليم عبر ترتيبات لوجستية اعتمدتها هيلز، بما يبقي الإمداد محسوبًا بين المنشأ ونقطة التسليم التي يختارها المشتري.",
+    },
+    quality: {
+      title: "توثيق الجودة",
+      body: "تُجمع الشهادات وأدلة الجودة وتُراجَع قبل نشر أي بن، وتُشارَك مع المشترين المعتمدين كجزء من الحديث التجاري.",
+    },
+    cta: {
+      title: "تحدث معنا عن بن بعينه",
+      lead: "إذا أردت التعمق في أي من ذلك بشأن بن محدد، فيسعدنا أن نجري هذا الحديث.",
+    },
+    images: {
+      harvestAlt: "ثمار بن ناضجة على الغصن في المنشأ.",
+      qualityAlt: "بن أخضر يُفحص يدويًا للتحقق من الجودة.",
+    },
+    metaTitle: "التوريد",
+    metaDescription: "كيف تورّد هيلز كوفي البن الأخضر من المنشأ وتحتفظ به في حيازة معتمدة للمشترين المحترفين في أنحاء المنطقة العربية.",
+  },
+
+  portalEntry: {
+    eyebrow: "بوابة التداول",
+    title: "العضوية غير متاحة هنا بعد",
+    lead: "بوابة هيلز للتداول هي حيث يشتري الأعضاء المعتمدون البن الأخضر ويحتفظون به ويعيدون بيعه. تسجيل الدخول وطلبات العضوية غير متاحة على الموقع العام بعد.",
+    body:
+      "تُبنى هذه القدرة كميزة مستقلة. وإلى أن تصبح جاهزة، إذا أردت الحديث عن التوريد أو بدء حديث تجاري، فتواصل معنا مباشرة وسيتابع أحد أعضاء الفريق الأمر من هناك.",
+    action: "اطلب عرض سعر",
+    imageAlt: "أكياس بن أخضر في مستودع دافئ الإضاءة.",
+    metaTitle: "بوابة التداول",
+    metaDescription: "مدخل بوابة هيلز للتداول. العضوية وتسجيل الدخول غير متاحين على الموقع العام بعد.",
+  },
+
+  referencePrice: {
+    label: "السعر المرجعي",
+    unavailableTitle: "لم يُنشر السعر المرجعي بعد",
+    unavailableBody: "سيعرض هذا القسم سعرًا مرجعيًا قياسيًا حين تنشر هيلز واحدًا لهذا البن.",
+    disclosure: "معلومات مرجعية، وليست عرضًا.",
+  },
 };

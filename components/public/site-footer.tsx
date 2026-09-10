@@ -1,44 +1,42 @@
 import Image from "next/image";
 import Link from "next/link";
 
-import { Bilingual, EnglishCopy } from "@/components/locale/bilingual";
+import { Bilingual } from "@/components/locale/bilingual";
 import { PUBLIC_ROUTES } from "@/components/public/routes";
-import { Button } from "@/components/ui/button";
+import { Icon } from "@/components/ui/icon";
 import { copy } from "@/lib/public/copy";
 import type { PublicCopy } from "@/lib/public/copy";
 
 /**
- * Public site footer — production build (Phase 5.5, UIF-022 — contract §3, §14; plan §6.3).
+ * Public site footer — production build (Phase 5.5, UIF-022; rebuilt by the public design
+ * convergence pass — contract §3, §14; plan §6.3).
  *
- * ── GROUPING ─────────────────────────────────────────────────────────────────────────────────────
+ * ── THE LAST DESIGNED SECTION, NOT AN AFTERTHOUGHT ───────────────────────────────────────────────
  *
- * Three groups — **Explore · Account · Trade with Hills** — adapted from the live Hills site's richer
- * four-group footer (plan §6.3 records that richness as adoptable). The live site's fourth group is
- * **Legal**, and it is deliberately not reproduced: no approved legal content source exists
- * (CONTENT-01), and a Legal column pointing at unbuilt pages is a dead end for visitors and crawlers.
- * It arrives with whichever feature resolves CONTENT-01.
+ * Deepest forest ground, one shade below the final CTA so the two read as a descent rather than a
+ * repeat. Four regions: the brand block with a larger cream lockup and the tagline; three link
+ * columns — **Explore · Company · Account** — and the commercial close with its CTA. Above the
+ * bottom bar the closing brand line is set in the display face at a large size and low opacity: a
+ * signature, not a slogan, and it is the approved positioning sentence rather than new copy.
+ *
+ * Links carry a directional arrow that advances on hover; column headings sit on a gold hairline;
+ * everything stacks in one column at 390px and mirrors under RTL through logical properties only.
  *
  * ── EVERY LINK RESOLVES ──────────────────────────────────────────────────────────────────────────
  *
  * Routes come from the shared `PUBLIC_ROUTES` table the header uses, so the two navigations cannot
- * drift apart, and each entry is a real crawlable anchor to a route that exists.
+ * drift apart, and each entry is a real crawlable anchor to a route that exists. `/legal` and
+ * `/knowledge` are absent by design (CONTENT-01).
  *
  * NOTHING IS FABRICATED HERE. No street address, no phone number, no email address, no social
- * account, no certification badge, no partner or origin count. The live site shows social and
- * WhatsApp entries; none is reproduced, because Hills has not supplied verified handles for this
- * surface. The commercial route is the real one that exists: `/contact/`. This is the specific
- * section where invented "contact detail" would otherwise creep in.
+ * account, no certification badge, no partner or origin count. The operating-locations line names
+ * only the two offices the business publicly states.
  *
  * ── SURFACE ──────────────────────────────────────────────────────────────────────────────────────
  *
- * A deep-forest closing composition in **both** themes: the footer is an intentional dark ground, not
- * a theme inversion, so it uses the `sidebar` token family that already carries forest-on-cream text
- * pairs. The cream lockup is therefore the correct variant on this surface in both themes — using the
- * green mark here would be the exact defect UIF-022 forbids.
- *
- * Server Component — zero client JavaScript. Logical CSS properties only. Chrome labels are bilingual
- * through `<Bilingual>`; the brand statement and commercial body are business copy with no approved
- * Arabic and therefore render the reviewed English in both languages (`CONTENT-AR-01`).
+ * An intentional dark ground in **both** themes, not a theme inversion, so the cream lockup is the
+ * correct variant here always. Server Component — zero client JavaScript. Every string is
+ * bilingual through `<Bilingual>`.
  */
 
 type FooterLink = {
@@ -46,92 +44,119 @@ type FooterLink = {
   pick: (c: PublicCopy) => string;
 };
 
-/** Browsable public destinations. */
 const EXPLORE_LINKS: readonly FooterLink[] = [
   { href: PUBLIC_ROUTES.coffee, pick: (c) => c.nav.coffee },
   { href: PUBLIC_ROUTES.origins, pick: (c) => c.nav.origins },
   { href: PUBLIC_ROUTES.sourcing, pick: (c) => c.nav.sourcing },
 ];
 
-/** Member-facing entry. One honest destination — Feature 003 owns the real sign-in. */
-const ACCOUNT_LINKS: readonly FooterLink[] = [
-  { href: PUBLIC_ROUTES.portalEntry, pick: (c) => c.nav.portalEntry },
+const COMPANY_LINKS: readonly FooterLink[] = [
+  { href: PUBLIC_ROUTES.about, pick: (c) => c.nav.about },
   { href: PUBLIC_ROUTES.contact, pick: (c) => c.nav.contact },
 ];
 
+/** Member-facing entry. One honest destination — Feature 003 owns the real sign-in. */
+const ACCOUNT_LINKS: readonly FooterLink[] = [
+  { href: PUBLIC_ROUTES.portalEntry, pick: (c) => c.nav.portalEntry },
+];
+
 const GROUP_HEADING =
-  "hc-eyebrow text-[var(--gold-on-dark)]";
+  "hc-eyebrow border-t border-[color-mix(in_srgb,var(--gold-on-dark)_55%,transparent)] pt-4 text-[var(--gold-on-dark)]";
 
 const FOOTER_LINK =
-  "inline-flex min-h-11 items-center rounded-[var(--radius-xs)] text-[length:var(--text-small)] text-sidebar-foreground/80 underline-offset-4 transition-colors duration-[var(--dur-fast)] hover:text-sidebar-foreground hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--sidebar-ring)]";
+  "group/footer inline-flex min-h-11 items-center gap-2 rounded-[var(--radius-xs)] text-[length:var(--text-small)] text-[color-mix(in_srgb,var(--brand-cream)_78%,transparent)] transition-colors duration-[var(--dur-fast)] hover:text-[var(--brand-cream)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--gold-on-dark)]";
+
+function LinkColumn({
+  heading,
+  links,
+  as: Tag = "div",
+  label,
+}: {
+  heading: (c: PublicCopy) => string;
+  links: readonly FooterLink[];
+  as?: "nav" | "div";
+  label?: string;
+}) {
+  return (
+    <Tag aria-label={label} className="flex flex-col items-start gap-1">
+      <p className={`${GROUP_HEADING} mb-2 w-full`}>
+        <Bilingual pick={heading} />
+      </p>
+      {links.map((item) => (
+        <Link key={item.href} href={item.href} className={FOOTER_LINK}>
+          <Icon
+            name="arrow-right"
+            data-directional-icon="true"
+            className="size-3.5 -translate-x-1 opacity-0 transition-[opacity,transform] duration-[var(--dur-base)] ease-[var(--ease-out)] group-hover/footer:translate-x-0 group-hover/footer:opacity-100 rtl:translate-x-1 rtl:group-hover/footer:translate-x-0 motion-reduce:transition-none"
+          />
+          <Bilingual pick={item.pick} />
+        </Link>
+      ))}
+    </Tag>
+  );
+}
 
 export function SiteFooter() {
   return (
-    <footer className="border-t border-sidebar-border bg-sidebar text-sidebar-foreground">
-      <div className="hc-container py-[clamp(3.5rem,7vw,6.5rem)]">
-        <div className="grid gap-x-10 gap-y-12 border-b border-sidebar-border/70 pb-12 md:grid-cols-2 lg:grid-cols-[minmax(0,1.4fr)_minmax(9rem,0.6fr)_minmax(9rem,0.6fr)_minmax(16rem,1fr)]">
+    <footer className="relative isolate overflow-hidden border-t border-[color-mix(in_srgb,var(--brand-cream)_10%,transparent)] bg-[var(--forest-900)] text-[var(--brand-cream)]">
+      <div className="hc-container py-[clamp(4rem,8vw,7rem)]">
+        <div className="grid gap-x-10 gap-y-12 md:grid-cols-2 lg:grid-cols-[minmax(0,1.5fr)_minmax(8rem,0.6fr)_minmax(8rem,0.6fr)_minmax(8rem,0.6fr)_minmax(15rem,1fr)]">
           {/* Brand block */}
-          <div className="flex max-w-md flex-col gap-5">
+          <div className="flex max-w-md flex-col gap-6">
             <Image
               src="/images/hills-logo-light.png"
               alt={copy.site.name}
-              width={168}
-              height={64}
-              className="h-auto w-[150px] xl:w-[168px]"
+              width={2624}
+              height={996}
+              className="h-auto w-[176px] xl:w-[208px]"
             />
-            <p className="hc-body text-sidebar-foreground/80">
-              <EnglishCopy>{copy.site.tagline}</EnglishCopy>
-            </p>
-            <p className="hc-small text-sidebar-foreground/65">
-              <EnglishCopy>{copy.footer.brandStatement}</EnglishCopy>
+            <p className="hc-body max-w-[36ch] text-[color-mix(in_srgb,var(--brand-cream)_78%,transparent)]">
+              <Bilingual pick={(c) => c.site.tagline} />
             </p>
           </div>
 
-          <nav
-            aria-label={copy.a11y.footerNavigation}
-            className="flex flex-col items-start gap-2"
-          >
-            <p className={`${GROUP_HEADING} mb-2`}>
-              <Bilingual pick={(c) => c.footer.exploreHeading} />
-            </p>
-            {EXPLORE_LINKS.map((item) => (
-              <Link key={item.href} href={item.href} className={FOOTER_LINK}>
-                <Bilingual pick={item.pick} />
-              </Link>
-            ))}
-          </nav>
-
-          <div className="flex flex-col items-start gap-2">
-            <p className={`${GROUP_HEADING} mb-2`}>
-              <Bilingual pick={(c) => c.footer.accountHeading} />
-            </p>
-            {ACCOUNT_LINKS.map((item) => (
-              <Link key={item.href} href={item.href} className={FOOTER_LINK}>
-                <Bilingual pick={item.pick} />
-              </Link>
-            ))}
-          </div>
+          <LinkColumn
+            as="nav"
+            label={copy.a11y.footerNavigation}
+            heading={(c) => c.footer.exploreHeading}
+            links={EXPLORE_LINKS}
+          />
+          <LinkColumn heading={(c) => c.footer.companyHeading} links={COMPANY_LINKS} />
+          <LinkColumn heading={(c) => c.footer.accountHeading} links={ACCOUNT_LINKS} />
 
           {/* Commercial close — the footer's conversion action, mirroring the header CTA. */}
-          <div className="flex flex-col items-start gap-4">
-            <p className={GROUP_HEADING}>
+          <div className="flex flex-col items-start gap-5">
+            <p className={`${GROUP_HEADING} w-full`}>
               <Bilingual pick={(c) => c.footer.commercialHeading} />
             </p>
-            <p className="hc-small text-sidebar-foreground/80">
-              <EnglishCopy>{copy.footer.commercialBody}</EnglishCopy>
+            <p className="hc-small max-w-[38ch] text-[color-mix(in_srgb,var(--brand-cream)_78%,transparent)]">
+              <Bilingual pick={(c) => c.footer.commercialBody} />
             </p>
-            <Button variant="accent" nativeButton={false} render={<Link href={PUBLIC_ROUTES.contact} />}>
+            <Link
+              href={PUBLIC_ROUTES.contact}
+              className="inline-flex h-[var(--control-h)] items-center justify-center gap-2 rounded-[var(--radius-sm)] border border-[var(--sand-100)] bg-[var(--sand-100)] px-5 text-sm font-semibold tracking-[0.005em] text-[var(--forest-800)] transition-[background-color,border-color,transform] duration-[var(--dur-fast)] hover:border-[var(--sand-200)] hover:bg-[var(--sand-200)] active:translate-y-px focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--gold-on-dark)] motion-reduce:transform-none"
+            >
               <Bilingual pick={(c) => c.cta.requestAnOffer} />
-            </Button>
+              <Icon name="arrow-right" data-directional-icon="true" className="size-4" />
+            </Link>
           </div>
         </div>
 
-        <div className="flex flex-col gap-2 pt-7 text-[length:var(--text-meta)] text-sidebar-foreground/60 sm:flex-row sm:items-center sm:justify-between">
+        {/* The signature line — the approved positioning sentence, set large and quiet. */}
+        <p
+          aria-hidden="true"
+          className="mt-[clamp(3.5rem,7vw,6rem)] font-heading text-[clamp(1.75rem,1rem+3.4vw,4.25rem)] font-semibold leading-[1.05] tracking-[var(--tracking-display)] text-[color-mix(in_srgb,var(--brand-cream)_16%,transparent)] text-balance"
+        >
+          <Bilingual pick={(c) => c.footer.closingLine} />
+        </p>
+
+        <div className="mt-8 flex flex-col gap-2 border-t border-[color-mix(in_srgb,var(--brand-cream)_12%,transparent)] pt-6 text-[length:var(--text-meta)] text-[color-mix(in_srgb,var(--brand-cream)_58%,transparent)] sm:flex-row sm:items-center sm:justify-between">
           <p>
-            <EnglishCopy>{copy.site.name}</EnglishCopy>. <Bilingual pick={(c) => c.footer.rights} />
+            <Bilingual pick={(c) => c.site.name} />
+            <span aria-hidden="true">. </span>
+            <Bilingual pick={(c) => c.footer.rights} />
           </p>
-          {/* Operating locations only — the two offices the business publicly states. No address, no
-              phone, no email is invented to fill the line. */}
+          {/* Operating locations only — no address, phone or email is invented to fill the line. */}
           <p>
             <Bilingual pick={(c) => c.footer.locationLine} />
           </p>

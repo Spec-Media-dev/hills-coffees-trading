@@ -2,6 +2,26 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
+/*
+ * Documentation trees are NOT Tailwind content sources.
+ *
+ * Tailwind v4 auto-detects content across the repository, which means any prose that merely *quotes*
+ * a utility becomes a real class candidate. `specs/` holds planning and handoff documents and
+ * `docs/` holds the design-system reference; both discuss utilities by name as a matter of course,
+ * and neither renders a single pixel of this application. Scanning them is therefore incorrect, not
+ * merely noisy: a handoff line quoting a placeholder such as a wildcard or an ellipsis inside a
+ * bracketed text utility compiles to a colour declaration whose value is that placeholder — which is
+ * not valid CSS — and Turbopack then fails the whole stylesheet on the unexpected delimiter. That is
+ * exactly what broke the dev server after UIF-C. (The offending literals are described rather than
+ * reproduced here, for the same reason.)
+ *
+ * These two exclusions are narrow and architectural — they name the documentation directories only.
+ * Every real UI source (`src/`, `components/`, `lib/`) is still scanned normally, so no production
+ * class can be missed.
+ */
+@source not "../../specs";
+@source not "../../docs";
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
@@ -200,7 +220,7 @@
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --transition-control: color var(--dur-fast) var(--ease-standard), background-color var(--dur-fast) var(--ease-standard), border-color var(--dur-fast) var(--ease-standard), box-shadow var(--dur-fast) var(--ease-standard), transform var(--dur-fast) var(--ease-standard);
   --container-product: 96rem;
-  --header-h: 76px;
+  --header-h: 84px;
   --drawer-w: min(420px, 88vw);
   --container-editorial: 80rem;
   --container-article: 47.5rem;
@@ -376,39 +396,196 @@
 .hc-eyebrow { font-size: var(--text-meta); font-weight: var(--weight-semibold); letter-spacing: var(--tracking-label); text-transform: uppercase; }
 
 /*
- * Public header — sticky, with a scrolled treatment (Phase 5.5, UIF-020).
+ * Public header — sticky, integrated with a dark page opener (Phase 5.5, UIF-020; rebuilt by the
+ * public design convergence pass).
  *
- * The shadow deepens as the page scrolls under the header. This is a CSS **scroll-driven** animation:
- * it is bound to the document's scroll progress rather than to time, so it needs no scroll listener,
- * no `IntersectionObserver` and no client island — the header stays a Server Component.
+ * ONE NUMBER DRIVES THE WHOLE BAR. `--hdr-p` runs from 0 (over the opening photograph: dark glass,
+ * cream ink, cream lockup) to 1 (settled: the Hills surface, theme ink, theme lockup). Every colour
+ * below is derived from it with `color-mix`, and the lockups cross-fade on it, so there is exactly one
+ * state to reason about and no colour can be out of step with another. It is a registered custom
+ * property so it interpolates as a number rather than flipping at the midpoint.
  *
- * It animates `box-shadow` and `border-color` only. The height is fixed at `--header-h` and is never
- * touched, so no scroll state can produce a layout jump.
+ * HOW IT MOVES. A CSS **scroll-driven** animation bound to the document's scroll progress — no
+ * scroll listener, no `IntersectionObserver`, no client island; the header stays a Server Component
+ * and its height is fixed at `--header-h`, so no scroll state can cause a layout jump. The
+ * emergence only applies when the header's sibling `<main>` opens with `[data-page-opener="dark"]`
+ * (`:has()` reads that from the markup); a page that opens on a light surface is never transparent.
  *
- * Where scroll timelines are unsupported the `@supports` block simply does not apply and the header
- * keeps its resting treatment, which is fully legible on its own — a progressive enhancement, not a
- * dependency. It is additionally gated on `prefers-reduced-motion: no-preference`, so a viewer who
- * has asked for less motion gets the settled state outright rather than a scroll-linked effect.
+ * FALLBACKS ARE THE SETTLED STATE. `--hdr-p` starts at 1. Browsers without scroll timelines
+ * (Firefox at the time of writing) and viewers who prefer reduced motion therefore get the solid,
+ * fully legible bar from the first frame — a progressive enhancement, never a dependency. The
+ * `(animation-range: 0% 100%)` check filters out partial implementations.
  */
+@property --hdr-p {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 1;
+}
+
+.hc-header {
+  --hdr-p: 1;
+  --hdr-ink: color-mix(in srgb, var(--foreground) calc(var(--hdr-p) * 100%), var(--brand-cream));
+  --hdr-ink-muted: color-mix(
+    in srgb,
+    var(--muted-foreground) calc(var(--hdr-p) * 100%),
+    color-mix(in srgb, var(--brand-cream) 84%, transparent)
+  );
+  --hdr-line: color-mix(
+    in srgb,
+    var(--border-strong) calc(var(--hdr-p) * 100%),
+    color-mix(in srgb, var(--brand-cream) 42%, transparent)
+  );
+  --hdr-hover-wash: color-mix(
+    in srgb,
+    color-mix(in srgb, transparent, var(--forest-700) 8%) calc(var(--hdr-p) * 100%),
+    color-mix(in srgb, var(--brand-cream) 12%, transparent)
+  );
+  background-color: color-mix(
+    in srgb,
+    var(--surface-page) calc(var(--hdr-p) * 88%),
+    color-mix(in srgb, var(--forest-900) 42%, transparent)
+  );
+  border-bottom-color: color-mix(in srgb, var(--border) calc(var(--hdr-p) * 70%), transparent);
+  color: var(--hdr-ink);
+}
+
+.hc-header .hc-nav-link { color: var(--hdr-ink-muted); }
+.hc-header .hc-nav-link:hover,
+.hc-header .hc-nav-link:focus-visible,
+.hc-nav-item:focus-within > .hc-nav-link { color: var(--hdr-ink); }
+.hc-header .hc-nav-link::after {
+  background-color: color-mix(in srgb, var(--gold-on-light) calc(var(--hdr-p) * 100%), var(--gold-on-dark));
+}
+.dark .hc-header .hc-nav-link::after { background-color: var(--gold-on-dark); }
+
+.hc-header-logo-over { opacity: calc(1 - var(--hdr-p)); }
+.hc-header-logo-rest { opacity: var(--hdr-p); }
+
+/* The tool cluster (search, theme, language, portal link) follows the bar's ink and hairline. */
+.hc-header-tools :is(a, button):not(.hc-header-cta) {
+  color: var(--hdr-ink);
+  border-color: var(--hdr-line);
+}
+.hc-header-tools :is(a, button):not(.hc-header-cta):hover { background-color: var(--hdr-hover-wash); }
+.hc-header-tools button[aria-label] svg { color: var(--hdr-ink); }
+
+/* The one filled button: cream over the photograph, the primary forest button once settled. */
+.hc-header-cta {
+  background-color: color-mix(in srgb, var(--primary) calc(var(--hdr-p) * 100%), var(--sand-100));
+  border-color: color-mix(in srgb, var(--primary) calc(var(--hdr-p) * 100%), var(--sand-100));
+  color: color-mix(in srgb, var(--primary-foreground) calc(var(--hdr-p) * 100%), var(--forest-800));
+}
+.hc-header-cta:hover {
+  background-color: color-mix(in srgb, var(--primary-hover) calc(var(--hdr-p) * 100%), var(--sand-200));
+  border-color: color-mix(in srgb, var(--primary-hover) calc(var(--hdr-p) * 100%), var(--sand-200));
+}
+
 @media (prefers-reduced-motion: no-preference) {
-  @supports (animation-timeline: scroll()) {
+  @supports ((animation-timeline: scroll()) and (animation-range: 0% 100%)) {
     .hc-header {
       animation: hc-header-settle linear both;
       animation-timeline: scroll(root block);
       animation-range: 0 var(--header-h);
     }
 
+    .hc-header:has(+ main [data-page-opener="dark"]) {
+      animation-name: hc-header-emerge;
+      animation-range: 0 calc(var(--header-h) * 1.6);
+    }
+
     @keyframes hc-header-settle {
-      from {
-        box-shadow: none;
-        border-bottom-color: transparent;
-      }
-      to {
-        box-shadow: var(--shadow-sm);
-        border-bottom-color: var(--border);
-      }
+      from { box-shadow: none; }
+      to { box-shadow: var(--shadow-sm); }
+    }
+
+    @keyframes hc-header-emerge {
+      from { --hdr-p: 0; box-shadow: none; }
+      to { --hdr-p: 1; box-shadow: var(--shadow-sm); }
     }
   }
+}
+
+/*
+ * Hero scroll response (public design convergence pass; UIF-024 "tasteful scroll response").
+ *
+ * As the hero leaves the viewport its media wrapper drifts down by a fraction of the distance, so the
+ * photograph appears to sit behind the page rather than on it. Scroll-driven and decorative: no
+ * script, no fallback needed, and it lives on the WRAPPER — GSAP owns the images' own transform for
+ * the entrance settle, and one property has one owner per node (contract §13.2b). Removed entirely
+ * under reduced motion (§13.5: no scroll-bound movement).
+ */
+@media (prefers-reduced-motion: no-preference) {
+  @supports ((animation-timeline: scroll()) and (animation-range: 0% 100%)) {
+    .hc-hero-parallax {
+      animation: hc-hero-drift linear both;
+      animation-timeline: scroll(root block);
+      animation-range: 0 100vh;
+    }
+    @keyframes hc-hero-drift {
+      from { translate: 0 0; }
+      to { translate: 0 18%; }
+    }
+  }
+}
+
+/*
+ * Desktop flyout panels (public design convergence pass).
+ *
+ * Opened by `:hover` on the item and by `:focus-within` for keyboard visitors; closed the moment
+ * neither holds. `visibility` is delayed on close so the panel stays hit-testable while it fades,
+ * and a short intent delay on open stops a cursor brushing past the bar from flashing panels.
+ * This is state, not script — the header remains a Server Component (contract §16).
+ */
+.hc-mega {
+  opacity: 0;
+  visibility: hidden;
+  translate: 0 8px;
+  transition:
+    opacity var(--dur-base) var(--ease-standard),
+    translate var(--dur-base) var(--ease-out),
+    visibility 0s linear var(--dur-base);
+}
+.hc-nav-item:hover > .hc-mega,
+.hc-nav-item:focus-within > .hc-mega {
+  opacity: 1;
+  visibility: visible;
+  translate: 0 0;
+  transition-delay: 0s;
+}
+.hc-nav-item:hover > .hc-mega { transition-delay: 90ms; }
+
+/*
+ * Continuous coffee strip (public design convergence pass).
+ *
+ * The track holds its item set twice; translating by exactly half its own width lands the second set
+ * where the first began, so the loop has no visible seam and no end to reach. Direction is
+ * art-directed: the strip travels toward the inline-start in both writing modes, which is the
+ * "reading" direction in each. Hover or keyboard focus inside the strip pauses it. Under reduced
+ * motion the animation is removed and the strip becomes an ordinary horizontal scroller, so every
+ * card stays reachable.
+ */
+@keyframes hc-marquee-ltr {
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(-50%, 0, 0); }
+}
+@keyframes hc-marquee-rtl {
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(50%, 0, 0); }
+}
+.hc-marquee { overflow: hidden; }
+.hc-marquee-track {
+  display: flex;
+  inline-size: max-content;
+  animation: hc-marquee-ltr var(--marquee-duration, 48s) linear infinite;
+  will-change: transform;
+}
+[dir="rtl"] .hc-marquee-track { animation-name: hc-marquee-rtl; }
+.hc-marquee:hover .hc-marquee-track,
+.hc-marquee:focus-within .hc-marquee-track { animation-play-state: paused; }
+@media (prefers-reduced-motion: reduce) {
+  .hc-marquee { overflow-x: auto; overscroll-behavior-x: contain; }
+  .hc-marquee-track { animation: none; }
+  .hc-marquee-clone { display: none; }
 }
 
 /*

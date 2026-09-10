@@ -1,6 +1,6 @@
 # Phase 5.5 implementation handoff
 
-Updated: 2026-09-09
+Updated: 2026-09-10 (UIF-D closed; public design convergence pass complete)
 
 ## Current scope
 
@@ -203,117 +203,302 @@ for Phase 5.5, superseding the older prohibition the prompt restates. Prompt §1
 existing Verify, so the repository wins: **GSAP is used for the hero entrance and the story advance;
 Lenis remains uninitialised** (both sources agree on Lenis).
 
-## Asset allocation (UIF-C.2 â€” every asset visually inspected, cross-checked against ASSET-MAP.json)
+## Asset allocation (UIF-C.2 — every asset visually inspected, cross-checked against ASSET-MAP.json)
 
 | Homepage slot | Asset | ASSET-MAP class | Verified subject |
 |---|---|---|---|
-| Hero media (portrait) | `hero-banner.jpg` 1288Ã—1600 | usable Â· `homepage-hero` | origin drying beds, worker raking, warm low sun |
-| Story 1 â€” origin relationships | `roasting-profile.jpg` 1600Ã—893 | usable Â· `homepage-story` | farmer hand-picking red cherries (filename misleading; no roasting) |
-| Story 2 â€” documented quality | `cupping-lab.jpg` 1600Ã—893 | usable Â· `sourcing-quality` | hand inspecting green beans inside a jute sack, warehouse |
-| Story 3 â€” custody | `warehouse-bags.jpg` 1600Ã—893 | usable Â· `process-editorial` | covered drying beds, workers, golden hour |
-| Story 4 â€” reviewed membership | `greenCoffe1.png` 1448Ã—1086 | usable Â· `homepage-editorial` | green beans spilling from a jute sack |
-| Traceability full-bleed band | `farm-landscape.jpg` 1344Ã—752 | usable Â· `sourcing-editorial` | wide drying beds, hills behind |
-| Credibility/journey thumbnails | `features/03,16,17,26` | usable Â· small-slot | small editorial crops, no burned-in text |
-| Final CTA band | `coffee-lot-1.jpg` 1600Ã—893 | usable Â· `homepage-editorial` | green coffee sack detail |
+| Hero media (portrait) | `hero-banner.jpg` 1288×1600 | usable · `homepage-hero` | origin drying beds, worker raking, warm low sun |
+| Story 1 — origin relationships | `roasting-profile.jpg` 1600×893 | usable · `homepage-story` | farmer hand-picking red cherries (filename misleading; no roasting) |
+| Story 2 — documented quality | `cupping-lab.jpg` 1600×893 | usable · `sourcing-quality` | hand inspecting green beans inside a jute sack, warehouse |
+| Story 3 — custody | `warehouse-bags.jpg` 1600×893 | usable · `process-editorial` | covered drying beds, workers, golden hour |
+| Story 4 — reviewed membership | `greenCoffe1.png` 1448×1086 | usable · `homepage-editorial` | green beans spilling from a jute sack |
+| Traceability full-bleed band | `farm-landscape.jpg` 1344×752 | usable · `sourcing-editorial` | wide drying beds, hills behind |
+| Credibility/journey thumbnails | `features/03,16,17,26` | usable · small-slot | small editorial crops, no burned-in text |
+| Final CTA band | `coffee-lot-1.jpg` 1600×893 | usable · `homepage-editorial` | green coffee sack detail |
 
 Restricted assets confirmed excluded: `greenCoffe2.png`, `logo-mark.png`, `02`, `08`, `09`, `10`,
-`12`, `18`â€“`21`, all `reference_board_*`, `00_contact_sheet`. Re-crop-required assets stay unused.
+`12`, `18`–`21`, all `reference_board_*`, `00_contact_sheet`. Re-crop-required assets stay unused.
 
 ## Content sourcing decision (no invented claims)
 
 - **UIF-054 interactive story** renders the four **approved** `copy.home.credibility.*` pillars
-  (origin Â· quality Â· custody Â· membership) â€” already-reviewed strings, now image-led and timed
+  (origin · quality · custody · membership) — already-reviewed strings, now image-led and timed
   instead of a flat definition list.
 - **UIF-056 process/journey** renders the four **approved** `copy.sourcing.*` pillars
-  (relationships Â· custody Â· logistics Â· quality) as a **static** numbered rail. The task explicitly
+  (relationships · custody · logistics · quality) as a **static** numbered rail. The task explicitly
   permits a static presentation "if the selector adds nothing"; a second timed selector on one page
   would be gimmicky and duplicative, so no `ProcessJourneySection` client island is created and
-  contract Â§16 island 10 stays non-existent.
+  contract §16 island 10 stays non-existent.
 - Traceability band reuses the approved `copy.coffee.detail.traceabilityBody` claim.
-- New keys added are section framing, alt text and control labels only â€” never business claims.
+- New keys added are section framing, alt text and control labels only — never business claims.
+
+## Verification harness defect found and fixed (UIF-D.12)
+
+The first verification run **hung** rather than failing. Diagnosis, recorded because it is a trap the
+next agent will otherwise re-enter:
+
+`document.querySelector('ul[aria-label]')` was intended to select the UIF-055 showcase track, but
+UIF-C's `InteractiveStorySection` also renders `ul[aria-label]` ("Our commitments") and appears
+**earlier in the DOM**. The selector therefore bound to the story section, whose ancestor has no
+`[role="progressbar"]`. `bar.getAttribute(...)` then threw *inside a `setTimeout` callback*, so the
+promise the harness was awaiting never settled and CDP's `awaitPromise` waited forever — with no
+output, indistinguishable from slow progress.
+
+Fixes:
+- `origins-showcase.tsx` gained `data-origins-track` and `data-origins-progress` hooks, so the
+  showcase can never again be confused with another list. (Test hooks only; no visual change.)
+- The harness binds to those hooks, guards the possibly-absent node, and wraps **every** `page.eval`
+  in a 20-second timeout so a non-settling promise fails loudly instead of hanging the run.
+
+## First full suite run: 397/407 — triage (UIF-D.12)
+
+Ten failures, of which **one** was a real product defect. Each was investigated rather than assumed:
+
+| Failure | Verdict | Evidence |
+|---|---|---|
+| 404 indistinguishability (coffee, origin) — 2 fails | **Harness wrong; product correct** | Next embeds the requested path in the RSC payload, so two 404s differ by exactly the slug-length delta. Normalising the slug out makes the bodies **byte-identical** (30551 vs 30551, `diff` empty). Assertion rewritten to normalise first. |
+| UIF-055 "track is genuinely scrollable" + both wrap checks — 3 fails | **Harness wrong; product correct** | The fixture set has 2 active origins; two cards do not overflow a 1440px container, so `max = 0` and there is no wrap to perform. Wrap is now exercised at 390px, where the track genuinely overflows. |
+| "no element crosses the viewport edge" at 390px on `/` — 4 fails | **Harness too strict; product correct** | Probed: all 8 crossing elements are inside a horizontal scroll container and `pageOverflow` is **0**. Off-screen carousel cards are supposed to sit beyond the viewport and stay reachable by scrolling. The check now exempts descendants of a genuine horizontal scroller and stays strict everywhere else; page-level overflow is still asserted separately. |
+| heading order on `/coffee/` = `[1,3]` — 1 fail | **REAL DEFECT — fixed** | The index rendered `h1` then card `h3` with no `h2`. `CoffeeCard` now takes an explicit `headingLevel` (2 on the index where cards sit under the page `h1`; 3 on the homepage and origin detail where they sit under a section `h2`). |
+
+## Second suite run: 406/407 — one real bug found and fixed
+
+`FAIL UIF-055 previous at the start wraps to the end << 16 -> 16`
+
+**Real product bug.** The track carries `padding-inline` so its cards align with the product grid,
+and `scroll-snap-align: start` rests the first card against the padding box — so `scrollLeft` settles
+at the inline-start padding (16px at 390px, up to 48px at wide viewports), never at 0. The wrap test
+compared against 0, so "am I at the start?" was permanently false and **previous silently refused to
+wrap**. It would have shipped as a dead-feeling control at every viewport.
+
+Fixed in `origins-showcase.tsx`: a `startEdge()` helper reads the real resting position from
+`padding-inline-start`, and both `measure()` and `step()` now test against it with a 4px
+`EDGE_TOLERANCE` (scroll-snap settles a pixel or two off target, so an equality test would
+intermittently miss the edge). Progress is also normalised across `[startEdge, max]` rather than
+`[0, max]`, so the bar reaches 0% and 100% honestly.
+
+## Third real defect: filter hydration mismatch (found by code review, not by the suite)
+
+`CatalogueFilter` seeded its search box from `?q=` with a **`useState` lazy initialiser**. That runs
+during the *first client render*, so arriving at `/coffee/?q=ethiopia` — exactly what the UIF-019
+header search control produces — would have rendered a filtered grid on the client against an
+unfiltered server render: a hydration mismatch on the catalogue's primary entry path.
+
+The suite never visits `/coffee/?q=`, so it could not have caught this; it was found by reading the
+code back against its own comment, which already claimed "read after mount" while the code did not.
+
+Fixed with `useSyncExternalStore` (server snapshot `""`, client snapshot reads `location.search`) —
+the same pattern UIF-B's theme and locale controls use. A `typed` state of `null` means "the visitor
+has not typed yet", so the incoming query still applies; once they type or clear, their value wins.
+
+## Fourth issue: 404 comparison was warm-up sensitive
+
+The third suite run reported the origin 404s as differing at equal length. Reproducing the exact
+fetch order against a warm server gave `equal: true` at the same byte counts the suite reported, so
+the assertion logic was right and the run had measured during server warm-up. The HTML also differs
+slightly between server *processes* (embedded build id), so all such comparisons must happen inside
+one warm window. The suite now warms every status path before measuring.
+
+## Fifth real defect: dead showcase controls (found in the visual gate)
+
+The suite reached **407/407**, and the screenshot review then caught something no assertion had asked
+about: at 1440px the two origin cards do not overflow the frame, yet previous/next and the progress
+rail still rendered. A control that cannot do anything is precisely the *decorative non-functional
+control* contract §18.5 and §17.12 forbid, and the progress bar sat permanently at 100%.
+
+Fixed: `OriginsShowcase` now measures whether the track can actually scroll (`max > EDGE_TOLERANCE`,
+re-measured on resize) and renders the control row only then. Card count alone never decides it. The
+`aria-disabled` fallback was removed — the honest answer is no control, not a disabled one.
+
+The harness was updated to match: controls are asserted at 390px where the track genuinely overflows,
+and a new check asserts that **no** control renders at a width where it cannot scroll.
+
+This is the fifth defect this block surfaced, and the second the browser suite alone would have
+missed — the visual gate earned its place.
 
 ## Status
 
 Last fully completed checkpoint:
-UIF-C.17 â€” final report
+UIF-D.13 — regressions, re-run on ONE clean production server (see the Resume section below).
 
 Current checkpoint:
-NONE â€” Block UIF-C is complete and verified
+UIF-D CLOSED. See `# Final Public Visual Convergence + UIF-D Resume`.
 
-Last fully verified task:
-UIF-056 (all five Block UIF-C tasks verified)
+Current UIF-D task states:
+- UIF-027 / UIF-028 / UIF-029 / UIF-030 / UIF-055: **VERIFIED** on a clean production build and
+  server — UIF-D 408/408, UIF-C 117/117, UIF-B 506/506. Checked in PHASE-5.5-TASKS.md.
 
-Tasks currently complete:
-- UIF-024 Homepage Hero: COMPLETE
-- UIF-025 Homepage narrative composition: COMPLETE
-- UIF-026 Homepage imagery and motion: COMPLETE
-- UIF-054 Interactive vertical story section: COMPLETE
-- UIF-056 Process / journey editorial section: COMPLETE
-(UIF-022 and UIF-023, which the prompt named, were already `[x]` in Block UIF-B before this run.)
-
-Current file being edited:
+Current file:
 NONE
-
-Current work completed:
-Block UIF-C in full. See "Files" and "Defects found and fixed" below.
-
-Current work remaining:
-NONE for UIF-C. Next block is UIF-D (Coffee + Origins), first task UIF-027.
-
-Verification already run:
-- Real browser (installed Chrome over CDP): **UIF-C 117/117**, **UIF-B regression 506/506**.
-- `npm run typecheck` PASS Â· `npm test` **76/76** PASS Â· `npm run build` PASS (`/` still static).
-- `npx eslint src components tests scripts lib` â€” zero findings. Repo baseline exactly
-  **124 errors / 148 warnings**, all under `docs/claude-design/`.
-- Protected routes still 307 to `/`; no DB/migration change; no service-role/Redis/Upstash/Cache
-  Components; no root file renamed; no `getRequestIdentity` on a public surface.
 
 Temporary/debug code:
 NONE
 
-Exact next action:
-Begin Block UIF-D with `UIF-027` (Coffee index visual completion) only after explicit authorization.
+# Final Public Visual Convergence + UIF-D Resume
 
-## Files created (UIF-C)
+Canonical Phase-5.5 handoff. Resumed 2026-09-10 after the previous session hit its limit inside
+UIF-D.13. This section is updated continuously; the block below is the live checkpoint.
 
-```
-components/public/animated-hero.tsx             GSAP hero entrance (contract Â§16 island 7)
-components/public/interactive-story-section.tsx timed story (island 8)
-components/public/process-journey.tsx           STATIC numbered rail (no island 10)
-components/public/traceability-band.tsx         full-bleed photographic band
-```
+## Resume — what was actually wrong, and what was verified
 
-## Files modified (UIF-C)
+**Starting git state.** Clean HEAD `200ae4c`; 12 modified + 2 untracked files, all expected UIF-D
+work. Nothing was reset, restored, stashed or discarded.
 
-```
-src/app/page.tsx                     rebuilt into the documented 9-beat narrative (edited in place)
-components/public/hero.tsx           full-bleed forest ground, arch media, mobile-specific composition
-components/public/intent-cards.tsx   card radius aligned to --radius-lg; routes import
-lib/public/copy/en.ts                home.{story,traceability,journey,reference} framing keys
-components/motion/ANIMATION-OWNERSHIP.md  two new GSAP surfaces; ownership made per-surface
-components/{locale,public,ui}/*      typography fix, see below
-```
+**Mojibake, again.** 18 CP1252 double-encoded sequences (the em dash and ellipsis rendered as three-character Latin garbage) had landed in this file's
+UIF-D section — written by a previous-session shell heredoc. Repaired deterministically (18 → 0).
+Root cause is the *write path*, not the content, so every handoff edit in this session goes through
+a Node script that writes UTF-8 explicitly and refuses to write if any such sequence would land on
+disk. This is the same defect class that produced the original CSS/PostCSS blocker.
 
-## Defects found and fixed during this run
+**The "stale server" was two different things.**
 
-1. **Systemic typography defect (pre-existing, affected UIF-A and UIF-B too).** Every
-   `text-[var(--text-*)]` was silently rendering at the inherited 16px â€” Tailwind treats a bare
-   `text-[var(â€¦)]` as a *colour*, not a font-size. Header nav, footer links, badges and the hero had
-   all lost their type scale. Fixed repo-wide with the documented `text-[length:var(â€¦)]` hint
-   (9 files). Measured after: h1 68.8px, lead 17px, nav 14px, footer 14px. This is the narrow,
-   justified UIF-B integration correction that prompt Â§22 permits; UIF-B's suite was re-run (506/506).
-2. **Hero measure bug.** `max-w-[34ch]` on the hero container resolved against the container's 16px
-   font (~272px), crushing the lead; and `--text-hero` (~106px at 1440) wrapped the headline to five
-   lines and pushed both CTAs below the fold. Now `--text-h1` with rem-based measures.
-3. **Gold not theme-aware on flipping surfaces.** Story rail, journey numerals and two eyebrows used
-   `--gold-on-light` unconditionally and went muddy in dark. Paired `dark:` variants added
-   (contract Â§3). Forest-only surfaces correctly keep `--gold-on-dark`.
-4. **React Compiler violation.** `pausedRef.current = paused` during render. Moved into a
-   `useLayoutEffect` declared before the build effect, so the mirror is current when the build effect
-   reads it.
+1. A leftover `next start` (PID 21964) from an earlier background run was still bound to :3000 and
+   serving a build directory I had since overwritten. Every browser result in that window was
+   unreliable; stopped, `.next` removed, clean `next build` (all routes keep their static/dynamic
+   class: `/`, `/coffee`, `/origins` static; `[slug]` dynamic).
+2. A **`next dev` server started by the user at 10:03** (PID 21856, parent `next dev`) then took
+   :3000. It is not stale and was **not killed** — the brief forbids touching unrelated processes.
+   All verification now runs against a production `next start -p 3001`; the harnesses read
+   `HC_BASE`. Proof the right server was under test: the 404 body contains no
+   `runtime.dev.js` / `.next/dev` path on :3001 (it did on :3000).
 
-## Harness note for the next agent
+**CSS/PostCSS.** Clean build: no `Parsing CSS source code failed`, no `var(--text-*)`, no corrupted
+arbitrary utility. `@source not "../../specs"` / `"../../docs"` and the rewritten prose hold.
 
-React's delegated events do **not** observe a synthetic `MouseEvent('mouseenter')`. Hover pause can
-only be verified with real CDP `Input.dispatchMouseEvent` calls â€” the first run produced four false
-failures until the harness was corrected. `scratchpad/verify-uif-c.mjs` now does this properly.
+**Two harness findings, both investigated to the byte before being classed as harness issues:**
+
+- *UIF-028/029 "404 byte-identical" at equal length.* The only differing bytes are Next 16's
+  per-response token `self.__next_r="…"` at offset 3368. Proven to differ between two fetches of the
+  **same** URL, so it can carry no record information. The assertion now normalises it alongside
+  the echoed slug. Not the warm-up effect I recorded earlier — that explanation was wrong and is
+  withdrawn.
+- *UIF-C "no element crosses the viewport edge" at 390px, n=8.* Instrumented the harness to print
+  the eight elements: all are the second origin card inside UIF-055's `snap-x` track at
+  [328, 632] (LTR) / [−242, 62] (RTL), with page overflow 0. The UIF-C harness predates the
+  showcase; it now applies the same scroller-descendant exemption the UIF-D harness already had.
+  Page-level overflow remains asserted separately.
+
+**Final UIF-D verification on one clean production server (:3001):**
+
+| Suite | Result |
+|---|---|
+| UIF-D (UIF-027/028/029/030/055 exact Verify conditions) | **408 / 408** |
+| UIF-C regression | **117 / 117** |
+| UIF-B regression | **506 / 506** |
+
+`npm run build` PASS (clean). Typecheck / tests / lint recorded in the checkpoint block below as
+they complete.
+
+## Convergence checkpoint (live)
+
+Last completed checkpoint: FULL VERIFICATION on build 7 (`next build`, `next start -p 3001`).
+Current checkpoint: CLOSED. `GO — PHASE 5.5 PUBLIC DESIGN CONVERGENCE + UIF-D — COMPLETE — VERIFIED`.
+Current files: none open. Working tree left uncommitted for review (28 modified, 8 new).
+Completed visual areas: all (see "What the convergence pass built").
+Remaining visual areas: none.
+UIF-D verify state: VERIFIED — 408/408 on the converged build (harness: per-response token
+normalised; clipped-marquee exemption; flyout image kept origin-name-free).
+Defects found and fixed during verification: (1) GSAP warned on an empty target list when a section
+had no vertical connector — guarded per group in `GsapScrollReveal`; (2) mobile lockup invisible over
+the bright portrait sky — deeper over-photo glass (42%) and a stronger top scrim; (3) "About us"
+wrapped in the bar — `whitespace-nowrap`; (4) intent panels still read as cards at rest — surface and
+border removed, hairline columns; (5) origin-named file reached `/origins/` through the flyout —
+swapped to `farmer-partnership.jpg` so the UIF-029 guard stays strict.
+Verification actually run (build 7, production server on :3001, installed Chrome over CDP):
+convergence functional suite 94/94; UIF-B 508/508; UIF-C 117/117; UIF-D 408/408; typecheck PASS;
+tests 76/76; product lint zero; repo baseline exactly 124 errors / 148 warnings; `next build` PASS
+with `/`, `/coffee`, `/origins`, `/about`, `/contact`, `/sourcing`, `/portal-entry` static and
+`[slug]` routes dynamic; a throwaway `next dev -p 3002` served `/`, `/about/`, `/contact/`, `/coffee/`
+with no CSS/PostCSS error. Screenshots reviewed: 1440 Light/Dark EN/AR, 768 Dark, 390 Light EN/AR
+(hero, story, showcase, origins, traceability, journey, reference, CTA, footer, About, Contact,
+coffee index).
+Exact next action: user review of the uncommitted tree. UIF-E is NOT started.
+
+## What the convergence pass built
+
+| Area | Before | Now |
+|---|---|---|
+| Header | 76px bar, 168px lockup, tiny search button, 3 nav links, always solid | 84px bar; 200px lockup at `xl`; field-style search (15.5rem) at `xl`; Coffee / Origins / Sourcing / About us / Contact with CSS flyouts on the first four; dark-glass over dark page openers settling to the Hills surface via one scroll-driven custom property (`--hdr-p`), cream lockup cross-fading to the theme lockup; Firefox/reduced-motion get the settled state |
+| Hero | forest split, arched portrait on the inline-end | full-viewport `coffee-lot-5.jpg` (mobile: `hero-banner.jpg`), header dissolved into it, display headline low inline-start, glass panel with lead + CTA pair inline-end, GSAP entrance (media settle → scrims → staggered rise), CSS scroll drift on the media wrapper |
+| Three ways | three white cards | three hairline-divided editorial columns (sourcing widest); hover/focus raises a documentary photograph under a forest wash, ink turns cream, gold rule extends, arrow advances; staggered `Reveal` entrance |
+| Timed story | credibility pillars beside unrelated photos, giant image | coffee lifecycle (cherries → drying → inspection → green coffee), each body grounded in an approved claim and matched to its photograph; dark panel, rail + numerals, 45% framed image stage with counter and arrows; the verified UIF-054 machine unchanged |
+| What we are carrying | live fixture card with a placeholder | static editorial showcase of what every published coffee carries (origin/region, process/variety, packaging/certifications), asymmetric image grid, CTA to `/coffee/`; easy to replace when record media exists |
+| Coffee strip | — | new full-bleed CSS marquee of eight documentary photographs, two identical halves translated by exactly half the track (seamless), pauses on hover/focus, mirrored keyframes in RTL, static scroller under reduced motion, clone aria-hidden and unfocusable |
+| Origins | cream band, light cards | dark forest inset panel with an origin landscape held faintly behind, glass origin cards (`tone="dark"`), cream controls; UIF-055 behaviour untouched |
+| Traceability | photo + paragraph | 2 × 2 glass chain of responsibility (approved credibility pillars) over `origin-kenya.jpg`, numbered as a sequence, gold connector drawn by GSAP on entry |
+| How Hills works | numbered rows with thumbnails | four image-led stages on one drawn gold path (horizontal on desktop, vertical on mobile), GSAP draw + stagger, hover image lift |
+| Reference | small centred card | wide ruled "data stage": display-face state, benchmark label + "Not published yet", disclosure; no axis, series, number, date or source (PRICE-011) |
+| Final CTA | text + button | display headline over `origin-yemen.jpg`, cream + outlined CTA pair, brand statement under a gold hairline |
+| Footer | brand + 3 columns | 208px lockup, Explore / Company / Account / Trade with Hills, arrow-advance links, large low-opacity signature line (approved positioning sentence), bottom bar |
+| About | — | `/about/`: dark photographic opener, sticky display statement + four hairline pillars, photographic closing CTA; approved positioning only |
+| Contact | 404 (deferred) | `/contact/`: dark opener, three hairline intents with real destinations, gold-ruled honest notice that the RFQ form is Phase 6, operating locations; no form, no invented contact detail |
+| Arabic | chrome only | every namespace carries a faithful Arabic rendering; all public page bodies render through `<Bilingual>`; the catalogue filter island reads the locale dictionary; under `lang="ar"` zero English chrome spans and zero English fallback runs are visible on any of the seven public routes (asserted) |
+
+## Recorded reconciliations and amendments
+
+- **CONTENT-AR-01 re-scoped, not closed.** `ar.ts` now carries faithful renderings of the approved
+  English for every key (no new claim, figure, certification or capability). `UNTRANSLATED_NAMESPACES`
+  is empty but kept as the declared mechanism. The remaining obligation is Content/Legal sign-off of
+  the Arabic wording before production; meaning resolves toward `en.ts` on any conflict.
+- **`/contact/` exists without starting Phase 6.** `src/app/(public)/contact/page.tsx` is a static
+  Server Component with no form, no schema, no action. `T019`–`T022` remain `[ ]`; DB-BLOCK-02 and
+  CRM-DEST-01 are cited in the file. The UIF-022 "one approved non-resolving href" exception is now
+  moot — every footer and header href resolves 200 (asserted by the dead-link crawl).
+- **`/about/` added** as an authorised public amendment: static, approved positioning only, same
+  metadata pattern as every owned route. Sitemap ownership is unchanged (Phase 8).
+- **Contract §16 island list unchanged.** New client code is only `components/motion/
+  gsap-scroll-reveal.tsx`, a second scoped-GSAP motion wrapper in the island-5 family. The header
+  glass, flyouts, marquee and intent hover are CSS. `ProcessJourneySection` (island 10) still does
+  not exist.
+- **`--header-h` is 84px** (was 76). UIF-B's height assertions updated to 84; the drawer, dialogs
+  and page openers read the token.
+- **No sign-in link.** No sign-in route exists (Feature 003); the Trading Portal entry stays a quiet
+  text link to the honest portal-entry page. A link to nowhere would be a fake affordance.
+- **Animation ownership registry** extended with nine rows and a wrapper-exclusivity rule
+  (`GsapScrollReveal` subtrees never contain a Motion `Reveal`, and vice versa).
+- **Harness changes, each evidenced before being made:** Next 16 per-response token normalised in
+  the 404 comparison; scroller-descendant and clipped-ancestor exemptions in the viewport-edge check
+  (all crossing elements proven to be UIF-055 track cards or marquee cards, page overflow 0); UIF-024
+  hero asset regex widened to the task's own hero-grade list; UIF-020/022 structural assertions
+  updated to five nav items, stacked cross-fading lockups measured by opacity, `.hc-header-cta`, and
+  four footer groups; `HC_BASE` added so suites can target a port other than the user's dev server.
+
+## Reference-to-implementation audit
+
+**`08_hero_mountain_origin.jpg`** — Adopted: navigation integrated into the photograph (dark glass,
+cream ink and lockup), image-led first viewport, cinematic mountain crop, light typography over
+photography, a gold-toned CTA at the bar's end. Where: `SiteHeader` + `Hero`. Not adopted: the
+board's fake lockup (the real Hills marks are used), rendering the crop itself (restricted,
+ASSET-REF-01 — `coffee-lot-5.jpg` is the actual photograph), and a bar as small as the mock (ours
+carries eleven real requirements at 84px).
+
+**`reference_board_01_interactive_examples.jpg`** — Adopted: example 2's dark premium treatment as
+the base, example 4's numeral-led items, example 1's vertical rail with filled/hollow dots, counter
+`01 / 04`, prev/next on the image, the 3s cadence, hover pause, loop. Where:
+`InteractiveStorySection`. Not adopted: the Arabica/Robusta/Liberica/Excelsa taxonomy and every
+descriptor line (board body copy is prohibited and no approved content supports a variety story);
+the cup photograph (roasted-coffee imagery is prohibited).
+
+**`reference_board_02_brand_experience.jpg`** — Adopted: A hero shape (dominant photo, dark
+overlay, large display headline, compact bar, filled CTA); B origins discovery as a dark editorial
+environment with prev/next and progress; C the dark panel + photograph + marker rhythm for the
+traceability chain; D image-forward catalogue presentation for the static showcase; E the
+dark, image-led two-button close; F the mobile hero and drawer language. Not adopted: the
+`12+ / 200+ / 100%` statistic row, `EST. 2020`, the contact strip (`sales@…`, `+971…`, map pin),
+the avatar row, the "Extraordinary origins" copy and the taxonomy chips — every one is board sample
+content (contract §14.1) and none is Hills-evidenced.
+
+**`reference_board_03_section_concepts.jpg`** — Adopted: concept 1 (dark story with rail, image,
+counter, arrows) → story; concept 2 (numbered journey with images and a connecting line) → How Hills
+works; concept 3 (dark environment, tall cards, slider, progress, arrows) → origins panel; concept 4
+(image + key points) → traceability chain; concept 5 (cream surface, four structured cells) → About
+pillars and the coffee showcase; concept 6 (dark forest, display headline, green-coffee photograph,
+CTA pair, brand statement) → final CTA. Not adopted: the four process-step descriptions, the
+"Ethiopia / Colombia / Guatemala / Indonesia" cards (no origin record may be given a static photo,
+MEDIA-01), the icon rows, the "Trusted by partners" quote and the "Global reach / Long-term value"
+claims — all sample content or unevidenced claims.
+
+Confirmation: no reference-only fact, figure, quote, contact detail, generated logo or descriptor
+paragraph was copied; the convergence suite asserts the statistic row, sample contact details and
+every restricted asset are absent from all seven public routes.
+

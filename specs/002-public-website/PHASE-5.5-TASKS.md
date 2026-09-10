@@ -377,7 +377,7 @@ Raised from Medium/High by the 2026-09-09 amendment: this block now carries the 
 Claude effort raised by the 2026-09-09 amendment: UIF-055 adds a horizontal showcase whose RTL and
 wrapping-control behaviour is judgement-heavy.
 
-- [ ] UIF-027 Coffee index visual completion (`src/app/(public)/coffee/page.tsx`, `components/public/coffee-card.tsx`)
+- [x] UIF-027 Coffee index visual completion (`src/app/(public)/coffee/page.tsx`, `components/public/coffee-card.tsx`)
   - Scope: page intro hierarchy, catalogue scanability, card rhythm, taxonomy presentation, media-placeholder treatment, hover/focus interaction, responsive grid, honest empty state.
   - Requirement: contract §2, §6, §8; plan §6.3 exclusion list
   - Depends: UIF-009, UIF-023
@@ -386,7 +386,7 @@ wrapping-control behaviour is judgement-heavy.
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — High
   - Why: visual work on the surface most tempting to enrich with the live site's unsafe fields.
 
-- [ ] UIF-028 Coffee detail — sourcing dossier (`src/app/(public)/coffee/[slug]/page.tsx`)
+- [x] UIF-028 Coffee detail — sourcing dossier (`src/app/(public)/coffee/[slug]/page.tsx`)
   - Scope: premium B2B dossier hierarchy over the approved public DTO only — identity, description, origin/region/country, type, variety, process, packaging, tags, certifications, traceability framing, commercial CTA; record media stays `MediaPlaceholder`.
   - Requirement: contract §14; DTO allowlist §4
   - Depends: UIF-027, UIF-013
@@ -395,7 +395,7 @@ wrapping-control behaviour is judgement-heavy.
   - Codex: GPT-5.6 Sol — Medium · Claude: Opus — Medium
   - Why: the most leak-prone page — every visual addition is a chance to leak a private field.
 
-- [ ] UIF-029 Origins index and detail — editorial treatment (`src/app/(public)/origins/page.tsx`, `src/app/(public)/origins/[slug]/page.tsx`, `components/public/origin-card.tsx`)
+- [x] UIF-029 Origins index and detail — editorial treatment (`src/app/(public)/origins/page.tsx`, `src/app/(public)/origins/[slug]/page.tsx`, `components/public/origin-card.tsx`)
   - Scope: place-led editorial storytelling rather than a database-table aesthetic; origin hierarchy; related coffees; honest empty state; typography-led composition.
   - Requirement: contract §14; plan §11
   - Depends: UIF-027
@@ -404,7 +404,7 @@ wrapping-control behaviour is judgement-heavy.
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — High
   - Why: the MEDIA-01 temptation is strongest here because the filenames look like a perfect match.
 
-- [ ] UIF-030 [P] In-catalogue filter over public data (`src/app/(public)/coffee/page.tsx`, `components/public/catalogue-filter.tsx`)
+- [x] UIF-030 [P] In-catalogue filter over public data (`src/app/(public)/coffee/page.tsx`, `components/public/catalogue-filter.tsx`)
   - Scope: an honest client-side filter over the **already-fetched** public coffee index — name, origin, processing method, tag. Separable: droppable without breaking UIF-019.
   - Requirement: plan §10
   - Depends: UIF-019, UIF-027
@@ -413,7 +413,7 @@ wrapping-control behaviour is judgement-heavy.
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — High
   - Why: deliberately isolated so the safe capability can be dropped without destabilising the header.
 
-- [ ] UIF-055 Origins horizontal showcase (`components/public/origins-showcase.tsx`, `src/app/page.tsx`)
+- [x] UIF-055 Origins horizontal showcase (`components/public/origins-showcase.tsx`, `src/app/page.tsx`)
   - Scope: board 2 / board 3 concept 3 adapted to Hills — a horizontal card slider of origins with a progress indicator, previous/next controls and pagination, rendered from the **already-fetched public origins DTO** on the homepage. **The slide advance is one interaction with a single primary engine** (contract §13.2a): if a progress indicator must stay synchronised with the slide, GSAP owns the whole advance (slide + indicator); otherwise Motion owns the whole advance and GSAP is not used here. CSS owns hover. The island is the animated subtree only (contract §16 island 9).
   - Requirement: contract §18.12, §18.5–§18.11, §14.1; plan §10, §11.1
   - Depends: UIF-029, UIF-053, UIF-052, UIF-023

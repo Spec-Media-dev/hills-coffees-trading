@@ -1,3 +1,4 @@
+import { Bilingual } from "@/components/locale/bilingual";
 import { copy } from "@/lib/public/copy";
 
 /**
@@ -62,11 +63,17 @@ export function MediaPlaceholder({
         aria-hidden="true"
         className="absolute size-28 rounded-t-full border border-accent/35 opacity-60"
       />
+      {/*
+        `media` carries no approved Arabic (CONTENT-AR-01), so an Arabic viewer sees the reviewed
+        English. Inside `dir="rtl"` the bidi algorithm would otherwise resolve the trailing full stop
+        against the paragraph direction and render it at the wrong end — `EnglishCopy` scopes bidi to
+        the English run, exactly as it does for the shell and homepage copy.
+      */}
       <span aria-hidden="true" className="relative text-sm font-semibold text-foreground">
-        {copy.media.placeholderLabel}
+        <Bilingual pick={(c) => c.media.placeholderLabel} />
       </span>
       <span aria-hidden="true" className="relative max-w-56 text-xs leading-relaxed text-muted-foreground">
-        {copy.media.placeholderDescription}
+        <Bilingual pick={(c) => c.media.placeholderDescription} />
       </span>
     </div>
   );

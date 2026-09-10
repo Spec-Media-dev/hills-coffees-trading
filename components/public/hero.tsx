@@ -1,156 +1,158 @@
 import Image from "next/image";
 import Link from "next/link";
 
-import { EnglishCopy } from "@/components/locale/bilingual";
+import { Bilingual } from "@/components/locale/bilingual";
 import { AnimatedHero } from "@/components/public/animated-hero";
-import { EYEBROW } from "@/components/public/section";
 import { PUBLIC_ROUTES } from "@/components/public/routes";
-import { Button } from "@/components/ui/button";
+import { Icon } from "@/components/ui/icon";
 import { copy } from "@/lib/public/copy";
 
 /**
- * Homepage hero (Phase 5.5, UIF-024 — contract §4, §13, §14; design guidance hero row).
+ * Homepage hero (Phase 5.5, UIF-024; re-art-directed by the public design convergence pass —
+ * contract §4, §13, §14; design guidance hero row; reference `08_hero_mountain_origin` for the
+ * header-and-hero *relationship* only).
  *
- * ── COMPOSITION ──────────────────────────────────────────────────────────────────────────────────
+ * ── THE PHOTOGRAPH IS THE SECTION ────────────────────────────────────────────────────────────────
  *
- * An asymmetric editorial split on the brand's deep-forest ground: type on the inline-start, a tall
- * portrait photograph on the inline-end, both aligned to the 96rem product frame while the forest
- * ground itself runs full-bleed. The Claude Design public-website kit sets this shape — eyebrow →
- * display headline → rule → lead → primary + secondary CTA against a 4/5 portrait media block — and
- * `hero-banner.jpg` (1288×1600, drying beds at origin) is the one asset the UIF-052 map classes
- * `homepage-hero`. No `features/` crop appears here: none is hero-grade (plan §11.1).
+ * The earlier split (type on the inline-start, an arched photograph on the inline-end) read as a
+ * template. Now the photograph fills the whole first viewport and the header sits inside it: the
+ * section pulls itself up under the sticky bar by one header height, and the bar's dark-glass state
+ * (`globals.css`, `--hdr-p`) is triggered by the `data-page-opener="dark"` attribute here. The
+ * editorial content is placed deliberately on top — a display headline low on the inline-start, and
+ * a glass panel carrying the lead and the CTA pair at the inline-end — so the first screen is an
+ * environment with a message in it, not a text column beside a picture.
  *
- * The headline is measured, not merely large: `hc-display` at a capped `--container-narrow`-style
- * measure keeps it to three or four lines at every width instead of stretching into a banner.
+ * ── ASSETS ───────────────────────────────────────────────────────────────────────────────────────
  *
- * ── MOBILE IS A DIFFERENT COMPOSITION, NOT A NARROWER ONE ────────────────────────────────────────
- *
- * At mobile the split collapses and the photograph moves *behind* the type as a full-bleed backdrop
- * with a stronger scrim, so the first screen is image-led rather than a tall text block above a
- * cropped picture. `object-[50%_38%]` holds the worker and the drying beds in frame at 390px, where a
- * centre crop would cut to empty sky. Two `sizes` branches keep the delivered bytes honest.
+ * Desktop: `coffee-lot-5.jpg` (1600×893) — a grower picking cherries on a hillside above a mountain
+ * valley, cloud over the ridge. It is the root-library landscape UIF-024 names as a hero alternate,
+ * and it gives the bar a dark, low-detail sky to sit on. Mobile: `hero-banner.jpg` (1288×1600
+ * portrait, drying beds at low sun) — a portrait frame holds a phone screen far better than a
+ * landscape crop, and it is the asset the UIF-052 map classes `homepage-hero`. The restricted
+ * `08_hero_mountain_origin` crop is **not** rendered; it informed the composition only (ASSET-REF-01).
+ * No `features/` crop appears here.
  *
  * ── TEXT IS NEVER ON UNPROTECTED IMAGERY ─────────────────────────────────────────────────────────
  *
- * On mobile the type sits over the photograph, so a two-stop forest scrim carries it; on desktop the
- * type sits on the forest ground itself and the scrim only softens the photograph's lower edge into
- * the band. Contrast is therefore forest-on-cream in both cases, never cream-on-photograph.
+ * Three scrims: a top band for the header, a bottom band for the headline, and an inline-start wash
+ * so the display type sits on deep forest rather than on foliage. The lead and CTAs sit on the glass
+ * panel — blurred, tinted, hairlined — which is what keeps small text legible at every crop.
  *
  * ── MOTION ───────────────────────────────────────────────────────────────────────────────────────
  *
- * `AnimatedHero` (contract §16 island 7) owns the entrance and is GSAP end to end. This file stays a
- * **Server Component** — it ships the finished markup, tagged with `data-hero-*` hooks, and the island
- * animates it. Nothing is hidden by default, so under reduced motion (or with JavaScript disabled)
- * the hero simply renders complete.
+ * `AnimatedHero` (contract §16 island 7) owns the entrance and is GSAP end to end: media settle →
+ * scrims → eyebrow → headline → rule → panel. The *scroll response* is a separate, purely decorative
+ * CSS scroll-driven drift on the media **wrapper** (`data-hero-parallax`), never on the node GSAP
+ * animates, so no property has two owners (contract §13.2b). Both collapse under reduced motion.
+ * Nothing is hidden by default: with JavaScript disabled the hero renders complete.
  *
- * No fabricated statistic row appears here (UIF-024 MUST NOT); the board's `12+ Origins` /
+ * No fabricated statistic row appears (UIF-024 MUST NOT); the board's `12+ Origins` /
  * `200+ Global Partners` / `100% Traceable` figures are not Hills-evidenced and are excluded.
  */
 
-/**
- * The display face and display metrics, set at the `--text-h1` step (36->72px) rather than
- * `--text-hero` (44->112px).
- *
- * `--text-hero` is the token for a hero whose headline owns the full frame. This hero is a split
- * composition, so at 1440px the hero step renders ~106px inside a ~700px column — five lines, and the
- * CTA pair falls out of the first viewport. The h1 step holds the same editorial weight at three
- * lines and keeps the whole message, including both actions, above the fold.
- */
-const HERO_HEADLINE =
-  "font-heading text-[length:var(--text-h1)] leading-[var(--lh-display)] tracking-[var(--tracking-display)] font-semibold text-balance";
+const GLASS_PANEL =
+  "rounded-[var(--radius-xl)] border border-[color-mix(in_srgb,var(--brand-cream)_22%,transparent)] bg-[color-mix(in_srgb,var(--forest-900)_38%,transparent)] shadow-[0_24px_64px_rgba(0,0,0,0.28)] supports-[backdrop-filter]:[backdrop-filter:saturate(140%)_blur(18px)]";
+
+const CTA_BASE =
+  "inline-flex h-[var(--control-h-lg)] items-center justify-center gap-2 rounded-[var(--radius-md)] border px-7 text-sm font-semibold tracking-[0.005em] transition-[color,background-color,border-color,transform] duration-[var(--dur-fast)] active:translate-y-px focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--gold-on-dark)] motion-reduce:transform-none";
 
 export function Hero() {
   return (
     <AnimatedHero>
-      <section className="relative isolate overflow-hidden bg-sidebar text-sidebar-foreground">
-        {/*
-          MOBILE BACKDROP — the photograph as the ground itself, below `lg`. `aria-hidden` because the
-          desktop media block below carries the single meaningful alt for the same photograph; two
-          announcements of one image would be noise.
-        */}
-        <div aria-hidden="true" className="absolute inset-0 lg:hidden">
+      <section
+        data-page-opener="dark"
+        className="relative isolate -mt-[var(--header-h)] flex min-h-[min(100svh,58rem)] flex-col overflow-hidden bg-[var(--forest-900)] pt-[var(--header-h)] text-[var(--brand-cream)]"
+      >
+        {/* ── MEDIA STAGE ── the wrapper owns the CSS scroll drift; the images own the GSAP settle. */}
+        <div data-hero-parallax className="hc-hero-parallax absolute inset-0">
           <Image
-            src="/images/hero-banner.jpg"
-            alt=""
+            src="/images/coffee-lot-5.jpg"
+            alt={copy.home.hero.landscapeAlt}
             fill
             priority
             sizes="100vw"
             data-hero-media
-            className="object-cover object-[50%_38%]"
+            className="hidden object-cover object-[50%_32%] md:block"
           />
-          <span
-            data-hero-scrim
-            className="absolute inset-0 bg-[linear-gradient(180deg,color-mix(in_srgb,var(--forest-800)_86%,transparent)_0%,color-mix(in_srgb,var(--forest-800)_72%,transparent)_46%,color-mix(in_srgb,var(--forest-800)_92%,transparent)_100%)]"
+          <Image
+            src="/images/hero-banner.jpg"
+            alt={copy.home.hero.imageAlt}
+            fill
+            priority
+            sizes="100vw"
+            data-hero-media
+            className="object-cover object-[50%_40%] md:hidden"
           />
         </div>
 
-        <div className="hc-container relative grid gap-12 py-[clamp(3rem,6vw,6rem)] lg:min-h-[40rem] lg:grid-cols-[minmax(0,1.15fr)_minmax(17rem,0.85fr)] lg:items-center lg:gap-16">
-          <div className="flex max-w-[38rem] flex-col items-start gap-6">
-            <span data-hero-step className={`${EYEBROW} text-[var(--gold-on-dark)]`}>
-              {copy.home.hero.eyebrow}
+        {/* ── SCRIMS ── top for the bar, bottom for the headline, inline-start for the display type. */}
+        <span
+          data-hero-scrim
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-x-0 top-0 h-[42%] bg-[linear-gradient(180deg,color-mix(in_srgb,var(--forest-900)_82%,transparent)_0%,color-mix(in_srgb,var(--forest-900)_40%,transparent)_45%,transparent_100%)] md:bg-[linear-gradient(180deg,color-mix(in_srgb,var(--forest-900)_66%,transparent)_0%,transparent_100%)]"
+        />
+        <span
+          data-hero-scrim
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-x-0 bottom-0 h-[72%] bg-[linear-gradient(0deg,color-mix(in_srgb,var(--forest-900)_94%,transparent)_0%,color-mix(in_srgb,var(--forest-900)_58%,transparent)_46%,transparent_100%)]"
+        />
+        <span
+          data-hero-scrim
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-y-0 start-0 hidden w-[58%] bg-[linear-gradient(90deg,color-mix(in_srgb,var(--forest-900)_60%,transparent)_0%,transparent_100%)] md:block rtl:bg-[linear-gradient(270deg,color-mix(in_srgb,var(--forest-900)_60%,transparent)_0%,transparent_100%)]"
+        />
+
+        {/* ── CONTENT ── bottom-anchored, asymmetric: headline inline-start, glass panel inline-end. */}
+        <div className="hc-container relative flex flex-1 flex-col justify-end gap-8 pb-[clamp(2.5rem,6vw,5.5rem)] pt-[clamp(6rem,14vw,9rem)] lg:flex-row lg:items-end lg:justify-between lg:gap-12">
+          <div className="flex max-w-[44rem] flex-col items-start gap-5">
+            <span data-hero-step className="hc-eyebrow text-[var(--gold-on-dark)]">
+              <Bilingual pick={(c) => c.home.hero.eyebrow} />
             </span>
 
-            <h1 data-hero-step className={HERO_HEADLINE}>
-              <EnglishCopy>{copy.home.hero.headline}</EnglishCopy>
+            <h1
+              data-hero-step
+              className="hc-display font-semibold text-balance [text-shadow:0_2px_24px_rgba(0,0,0,0.25)]"
+            >
+              <Bilingual pick={(c) => c.home.hero.headline} />
             </h1>
 
             {/* The brand's gold hairline, used once on the page. */}
-            <span
-              data-hero-step
-              aria-hidden="true"
-              className="h-px w-16 bg-[var(--gold-on-dark)]"
-            />
+            <span data-hero-step aria-hidden="true" className="h-px w-20 bg-[var(--gold-on-dark)]" />
+          </div>
 
-            <p
-              data-hero-step
-              className="max-w-[34rem] text-[length:var(--text-body-lg)] leading-[var(--lh-body)] text-sidebar-foreground/85 text-pretty"
-            >
-              <EnglishCopy>{copy.home.hero.lead}</EnglishCopy>
+          <div
+            data-hero-step
+            className={`${GLASS_PANEL} flex w-full max-w-[26rem] shrink-0 flex-col gap-6 p-6 sm:p-7 lg:max-w-[24rem] xl:max-w-[26rem]`}
+          >
+            <p className="text-[length:var(--text-body)] leading-[1.7] text-[color-mix(in_srgb,var(--brand-cream)_88%,transparent)] text-pretty">
+              <Bilingual pick={(c) => c.home.hero.lead} />
             </p>
-
-            <div data-hero-step className="mt-2 flex flex-wrap gap-3">
-              <Button
-                size="lg"
-                variant="accent"
-                nativeButton={false}
-                render={<Link href={PUBLIC_ROUTES.coffee} />}
+            <div className="flex flex-wrap gap-3">
+              <Link
+                href={PUBLIC_ROUTES.coffee}
+                className={`${CTA_BASE} border-[var(--sand-100)] bg-[var(--sand-100)] text-[var(--forest-800)] hover:border-[var(--sand-200)] hover:bg-[var(--sand-200)]`}
               >
-                <EnglishCopy>{copy.home.hero.exploreAction}</EnglishCopy>
-              </Button>
-              <Button
-                size="lg"
-                variant="outline"
-                className="border-sidebar-foreground/45 text-sidebar-foreground hover:bg-sidebar-foreground/10"
-                nativeButton={false}
-                render={<Link href={PUBLIC_ROUTES.contact} />}
+                <Bilingual pick={(c) => c.home.hero.exploreAction} />
+                <Icon name="arrow-right" data-directional-icon="true" className="size-4" />
+              </Link>
+              <Link
+                href={PUBLIC_ROUTES.contact}
+                className={`${CTA_BASE} border-[color-mix(in_srgb,var(--brand-cream)_45%,transparent)] bg-transparent text-[var(--brand-cream)] hover:bg-[color-mix(in_srgb,var(--brand-cream)_12%,transparent)]`}
               >
-                {copy.cta.requestAnOffer}
-              </Button>
+                <Bilingual pick={(c) => c.cta.requestAnOffer} />
+              </Link>
             </div>
           </div>
+        </div>
 
-          {/*
-            DESKTOP MEDIA — the arch crop the design system reserves for editorial media
-            (`--radius-arch`). Repository-owned editorial photography, never the media of a catalogue
-            record (MEDIA-01). Intrinsic ratio is preserved by `fill` inside a fixed-ratio box, so the
-            entrance scale animates without shifting layout.
-          */}
-          <div className="relative hidden aspect-[4/5] w-full overflow-hidden rounded-[var(--radius-arch)] border border-sidebar-border/70 bg-sidebar-accent shadow-[0_28px_72px_rgba(0,0,0,0.28)] lg:block">
-            <Image
-              src="/images/hero-banner.jpg"
-              alt={copy.home.hero.imageAlt}
-              fill
-              priority
-              sizes="(min-width: 1536px) 30vw, 38vw"
-              data-hero-media
-              className="object-cover object-[50%_42%]"
-            />
-            <span
-              data-hero-scrim
-              aria-hidden="true"
-              className="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-[color-mix(in_srgb,var(--forest-800)_60%,transparent)] to-transparent"
-            />
-          </div>
+        {/* Scroll cue — a quiet, non-interactive orientation mark; hidden where the fold is short. */}
+        <div
+          data-hero-step
+          aria-hidden="true"
+          className="hc-container relative hidden items-center gap-3 pb-6 text-[length:var(--text-micro)] font-semibold uppercase tracking-[var(--tracking-label)] text-[color-mix(in_srgb,var(--brand-cream)_70%,transparent)] lg:flex"
+        >
+          <Icon name="arrow-down" className="size-3.5" />
+          <Bilingual pick={(c) => c.home.hero.scrollCue} />
         </div>
       </section>
     </AnimatedHero>

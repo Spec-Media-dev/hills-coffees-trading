@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 
+import { Bilingual } from "@/components/locale/bilingual";
 import {
   EYEBROW,
   HEADING_2,
@@ -68,12 +69,12 @@ export default function SourcingPage() {
       >
         <div className="flex flex-col gap-5">
           <span className={`${EYEBROW} text-accent`}>
-            {copy.sourcing.eyebrow}
+            <Bilingual pick={(c) => c.sourcing.eyebrow} />
           </span>
-          <h1 className={HEADING_2}>{copy.sourcing.title}</h1>
+          <h1 className={HEADING_2}><Bilingual pick={(c) => c.sourcing.title} /></h1>
           <span aria-hidden="true" className="h-px w-16 bg-accent" />
           <p className={`${LEAD} text-muted-foreground text-pretty`}>
-            {copy.sourcing.lead}
+            <Bilingual pick={(c) => c.sourcing.lead} />
           </p>
         </div>
 
@@ -98,31 +99,31 @@ export default function SourcingPage() {
           <div className="mx-auto flex max-w-[62ch] flex-col gap-14">
             <section className="flex flex-col gap-3">
               <h2 className={HEADING_3}>
-                {copy.sourcing.relationships.title}
+                <Bilingual pick={(c) => c.sourcing.relationships.title} />
               </h2>
               <p className="text-[0.9375rem] leading-[1.7] text-muted-foreground text-pretty">
-                {copy.sourcing.relationships.body}
+                <Bilingual pick={(c) => c.sourcing.relationships.body} />
               </p>
             </section>
 
             <section className="flex flex-col gap-3">
-              <h2 className={HEADING_3}>{copy.sourcing.custody.title}</h2>
+              <h2 className={HEADING_3}><Bilingual pick={(c) => c.sourcing.custody.title} /></h2>
               <p className="text-[0.9375rem] leading-[1.7] text-muted-foreground text-pretty">
-                {copy.sourcing.custody.body}
+                <Bilingual pick={(c) => c.sourcing.custody.body} />
               </p>
             </section>
 
             <section className="flex flex-col gap-3">
-              <h2 className={HEADING_3}>{copy.sourcing.logistics.title}</h2>
+              <h2 className={HEADING_3}><Bilingual pick={(c) => c.sourcing.logistics.title} /></h2>
               <p className="text-[0.9375rem] leading-[1.7] text-muted-foreground text-pretty">
-                {copy.sourcing.logistics.body}
+                <Bilingual pick={(c) => c.sourcing.logistics.body} />
               </p>
             </section>
 
             <section className="flex flex-col gap-5">
-              <h2 className={HEADING_3}>{copy.sourcing.quality.title}</h2>
+              <h2 className={HEADING_3}><Bilingual pick={(c) => c.sourcing.quality.title} /></h2>
               <p className="text-[0.9375rem] leading-[1.7] text-muted-foreground text-pretty">
-                {copy.sourcing.quality.body}
+                <Bilingual pick={(c) => c.sourcing.quality.body} />
               </p>
               <div
                 className="overflow-hidden rounded-xl"
@@ -148,9 +149,9 @@ export default function SourcingPage() {
           className={`hc-container flex flex-col gap-8 py-[clamp(3rem,6vw,5rem)] lg:flex-row lg:items-center lg:justify-between`}
         >
           <div className="flex max-w-[46rem] flex-col gap-3">
-            <h2 className={HEADING_3}>{copy.sourcing.cta.title}</h2>
+            <h2 className={HEADING_3}><Bilingual pick={(c) => c.sourcing.cta.title} /></h2>
             <p className={`${LEAD} text-sidebar-foreground/85 text-pretty`}>
-              {copy.sourcing.cta.lead}
+              <Bilingual pick={(c) => c.sourcing.cta.lead} />
             </p>
           </div>
           <Button
@@ -159,7 +160,7 @@ export default function SourcingPage() {
             nativeButton={false}
             render={<Link href={PUBLIC_ROUTES.contact} />}
           >
-            {copy.cta.requestAnOffer}
+            <Bilingual pick={(c) => c.cta.requestAnOffer} />
           </Button>
         </div>
       </div>

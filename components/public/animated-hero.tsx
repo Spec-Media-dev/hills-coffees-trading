@@ -60,26 +60,26 @@ export function AnimatedHero({ children }: { children: ReactNode }) {
           delay: 0.05,
         });
 
-        // Media reveal first — the photograph establishes the frame, then the words arrive on it.
-        // A clip-path wipe plus a scale settle reads as a camera coming to rest rather than a slide.
+        // Media settle first — the photograph fills the frame, a slow scale-down reads as a camera
+        // coming to rest — then the scrims deepen, then the words arrive on the environment.
         timeline
           .fromTo(
             scope.querySelectorAll(MEDIA),
-            { clipPath: "inset(0% 0% 100% 0%)", scale: 1.08 },
-            { clipPath: "inset(0% 0% 0% 0%)", scale: 1, duration: 1.1 },
+            { opacity: 0, scale: 1.07 },
+            { opacity: 1, scale: 1, duration: 1.5, ease: "power2.out" },
           )
           .fromTo(
             scope.querySelectorAll(SCRIM),
             { opacity: 0 },
-            { opacity: 1, duration: 0.6 },
-            "-=0.5",
+            { opacity: 1, duration: 0.8 },
+            "-=1.1",
           )
-          // Eyebrow → headline → rule → lead → CTA pair, as one staggered rise.
+          // Eyebrow → headline → rule → glass panel → scroll cue, as one staggered rise.
           .fromTo(
             scope.querySelectorAll(STAGGER),
-            { opacity: 0, y: 18 },
-            { opacity: 1, y: 0, duration: 0.62, stagger: 0.085 },
-            "-=0.85",
+            { opacity: 0, y: 22 },
+            { opacity: 1, y: 0, duration: 0.7, stagger: 0.09 },
+            "-=0.7",
           );
 
         return () => {

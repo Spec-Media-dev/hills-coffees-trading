@@ -90,17 +90,26 @@ export function SearchControl({ className }: { className?: string }) {
              */
             id="hc-search-trigger"
             aria-label={labels.openSearch}
+            /*
+             * Reads as a search FIELD on desktop (public convergence pass): a long pill with the icon
+             * at the inline-start and the field label as its placeholder-like text, left-aligned at a
+             * deliberate width. It is still a button that opens the dialog — the field itself lives
+             * inside, with the full keyboard contract — so nothing here fakes an inline search.
+             * Below `xl` it collapses to the compact icon control so the bar keeps its rhythm.
+             */
             className={cn(
-              "gap-2 rounded-[var(--radius-pill)] px-4 font-medium text-muted-foreground",
+              "gap-2.5 rounded-[var(--radius-pill)] px-4 font-medium text-muted-foreground xl:w-[15.5rem] xl:justify-start xl:ps-4 xl:pe-5",
               className,
             )}
           />
         }
       >
-        <Icon name="search" className="size-4" />
-        {/* The word is decoration beside the icon on narrow widths; the icon-only control keeps its
-            accessible name from `aria-label` above, so meaning is never carried by the icon alone. */}
-        <span className="hidden lg:inline">{labels.openSearch}</span>
+        <Icon name="search" className="size-4 shrink-0" />
+        {/* The label is visible on desktop and decorative beside the icon elsewhere; the accessible
+            name always comes from `aria-label` above, so meaning is never carried by the icon alone. */}
+        <span className="hidden truncate text-[length:var(--text-small)] font-normal xl:inline">
+          {labels.searchFieldLabel}
+        </span>
       </DialogTrigger>
 
       <DialogContent

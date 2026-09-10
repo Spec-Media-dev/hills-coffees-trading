@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 
+import { Bilingual } from "@/components/locale/bilingual";
 import {
   EYEBROW,
   HEADING_2,
@@ -71,18 +72,18 @@ export default function PortalEntryPage() {
 
         <div className="flex max-w-[46rem] flex-col items-start gap-5 text-start">
         <span className={`${EYEBROW} text-accent`}>
-          {copy.portalEntry.eyebrow}
+          <Bilingual pick={(c) => c.portalEntry.eyebrow} />
         </span>
-        <h1 className={HEADING_2}>{copy.portalEntry.title}</h1>
+        <h1 className={HEADING_2}><Bilingual pick={(c) => c.portalEntry.title} /></h1>
         <span aria-hidden="true" className="h-px w-16 bg-accent" />
         <p className={`${LEAD} text-muted-foreground text-pretty`}>
-          {copy.portalEntry.lead}
+          <Bilingual pick={(c) => c.portalEntry.lead} />
         </p>
         <p className="max-w-[58ch] text-[0.9375rem] leading-[1.6] text-muted-foreground text-pretty">
-          {copy.portalEntry.body}
+          <Bilingual pick={(c) => c.portalEntry.body} />
         </p>
         <Button className="mt-2" nativeButton={false} render={<Link href={PUBLIC_ROUTES.contact} />}>
-          {copy.portalEntry.action}
+          <Bilingual pick={(c) => c.portalEntry.action} />
         </Button>
         </div>
       </div>
