@@ -1,4 +1,5 @@
 import { PageHeader } from "@/components/app/page-header";
+import { FoundationOverview } from "@/components/app/foundation-overview";
 import { AppBilingual } from "@/components/locale/app-bilingual";
 import { StateScreen } from "@/components/layout/state-screen";
 import { getRequestIdentity } from "@/lib/auth/dal";
@@ -34,10 +35,13 @@ export default async function DashboardPage() {
   }
 
   return (
-    <PageHeader
-      title={<AppBilingual pick={(c) => c.memberWorkspace} />}
-      description={<AppBilingual pick={(c) => c.modulesArriveLater} />}
-      trail={[{ label: <AppBilingual pick={(c) => c.overview} /> }]}
-    />
+    <div className="flex flex-col gap-6">
+      <PageHeader
+        title={<AppBilingual pick={(c) => c.memberWorkspace} />}
+        description={<AppBilingual pick={(c) => c.modulesArriveLater} />}
+        trail={[{ label: <AppBilingual pick={(c) => c.overview} /> }]}
+      />
+      <FoundationOverview surface="member" />
+    </div>
   );
 }

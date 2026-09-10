@@ -545,7 +545,7 @@ wrapping-control behaviour is judgement-heavy.
 
 **Codex: GPT-5.6 Sol — High · Claude: Sonnet — High**
 
-- [ ] UIF-042 Light Mode whole-product pass (all surfaces)
+- [x] UIF-042 Light Mode whole-product pass (all surfaces)
   - Scope: intentional Light Mode across Public, Member and Admin — backgrounds, surfaces, cards, tables, forms, sidebar, header, footer, buttons, states, badges, icons, typography, imagery.
   - Requirement: contract §3, §11
   - Depends: UIF-026, UIF-034, UIF-037, UIF-040, UIF-054, UIF-055, UIF-056
@@ -554,7 +554,7 @@ wrapping-control behaviour is judgement-heavy.
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — High
   - Why: breadth, not depth — but it must actually be looked at, not assumed.
 
-- [ ] UIF-043 Dark Mode whole-product pass (all surfaces)
+- [x] UIF-043 Dark Mode whole-product pass (all surfaces)
   - Scope: the same coverage in Dark, using the approved dark palette with depth from surface steps rather than shadow.
   - Requirement: contract §3, §11
   - Depends: UIF-042
@@ -563,7 +563,7 @@ wrapping-control behaviour is judgement-heavy.
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — High
   - Why: dark mode is where unverified surfaces hide; the gold and logo variants are easy to get backwards.
 
-- [ ] UIF-044 RTL whole-product pass (all surfaces)
+- [x] UIF-044 RTL whole-product pass (all surfaces)
   - Scope: verify header, hero, footer, public pages, member sidebar, admin sidebar, breadcrumbs, tabs, tables, forms, filters, drawers, icons, arrows and action placement under `dir="rtl"`.
   - Requirement: contract §12
   - Depends: UIF-043, UIF-018
@@ -572,7 +572,7 @@ wrapping-control behaviour is judgement-heavy.
   - Codex: GPT-5.6 Sol — High · Claude: Sonnet — High
   - Why: broad sweep with several precise, individually checkable rules.
 
-- [ ] UIF-045 Responsive whole-product pass (all surfaces)
+- [x] UIF-045 Responsive whole-product pass (all surfaces)
   - Scope: real transformations at 390 / 768 / 1440px plus a ≥1536px check of the 96rem frame — public editorial composition, member shell → drawer, admin sidebar → sheet, tables → card lists, multi-column forms → stacked.
   - Requirement: contract §2, §8
   - Depends: UIF-044
@@ -581,7 +581,7 @@ wrapping-control behaviour is judgement-heavy.
   - Codex: GPT-5.6 Sol — High · Claude: Sonnet — High
   - Why: the largest matrix in the phase; mechanical once tooled.
 
-- [ ] UIF-046 Accessibility pass (all surfaces)
+- [x] UIF-046 Accessibility pass (all surfaces)
   - Scope: WCAG 2.2 AA direction — contrast, keyboard traversal, focus-visible, semantic heading order, labels, 44px targets, navigation, dialogs/drawers, tables, forms, image alt, reduced motion, theme control, locale control.
   - Requirement: contract §15
   - Depends: UIF-045
@@ -590,7 +590,7 @@ wrapping-control behaviour is judgement-heavy.
   - Codex: GPT-5.6 Sol — High · Claude: Opus — High
   - Why: requires contextual judgement about semantics that automated checks cannot supply alone.
 
-- [ ] UIF-047 Server/client boundary audit (all surfaces)
+- [x] UIF-047 Server/client boundary audit (all surfaces)
   - Scope: confirm the final client-island set is exactly the documented set — the nine fixed islands of contract §16, plus `ProcessJourneySection` if and only if UIF-056 rendered a selector — and that no page tree became a Client Component.
   - Requirement: contract §16
   - Depends: UIF-046
@@ -605,7 +605,7 @@ wrapping-control behaviour is judgement-heavy.
 
 **Codex: GPT-5.6 Sol — High · Claude: Opus — High**
 
-- [ ] UIF-048 Real-browser verification matrix (`tests/browser/` or an equivalent harness)
+- [x] UIF-048 Real-browser verification matrix (`tests/browser/` or an equivalent harness)
   - Scope: installed Chrome over CDP across 9 surfaces × {Light, Dark} × {LTR, RTL} × {390, 768, 1440} plus a ≥1536px frame check, with long-Arabic injection on every RTL scenario.
   - Requirement: plan §15
   - Depends: UIF-047
@@ -614,7 +614,7 @@ wrapping-control behaviour is judgement-heavy.
   - Codex: GPT-5.6 Sol — High · Claude: Opus — Medium
   - Why: the harness pitfalls (viewport, settle timing, fixture auth) are already known from Features 001/002 — reuse, don't rediscover.
 
-- [ ] UIF-057 Real-browser interaction verification — story, showcase, hero (`tests/browser/` or the UIF-048 harness)
+- [x] UIF-057 Real-browser interaction verification — story, showcase, hero (`tests/browser/` or the UIF-048 harness)
   - Scope: drive the interactive sections in an installed Chrome over CDP and assert the *behaviour*, not the markup: autoplay cadence, looping, hover pause/resume, manual selection, previous/next wrapping, image transition, progress fill, mobile transformation, RTL layout and semantics, both themes, and the reduced-motion variant.
   - Requirement: contract §18.2–§18.11; plan §15
   - Depends: UIF-048, UIF-054, UIF-055, UIF-056, UIF-024
@@ -623,7 +623,7 @@ wrapping-control behaviour is judgement-heavy.
   - Codex: GPT-5.6 Sol — High · Claude: Opus — High
   - Why: these are timing- and state-dependent behaviours that only a real browser can prove; a unit test would pass on a broken implementation.
 
-- [ ] UIF-058 Animation cleanup and leak verification (`components/motion/*`, all animated surfaces)
+- [x] UIF-058 Animation cleanup and leak verification (`components/motion/*`, all animated surfaces)
   - Scope: prove the GSAP/Motion engineering requirements hold — scoped contexts, timeline revert on unmount, no duplicate timelines after rerender, no timer accumulation, no stale state, and no property owned by two engines.
   - Requirement: contract §13.2, §13.3; plan §13
   - Depends: UIF-057, UIF-053
@@ -632,7 +632,7 @@ wrapping-control behaviour is judgement-heavy.
   - Codex: GPT-5.6 Sol — High · Claude: Opus — High
   - Why: leaked timelines and duplicated cycles are silent until they compound — this is the only task that would catch them.
 
-- [ ] UIF-049 Security and functional regression (all surfaces)
+- [x] UIF-049 Security and functional regression (all surfaces)
   - Scope: re-run the public/private boundary and protected-route regression after the whole-product visual change.
   - Requirement: plan §14
   - Depends: UIF-058
@@ -641,7 +641,7 @@ wrapping-control behaviour is judgement-heavy.
   - Codex: GPT-5.6 Sol — High · Claude: Opus — High
   - Why: a whole-product visual pass touching two protected surfaces must re-prove the boundary rather than assume it survived.
 
-- [ ] UIF-050 Quality gate (`npm run typecheck`, `npm test`, `npm run build`, `npm run lint`)
+- [x] UIF-050 Quality gate (`npm run typecheck`, `npm test`, `npm run build`, `npm run lint`)
   - Scope: the full aggregate gate on final source.
   - Requirement: plan §15
   - Depends: UIF-049
@@ -650,7 +650,7 @@ wrapping-control behaviour is judgement-heavy.
   - Codex: GPT-5.6 Sol — Low · Claude: Sonnet — Low
   - Why: mechanical execution against an explicitly-scoped baseline.
 
-- [ ] UIF-051 Visual system freeze and handoff (`specs/002-public-website/PHASE-5.5-*`, `docs/architecture/IMPLEMENTATION-ROADMAP.md`)
+- [x] UIF-051 Visual system freeze and handoff (`specs/002-public-website/PHASE-5.5-*`, `docs/architecture/IMPLEMENTATION-ROADMAP.md`)
   - Scope: record the frozen visual system, the component inventory future features consume, the `T033`/`T034`/`T035`/`T036` reconciliation outcome, `CONTENT-AR-01` and `I18N-ROUTE-01` status, and the roadmap row.
   - Requirement: plan §4, §5, §12, §18
   - Depends: UIF-050

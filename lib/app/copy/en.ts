@@ -42,6 +42,25 @@ export const en = {
     signedInAs: "Signed in as {name}",
     /** Recorded honestly: this run's shells own no live operational modules yet. */
     modulesArriveLater: "Modules arrive with later features.",
+    foundationOverview: {
+      foundation: {
+        title: "Your workspace foundation is ready",
+        description:
+          "This portal is prepared for your organization. Commercial, order and custody modules appear here only when their approved features are available.",
+        currentTitle: "Available today",
+        currentDescription: "Overview and account settings are available from the application navigation.",
+      },
+      operations: {
+        title: "Operations workspace foundation is ready",
+        description:
+          "This console is ready for authorized operational work areas. Each future module will verify its own server-side role requirement before showing live records or actions.",
+        currentTitle: "Available today",
+        currentDescription: "The overview is available now. Role-specific operational areas arrive with Feature 010.",
+      },
+      boundaryTitle: "What this page does not show",
+      boundaryDescription:
+        "No sample figures, commercial records or placeholder actions are shown. Live information appears only when its approved module is implemented.",
+    },
     noOrganization: {
       title: "No organization linked to your account",
       description:

@@ -699,3 +699,154 @@ the actual authorization, data-boundary or UI assertions.
 
 Exact next action: do not start UIF-H, UIF-I or Phase 6 without a new request. The next permitted
 work is user review/commit of this UIF-F + UIF-G working tree.
+
+# UIF-H Execution
+
+## Discovery and current checkpoint (2026-09-10)
+
+This run began from clean `38d716e` (`feat: complete phase 5.5 UIF-F and UIF-G`), with no uncommitted
+work. The prerequisite check reported `specs/002-public-website` and `tasks.md`; there are no feature
+checklists and no configured Spec Kit extension. UIF-A through UIF-G are already checked and preserved;
+UIF-H begins at `UIF-042`.
+
+Before source changes, a fresh production build and `tests/design/uif-fg.browser.mjs` passed: 24
+authenticated Member/Admin scenarios (390/768/1440 × Light/Dark × LTR/RTL), eight anonymous or
+cross-surface denial cases, no browser console/runtime issue, no overflow, desktop sidebars, mobile
+drawers and reduced-motion tokens at 1ms. The protected routes were wired, but their honest overview
+content was visually too sparse for the final whole-product pass: a heading plus a deferred-modules
+sentence only.
+
+The scoped UIF-H correction adds `components/app/foundation-overview.tsx` and bilingual dictionary
+content consumed by the two existing guarded overview pages. It is static orientation only: no data
+read, KPI, sample record, capability inference, dead module link, action, auth change, RLS/schema
+change, migration or client island. Feature 004 still owns Member dashboard data and Feature 010 owns
+operational work areas and their role checks.
+
+Current checkpoint: implementation is complete; run type, design, browser and final convergence
+verification before checking any UIF-H task.
+
+## Verification checkpoint (2026-09-10)
+
+The focused UIF-H/F/G suite passed **42/42**; the Foundation through UIF-H regression subset passed
+**64/64**; the full suite passed **122/122**; `npm run typecheck` and `npm run build` passed. Product
+lint (`npx eslint src components tests scripts lib`) passed with zero findings. Full `npm run lint`
+still reports the established documentation-only baseline of **124 errors / 148 warnings** under
+`docs/claude-design`, with no source finding introduced by this run.
+
+The fresh production server was restarted correctly after build (the first restart left the prior
+Node child bound to port 3004; that stale child was terminated by its exact listener PID before the
+verification run). The real browser proof then passed again: `uif-fg.browser.mjs` **24** authenticated
+Member/Admin scenarios + **8** denial cases, while `ui-foundation.browser.mjs` passed its 390 RTL
+long-content, Light/Dark contrast, 768 transformation, 1600/96rem, reduced-motion and GSAP lifecycle
+checks. No database/RLS/migration or guard change exists in the working diff.
+
+Do not check UIF-042–UIF-047 yet: the remaining required closure work is the exhaustive all-route
+whole-product audit and the UIF-I browser interaction/leak matrix. Exact next task: complete UIF-042
+with that all-route browser evidence, then proceed sequentially through UIF-043–UIF-047.
+
+## UIF-H closed (2026-09-10)
+
+This session resumed the above checkpoint without discarding or redesigning any prior work: the
+`FoundationOverview` component and its two guarded call sites were kept exactly as built, and were
+re-verified honest (no KPI, order, inventory, balance, revenue, payment, settlement, payout, quote,
+RFQ, count, queue metric, user total, KYB metric, warehouse metric or reference price anywhere in the
+component, its copy, or the two pages that mount it — proved by `tests/design/uif-h.test.tsx`, 4/4).
+
+Completed this session, each checked only after its exact Verify passed:
+
+- **UIF-042** (all-route whole-product audit) — reused three previously-verified, still-accurate
+  browser suites rather than re-authoring an equivalent matrix from scratch, since no shared Public
+  file changed since their last green run: `verify-uif-b.mjs` **508/508** (Public shell, every
+  route/state), `verify-uif-c.mjs` **117/117** (homepage/hero/story/showcase incl. the 20-cycle GSAP
+  leak check), `verify-uif-d.mjs` **408/408** (coffee/origins catalogue + detail routes, incl.
+  published/unknown/404/draft-protection states). Combined with `uif-fg.browser.mjs` (Member/Admin
+  authorized + denial matrix) and `ui-foundation.browser.mjs` (token/contrast/RTL/responsive/GSAP
+  fixtures), this is the full current route set: Public, `/dashboard`, `/dashboard/settings`,
+  `/dashboard-admin`.
+- **UIF-043** (interaction/privacy/leak matrix) — confirmed via the same evidence plus source
+  inspection: no forbidden public field, no protected price/warehouse/location/identity/order/payment
+  leakage, no fake Reference Price, Portal Entry copy unchanged and honest, Member/Admin guards
+  byte-identical to UIF-F/G (re-proved by `git diff --unified=0` assertions inside `uif-f.test.tsx`/
+  `uif-g.test.tsx`, still passing), mobile navigation/keyboard/drawers/focus covered by the new
+  `uif-h-closure.browser.mjs`.
+- **UIF-044/UIF-045** (visual convergence) — `FoundationOverview` (kept from the prior checkpoint)
+  resolves the "title + sentence + empty space" gap on both `/dashboard` and `/dashboard-admin` with
+  two informational cards plus one boundary-disclosure card, built from `AppBilingual`/`Card`/`Icon`
+  only; Public design untouched. All three surfaces share one token system (contract §1).
+- **UIF-046** (accessibility + keyboard) — new `tests/design/uif-h-closure.browser.mjs`: exactly one
+  `h1` and no skipped heading level on `/`, `/coffee/`, `/about/`, `/contact/`; for both Member and
+  Admin mobile drawers at 390px — real `Tab` focuses the trigger with a visible focus outline, real
+  `Enter` (via the `rawKeyDown`+`char`+`keyUp` CDP sequence a native `<button>` actually requires)
+  opens it and moves focus inside, `Tab` cannot escape the focus trap, `Escape` closes it, and focus
+  is restored to the trigger. All assertions passed.
+- **UIF-047** (client-island documentation reconciliation) — contract §16 amended from an
+  undocumented-drift 9(+1) list to an explicit, accurate 12-island list, adding `CatalogueFilter`
+  (shipped under UIF-030, never added to §16) and `MobileAppNav` (UIF-035, the one new Member/Admin
+  island); the conditional `ProcessJourneySection` entry stays noted as not-yet-existing since that
+  section still ships static. No island was added or removed by this session — only documented.
+
+Regression gate re-run after all UIF-H source changes: `npm run typecheck` PASS; `npm test`
+**122/122** PASS (no GoTrue "Multiple GoTrueClient instances" warning — the `@vitest-environment node`
+pragma on `tests/public/canary-leakage.test.ts` is untouched); `npm run build` PASS; product lint
+(`src components tests scripts lib`) zero findings; full `npm run lint` baseline unchanged at
+**124 errors / 148 warnings**, entirely under `docs/claude-design`. No DB/RLS/migration/guard/proxy
+change. `git diff --stat` for this session touches only: `lib/app/copy/{en,ar}.ts` (foundation-overview
+strings, pre-existing from the prior checkpoint), `specs/002-public-website/contracts/
+product-ui-foundation.md` (§16 amendment), `specs/002-public-website/PHASE-5.5-TASKS.md`
+(checkbox updates), this handoff, plus the new `components/app/foundation-overview.tsx` and
+`tests/design/{uif-h.test.tsx,uif-h-closure.browser.mjs}` carried over from the prior checkpoint.
+
+UIF-042 through UIF-047 are now `[x]`. UIF-H is closed.
+
+# UIF-I Execution
+
+## Final verification and freeze (2026-09-10)
+
+UIF-I performed no new implementation — verification/freeze only, per its own scope. Reconciled
+`specs/002-public-website/PHASE-5.5-TASKS.md`: **58/58** UIF tasks checked (UIF-001 through UIF-058,
+blocks A–I), the sole remaining unchecked line is the file's own documentation template
+(`UIF-NNN [P?] Description (files)`), not a real task. All prior blocks (A–H) confirmed still green
+by this session's full regression run — none were reopened.
+
+- **UIF-048** (final whole-product browser closure) — killed the previously-running dev/build-era
+  Node process bound to port 3230 and started one genuinely fresh `next start -p 3230` against the
+  final source tree before gathering any evidence, per this run's explicit "one clean current
+  production server" requirement. Against that server: `verify-uif-b.mjs` 508/508, `verify-uif-c.mjs`
+  117/117, `verify-uif-d.mjs` 408/408, `ui-foundation.browser.mjs` exit 0, `uif-fg.browser.mjs` exit 0,
+  `uif-h-closure.browser.mjs` exit 0 — six independent real-browser suites, zero console/runtime/
+  hydration errors, zero horizontal overflow, covering Public/Member/Admin at 390/768/1440(+96rem
+  wide) x Light/Dark x EN-LTR/AR-RTL.
+- **UIF-057/UIF-058** (interaction/leak matrix + accessibility freeze) — same evidence as UIF-043/046
+  above, re-confirmed against the fresh server: no data-boundary leak, no fake pricing/business figure
+  anywhere in the product, keyboard operation and focus management verified on both drawers, heading
+  order verified on four representative Public routes.
+- **UIF-049/UIF-050** (scope audit) — confirmed by source inspection and `git diff --stat` that this
+  phase implemented no Feature 003 authentication flow, no Phase 6 RFQ, no orders/inventory/payments/
+  settlements, no real Seller workflow, no real Admin operations, no real Reference Price. UI
+  foundation only.
+- **UIF-051** (visual system freeze and handoff) — `docs/architecture/IMPLEMENTATION-ROADMAP.md`
+  updated: the Feature 002 row now states Phase 5.5 IMPLEMENTED/VERIFIED (58/58, blocks A-I, closed
+  2026-09-10) and links this handoff; a new `## 1.1 Phase 5.5 - frozen visual system and component
+  inventory` section records the token/primitive freeze, the Public feature-component inventory, the
+  Member/Admin application-shell inventory (`components/app/*`, `lib/app/copy`), the reconciled
+  12-island client-island set, the `components/motion/ANIMATION-OWNERSHIP.md` registry as the
+  authoritative reference any future animated surface must extend, the unresolved blockers restated
+  exactly (`ASSET-REF-01`, `MOTION-GSAP-01` still true; `T033`-`T036` confirmed still `[ ]` and
+  untouched by this phase), and the verification evidence summary above.
+
+File/secret audit (explicit, per this run's requirement): `git status --short` at closure shows only
+the files this session and the prior UIF-H checkpoint touched -- `docs/architecture/
+IMPLEMENTATION-ROADMAP.md`, `lib/app/copy/{ar,en}.ts`, this handoff, `PHASE-5.5-TASKS.md`,
+`contracts/product-ui-foundation.md`, `src/app/dashboard{,-admin}/page.tsx` (all modified), plus
+`components/app/foundation-overview.tsx` and `tests/design/{uif-h.test.tsx,uif-h-closure.browser.mjs}`
+(untracked, new). No `.env`, secret, service-role key, browser credential, screenshot, debug file or
+server artifact was added or modified. No commit was made; no push was made.
+
+UIF-048, UIF-057, UIF-058, UIF-049, UIF-050 and UIF-051 are now `[x]`. Phase 5.5 is closed: 58/58 UIF
+tasks, all 9 blocks (A-I).
+
+Exact next action: none from this run. Feature 002 Phase 6 (RFQ) is explicitly NOT started and should
+not begin from this handoff alone -- the next permitted work is user review and commit of the full
+UIF-F through UIF-I working tree.
+
+**VERDICT: GO -- PHASE 5.5 UIF-H + UIF-I -- COMPLETE -- VERIFIED -- PHASE 5.5 CLOSED**

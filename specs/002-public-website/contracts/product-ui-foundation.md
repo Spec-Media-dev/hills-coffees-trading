@@ -351,26 +351,43 @@ control. Icons beside labels are `aria-hidden` and never the sole carrier of mea
 
 ## 16. Server/client boundary
 
-Server Components by default. The **complete** permitted client-island set is **nine islands plus
-one conditional tenth** — no other `"use client"` may exist in product code:
+Server Components by default. **Amended by UIF-047 (Block UIF-H)**: this list was authored while
+Phase 5.5 was Public-only (Blocks A–E) and enumerated nine islands plus one conditional tenth for
+that scope alone. Two islands were added to the live product before this amendment without the list
+being updated — `CatalogueFilter` (UIF-030, committed with Block D) and `MobileAppNav` (UIF-035,
+Block F) — and UIF-047's own audit is what caught the drift. The list below is the reconciled,
+complete set for the **whole product** (Public, Member, Admin): no other `"use client"` may exist in
+product code, where "product code" excludes (a) the underlying Base UI / shadcn primitives every
+island above is built from (`components/ui/{dialog,sheet,select,tabs,...}.tsx` — inherently client
+by upstream design, not separately counted islands) and (b) Next.js–mandated boundary files
+(`error.tsx`, which the framework requires to be a Client Component regardless of product code).
 
 1. theme control (`UIF-016`)
 2. locale/direction control (`UIF-017`)
-3. mobile navigation (`UIF-021`)
+3. mobile navigation — public (`UIF-021`)
 4. search control (`UIF-019`)
-5. motion wrappers — the Motion/CSS layer (`UIF-015`) and the scoped GSAP helper (`UIF-053`)
+5. motion wrappers — the Motion/CSS layer (`UIF-015`) and the scoped GSAP helpers (`UIF-053`'s
+   `useGsapTimeline`, and the public convergence pass's `GsapScrollReveal`, same role)
 6. genuinely interactive form controls (`UIF-008`)
 7. `AnimatedHero` — the hero's GSAP entrance choreography (`UIF-024`)
 8. `InteractiveStorySection` (`UIF-054`)
 9. `OriginsShowcase` (`UIF-055`)
 10. `ProcessJourneySection` (`UIF-056`) — **conditional**: permitted only if that task renders a real
     step selector. If the section ships as a static presentation, it stays a Server Component and
-    this island MUST NOT exist.
+    this island MUST NOT exist. As shipped, `components/public/process-journey.tsx` is static — this
+    island does not exist in the current build.
+11. `CatalogueFilter` — the public coffee index's client-side filter over the already-fetched DTO
+    (`UIF-030`)
+12. `MobileAppNav` — the Member/Admin application shell's mobile navigation drawer (`UIF-035`). The
+    one new client island the shell introduces; `Sidebar`, `Topbar` and `AppShell` itself stay
+    Server Components, exactly as the public shell's desktop navigation does.
 
-Islands 7–10 receive already-resolved, already-narrowed props from a Server Component parent, and the
-island is the **animated subtree only** — `src/app/page.tsx` and every public page tree stay Server
-Components. A page tree never becomes a Client Component because it contains an animated section, and
-no extra DTO is hydrated to feed an animation.
+Islands 7–9 (and 10, if it exists) receive already-resolved, already-narrowed props from a Server
+Component parent, and the island is the **animated subtree only** — `src/app/page.tsx` and every
+public page tree stay Server Components. A page tree never becomes a Client Component because it
+contains an animated section, and no extra DTO is hydrated to feed an animation. The same rule holds
+for island 12: `src/app/dashboard/layout.tsx` and `src/app/dashboard-admin/layout.tsx` stay Server
+Components, and `MobileAppNav` receives only the already-built `AppNavGroup[]` structure.
 
 No page tree becomes a Client Component for animation. No unnecessary DTO hydration. No
 `getRequestIdentity()` on a public surface. No public cache entry varies by user, session or

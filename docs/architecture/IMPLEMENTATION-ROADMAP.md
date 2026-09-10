@@ -21,7 +21,7 @@ commission capability (§8), which is already implemented in the database.
 | # | Feature | Surface | Status | Artefacts |
 |---|---|---|---|---|
 | 001 | Platform Foundation | All three (foundation) | Constitution ✅ · Specify ✅ · Clarify ✅ · Plan ✅ · Tasks ✅ · Analyze ✅ · **Implement ✅ — IMPLEMENTED / VERIFIED (50/50 tasks)** | [spec](../../specs/001-platform-foundation/spec.md) · [plan](../../specs/001-platform-foundation/plan.md) · [tasks](../../specs/001-platform-foundation/tasks.md) · research · data-model · contracts · quickstart · AGENT-HANDOFF |
-| 002 | Public Website | Public `/` | Planning re-synchronised (59 tasks / 13 phases / 7 contracts) · **Implement IN PROGRESS — 20 / 59 (Phases 1–5, 7 verified)** · **Phase 5.5 Full Product UI Foundation PLANNED (58 UIF tasks / 9 blocks), inserted before Phase 6** · reference-pack + GSAP amendment reconciled 2026-09-09 (ASSET-REF-01, MOTION-GSAP-01) | [spec](../../specs/002-public-website/spec.md) · [plan](../../specs/002-public-website/plan.md) · [tasks](../../specs/002-public-website/tasks.md) · [Phase 5.5 plan](../../specs/002-public-website/PHASE-5.5-UI-FOUNDATION-PLAN.md) · [Phase 5.5 tasks](../../specs/002-public-website/PHASE-5.5-TASKS.md) |
+| 002 | Public Website | Public `/`, Member `/dashboard` shell, Admin `/dashboard-admin` shell | Planning re-synchronised (59 tasks / 13 phases / 7 contracts) · **Implement IN PROGRESS — 20 / 59 (Phases 1–5, 7 verified)** · **Phase 5.5 Full Product UI Foundation — IMPLEMENTED / VERIFIED — 58 / 58 UIF tasks, all 9 blocks (A–I) closed 2026-09-10** · reference-pack + GSAP amendment reconciled 2026-09-09 (ASSET-REF-01, MOTION-GSAP-01, both still true and unresolved) · Member/Admin application shell (`components/app/*`) and its own copy root (`lib/app/copy`, `CONTENT-AR-01` scope) are new, reusable component inventory for Features 003–012 · Phase 6 (RFQ) NOT started | [spec](../../specs/002-public-website/spec.md) · [plan](../../specs/002-public-website/plan.md) · [tasks](../../specs/002-public-website/tasks.md) · [Phase 5.5 plan](../../specs/002-public-website/PHASE-5.5-UI-FOUNDATION-PLAN.md) · [Phase 5.5 tasks](../../specs/002-public-website/PHASE-5.5-TASKS.md) · [Phase 5.5 handoff](../../specs/002-public-website/PHASE-5.5-IMPLEMENTATION-HANDOFF.md) |
 | 003 | Auth, Membership & KYB | Public auth routes + `/dashboard` | Planning prepared · Implement NOT STARTED | [spec](../../specs/003-auth-membership-kyb/spec.md) · [plan](../../specs/003-auth-membership-kyb/plan.md) · [tasks](../../specs/003-auth-membership-kyb/tasks.md) |
 | 004 | Member Dashboard | `/dashboard` | Planning prepared · Implement NOT STARTED | [spec](../../specs/004-member-dashboard/spec.md) · [plan](../../specs/004-member-dashboard/plan.md) · [tasks](../../specs/004-member-dashboard/tasks.md) |
 | 005 | Inventory, Custody & Storage | `/dashboard` + shared layer | Planning prepared · Implement NOT STARTED | [spec](../../specs/005-inventory-custody-storage/spec.md) · [plan](../../specs/005-inventory-custody-storage/plan.md) · [tasks](../../specs/005-inventory-custody-storage/tasks.md) |
@@ -43,6 +43,68 @@ Analyze pass returned NOT READY. The corrections covered the cache API (now `uns
 homepage, an explicit public DTO allowlist, honest RFQ/price/lifecycle/media boundaries, real-browser
 verification, trailing-slash canonicalisation, and corrected task dependencies. **002 must be
 re-analyzed before implementation.**
+
+---
+
+## 1.1 Phase 5.5 — frozen visual system and component inventory (UIF-051)
+
+Closed 2026-09-10. All 58 UIF tasks (`UIF-001`–`UIF-058`, blocks A–I) are `[x]` in
+`specs/002-public-website/PHASE-5.5-TASKS.md`, each after its exact Verify condition passed. This is
+a **presentational foundation freeze**, not a business-feature completion — see §5 below for what
+remains genuinely open.
+
+**Tokens and primitives** (`src/app/globals.css`, `components/ui/*`): the complete Hills type,
+colour, radius, elevation, motion and layout contract from UIF-001–UIF-014, plus the Member/Admin
+application-shell tokens added in UIF-035 (`--sidebar-w` 264px / `--sidebar-w-collapsed` 76px /
+`--topbar-h` 64px). One design system across all three surfaces (contract §1) — Public "editorial",
+Member "application", Admin "operational" density, never a second token set.
+
+**Public feature components** future features may reuse as-is: the whole `components/public/*` tree
+(header/footer/hero/mega-menus/catalogue filter/origins showcase/interactive story/traceability/
+process journey/final CTA), `components/motion/*` (Reveal, Presence, HoverLift, `useGsapTimeline`,
+`GsapScrollReveal`), and the bilingual chrome pattern (`components/locale/bilingual.tsx`).
+
+**Member/Admin application shell** (new in UIF-035–041, the component inventory Features 003–012
+build on): `components/app/{app-shell,sidebar,topbar,page-header,mobile-app-nav,module-page,
+detail-page,filter-bar,action-bar,member-navigation,admin-navigation,foundation-overview}.tsx`, fed
+by its own copy root `lib/app/copy/*` (a second CONTENT module on the SAME i18next instance — see
+that module's header comment for why it is not `lib/public/copy`). `AppShell` is the one shell both
+`/dashboard` and `/dashboard-admin` mount; there is no second design system and no
+`/buyer-dashboard`/`/seller-dashboard`. The seller-additive navigation path and the full role-scalable
+admin module catalogue are real, tested code paths (`buildMemberNavGroups({canSell:true})`,
+`buildAdminNavGroups(roles)`) that are **not** wired to any live route — Feature 004 and Feature 010
+own turning them on with real capability/role data.
+
+**Client-island set** (contract §16, amended by UIF-047): 12 documented islands total — the original
+9 Public (theme, locale, mobile nav, search, motion wrappers, form controls, `AnimatedHero`,
+`InteractiveStorySection`, `OriginsShowcase`) plus `CatalogueFilter` (UIF-030, previously
+undocumented) plus `MobileAppNav` (UIF-035, Member/Admin's one new island) — plus the still-absent
+conditional `ProcessJourneySection` (UIF-056 shipped static; that island does not exist in the
+current build). No page tree (`page.tsx`/`layout.tsx`) is a Client Component anywhere in the product.
+
+**Blockers reconciled unchanged** — none resolved or hidden by Phase 5.5: `MEDIA-01`, `CONTENT-01`,
+`PRICE-011`, `DB-BLOCK-02`, `CRM-DEST-01`, `LIFE-01`, `ABUSE-01` all retain their true severity.
+`CONTENT-AR-01`: the public design convergence pass (2026-09-10) supplied faithful Arabic renderings
+for every `lib/public/copy` and `lib/app/copy` key — Content/Legal sign-off of the wording is the one
+remaining step, recorded in each module's own header comment. `I18N-ROUTE-01` unchanged (no locale
+routing; preference lives in `localStorage`, applied pre-paint). `ASSET-REF-01` and `MOTION-GSAP-01`
+remain true and in force exactly as recorded 2026-09-09 — no reference-board asset is rendered, GSAP
+is approved and Lenis stays uninitialised (`grep -rn "lenis" src components` — empty). `T033`,
+`T034`, `T035`, `T036` remain `[ ]`, untouched by this phase, exactly as the plan requires.
+
+**Verification evidence**: `npm run typecheck` / `npm test` (**122/122**) / `npm run build` all pass
+on final source; product lint (`src components tests scripts lib`) zero findings; the historical
+`docs/claude-design`-only baseline unchanged at **124 errors / 148 warnings**. Real-browser evidence
+on one clean production server: `verify-uif-b.mjs` **508/508**, `verify-uif-c.mjs` **117/117**,
+`verify-uif-d.mjs` **408/408** (Public, all themes/directions/breakpoints, long-Arabic injection,
+GSAP 20-cycle leak check), `ui-foundation.browser.mjs` (token/contrast-AA/RTL/responsive/GSAP
+lifecycle fixtures), `tests/design/uif-fg.browser.mjs` (24 authenticated Member/Admin scenarios + 8
+anonymous/cross-surface denial cases against REAL Supabase sessions), `tests/design/
+uif-h-closure.browser.mjs` (keyboard-only drawer open/focus-trap/close/focus-restore, heading order).
+
+**Exact next task**: Feature 002 Phase 6 (RFQ) — NOT started by this phase. Before that, or before
+Feature 003/004/010 begin consuming this inventory, re-run the Analyze pass 002's planning
+artefacts already call for (§ note below the feature index).
 
 ---
 
