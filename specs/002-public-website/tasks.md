@@ -455,7 +455,7 @@ Independent of Phases 3–4. Governed by [`contracts/rfq-contract.md`](./contrac
 
 ## Phase 9 — Cache registration & proof
 
-- [ ] T030 Confirm every `lib/public/*` read declares its tag and `revalidate` ceiling, and that the
+- [x] T030 Confirm every `lib/public/*` read declares its tag and `revalidate` ceiling, and that the
   register in `contracts/public-cache-policy.md` §3 matches the code exactly — including the honest
   "no mutation owner yet" fallback column. **Then add 002's five tags as rows to the platform-wide
   table in `specs/001-platform-foundation/contracts/cache-policy-contract.md`**, which that contract
@@ -467,7 +467,7 @@ Independent of Phases 3–4. Governed by [`contracts/rfq-contract.md`](./contrac
   - Codex: GPT-5.6 Sol — Low · Claude: Sonnet — Medium
   - Why: small, but it is what keeps one platform-wide cache authority instead of two competing ones — and the register must not overstate a capability Feature 010 has not built.
 
-- [ ] T031a Build the **cache-proof route** exactly as specified in
+- [x] T031a Build the **cache-proof route** exactly as specified in
   `contracts/public-cache-policy.md` §5.3 — that section is the complete design; implement it
   verbatim rather than reinterpreting it.
   **File**: `src/app/internal-test/cache-proof/route.ts` · **URL**: `/internal-test/cache-proof/` ·
@@ -496,7 +496,7 @@ Independent of Phases 3–4. Governed by [`contracts/rfq-contract.md`](./contrac
   - Codex: GPT-5.6 Sol — High · Claude: Opus — High
   - Why: this is the one place 002 could ship a public cache-purge/DoS vector; every guard is load-bearing, and the contract above leaves nothing to interpretation.
 
-- [ ] T031 Prove real cache behaviour against a **locally-started production build** — `npm run build`,
+- [x] T031 Prove real cache behaviour against a **locally-started production build** — `npm run build`,
   then `next start` with `CACHE_PROOF_ENABLED=true` and `CACHE_PROOF_SECRET` set in the server
   environment, run the proof, stop the server (`contracts/public-cache-policy.md` §5.3.2). Per
   §5.2/§5.4: read a public page twice → **identical**
@@ -509,7 +509,7 @@ Independent of Phases 3–4. Governed by [`contracts/rfq-contract.md`](./contrac
   - Codex: GPT-5.6 Sol — High · Claude: Sonnet — High
   - Why: a cache proof that never observes a changed value has proven nothing; 001 showed this needs a real running server and a value that genuinely recomputes.
 
-- [ ] T032 Verify no public cache entry varies by user/session/organization and no private route uses
+- [x] T032 Verify no public cache entry varies by user/session/organization and no private route uses
   these tags.
   - Req: FR-011, SEC-002, SC-002 | Depends: T030
   - Verify: `grep -rn "getRequestIdentity" src/app/\(public\) src/app/page.tsx lib/public` returns nothing; `grep -rln "unstable_cache" src/app/dashboard src/app/dashboard-admin` returns nothing; no cache key contains a user/session/org value
@@ -520,7 +520,7 @@ Independent of Phases 3–4. Governed by [`contracts/rfq-contract.md`](./contrac
 
 ## Phase 10 — Runtime states, motion, accessibility, RTL
 
-- [ ] T033 Implement the public runtime states across every owned route — loading, empty, error,
+- [x] T033 Implement the public runtime states across every owned route — loading, empty, error,
   unavailable, not-found, retry, and blocked-sub-flow — reusing 001's `StateScreen` where
   appropriate. "Stale" is rendered **only** where genuinely supported (today: nowhere).
   - Req: FR-029, PS1, PS5 | Depends: T013, T014, T015, T016, T020, T023
@@ -528,7 +528,7 @@ Independent of Phases 3–4. Governed by [`contracts/rfq-contract.md`](./contrac
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — High
   - Why: broad and easy to under-deliver; honest blocked/unavailable states are a stated SRS design requirement, not polish.
 
-- [ ] T034 Apply restrained Motion reveals/hover states with `prefers-reduced-motion` support. Do
+- [x] T034 Apply restrained Motion reveals/hover states with `prefers-reduced-motion` support. Do
   **not** initialise Lenis.
   - **Amended 2026-09-09 (MOTION-GSAP-01).** GSAP is approved for Phase 5.5 visual/experience work
     (product-owner decision; Constitution XIII already permitted it with justification). The earlier
@@ -542,7 +542,7 @@ Independent of Phases 3–4. Governed by [`contracts/rfq-contract.md`](./contrac
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — Low
   - Why: the requirement is restraint; the risk is over-animating, not technical difficulty.
 
-- [ ] T035 Audit and minimise client components across public routes; convert any non-interactive
+- [x] T035 Audit and minimise client components across public routes; convert any non-interactive
   island back to a Server Component; ensure no unnecessary DTO is hydrated and no private value
   enters the RSC payload.
   - Req: FR-020, SEC-005, SC-005 | Depends: T033
@@ -550,7 +550,7 @@ Independent of Phases 3–4. Governed by [`contracts/rfq-contract.md`](./contrac
   - Codex: GPT-5.6 Sol — High · Claude: Opus — Medium
   - Why: requires judgment about which islands genuinely need the client, across many files, with a leakage consequence.
 
-- [ ] T036 RTL and long-string resilience pass across all public layouts (logical properties only).
+- [x] T036 RTL and long-string resilience pass across all public layouts (logical properties only).
   - Req: FR-018, SC-007 | Depends: T033
   - Verify: `grep -rnE "text-left|text-right|[^-]pl-|[^-]pr-|margin-left|margin-right" src/app/\(public\) src/app/page.tsx components/public` returns nothing; `dir="rtl"` renders without breakage
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — Medium

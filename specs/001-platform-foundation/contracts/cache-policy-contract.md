@@ -47,6 +47,22 @@ Confirmed by structural check against the implemented tree, re-run at the end of
   inline-object form, never a named profile string — so no cache-life profile system was
   introduced either.
 
+## Registered cache tags (Feature 002 T030)
+
+Concrete per-tag entries, added additively per "Adding a new cache entry" below — this section adds
+rows only and does not restate or change the API/category rules above. Full ownership, fallback
+behaviour and the revalidation-proof mechanism for these tags are documented in Feature 002's own
+subordinate register, `specs/002-public-website/contracts/public-cache-policy.md` §3/§5; this table
+is the platform-wide index that document points back to.
+
+| Tag | Feature | Covers | `revalidate` (TTL ceiling) | Invalidation owner | Status today |
+|---|---|---|---|---|---|
+| `public-coffees` | 002 | coffee index list DTO | 3600s | catalogue mutations — Feature 010 (not implemented) | TTL only |
+| `public-coffee:{slug}` | 002 | one coffee detail DTO | 3600s | catalogue mutations — Feature 010 (not implemented) | TTL only |
+| `public-origins` | 002 | origin index list DTO | 3600s | catalogue mutations — Feature 010 (not implemented) | TTL only |
+| `public-origin:{slug}` | 002 | one origin detail DTO | 3600s | catalogue mutations — Feature 010 (not implemented) | TTL only |
+| `public-taxonomy` | 002 | types / varieties / processing / packaging / tags | 86400s | catalogue mutations — Feature 010 (not implemented) | TTL only |
+
 ## Adding a new cache entry (for later features)
 
 1. Confirm the data is public and non-authorization-sensitive, or is scoped so its cache key cannot

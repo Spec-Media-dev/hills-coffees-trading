@@ -360,7 +360,11 @@ complete set for the **whole product** (Public, Member, Admin): no other `"use c
 product code, where "product code" excludes (a) the underlying Base UI / shadcn primitives every
 island above is built from (`components/ui/{dialog,sheet,select,tabs,...}.tsx` — inherently client
 by upstream design, not separately counted islands) and (b) Next.js–mandated boundary files
-(`error.tsx`, which the framework requires to be a Client Component regardless of product code).
+(`error.tsx`, which the framework requires to be a Client Component regardless of product code — this
+includes the two files that follow that convention, `src/app/(public)/error.tsx` and
+`src/app/error.tsx`, plus their shared implementation `components/public/route-error.tsx`, added in
+T033: factoring the boundary's logging/retry logic into one file rather than duplicating it across
+the two segment-level `error.tsx` files does not change what mandates it).
 
 1. theme control (`UIF-016`)
 2. locale/direction control (`UIF-017`)

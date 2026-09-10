@@ -183,6 +183,181 @@ Feature-002 `tasks.md`: **30/59** real tasks checked (T000–T018, T023 already 
 T024–T029 added this run). T030–T057 (Phases 9–13) remain untouched and unchecked, exactly as
 required. No DB/RLS/migration/guard/proxy change. No commit, no push.
 
-**Exact next action**: none from this run. Feature 002 Phase 9 (cache registration & proof) is the
-next task-file phase but is explicitly NOT started here — the next permitted work is user review and
-commit of this Phase 6 + Phase 8 working tree.
+**Exact next action** (superseded — see Phase 9 Execution below, same session, later run): Feature
+002 Phase 9 has since been implemented and verified.
+
+---
+
+# Phase 9 Execution
+
+## Cache registration & proof — T030, T031a, T031, T032 (2026-09-10)
+
+Started from a clean tree at commit `0b3baf3` (Phase 6+8 closed). Read
+`contracts/public-cache-policy.md` (the complete §5.3 cache-proof route design — implemented
+verbatim, not reinterpreted) and `specs/001-platform-foundation/contracts/cache-policy-contract.md`
+(the platform-wide authority) before writing any code.
+
+**T030** — Confirmed all three `lib/public/*` cached reads (`coffees.ts`, `origins.ts`,
+`taxonomy.ts`) already declare `tags`/`revalidate` correctly via `unstable_cache`. The five
+Feature-002 tags (`public-coffees`, `public-coffee:{slug}`, `public-origins`, `public-origin:{slug}`,
+`public-taxonomy`) were present in 002's own register (§3) but had **no concrete row in 001's
+platform-wide table** — only a generic category description existed there. Added a new
+`## Registered cache tags (Feature 002 T030)` section to
+`specs/001-platform-foundation/contracts/cache-policy-contract.md`, purely additive: the existing
+API/category rules and the "Foundation proof read" row are untouched (verified by a test that asserts
+`git diff` on that file contains zero removed lines).
+
+**T031a** — `src/app/internal-test/cache-proof/route.ts`: `GET`/`POST` only, gated by
+`CACHE_PROOF_ENABLED === "true"` (checked **first**, before any header/body/tag) **and** a matching
+`x-cache-proof-secret` header against `CACHE_PROOF_SECRET` — either failing returns an empty `404`
+(never 401/403). Fixed tag allowlist (three exact + two regex-patterned forms, copied verbatim from
+§5.3). Every response — success and 404 alike — carries `X-Robots-Tag: noindex, nofollow`. No
+privileged database client, no identity resolution, no catalogue mutation; returns only the
+diagnostic stamp, never a DTO or row.
+
+**T031** — The real A–D revalidation proof, run against a freshly built, freshly started production
+server (`npm run build` then `next start` with `CACHE_PROOF_ENABLED=true` and an ephemeral,
+test-only `CACHE_PROOF_SECRET` set only in that process's environment — never committed, never
+printed beyond this run's own terminal output) on a temporary port. **A** (`GET ?tag=public-coffees`)
+and **B** (repeat `GET`) returned byte-identical stamps — genuine cache hit, no recompute. **C**
+(`POST {"tag":"public-coffees"}`) succeeded. **D** (`GET` again) returned a stamp with a different
+`computedAt`/`token` from A — genuine recompute, observed once, not retried. Stamp containment
+verified separately: `grep -c computedAt` against `/`, `/coffee/`, `/coffee/[slug]/` and
+`/sitemap.xml` all returned `0`.
+
+**T032** — Confirmed structurally: no public route/read calls `getRequestIdentity()` (one comment
+mentions the function by name while explaining it is *not* called — excluded by the test's
+comment-line filter, not a real call site); `grep -rln "unstable_cache" src/app/dashboard
+src/app/dashboard-admin` empty; no user/session/org/member/role value appears in any code line of
+`lib/public/cache.ts` (only in explanatory comments); no `redis`/`ioredis`/`@upstash` package
+reference anywhere; no Cache Components API (`"use cache"`, `cacheLife`, `cacheTag`, `updateTag`,
+`cacheComponents`) anywhere in `src`/`lib`/`next.config.ts`.
+
+### Server hygiene
+
+Two temporary server processes were used for the negative-gate proof (flag unset on the already-
+running port 3230 instance, and flag explicitly `"false"` on a short-lived port-3233 instance) and
+one for the positive-gate + A–D proof (port 3234, `CACHE_PROOF_ENABLED=true`). All three temporary
+instances were stopped immediately after their specific check completed; only the normal port-3230
+production server (no cache-proof flag set — the deployed-production equivalent) remains running for
+Phase 10's browser verification.
+
+### Verification
+
+`tests/public/cache-register.test.ts` (6 tests, T030), `tests/public/cache-proof.test.ts` (10 tests,
+T031a static safety — route shape, gate ordering, no privileged client/identity/mutation, exact
+allowlist, robots header on every branch, no public page holds a revalidation capability),
+`tests/public/cache-identity-independence.test.ts` (6 tests, T032). The T031 live A–D proof itself is
+not a Vitest test (`revalidateTag` needs Next's request/work-store context a bare Vitest process does
+not have — the same constraint every `lib/public/*` cached read already documents) — recorded here
+instead, exactly as `contracts/public-cache-policy.md` §5.2 anticipates.
+
+`npm run typecheck` PASS · `npm test` **183/183** PASS · `npm run lint` product scope zero findings ·
+`npm run build` PASS, `/internal-test/cache-proof` compiles as a dynamic route (`ƒ`), every other
+route's static/dynamic classification unchanged from Phase 8 · `grep -rlE
+"CACHE_PROOF_(ENABLED|SECRET)" .next/static` → zero matches (confirmed immediately after the build
+that produced the server used for the proof).
+
+T030, T031a, T031, T032 are now `[x]`. **Phase 9 is closed.**
+
+---
+
+# Phase 10 Execution
+
+## Runtime states, motion, client-island audit, RTL — T033, T034, T035, T036 (2026-09-10)
+
+Started immediately after Phase 9 closed, same session, working tree still clean apart from Phase 9's
+files. Audited the CURRENT repository state before writing anything, per the run's own reconciliation
+rule: Phase 5.5 had already frozen the state visual vocabulary, motion architecture, GSAP ownership,
+reduced-motion treatment and the client-island registry — none of that was redone.
+
+**T033** (runtime states) — audited every owned public route. Already honestly covered from earlier
+phases: coffee/origin index empty states (`coffees.length > 0 ? … : …`, honest copy, no invented
+figure), coffee/origin detail `notFound()` for non-public/unknown, the Reference Price unavailable
+state (T023), the RFQ unavailable-boundary panel (T021, Phase 6), root `not-found.tsx` (UIF-034).
+**Genuinely missing**: no `error.tsx` existed anywhere in the public tree — an actual read failure
+(e.g. `fetchCoffeeIndex` throwing) would have hit Next's unstyled default error page, not
+`StateScreen`, and there was no real "retry" affordance anywhere. Added:
+- `components/public/route-error.tsx` — the shared `StateScreen kind="error"` + digest-only logging
+  + `reset()`-driven "Try again" button (the exact discipline `src/app/dashboard/error.tsx` already
+  established for the Member Portal — same pattern, not a new one).
+- `src/app/(public)/error.tsx` — renders `RouteError` bare (the group's `layout.tsx` already wraps
+  children in `PublicShell`; wrapping again here would duplicate the header/footer).
+- `src/app/error.tsx` — renders `RouteError` wrapped in `PublicShell` itself (the homepage sits
+  outside the route group, so nothing else supplies the shell there).
+
+`stale` is not rendered anywhere — genuinely unsupported, exactly as the task expects; nothing was
+fabricated to populate it.
+
+### A real defect found and reverted during this block
+
+A route-group `src/app/(public)/loading.tsx` (bare `StateScreen kind="loading"`, mirroring
+`src/app/dashboard/loading.tsx`) was added for completeness, then **reverted** after the real-browser
+regression pass caught it breaking `notFound()` resolution: with it present, `/coffee/[slug]/` and
+`/origins/[slug]/` served the loading fallback indefinitely for draft/archived/unknown slugs —
+confirmed live via curl, status stuck at `200` instead of the required `404` (`verify-uif-d.mjs`
+failed 6/408 checks, all the exact lifecycle-gating assertions). Removed the file, rebuilt, restarted
+a fresh server, and reconfirmed **408/408**. This is recorded rather than silently dropped because it
+is a genuine, reproducible Next.js interaction between a route-group `loading.tsx` and a dynamic
+segment's `notFound()` call — not a fabricated status. No loading state exists for `(public)` today;
+`/dashboard` and `/dashboard-admin` keep their own `loading.tsx` unchanged (different route shape,
+not observed to have the same interaction).
+
+**T034** (motion) — regression only; Phase 6 added no animation. Confirmed live: `grep -rn "lenis"
+src components` → no matches; all four GSAP call sites (`gsap-timeline.ts`, `gsap-scroll-reveal.tsx`,
+`animated-hero.tsx`, `interactive-story-section.tsx`) still create work inside `gsap.context()` and
+call `.revert()` on cleanup; `RfqForm` imports no animation library of its own;
+`ANIMATION-OWNERSHIP.md` still asserts Lenis is not initialized and still names every current GSAP
+surface.
+
+**T035** (client-island audit) — enumerated every `"use client"` file under
+`src/app/(public)`/`src/app/page.tsx`/`components/public`. `process-journey.tsx` still has no client
+directive (only mentions the phrase in a comment explaining its absence — confirmed by checking the
+file's first line, not a substring search). The real islands are exactly the documented set:
+`animated-hero.tsx`, `catalogue-filter.tsx`, `interactive-story-section.tsx`, `mobile-nav.tsx`,
+`origins-showcase.tsx`, `rfq-form.tsx`, `search-control.tsx`, plus the new
+`route-error.tsx`/`(public)/error.tsx`/`src/app/error.tsx` triad — all three exist solely because
+Next.js mandates `error.tsx` to be a Client Component, the same carve-out contract §16 already
+recorded for the framework-mandated boundary; amended §16 to name these three files explicitly rather
+than count them as a new numbered island. `CatalogueFilter` still receives only `PublicCoffeeSummary`
+(never the richer `PublicCoffeeDetail`) — no extra hydration beyond what it renders. No client
+component in the public tree imports the auth DAL or calls `getRequestIdentity()`.
+
+**T036** (RTL/logical properties) — the exact Verify grep (`text-left|text-right|[^-]pl-|[^-]pr-|
+margin-left|margin-right`) across `src/app/(public)`, `src/app/page.tsx` and `components/public`
+returned zero matches before any change was made this block, and still returns zero after adding the
+error-boundary files and the RFQ form. Real-browser `dir="rtl"` proof: `/contact/` at 390 and 1440,
+dark theme, Arabic locale — `dir="rtl"` applied, zero horizontal overflow (already recorded in the
+Phase 6+8 regression rerun below); `verify-uif-b.mjs`'s and `verify-uif-d.mjs`'s own RTL/long-string
+matrices (which exercise the shared header/footer/card/breadcrumb primitives every route in this
+phase reuses) both passed in full against the final build.
+
+### Verification
+
+`tests/public/runtime-states.test.tsx` (10 tests, T033 — including a test that the reverted
+`loading.tsx` stays absent, so a future run cannot silently reintroduce it without this test failing
+loudly), `tests/public/motion-ownership.test.ts` (5 tests, T034), `tests/public/
+client-island-audit.test.ts` (7 tests, T035), `tests/public/rtl-resilience.test.ts` (3 tests, T036).
+
+Combined regression, run twice — once before and once after the `loading.tsx` revert, both against a
+freshly rebuilt, freshly started production server on port 3230: `npm run typecheck` PASS · `npm
+test` **208/208** PASS (no GoTrue warning) · `npm run lint` product scope zero findings, full-repo
+baseline unchanged at **124 errors / 148 warnings** · `npm run build` PASS, `/contact/`, `/coffee/`,
+`/origins/`, `/sitemap.xml`, `/robots.txt` all still statically prerendered, `/internal-test/
+cache-proof` still a dynamic route handler · `grep -rlE "CACHE_PROOF_(ENABLED|SECRET)" .next/static`
+zero matches (re-confirmed after this block's rebuild) · real-browser: `tests/design/
+phase6-8-closure.browser.mjs` exit clean (RFQ + JSON-LD regression, zero console/page errors) ·
+`verify-uif-b.mjs` **508/508** · `verify-uif-c.mjs` **117/117** · `verify-uif-d.mjs` **408/408**
+(status-lifecycle regression, the exact matrix that caught the `loading.tsx` defect).
+
+T033, T034, T035, T036 are now `[x]`. **Phase 10 is closed.**
+
+## Combined Phase 9 + 10 final state
+
+`specs/002-public-website/tasks.md`: **38/59** real tasks checked (30 going in, +4 Phase 9, +4 Phase
+10). T037–T057 (Phases 11–13) remain untouched and unchecked. No DB/RLS/migration/guard/proxy change.
+No commit, no push.
+
+**Exact next action**: none from this run. Feature 002 Phase 11 (automated tests) is the next
+task-file phase but is explicitly NOT started here — the next permitted work is user review and
+commit of this Phase 9 + Phase 10 working tree.
