@@ -145,7 +145,7 @@ export function SiteFooter() {
         {/* The signature line — the approved positioning sentence, set large and quiet. */}
         <p
           aria-hidden="true"
-          className="mt-[clamp(3.5rem,7vw,6rem)] font-heading text-[clamp(1.75rem,1rem+3.4vw,4.25rem)] font-semibold leading-[1.05] tracking-[var(--tracking-display)] text-[color-mix(in_srgb,var(--brand-cream)_16%,transparent)] text-balance"
+          className="mt-[clamp(3.5rem,7vw,6rem)] font-heading text-[clamp(1.75rem,1rem+3.4vw,4.25rem)] font-semibold leading-[1.05] tracking-[var(--tracking-display)] text-[color-mix(in_srgb,var(--brand-cream)_45%,transparent)] text-balance"
         >
           <Bilingual pick={(c) => c.footer.closingLine} />
         </p>

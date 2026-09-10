@@ -58,7 +58,7 @@ const CARD_TONE: Record<OriginCardTone, { link: string; watermark: string; regio
 export function OriginCard({ origin, tone = "light" }: { origin: PublicOriginSummary; tone?: OriginCardTone }) {
   const t = CARD_TONE[tone];
   return (
-    <li className="group h-full">
+    <div className="group h-full">
       <Link
         href={`/origins/${origin.slug}/`}
         className={`relative flex h-full flex-col gap-3 overflow-hidden rounded-[var(--radius-lg)] border p-7 transition-[border-color,box-shadow,transform,background-color] duration-[var(--dur-base)] hover:-translate-y-0.5 focus-visible:outline-2 focus-visible:outline-offset-2 motion-reduce:transform-none ${t.link}`}
@@ -100,6 +100,6 @@ export function OriginCard({ origin, tone = "light" }: { origin: PublicOriginSum
           <Icon name="arrow-right" data-directional-icon="true" className="size-4" />
         </span>
       </Link>
-    </li>
+    </div>
   );
 }

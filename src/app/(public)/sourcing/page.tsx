@@ -68,11 +68,11 @@ export default function SourcingPage() {
         className={`hc-container grid gap-10 py-[clamp(3rem,7vw,6rem)] lg:grid-cols-[minmax(0,1fr)_minmax(18rem,0.85fr)] lg:items-center lg:gap-16`}
       >
         <div className="flex flex-col gap-5">
-          <span className={`${EYEBROW} text-accent`}>
+          <span className={`${EYEBROW} text-[var(--gold-on-light)]`}>
             <Bilingual pick={(c) => c.sourcing.eyebrow} />
           </span>
           <h1 className={HEADING_2}><Bilingual pick={(c) => c.sourcing.title} /></h1>
-          <span aria-hidden="true" className="h-px w-16 bg-accent" />
+          <span aria-hidden="true" className="h-px w-16 bg-[var(--gold-on-light)]" />
           <p className={`${LEAD} text-muted-foreground text-pretty`}>
             <Bilingual pick={(c) => c.sourcing.lead} />
           </p>

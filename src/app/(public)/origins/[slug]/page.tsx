@@ -109,7 +109,7 @@ export default async function OriginDetailPage({ params }: PageProps) {
           <span
             aria-hidden="true"
             dir="ltr"
-            className="pointer-events-none absolute -top-8 end-[clamp(1rem,4vw,4rem)] font-heading text-[clamp(9rem,22vw,20rem)] font-black leading-none text-sidebar-foreground/[0.06]"
+            className="pointer-events-none absolute -top-8 end-[clamp(1rem,4vw,4rem)] font-heading text-[clamp(9rem,22vw,20rem)] font-black leading-none text-sidebar-foreground/[0.45]"
           >
             {origin.countryCode}
           </span>

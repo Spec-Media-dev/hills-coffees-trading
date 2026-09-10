@@ -162,12 +162,12 @@ export function OriginsShowcase({
         className="-mx-[var(--gutter-page)] flex snap-x snap-mandatory gap-6 overflow-x-auto px-[var(--gutter-page)] pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
         {origins.map((origin) => (
-          <div
+          <li
             key={origin.slug}
             className="w-[min(21rem,78vw)] shrink-0 snap-start sm:w-[min(23rem,60vw)]"
           >
             <OriginCard origin={origin} tone={tone} />
-          </div>
+          </li>
         ))}
       </ul>
 

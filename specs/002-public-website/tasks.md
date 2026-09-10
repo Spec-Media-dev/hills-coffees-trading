@@ -640,7 +640,7 @@ catalogue rows inside a test, and do not assert against whatever data happens to
 
 **jsdom does not prove browser layout.** These tasks run against a real browser.
 
-- [ ] T045 Establish the real-browser verification harness under `tests/browser/` using the
+- [x] T045 Establish the real-browser verification harness under `tests/browser/` using the
   **CDP-over-installed-Chrome** technique Feature 001 proved (Node's built-in `WebSocket`/`fetch`,
   no heavyweight new dependency). Set a realistic viewport before interacting.
   - Req: SC-005, SC-006, SC-007 | Depends: T033
@@ -648,21 +648,21 @@ catalogue rows inside a test, and do not assert against whatever data happens to
   - Codex: GPT-5.6 Sol — High · Claude: Opus — Medium
   - Why: 001 already hit the real pitfalls here (default viewport placing controls off-screen, streaming not settled at load) — reuse that hard-won approach rather than rediscovering it.
 
-- [ ] T046 Real-browser responsive verification at mobile, tablet and desktop breakpoints across
+- [x] T046 Real-browser responsive verification at mobile, tablet and desktop breakpoints across
   every owned public route, including layout stability (no shift on media placeholder load).
   - Req: FR-018, SC-005, SC-007 | Depends: T045, T036
   - Verify: no horizontal overflow, no overlapping content and no layout shift at any of the three breakpoints on any route
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — Medium
   - Why: broad but mechanical once the harness exists.
 
-- [ ] T047 Real-browser RTL and long-string verification: `dir="rtl"` with long strings across every
+- [x] T047 Real-browser RTL and long-string verification: `dir="rtl"` with long strings across every
   owned public route.
   - Req: FR-018, SC-007 | Depends: T045, T036
   - Verify: no breakage, clipping or mirrored-icon errors under `dir="rtl"` with long content
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — Medium
   - Why: the grep in T036 proves the CSS discipline; only a browser proves the result.
 
-- [ ] T048 Real-browser accessibility verification against **WCAG 2.2 AA**: keyboard traversal
+- [x] T048 Real-browser accessibility verification against **WCAG 2.2 AA**: keyboard traversal
   reaching every CTA, visible focus indicators, semantic landmarks, heading order, form label/error
   association, contrast against Hills tokens, and `prefers-reduced-motion`.
   Introduce an axe-style rule engine as a **dev-only dependency**, recorded explicitly here.
@@ -671,14 +671,14 @@ catalogue rows inside a test, and do not assert against whatever data happens to
   - Codex: GPT-5.6 Sol — High · Claude: Opus — High
   - Why: needs contextual judgment about semantics, and the dependency choice must be deliberate rather than assumed.
 
-- [ ] T049 Measure Core Web Vitals on a throttled mid-tier mobile profile against SC-005's
+- [x] T049 Measure Core Web Vitals on a throttled mid-tier mobile profile against SC-005's
   thresholds (LCP ≤ 2.5s, INP ≤ 200ms, CLS ≤ 0.1).
   - Req: SC-005 | Depends: T045, T035
   - Verify: measured values recorded per route; any route exceeding a threshold is reported, not rounded down; thresholds are the published CWV "good" values, not invented ones
   - Codex: GPT-5.6 Sol — High · Claude: Sonnet — High
   - Why: measurement discipline — the failure mode is reporting a number nobody actually measured.
 
-- [ ] T050 Verify meaningful server-rendered content with **JavaScript disabled**: primary content,
+- [x] T050 Verify meaningful server-rendered content with **JavaScript disabled**: primary content,
   navigation and CTAs work on every owned public route.
   - Req: FR-006, FR-020, PS1 | Depends: T045, T035
   - Verify: with JS disabled, each route renders its primary content and every priority anchor is followable
@@ -818,5 +818,5 @@ after the restructure, not carried over.
 | Phases | **13** |
 | Parallel-safe | **16** |
 | Tasks with both Codex and Claude metadata | **60 / 60** |
-| Tasks checked | **46 / 60** — through Phase 11; Phase 12 onward remains unchecked |
+| Tasks checked | **52 / 60** — through Phase 12; Phase 13 onward remains unchecked |
 | Phase 5.5 (`UIF-001`–`UIF-058`) | **58 tasks / 9 blocks**, tracked separately in [`PHASE-5.5-TASKS.md`](./PHASE-5.5-TASKS.md) — 0 checked |

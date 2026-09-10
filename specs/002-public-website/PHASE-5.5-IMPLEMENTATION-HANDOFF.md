@@ -915,3 +915,52 @@ Exact next action: Phase 12 is intentionally out of scope for this run. Do not b
 user instruction.
 
 **VERDICT: GO — FEATURE 002 PHASE 11 — COMPLETE — VERIFIED**
+
+# Phase 12 Execution
+
+## Phase 12 complete (2026-09-10)
+
+Phase 12 is now complete. The current production build was served once on port 3231 and inspected by
+an installed headless Chrome instance over CDP; the harness is deliberately dependency-light
+(`tests/browser/cdp-harness.mjs`) and `axe-core` is a direct **devDependency** only. No production
+runtime dependency, auth behavior, database, RLS, migration, fixture, or service-role behavior changed.
+
+- **T045:** `tests/browser/cdp-harness.mjs` and `tests/browser/phase12.browser.mjs` establish the
+  reusable installed-Chrome/CDP proof. It sets each requested viewport before loading a live
+  production route, captures console/page/network errors, and reads the rendered DOM.
+- **T046:** all nine owned public routes (`/`, coffee index/detail, origins index/detail, sourcing,
+  contact, portal entry, about) passed at 390x844, 768x1024 and 1440x1000. There was no horizontal
+  overflow, clipped H1/control, undersized visible control, missing placeholder ratio, or CLS above
+  0.1.
+- **T047:** the same route/viewport matrix passed with actual `hills-locale=ar`, `dir=rtl`, and a
+  long Arabic string injected into the rendered reading flow. The browser measured no overflow or
+  clipping; directional SVGs retained the required RTL transform.
+- **T048:** axe found no violations on any of the nine live public routes; heading order and
+  main/nav/footer landmarks passed. Real CDP keyboard events opened and closed Search and the mobile
+  drawer, retained/restored focus, and traversed the RFQ form from the document's normal Tab order.
+  RFQ labels/consent/submit association passed. `prefers-reduced-motion: reduce` collapsed all
+  motion tokens to `1ms`. During this work, genuine source defects were corrected: the Origins
+  carousel now has `ul > li` semantics, and low-contrast Foundation text was replaced with approved
+  Hills token values / sufficiently contrastful decorative treatment. These are source fixes, not
+  axe suppressions.
+- **T049:** real lab values were recorded under one controlled mobile profile (390x844, 150ms latency,
+  200 KiB/s download, 100 KiB/s upload, 4x CPU). Per-route `LCP/CLS/INP` ms results were:
+  `/` `552/0/40`, coffee index `556/0/32`, coffee detail `420/0/16`, origins index `444/0/16`,
+  origin detail `432/0/24`, sourcing `436/0/24`, contact `492/0/32`, portal entry `424/0/32`,
+  about `432/0/40`. Every actual value is within SC-005's 2500ms/0.1/200ms threshold.
+- **T050:** with JavaScript disabled in the same real Chrome instance, every owned public route still
+  emitted an H1, meaningful main content and real anchors (and `/contact/` emitted its form).
+
+Closure rerun after the source fixes: `npm run typecheck` PASS; `npm test` PASS **225/225**;
+`npm run build` PASS; `npx eslint src components tests scripts lib` PASS with zero findings;
+`git diff --check` PASS. The test output has no GoTrue warning. Its one expected `Public site error
+(digest: abc123)` line remains the intentional T033 error-state exercise, not a browser/runtime
+error. The live Chrome proof recorded no console errors, page errors or failed requests.
+
+Task authority updated: T045-T050 are `[x]`; checked total is **52/60**. Phase 13 remains wholly
+unchecked. No Feature 003 or Phase 13 work was started; no commit and no push occurred.
+
+Exact next action: Phase 13 only on a separate explicit user instruction. Before that, stop the
+temporary production server and do not retain a browser or report artifact.
+
+**VERDICT: GO — FEATURE 002 PHASE 12 — COMPLETE — VERIFIED**

@@ -71,11 +71,11 @@ export default function PortalEntryPage() {
         </div>
 
         <div className="flex max-w-[46rem] flex-col items-start gap-5 text-start">
-        <span className={`${EYEBROW} text-accent`}>
+        <span className={`${EYEBROW} text-[var(--gold-on-light)]`}>
           <Bilingual pick={(c) => c.portalEntry.eyebrow} />
         </span>
         <h1 className={HEADING_2}><Bilingual pick={(c) => c.portalEntry.title} /></h1>
-        <span aria-hidden="true" className="h-px w-16 bg-accent" />
+        <span aria-hidden="true" className="h-px w-16 bg-[var(--gold-on-light)]" />
         <p className={`${LEAD} text-muted-foreground text-pretty`}>
           <Bilingual pick={(c) => c.portalEntry.lead} />
         </p>
