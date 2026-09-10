@@ -5,8 +5,8 @@ import { startTransition, useActionState } from "react";
 import { useForm } from "react-hook-form";
 
 import { Button } from "@/components/ui/button";
+import { Field, FieldGroup, FormActionBar } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { MyProfileInput, type MyProfileInput as MyProfileInputType } from "@/lib/validation/my-profile";
 
 import { updateMyProfile } from "./actions";
@@ -25,7 +25,17 @@ type Props = {
  * (`MyProfileInput`, lib/validation/my-profile.ts) the Server Action enforces — one schema file,
  * imported by both layers (research.md §7). Client validation is UX only; the Server Action's own
  * `MyProfileInput.safeParse` call is the enforced gate and runs regardless of what this component
- * does.
+ * does. `updateMyProfile` itself, and everything it validates, is UNTOUCHED by Phase 5.5.
+ *
+ * ── CONVERGED ONTO THE UIF-008 FIELD SCAFFOLD (Phase 5.5, UIF-036) ──────────────────────────────
+ *
+ * Each field is now `Field` (`components/ui/field.tsx`) rather than a hand-rolled
+ * `Label`+`Input`+conditional-`<p role="alert">` trio: `Field` wires `aria-describedby`/
+ * `aria-invalid` itself, so this file no longer constructs those ids by hand and cannot drift from
+ * the UIF-008 contract. `FieldGroup` stacks two columns at `md:` and collapses to one at 390px
+ * (UIF-008's own Verify: "multi-column groups stack at 390px"). `FormActionBar` is the shared
+ * sticky action-row pattern rather than a bespoke `<div>`. No field, label, error or validation
+ * BEHAVIOUR changed — only the primitive each one renders through.
  *
  * `useActionState` drives `updateMyProfile`. React Hook Form's `handleSubmit` always calls
  * `event.preventDefault()` before it validates (so the browser's native `<form action>` submission
@@ -58,82 +68,41 @@ export function ProfileSettingsForm({ initialValues }: Props) {
   });
 
   return (
-    <form onSubmit={onValid} noValidate className="mt-6 flex flex-col gap-4">
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor="fullName">Full name</Label>
-        <Input
-          id="fullName"
-          aria-invalid={errors.fullName ? true : undefined}
-          aria-describedby={errors.fullName ? "fullName-error" : undefined}
-          {...register("fullName")}
+    <form onSubmit={onValid} noValidate className="mt-6 flex flex-col gap-6">
+      <FieldGroup>
+        <Field
+          label="Full name"
+          control={<Input {...register("fullName")} />}
+          error={errors.fullName?.message}
         />
-        {errors.fullName ? (
-          <p id="fullName-error" role="alert" className="text-xs text-destructive">
-            {errors.fullName.message}
-          </p>
-        ) : null}
-      </div>
-
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor="phone">Phone</Label>
-        <Input
-          id="phone"
-          aria-invalid={errors.phone ? true : undefined}
-          aria-describedby={errors.phone ? "phone-error" : undefined}
-          {...register("phone")}
+        <Field label="Phone" control={<Input {...register("phone")} />} error={errors.phone?.message} />
+        <Field
+          label="Company name"
+          control={<Input {...register("companyName")} />}
+          error={errors.companyName?.message}
         />
-        {errors.phone ? (
-          <p id="phone-error" role="alert" className="text-xs text-destructive">
-            {errors.phone.message}
-          </p>
-        ) : null}
-      </div>
-
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor="companyName">Company name</Label>
-        <Input
-          id="companyName"
-          aria-invalid={errors.companyName ? true : undefined}
-          aria-describedby={errors.companyName ? "companyName-error" : undefined}
-          {...register("companyName")}
+        <Field
+          label="Avatar path"
+          control={<Input {...register("avatarPath")} />}
+          error={errors.avatarPath?.message}
         />
-        {errors.companyName ? (
-          <p id="companyName-error" role="alert" className="text-xs text-destructive">
-            {errors.companyName.message}
-          </p>
-        ) : null}
-      </div>
+      </FieldGroup>
 
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor="avatarPath">Avatar path</Label>
-        <Input
-          id="avatarPath"
-          aria-invalid={errors.avatarPath ? true : undefined}
-          aria-describedby={errors.avatarPath ? "avatarPath-error" : undefined}
-          {...register("avatarPath")}
-        />
-        {errors.avatarPath ? (
-          <p id="avatarPath-error" role="alert" className="text-xs text-destructive">
-            {errors.avatarPath.message}
-          </p>
-        ) : null}
-      </div>
-
-      <div className="mt-2 flex items-center gap-3">
+      <FormActionBar className="justify-start bg-transparent backdrop-blur-none">
         <Button type="submit" disabled={isPending}>
           {isPending ? "Saving…" : "Save changes"}
         </Button>
         {state?.ok === true ? (
-          <p role="status" className="text-xs text-muted-foreground">
+          <p role="status" className="hc-meta text-muted-foreground">
             Saved.
           </p>
         ) : null}
         {state?.ok === false ? (
-          <p role="alert" className="text-xs text-destructive">
+          <p role="alert" className="hc-meta text-destructive">
             {state.error}
           </p>
         ) : null}
-      </div>
+      </FormActionBar>
     </form>
   );
 }

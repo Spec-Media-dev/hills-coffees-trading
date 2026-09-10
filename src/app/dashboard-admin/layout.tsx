@@ -1,24 +1,45 @@
 import type { Metadata } from "next";
 
+import { AppShell } from "@/components/app/app-shell";
+import { buildAdminNavGroups } from "@/components/app/admin-navigation";
+import { AppBilingual } from "@/components/locale/app-bilingual";
 import { StateScreen } from "@/components/layout/state-screen";
+import { appCopy } from "@/lib/app/copy";
 import { getRequestIdentity } from "@/lib/auth/dal";
 
 /**
- * Operations Console (`/dashboard-admin`) — server-side authorization guard.
+ * Operations Console (`/dashboard-admin`) — server-side authorization guard (unchanged) +
+ * application shell (Phase 5.5, UIF-039 — contract §1).
  *
- * SECURITY CONTRACT (contracts/route-surface-contract.md; Constitution Principles V and VIII):
+ * SECURITY CONTRACT (contracts/route-surface-contract.md; Constitution Principles V and VIII) —
+ * UNCHANGED BY THIS BLOCK; `tests/design/uif-g.test.tsx` diffs this exact file against the
+ * pre-block commit to prove it:
  *
  * - Access requires `kind: "authenticated"` AND a non-empty `operationalRoles` (i.e. the database
  *   attests at least one operational role for this user via its own SECURITY DEFINER role
  *   functions).
- * - This guard is COMPLETELY INDEPENDENT of the Member Portal guard. It never inspects
- *   `identity.organization`. A fully approved trading member with no `platform_admins` row is
+ * - This guard is COMPLETELY INDEPENDENT of the Member Portal guard. It never inspects a
+ *   membership object. A fully approved trading member with no `platform_admins` row is
  *   denied here, and an operator with no organization membership is denied in `/dashboard`.
  *   Member access never implies admin access, and admin access never implies member access
  *   (spec FR-004, Story 1 AS4, Edge Cases).
  * - Least privilege: a non-empty `operationalRoles` grants entry to the console shell only. Each
  *   area inside the console must additionally verify the specific role it requires (010's scope) —
  *   this guard is the outer boundary, not a universal admin capability.
+ *
+ * ── WHAT UIF-039 CHANGED ─────────────────────────────────────────────────────────────────────────
+ *
+ * Only the markup past the guard: the ad-hoc `<header>/<main>` pair is replaced by the SAME
+ * `AppShell` UIF-035 built for `/dashboard` — the two surfaces share one shell architecture at
+ * different navigation density, never a second design system (contract §1, §27 of this run's
+ * directive).
+ *
+ * `buildAdminNavGroups([])` — an EMPTY role array, not `identity.operationalRoles`. Reading the
+ * real roles here to filter navigation would be exactly the "read a role" UIF-041 forbids; an empty
+ * array is the honest neutral default for "no role information is available to this phase", and it
+ * happens to also be the correct answer today, because `Overview` — the only real route this phase
+ * ships — is role-agnostic and renders regardless (see `admin-navigation.tsx`). No dead module link
+ * is ever rendered on this live route (contract §29 of this run's directive).
  */
 
 export const metadata: Metadata = {
@@ -42,21 +63,21 @@ export default async function DashboardAdminLayout({
     return (
       <StateScreen
         kind="forbidden"
-        title="Operations access required"
-        description="Your account is signed in, but it does not hold an operational role for the Hills Coffee operations console."
+        title={appCopy.noOperationalRole.title}
+        description={appCopy.noOperationalRole.description}
       />
     );
   }
 
   return (
-    <div className="flex min-h-full flex-1 flex-col">
-      <header className="border-b border-border px-6 py-4">
-        <p className="text-sm font-medium text-foreground">Operations console</p>
-        <p className="text-xs text-muted-foreground">
-          {identity.operationalRoles.join(" · ")}
-        </p>
-      </header>
-      <main className="flex-1 px-6 py-8">{children}</main>
-    </div>
+    <AppShell
+      navGroups={buildAdminNavGroups([])}
+      workspaceLabel={<AppBilingual pick={(c) => c.adminWorkspace} />}
+      identitySubtitle={identity.operationalRoles.join(" · ")}
+      logoHref="/dashboard-admin"
+      footerNote={appCopy.roleVisibilityNote}
+    >
+      {children}
+    </AppShell>
   );
 }

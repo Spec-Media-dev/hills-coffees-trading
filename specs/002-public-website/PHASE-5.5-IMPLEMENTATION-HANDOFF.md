@@ -531,3 +531,171 @@ visible RTL heading and 52px CTA, Arabic typography, zero layout shift, and all 
 at 1ms. Unknown, DRAFT, ARCHIVED and INACTIVE catalogue routes all return 404; `T033` remains `[ ]`.
 Known defects: none. Exact next action: user review and separate commit of UIF-E; do not start UIF-F
 without a new request.
+
+# UIF-F Execution
+
+# UIF-F Execution
+
+## Discovery (before implementation)
+
+Starting commit: `2b2dcf0` "feat: complete phase 5.5 UIF-E public surfaces". Working tree clean at
+start (verified `git status --short` empty). Nothing reset, stashed or discarded.
+
+Repository-defined UIF-F tasks (`specs/002-public-website/PHASE-5.5-TASKS.md`, Block "UIF-F — Member
+App Foundation", lines 469-511) — **4 tasks, all `[ ]` at start**:
+
+- `UIF-035` Shared application shell primitives (`components/app/{app-shell,sidebar,topbar,page-header}.tsx`)
+  — depends UIF-012, UIF-014, UIF-016, UIF-017 (all `[x]`).
+- `UIF-036` Member shell applied at `/dashboard` (`src/app/dashboard/layout.tsx`, `page.tsx`) + converge
+  the existing `/dashboard/settings` surface onto the shell/UIF-008 controls — depends UIF-035, UIF-008 (`[x]`).
+- `UIF-037` Buyer module layout patterns (`components/app/*`) — depends UIF-036, UIF-011 (`[x]`).
+- `UIF-038` Seller additive UI architecture (`components/app/*`) — depends UIF-037.
+
+Repository-defined UIF-G tasks (same file, "UIF-G — Admin App Foundation", lines 511-544) — **3 tasks**:
+
+- `UIF-039` Admin shell applied at `/dashboard-admin` — depends UIF-035, UIF-036.
+- `UIF-040` Admin operational UI patterns (`components/app/*`) — depends UIF-039, UIF-011.
+- `UIF-041` Role-scalable admin navigation structure (`components/app/sidebar.tsx`) — depends UIF-039.
+
+All UIF-F/UIF-G dependencies (`UIF-008, UIF-011, UIF-012, UIF-014, UIF-016, UIF-017`) are already
+`[x]` — verified by grep against the current task file. Dependencies satisfied: YES.
+
+Design tokens for the shell (`docs/claude-design/tokens/layout.css`, `Sidebar.jsx`, `Topbar.jsx`):
+`--sidebar-w: 264px`, `--sidebar-w-collapsed: 76px`, `--topbar-h: 64px`, dark-forest sidebar always
+(both themes), gold uppercase group labels, `--forest-500` filled active item. These three tokens did
+not exist in `src/app/globals.css` (only the public header's `--header-h`/`--drawer-w` had been
+ported) — added additively; no existing selector references them, so this is not a regression risk.
+
+Security architecture read: `src/proxy.ts` (optimistic redirect only, no auth decision — untouched by
+this run), `lib/auth/dal.ts` (`getRequestIdentity()`, fails closed, RPC-backed role/capability
+resolution — untouched), `lib/auth/types.ts` (`RequestIdentity`/`OperationalRole`/
+`OrganizationMembership` shapes — untouched), `src/app/dashboard/layout.tsx` and
+`src/app/dashboard-admin/layout.tsx` (existing guards — the shell replaces only the post-guard
+`<div><header>/<main>` markup, the guard predicate itself is not touched).
+
+Existing shared primitives confirmed present and reused rather than rebuilt: `components/app/
+{data-table,empty-state,pagination,sort-control,toast}.tsx`, `components/ui/{breadcrumb,tabs,dialog,
+sheet,status-badge,filter-chip,field}.tsx`, `components/layout/state-screen.tsx`.
+
+i18n architecture decision: `lib/i18n/config.ts` feeds i18next from `lib/public/copy` exclusively
+("there is exactly one dictionary", FR-030). Reusing the SAME dictionary/provider for Member/Admin
+shell chrome (new `app` namespace inside the existing `PublicCopy` type, consumed via the same
+`useLocale()`/`t` pattern already used across the product) is the literal "no second i18n system"
+reading — a parallel `lib/app/copy` module would itself read as a second system. No public-page
+behaviour changes; the `app` namespace does not touch any public-facing route or component.
+
+Auth test fixtures (`tests/auth/fixture-session.ts`, `FOUNDATION_FIXTURES`) confirmed live and
+passing against the real seeded Supabase project (`npm test` baseline: 80/80, 6 files, before any
+change). This — not a fabricated CDP session — is the repository's approved mechanism for
+authenticated-identity verification; the guard predicates are not modified in this run, so this
+existing suite re-passing unchanged is the proof of "anonymous and cross-surface denial still hold".
+For real-browser visual QA of the authenticated shell, a genuine session will be minted for the CDP
+browser by signing in through the real Supabase Auth password grant with the seeded fixture
+credentials and writing the resulting session into the exact cookie format `@supabase/ssr` reads
+(`sb-<project-ref>-auth-token[.N]`, `base64-` + base64url(JSON) of the real verified session) — this
+is not an auth bypass: `getUser()` still verifies the JWT against the Auth server on every request.
+
+## Execution plan (both blocks share the shell — building UIF-F fully before UIF-G touches it)
+
+1. `components/app/app-navigation.ts` — shared `AppNavGroup`/`AppNavItem` types.
+2. `components/app/sidebar.tsx`, `topbar.tsx`, `page-header.tsx`, `app-shell.tsx` — UIF-035.
+3. `components/app/mobile-app-nav.tsx` — the one new client island (drawer), narrowly scoped.
+4. Extend `lib/public/copy/{en,ar,index,types}.ts` with the `app` namespace.
+5. Converge `src/app/dashboard/{layout,page}.tsx` and `dashboard/settings/*` onto the shell — UIF-036.
+6. `components/app/member-navigation.ts`, `module-page.tsx`, `detail-page.tsx` — UIF-037.
+7. Seller-additive nav groups + component-level test proving the prop path, live route unchanged —
+   UIF-038.
+8. `tests/design/uif-f.test.tsx` — exact Verify conditions as executable assertions.
+9. UIF-F block gate: typecheck, targeted tests, full tests, lint.
+10. Only if green: re-read UIF-G tasks, `components/app/admin-navigation.ts`,
+    `src/app/dashboard-admin/{layout,page}.tsx` convergence — UIF-039.
+11. Admin operational patterns reusing `module-page`/`detail-page` — UIF-040.
+12. Role-scalable nav structure (`buildAdminNavGroups`) + component-level test — UIF-041.
+13. `tests/design/uif-g.test.tsx`.
+14. Combined F+G regression: typecheck, full tests, build, lint, UIF-A–E regression, real-browser QA
+    (anonymous + fixture-authenticated sessions) at 390/768/1440/wide, Light/Dark, EN/AR RTL.
+
+Exact next action: implement step 1.
+
+## UIF-F closed (2026-09-10)
+
+Task states: `UIF-035`, `UIF-036`, `UIF-037`, `UIF-038` all `[x]` in `PHASE-5.5-TASKS.md`, each after
+its exact Verify condition passed.
+
+Files created: `components/app/{app-navigation.ts,sidebar.tsx,topbar.tsx,page-header.tsx,
+mobile-app-nav.tsx,app-shell.tsx,member-navigation.tsx,module-page.tsx,detail-page.tsx}`,
+`components/locale/app-bilingual.tsx`, `lib/app/copy/{en.ts,ar.ts,types.ts,index.ts}`,
+`tests/design/uif-f.test.tsx`.
+
+Files modified: `src/app/dashboard/{layout.tsx,page.tsx}`, `src/app/dashboard/settings/
+{settings-foundation-shell.tsx,profile-settings-form.tsx}` (`actions.ts` untouched — proven by
+`git diff` in the test suite), `components/ui/icon.tsx` (17 glyphs added — the icon registry's own
+documented extension point), `src/app/globals.css` (additive only: `--sidebar-w`,
+`--sidebar-w-collapsed`, `--topbar-h`), `components/locale/locale-provider.tsx` (added `tApp`
+alongside the existing `t`, additive).
+
+Reconciliation defect found and fixed mid-block: extending `lib/public/copy` with Member/Admin
+module names (`organizations`, `payouts`, `disputes`, ...) broke `tests/public/dto-structure.test.ts`
+— that suite scans every file under `lib/public/` for denylisted private-table vocabulary as a
+structural boundary on the audited public read layer, and legitimate UI labels for future admin
+modules collide with real table names by construction. Root-caused and fixed by relocating that
+content to a new, separate `lib/app/copy/` module (same pattern, same `getCopy`-style resolution,
+same i18next instance — not a second i18n system, a second CONTENT root for a documented, tested
+reason) rather than weakening or deleting the boundary test.
+
+Two further self-referential defects found while writing `tests/design/uif-f.test.tsx` (both fixed
+at the source, not by weakening the assertion): (1) `components/app/topbar.tsx`'s own comment
+explaining *why* it avoids a physical `ml-auto` literally spelled `ml-auto`, tripping the repo's
+"no physical inline-direction utility in product code" scan — reworded to describe the utility
+without reproducing it. (2) `src/app/dashboard/layout.tsx`'s comment explaining the guard is
+untouched literally quoted the guard's own conditional text, so `git diff` on the file showed a
+*comment* line touching text matching the guard pattern, which the test's own diff-scan (correctly)
+flagged as suspicious; reworded to describe the guard instead of quoting it.
+
+One real runtime defect found via the UIF-F test suite: `MobileAppNav` called `pathname.startsWith()`
+without a null guard — `usePathname()` types as `string | null`, and does return `null` outside a
+mounted App Router (as the test itself demonstrated). Fixed with a null check; the live route is
+never affected (a mounted Next.js page always supplies a real pathname), but the component is now
+correct against its own declared type rather than by accident.
+
+Verification actually run: `tests/design/uif-f.test.tsx` 21/21 (exact UIF-035/036/037/038 Verify
+conditions as executable assertions — prop-driven shell, RTL mirroring via logical CSS only, forest
+sidebar in both themes, drawer collapse, guard byte-identical via `git diff`, `canSell` hardcoded
+false with the Feature-004 ownership comment, settings on the Field scaffold, no new `/dashboard/*`
+directory, seller group proven only via the component-level test, no `/seller-dashboard` or
+`/buyer-dashboard` anywhere in `src/app`); full suite 101/101 (80 pre-existing + 21 new, including
+`tests/auth/request-identity.test.ts` and `update-my-profile.test.ts` unchanged and passing, which is
+the "anonymous and cross-surface denial still hold" proof — the guard predicates are unmodified);
+`npm run typecheck` PASS; product lint (`src components tests scripts lib`) zero findings.
+
+Known defects: none open.
+Temporary/debug code: none (the throwaway `tests/design/probe.test.tsx` used to diagnose the jsdom
+`matchMedia`/router-context issues was deleted before this checkpoint).
+
+Exact next action: re-read the current UIF-G task definitions (do not reuse assumptions from before
+UIF-F), then implement UIF-039/040/041.
+
+## UIF-G closed (2026-09-10)
+
+Task states: `UIF-039`, `UIF-040`, `UIF-041` are `[x]` only after their exact verification passed.
+
+Implemented the guarded `/dashboard-admin` shell with the existing `AppShell`, an honest empty
+overview, prop-only operational layout primitives (`ModulePage`, `DetailPage`, `FilterBar`,
+`ActionBar`) and the role-agnostic `buildAdminNavGroups` future-navigation structure. The live route
+supplies an empty role set, so it exposes only the real Overview route; Feature 010 owns all actual
+role gating and each future module's server-side authorization. No admin business route, data read,
+KPI, queue count, action, authorization change, database change or service-role usage was added.
+
+Verification: targeted UIF-F/G suite **38/38 pass**; full suite **118/118 pass**; `npm run typecheck`
+PASS; `npm run build` PASS; product lint (`src components tests scripts lib`) zero findings; existing
+public foundation browser proof PASS. New real production-browser proof `tests/design/uif-fg.browser.mjs`
+verified **24 authenticated visual scenarios** (Member and Admin × 390/768/1440 × Light/Dark ×
+LTR/RTL), zero horizontal overflow, visible titles, 44px+ mobile drawer controls, desktop sidebars,
+and reduced-motion tokens at 1ms. It also verified **8** anonymous/cross-surface denial cases over
+both URL forms; proxy redirect to `/` and StateScreen are both approved denial outcomes. No runtime
+or console errors were observed. The first test pass surfaced only self-referential assertions
+(comments and duplicate honest status text); source comments/tests were corrected without weakening
+the actual authorization, data-boundary or UI assertions.
+
+Exact next action: do not start UIF-H, UIF-I or Phase 6 without a new request. The next permitted
+work is user review/commit of this UIF-F + UIF-G working tree.

@@ -1,8 +1,10 @@
+import { PageHeader } from "@/components/app/page-header";
+import { AppBilingual } from "@/components/locale/app-bilingual";
 import { StateScreen } from "@/components/layout/state-screen";
 import { getRequestIdentity } from "@/lib/auth/dal";
 
 /**
- * Minimal Operations Console placeholder.
+ * Operations Console overview (Phase 5.5, UIF-039 — contract §1).
  *
  * Deliberately contains no operational functionality — the role-separated work areas (compliance,
  * warehouse, finance, catalogue, audit, system) are 010-admin-operations-console's scope. This
@@ -16,6 +18,9 @@ import { getRequestIdentity } from "@/lib/auth/dal";
  *
  * This check is INDEPENDENT of the Member Portal's: it inspects `operationalRoles` only, never
  * `organization`.
+ *
+ * UIF-039 restyles this onto `PageHeader` and states honestly that live counts arrive with later
+ * features — no estimated or sample figure anywhere on this page.
  */
 export default async function DashboardAdminPage() {
   const identity = await getRequestIdentity();
@@ -29,14 +34,10 @@ export default async function DashboardAdminPage() {
   }
 
   return (
-    <div className="max-w-2xl">
-      <h1 className="text-xl font-semibold tracking-tight text-foreground">
-        Operations console
-      </h1>
-      <p className="mt-2 text-sm text-muted-foreground">
-        The platform foundation is in place. Role-separated operational work
-        areas arrive with later features.
-      </p>
-    </div>
+    <PageHeader
+      title={<AppBilingual pick={(c) => c.adminWorkspace} />}
+      description={<AppBilingual pick={(c) => c.modulesArriveLater} />}
+      trail={[{ label: <AppBilingual pick={(c) => c.overview} /> }]}
+    />
   );
 }

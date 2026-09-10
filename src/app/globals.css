@@ -222,6 +222,13 @@
   --container-product: 96rem;
   --header-h: 84px;
   --drawer-w: min(420px, 88vw);
+  /* Member/Admin application shell (Phase 5.5, UIF-035). Values carried over verbatim from the
+     approved Hills design token reference for dashboard chrome — the public header uses
+     --header-h; the application shell uses these instead, since the two surfaces are visually
+     distinct (contract §1: Public "editorial", Member/Admin "application"/"operational"). */
+  --sidebar-w: 264px;
+  --sidebar-w-collapsed: 76px;
+  --topbar-h: 64px;
   --container-editorial: 80rem;
   --container-article: 47.5rem;
   --background: #eee4d1;

@@ -17,6 +17,7 @@ import {
   LOCALE_STORAGE_KEY,
   type Locale,
 } from "@/components/theme/preferences";
+import { getAppCopy, type AppCopy } from "@/lib/app/copy";
 import { getCopy, type PublicCopy } from "@/lib/public/copy";
 import { i18next } from "@/lib/i18n/config";
 
@@ -51,8 +52,14 @@ const LOCALE_EVENT = "hills:locale";
 type LocaleContextValue = {
   locale: Locale;
   direction: "ltr" | "rtl";
-  /** The resolved dictionary for the active locale, English-filled where Arabic is unapproved. */
+  /** The resolved public-copy dictionary for the active locale, English-filled where unapproved. */
   t: PublicCopy;
+  /**
+   * The resolved Member/Admin application-shell dictionary (Phase 5.5, UIF-035; `lib/app/copy` —
+   * kept separate from `t`/`lib/public/copy` because it is scanned by a different, stricter
+   * boundary test; see that module's header comment). Same resolution mechanism as `t`.
+   */
+  tApp: AppCopy;
   setLocale: (next: Locale) => void;
   toggleLocale: () => void;
 };
@@ -114,6 +121,7 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
       locale,
       direction: directionOf(locale),
       t: getCopy(locale),
+      tApp: getAppCopy(locale),
       setLocale,
       toggleLocale,
     }),

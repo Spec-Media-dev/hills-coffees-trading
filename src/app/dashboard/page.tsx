@@ -1,8 +1,10 @@
+import { PageHeader } from "@/components/app/page-header";
+import { AppBilingual } from "@/components/locale/app-bilingual";
 import { StateScreen } from "@/components/layout/state-screen";
 import { getRequestIdentity } from "@/lib/auth/dal";
 
 /**
- * Minimal Member Portal placeholder.
+ * Member Portal overview (Phase 5.5, UIF-036 — contract §1).
  *
  * Deliberately contains no business functionality — the member overview and its modules are
  * 004-member-dashboard's scope, and every business module is 005-012's. This exists so `/dashboard`
@@ -19,6 +21,9 @@ import { getRequestIdentity } from "@/lib/auth/dal";
  * as close to the data as possible (research.md §2).
  *
  * Every later page under `/dashboard` MUST follow this pattern before fetching protected data.
+ *
+ * UIF-036 restyles this onto `PageHeader` and states honestly, via the T000-style copy dictionary,
+ * that modules arrive with later features — no invented number, order, balance or KPI anywhere.
  */
 export default async function DashboardPage() {
   const identity = await getRequestIdentity();
@@ -29,14 +34,10 @@ export default async function DashboardPage() {
   }
 
   return (
-    <div className="max-w-2xl">
-      <h1 className="text-xl font-semibold tracking-tight text-foreground">
-        Member portal
-      </h1>
-      <p className="mt-2 text-sm text-muted-foreground">
-        The platform foundation is in place. Member modules arrive with later
-        features.
-      </p>
-    </div>
+    <PageHeader
+      title={<AppBilingual pick={(c) => c.memberWorkspace} />}
+      description={<AppBilingual pick={(c) => c.modulesArriveLater} />}
+      trail={[{ label: <AppBilingual pick={(c) => c.overview} /> }]}
+    />
   );
 }

@@ -470,7 +470,7 @@ wrapping-control behaviour is judgement-heavy.
 
 **Codex: GPT-5.6 Sol — High · Claude: Opus — High**
 
-- [ ] UIF-035 Shared application shell primitives (`components/app/{app-shell,sidebar,topbar,page-header}.tsx`)
+- [x] UIF-035 Shared application shell primitives (`components/app/{app-shell,sidebar,topbar,page-header}.tsx`)
   - Scope: 264px dark-forest sidebar (always forest, regardless of theme) with gold uppercase group labels and a filled `--forest-500` active item; 64px sticky topbar carrying theme + locale + identity slots; page header; breadcrumb slot; responsive collapse to drawer. **Presentational, prop-driven.**
   - Requirement: contract §1, §11, §12; design Sidebar/Topbar specs
   - Depends: UIF-012, UIF-014, UIF-016, UIF-017
@@ -479,7 +479,7 @@ wrapping-control behaviour is judgement-heavy.
   - Codex: GPT-5.6 Sol — High · Claude: Opus — High
   - Why: the architecture every member and admin screen inherits, and the sharpest scope-theft boundary against Feature 004.
 
-- [ ] UIF-036 Member shell applied at `/dashboard` (`src/app/dashboard/layout.tsx`, `src/app/dashboard/page.tsx`)
+- [x] UIF-036 Member shell applied at `/dashboard` (`src/app/dashboard/layout.tsx`, `src/app/dashboard/page.tsx`)
   - Scope: mount the shell inside the existing guard; honest overview presentation stating that modules arrive with later features; page header and breadcrumbs. Also converge the **existing** `/dashboard/settings` surface — `page.tsx`, `settings-foundation-shell.tsx` and `profile-settings-form.tsx` — onto the shell, the converged form controls (UIF-008) and the global type tokens, so no protected surface keeps a pre-Phase-5.5 appearance.
   - Requirement: contract §1; plan §3 (004 ownership)
   - Depends: UIF-035, UIF-008
@@ -488,7 +488,7 @@ wrapping-control behaviour is judgement-heavy.
   - Codex: GPT-5.6 Sol — Medium · Claude: Opus — High
   - Why: edits a verified protected surface — the guard must be provably untouched.
 
-- [ ] UIF-037 Buyer module layout patterns (`components/app/*`, documented patterns)
+- [x] UIF-037 Buyer module layout patterns (`components/app/*`, documented patterns)
   - Scope: reusable layout patterns for future buyer areas — overview, discovery, orders, order detail, custody, deliveries, invoices, organisation, KYB status, notifications, settings. **Layout only.**
   - Requirement: contract §8, §9, §10; plan §3
   - Depends: UIF-036, UIF-011
@@ -497,7 +497,7 @@ wrapping-control behaviour is judgement-heavy.
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — High
   - Why: the "no fake operational data" rule is load-bearing exactly here.
 
-- [ ] UIF-038 Seller additive UI architecture (`components/app/*`)
+- [x] UIF-038 Seller additive UI architecture (`components/app/*`)
   - Scope: the **rendering architecture** by which seller entries (selling, listings, seller inventory, sales activity, settlement, payout presentation) appear additively inside the same `/dashboard` when a future capability flag is supplied by Feature 004.
   - Requirement: Constitution V, VI; plan §3
   - Depends: UIF-037
@@ -512,7 +512,7 @@ wrapping-control behaviour is judgement-heavy.
 
 **Codex: GPT-5.6 Sol — High · Claude: Opus — High**
 
-- [ ] UIF-039 Admin shell applied at `/dashboard-admin` (`src/app/dashboard-admin/layout.tsx`, `src/app/dashboard-admin/page.tsx`)
+- [x] UIF-039 Admin shell applied at `/dashboard-admin` (`src/app/dashboard-admin/layout.tsx`, `src/app/dashboard-admin/page.tsx`)
   - Scope: the same shell primitives at operational density — dense sidebar groups, sticky topbar with workspace eyebrow + identity slot, breadcrumbs, page headers.
   - Requirement: contract §1; plan §3 (010 ownership)
   - Depends: UIF-035, UIF-036
@@ -521,7 +521,7 @@ wrapping-control behaviour is judgement-heavy.
   - Codex: GPT-5.6 Sol — High · Claude: Opus — High
   - Why: the admin reference screenshot is full of numbers — this is where fake KPI tiles would appear.
 
-- [ ] UIF-040 Admin operational UI patterns (`components/app/*`)
+- [x] UIF-040 Admin operational UI patterns (`components/app/*`)
   - Scope: reusable operational patterns — queues/tables with filters, detail views, action bars, dialogs/drawers for review actions, status presentation from the closed vocabulary, empty/loading/error states — as layout foundations for future Overview, Organizations, Members, KYB, Catalogue, Inventory, Listings, Orders, Payment proofs, Finance, Settlement, Payouts, Delivery, Pricing, Commission, Disputes and Audit modules.
   - Requirement: contract §7, §8, §9, §10; plan §3
   - Depends: UIF-039, UIF-011
@@ -530,7 +530,7 @@ wrapping-control behaviour is judgement-heavy.
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — High
   - Why: broad but repetitive once the table and drawer primitives exist.
 
-- [ ] UIF-041 Role-scalable admin navigation structure (`components/app/sidebar.tsx`, documented structure)
+- [x] UIF-041 Role-scalable admin navigation structure (`components/app/sidebar.tsx`, documented structure)
   - Scope: a navigation/module/action structure that future permission logic can drive for SUPER_ADMIN, ADMIN, COMPLIANCE, WAREHOUSE, FINANCE and AUDITOR **without redesigning the shell**.
   - Requirement: Constitution V, VIII; plan §3
   - Depends: UIF-039

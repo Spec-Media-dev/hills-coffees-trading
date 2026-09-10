@@ -1,3 +1,9 @@
+// This suite exercises the server-side public DTO boundary and has no DOM dependency. Running it
+// in Vitest's Node environment matches the production execution context and prevents auth-js from
+// treating its intentionally fresh anonymous read clients as browser-local singleton duplicates.
+// The production client construction and authentication behaviour are unchanged.
+// @vitest-environment node
+
 import { beforeAll, describe, expect, it } from "vitest";
 
 import {
