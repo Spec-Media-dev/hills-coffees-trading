@@ -9,6 +9,7 @@ import { useLocale } from "@/components/locale/locale-provider";
 import { Button } from "@/components/ui/button";
 import { Field, FormActionBar } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { SignInInput, SIGN_IN_GENERIC_ERROR } from "@/lib/validation/sign-in";
 
 import { signIn } from "@/src/app/(auth)/sign-in/actions";
@@ -51,7 +52,14 @@ export function SignInForm() {
         <Field label={copy.email} control={<Input type="email" autoComplete="email" {...register("email")} />} error={errors.email?.message} />
         <Field
           label={copy.password}
-          control={<Input type="password" autoComplete="current-password" {...register("password")} />}
+          control={
+            <PasswordInput
+              autoComplete="current-password"
+              showLabel={t.auth.password.show}
+              hideLabel={t.auth.password.hide}
+              {...register("password")}
+            />
+          }
           error={errors.password?.message}
         />
       </div>

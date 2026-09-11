@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 
 import { AppShell } from "@/components/app/app-shell";
 import { buildMemberNavGroups } from "@/components/app/member-navigation";
+import { AwaitingKybState } from "@/components/account/awaiting-kyb-state";
+import { OnboardingExperience } from "@/components/account/onboarding-experience";
 import { OrganizationSelector } from "@/components/account/organization-selector";
 import { ResendVerificationButton } from "@/components/account/resend-verification-button";
 import { AppBilingual } from "@/components/locale/app-bilingual";
@@ -75,14 +77,20 @@ export default async function DashboardLayout({
     return <OrganizationSelector organizations={identity.organizations} redirectTo="/dashboard/" />;
   }
 
+  // Feature 003 T012 — a verified, unattached user gets the real onboarding experience, not a
+  // static "no organization" dead end. Rendered inline (same precedent as `OrganizationSelector`
+  // above) rather than as a separate route.
   if (identity.organization === null) {
-    return (
-      <StateScreen
-        kind="forbidden"
-        title={appCopy.noOrganization.title}
-        description={appCopy.noOrganization.description}
-      />
-    );
+    return <OnboardingExperience />;
+  }
+
+  // Feature 003 T013/critical access rule — an organization existing is NOT authorization. A
+  // `PENDING_KYB` (or otherwise not-yet-authorized) organization must never reach the ordinary
+  // business dashboard shell below. `isAuthorizedMember` comes from `is_authorized_member()`
+  // (never a raw `organizations.status` read) — the same authority `lib/auth/eligibility.ts`
+  // translates into `nextAction: "await-authorization"`.
+  if (!identity.isAuthorizedMember) {
+    return <AwaitingKybState />;
   }
 
   return (

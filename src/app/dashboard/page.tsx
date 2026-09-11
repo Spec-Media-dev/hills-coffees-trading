@@ -30,7 +30,10 @@ export default async function DashboardPage() {
   const identity = await getRequestIdentity();
 
   // Independent re-verification — identical predicate to the layout guard, enforced again here.
-  if (identity.kind !== "authenticated" || identity.organization === null) {
+  // Feature 003 T013/critical access rule: an organization existing is not authorization, so this
+  // page's own guard additionally re-checks `isAuthorizedMember` — the layout's inline
+  // `AwaitingKybState` render does not stop this parallel route segment from executing on its own.
+  if (identity.kind !== "authenticated" || identity.organization === null || !identity.isAuthorizedMember) {
     return <StateScreen kind="unauthorized" />;
   }
 

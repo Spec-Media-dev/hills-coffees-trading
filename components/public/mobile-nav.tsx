@@ -157,13 +157,22 @@ export function MobileNav({ auth }: { auth: MobileNavAuthState }) {
               </button>
             </>
           ) : (
-            <Link
-              href="/sign-in/"
-              aria-current={isCurrent("/sign-in/") ? "page" : undefined}
-              className="mt-1 flex min-h-[3.25rem] items-center rounded-[var(--radius-sm)] border-t border-border px-4 pt-3 text-[length:var(--text-body)] font-medium text-muted-foreground transition-colors duration-[var(--dur-fast)] hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus-ring)]"
-            >
-              {labels.account.signIn}
-            </Link>
+            <div className="mt-1 flex flex-col border-t border-border pt-1">
+              <Link
+                href="/sign-in/"
+                aria-current={isCurrent("/sign-in/") ? "page" : undefined}
+                className="flex min-h-[3.25rem] items-center rounded-[var(--radius-sm)] px-4 text-[length:var(--text-body)] font-medium text-muted-foreground transition-colors duration-[var(--dur-fast)] hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus-ring)]"
+              >
+                {labels.account.signIn}
+              </Link>
+              <Link
+                href="/sign-up/"
+                aria-current={isCurrent("/sign-up/") ? "page" : undefined}
+                className="flex min-h-[3.25rem] items-center rounded-[var(--radius-sm)] px-4 text-[length:var(--text-body)] font-medium text-muted-foreground transition-colors duration-[var(--dur-fast)] hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus-ring)]"
+              >
+                {labels.account.signUp}
+              </Link>
+            </div>
           )}
         </nav>
 

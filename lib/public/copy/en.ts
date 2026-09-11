@@ -690,6 +690,27 @@ export const en = {
       forgotPassword: "Forgot your password?",
       genericError: "That email and password combination isn't recognised. Please try again.",
       metaTitle: "Sign in",
+      noAccount: "Don't have an account?",
+      createAccount: "Create account",
+    },
+    signUp: {
+      eyebrow: "Create your account",
+      title: "Create account",
+      lead: "Create your Hills account to start your membership application.",
+      fullName: "Full name",
+      email: "Email",
+      password: "Password",
+      confirmPassword: "Confirm password",
+      submit: "Create account",
+      submitting: "Creating account…",
+      acknowledgement: "Check your email to confirm your account and continue.",
+      haveAccount: "Already have an account?",
+      afterSignUpNote: "After creating your account, we'll verify your email before business setup.",
+      metaTitle: "Create account",
+    },
+    password: {
+      show: "Show password",
+      hide: "Hide password",
     },
     signOutConfirm: {
       title: "Sign out?",
@@ -756,6 +777,7 @@ export const en = {
   /** Public Header account state (Feature 003 — anonymous sign-in link, authenticated account menu). */
   account: {
     signIn: "Sign in",
+    signUp: "Create account",
     menuLabel: "Account menu",
     dashboard: "Dashboard",
     adminConsole: "Operations console",

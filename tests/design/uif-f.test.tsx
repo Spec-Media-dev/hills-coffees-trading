@@ -185,10 +185,18 @@ describe("Phase 5.5 UIF-036 — member shell applied at /dashboard", () => {
     expect(shell).toContain('data-testid="hills-settings-card"');
   });
 
-  it("creates no new /dashboard/* business route", () => {
+  it("creates no new /dashboard/* business ROUTE (a non-routable action-only directory is not one)", () => {
     const entries = readdirSync(path.join(root, "src", "app", "dashboard"), { withFileTypes: true });
     const dirs = entries.filter((e) => e.isDirectory()).map((e) => e.name);
-    expect(dirs).toEqual(["settings"]);
+    expect(dirs.sort()).toEqual(["onboarding", "settings"]);
+
+    // Feature 003 T013 added `dashboard/onboarding/` for the controlled-onboarding Server Action
+    // only — it carries no `page.tsx`, so Next.js never registers it as a route. The onboarding
+    // UI itself renders INLINE from `dashboard/layout.tsx` (same precedent as `OrganizationSelector`),
+    // not from a navigable `/dashboard/onboarding` URL. This assertion is what actually proves the
+    // "no new business route" property this test names, rather than merely forbidding the directory.
+    const onboardingEntries = readdirSync(path.join(root, "src", "app", "dashboard", "onboarding"));
+    expect(onboardingEntries).not.toContain("page.tsx");
   });
 });
 

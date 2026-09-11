@@ -6,9 +6,9 @@ SRS §3, §4, §13.2–13.3.
 
 **Status**: Phase 1 + Phase 2 (T001–T010) COMPLETE / VERIFIED. RUN DB (T010b–T010g) is COMPLETE —
 migration applied to the live database 2026-09-10 and live-verified (T010g); DB-BLOCK-01 and
-DB-BLOCK-03 RESOLVED. RUN A, RUN B, and Phase 3–11 NOT STARTED.
-**Task inventory**: 47 tasks — existing T001–T040 plus additive T010a–T010g; T001–T010 and
-T010b–T010g are complete; T010a/T011+ remain.
+DB-BLOCK-03 RESOLVED. RUN A (T010a, T011–T013) is COMPLETE. RUN B and Phase 3–11 NOT STARTED.
+**Task inventory**: 47 tasks — existing T001–T040 plus additive T010a–T010g; T001–T013 and
+T010b–T010g are complete; T014+ remain.
 **Prerequisite**: 001 implemented (identity DAL, Supabase clients, server-action contract, state
 components, i18n, test tooling + fixtures).
 
@@ -104,7 +104,7 @@ components, i18n, test tooling + fixtures).
 
 ## Phase 2 addition — Sign-Up gap
 
-- [ ] T010a [PS1] Implement real Sign-Up (`src/app/(auth)/sign-up/page.tsx` + `actions.ts` and
+- [x] T010a [PS1] Implement real Sign-Up (`src/app/(auth)/sign-up/page.tsx` + `actions.ts` and
   `lib/validation/sign-up.ts`) without renumbering T001–T040.
   - Req: FR-001, FR-002, FR-008, SEC-001 | Depends: T004, T007
   - Verify: Create Account → real `supabase.auth.signUp` → Verify Email → authenticated verified
@@ -201,15 +201,15 @@ path. They are intentionally unchecked; this planning update does not create or 
 
 ## RUN A — Phase 3 — Membership application entry
 
-- [ ] T011 [PS2] Create `lib/validation/membership-application.ts` (company identity, contact,
+- [x] T011 [PS2] Create `lib/validation/membership-application.ts` (company identity, contact,
   intended activity BUYER (buy) | SELLER (buy+sell), consent).
   - Req: FR-008 | Depends: T010a, T010g
   - Verify: schema rejects missing consent and unknown activity values
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — Medium
   - Why: mechanical schema.
 
-- [ ] T012 [PS2] Implement `src/app/dashboard/onboarding/page.tsx` — the truthful state screen for a
-  signed-in user with no organization: what happens next, who acts, how to follow up.
+- [x] T012 [PS2] Implement the truthful state screen for a signed-in user with no organization: what
+  happens next, who acts, how to follow up.
   - Req: FR-007, FR-019 | Depends: T001, T010g, T011
   - Verify: the screen names a specific next step and owner; it never implies self-service org
     creation; before approval it exposes only honest account/onboarding/KYB/status/profile/sign-out
@@ -217,8 +217,13 @@ path. They are intentionally unchecked; this planning update does not create or 
     trading action
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — Medium
   - Why: the copy must be honest about a blocked capability without looking broken — a judgment call.
+  - Implementation note (RUN A): rendered INLINE by `src/app/dashboard/layout.tsx`
+    (`components/account/onboarding-experience.tsx` + `awaiting-kyb-state.tsx`), not a separate
+    `dashboard/onboarding/page.tsx` route — the same precedent this exact layout already established
+    for `OrganizationSelector` (T002). No page.tsx exists at that path; `dashboard/onboarding/` holds
+    only T013's Server Action file.
 
-- [ ] T013 [PS2] Implement the application-entry Server Action
+- [x] T013 [PS2] Implement the application-entry Server Action
   (`src/app/dashboard/onboarding/actions.ts`) that validates and calls only the approved controlled
   onboarding capability from T010c. It MUST NOT use direct `organizations` or
   `organization_members` inserts or service-role runtime access.

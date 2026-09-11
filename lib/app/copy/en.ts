@@ -78,6 +78,41 @@ export const en = {
         "This area requires a verified email address. Check your inbox for the verification link, or request a new one.",
       resend: "Resend verification email",
     },
+    /** Feature 003 T012 — the real, no-fake-modules onboarding/KYB-next experience. */
+    onboarding: {
+      steps: {
+        account: "Create your account",
+        verifyEmail: "Verify your email",
+        businessProfile: "Business profile",
+        kyb: "KYB verification",
+        review: "Compliance review",
+        access: "Access after approval",
+      },
+      form: {
+        title: "Tell us about your business",
+        lead: "This starts your membership application. Hills Coffee reviews every application before granting trading access.",
+        buyerTitle: "Buy Coffee",
+        buyerDescription: "Source green coffee from Hills once your membership is approved.",
+        sellerTitle: "Buy & Sell Coffee",
+        sellerDescription: "Buy from Hills and resell approved inventory once your membership is approved.",
+        legalName: "Company legal name",
+        displayName: "Trading name",
+        optional: "optional",
+        country: "Country",
+        taxNumber: "Tax number",
+        registrationNumber: "Company registration number",
+        contactEmail: "Business contact email",
+        contactPhone: "Business contact phone",
+        consent: "I confirm this information is accurate and I'm authorized to submit it on behalf of this company.",
+        submit: "Continue to KYB",
+        submitting: "Submitting…",
+      },
+      awaitingKyb: {
+        title: "Business profile complete — KYB verification is next",
+        description:
+          "Your company profile has been submitted. The next step is Know Your Business (KYB) verification, followed by Hills Compliance review. You'll be able to access trading features once your organization is approved.",
+      },
+    },
     noOperationalRole: {
       title: "Operations access required",
       description:

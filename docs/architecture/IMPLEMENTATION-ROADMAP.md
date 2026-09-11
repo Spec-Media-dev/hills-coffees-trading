@@ -23,7 +23,7 @@ commission capability (§8), which is already implemented in the database.
 |---|---|---|---|---|
 | 001 | Platform Foundation | All three (foundation) | Constitution ✅ · Specify ✅ · Clarify ✅ · Plan ✅ · Tasks ✅ · Analyze ✅ · **Implement ✅ — IMPLEMENTED / VERIFIED (50/50 tasks)** | [spec](../../specs/001-platform-foundation/spec.md) · [plan](../../specs/001-platform-foundation/plan.md) · [tasks](../../specs/001-platform-foundation/tasks.md) · research · data-model · contracts · quickstart · AGENT-HANDOFF |
 | 002 | Public Website | Public `/`, Member `/dashboard` shell, Admin `/dashboard-admin` shell | **IMPLEMENTED / VERIFIED / CLOSED — 59 / 59 current tasks through Phase 13 (2026-09-10)** · **Phase 5.5 Full Product UI Foundation — IMPLEMENTED / VERIFIED — 58 / 58 UIF tasks, all 9 blocks (A–I) closed 2026-09-10** · reference-pack + GSAP amendment reconciled 2026-09-09 (ASSET-REF-01, MOTION-GSAP-01, both still true and unresolved) · Member/Admin application shell (`components/app/*`) and its own copy root (`lib/app/copy`, `CONTENT-AR-01` scope) remain reusable inventory for Features 003–012 · business blockers remain recorded in the canonical handoff · [spec](../../specs/002-public-website/spec.md) · [plan](../../specs/002-public-website/plan.md) · [tasks](../../specs/002-public-website/tasks.md) · [canonical handoff](../../specs/002-public-website/IMPLEMENTATION-HANDOFF.md) · [Phase 5.5 plan](../../specs/002-public-website/PHASE-5.5-UI-FOUNDATION-PLAN.md) · [Phase 5.5 tasks](../../specs/002-public-website/PHASE-5.5-TASKS.md) · [Phase 5.5 handoff](../../specs/002-public-website/PHASE-5.5-IMPLEMENTATION-HANDOFF.md) |
-| 003 | Auth, Membership & KYB | Public auth routes + `/dashboard` | Phase 1 + Phase 2 (T001–T010) COMPLETE / VERIFIED · **RUN DB (T010b–T010g) COMPLETE — applied + live-verified 2026-09-10, DB-BLOCK-01/03 RESOLVED** · RUN A/B + Phase 3+ NOT STARTED | [spec](../../specs/003-auth-membership-kyb/spec.md) · [plan](../../specs/003-auth-membership-kyb/plan.md) · [tasks](../../specs/003-auth-membership-kyb/tasks.md) · [Phase 1+2 / RUN DB handoff](../../specs/003-auth-membership-kyb/PHASE-1-2-IMPLEMENTATION-HANDOFF.md) |
+| 003 | Auth, Membership & KYB | Public auth routes + `/dashboard` | Phase 1 + Phase 2 (T001–T010) COMPLETE / VERIFIED · RUN DB (T010b–T010g) COMPLETE — applied + live-verified 2026-09-10, DB-BLOCK-01/03 RESOLVED · **RUN A (T010a, T011–T013) COMPLETE — Sign-Up, onboarding, controlled organization creation** · RUN B + Phase 3+ NOT STARTED | [spec](../../specs/003-auth-membership-kyb/spec.md) · [plan](../../specs/003-auth-membership-kyb/plan.md) · [tasks](../../specs/003-auth-membership-kyb/tasks.md) · [handoff](../../specs/003-auth-membership-kyb/PHASE-1-2-IMPLEMENTATION-HANDOFF.md) |
 | 004 | Member Dashboard | `/dashboard` | Planning prepared · Implement NOT STARTED | [spec](../../specs/004-member-dashboard/spec.md) · [plan](../../specs/004-member-dashboard/plan.md) · [tasks](../../specs/004-member-dashboard/tasks.md) |
 | 005 | Inventory, Custody & Storage | `/dashboard` + shared layer | Planning prepared · Implement NOT STARTED | [spec](../../specs/005-inventory-custody-storage/spec.md) · [plan](../../specs/005-inventory-custody-storage/plan.md) · [tasks](../../specs/005-inventory-custody-storage/tasks.md) |
 | 006 | Marketplace, Listings & Resale | `/dashboard` | Planning prepared · Implement NOT STARTED | [spec](../../specs/006-marketplace-listings-resale/spec.md) · [plan](../../specs/006-marketplace-listings-resale/plan.md) · [tasks](../../specs/006-marketplace-listings-resale/tasks.md) |
@@ -107,10 +107,11 @@ lifecycle fixtures), `tests/design/uif-fg.browser.mjs` (24 authenticated Member/
 anonymous/cross-surface denial cases against REAL Supabase sessions), `tests/design/
 uif-h-closure.browser.mjs` (keyboard-only drawer open/focus-trap/close/focus-restore, heading order).
 
-**Exact next task**: Feature 003 **RUN A — T010a (Sign-Up gap) + T011–T013**, then **RUN B —
-T014–T022** (Phase 4 + Phase 5). T023–T025 remain Phase 6 Agreements for the later run. Feature 003
-Phase 1 + Phase 2 are complete/verified, and RUN DB (T010b–T010g) is complete — applied to the live
-database and live-verified 2026-09-10, closing DB-BLOCK-01 and DB-BLOCK-03. Feature 002 is closed.
+**Exact next task**: Feature 003 **RUN B — T014–T022** (Phase 4 + Phase 5: KYB draft, document
+upload/review, submission, status experience). T023–T025 remain Phase 6 Agreements for the later
+run. Feature 003 Phase 1 + Phase 2, RUN DB (T010b–T010g, applied + live-verified 2026-09-10, closing
+DB-BLOCK-01/03), and RUN A (T010a, T011–T013 — Sign-Up, onboarding, controlled organization
+creation, live-verified 2026-09-10) are all complete. Feature 002 is closed.
 
 ---
 

@@ -542,6 +542,27 @@ export const ar: DeepPartial<PublicCopy> = {
       forgotPassword: "نسيت كلمة المرور؟",
       genericError: "تركيبة البريد الإلكتروني وكلمة المرور هذه غير معروفة. يرجى المحاولة مرة أخرى.",
       metaTitle: "تسجيل الدخول",
+      noAccount: "ليس لديك حساب؟",
+      createAccount: "إنشاء حساب",
+    },
+    signUp: {
+      eyebrow: "أنشئ حسابك",
+      title: "إنشاء حساب",
+      lead: "أنشئ حساب هيلز الخاص بك لبدء طلب العضوية.",
+      fullName: "الاسم الكامل",
+      email: "البريد الإلكتروني",
+      password: "كلمة المرور",
+      confirmPassword: "تأكيد كلمة المرور",
+      submit: "إنشاء حساب",
+      submitting: "جارٍ إنشاء الحساب…",
+      acknowledgement: "تحقق من بريدك الإلكتروني لتأكيد حسابك والمتابعة.",
+      haveAccount: "لديك حساب بالفعل؟",
+      afterSignUpNote: "بعد إنشاء حسابك، سنتحقق من بريدك الإلكتروني قبل إعداد النشاط التجاري.",
+      metaTitle: "إنشاء حساب",
+    },
+    password: {
+      show: "إظهار كلمة المرور",
+      hide: "إخفاء كلمة المرور",
     },
     signOutConfirm: {
       title: "تسجيل الخروج؟",
@@ -606,6 +627,7 @@ export const ar: DeepPartial<PublicCopy> = {
 
   account: {
     signIn: "تسجيل الدخول",
+    signUp: "إنشاء حساب",
     menuLabel: "قائمة الحساب",
     dashboard: "لوحة التحكم",
     adminConsole: "وحدة التشغيل",

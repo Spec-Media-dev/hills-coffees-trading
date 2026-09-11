@@ -344,6 +344,303 @@ DATABASE-CAPABILITY-MAP.md` (new capability rows; DB-BLOCK-01/03 marked resolved
 `specs/003-auth-membership-kyb/tasks.md` (T010g marked complete), this handoff. No application/UI
 code changed. No commit, no push.
 
-## Exact next action
+## Exact next action (superseded — see RUN A Execution below)
 
 RUN A (T010a, Sign-Up gap, then T011–T013) is the next work item — **not** started in this run.
+
+---
+
+## RUN A Execution — Sign-Up gap + controlled onboarding (T010a, T011–T013)
+
+**Status: COMPLETE.** Real Sign-Up, the truthful no-organization onboarding experience, and the
+controlled organization-onboarding Server Action are implemented and live-verified on 2026-09-10.
+RUN B (T014+, KYB document upload/review) is intentionally NOT started.
+
+### What was built
+
+- **T010a — Sign-Up**: `src/app/(auth)/sign-up/{page.tsx,actions.ts}` +
+  `components/account/sign-up-form.tsx` + `lib/validation/sign-up.ts`. Creates only the Auth user via
+  `supabase.auth.signUp` — no organization, membership, or capability. `user_already_exists`/
+  `email_exists` resolve to the identical success acknowledgement as a genuinely new signup (no
+  enumeration); every other Supabase error code maps to its own safe, non-raw message.
+  `src/app/auth/confirm/route.ts` (already built for T007/T008) is reused unchanged.
+- **Header**: `components/public/site-header.tsx` and `components/public/mobile-nav.tsx` now show
+  both "Sign in" and "Create account" for an anonymous visitor; the authenticated `AccountMenu`
+  branch is untouched.
+- **T011 — onboarding validation**: `lib/validation/membership-application.ts`. `accountType` is a
+  2-value enum (`BUYER`/`SELLER`) — `HILLS_INTERNAL` is not a possible value, not merely rejected at
+  runtime. No field exists for `status`/`can_buy`/`can_sell`/`created_by`/`member_role`/any role.
+- **T012 — onboarding experience**: `components/account/onboarding-experience.tsx` (no-organization
+  state, business-profile form) and `components/account/awaiting-kyb-state.tsx` (organization exists
+  but not yet authorized — "KYB verification is next"), both using
+  `components/account/onboarding-progress.tsx` for the real 6-step list. Rendered **inline** by
+  `src/app/dashboard/layout.tsx` — the same precedent that layout already established for
+  `OrganizationSelector` (T002) — never a separate `/dashboard/onboarding` route; `dashboard/
+  onboarding/` holds only T013's Server Action file, has no `page.tsx`, and is confirmed not to be a
+  Next.js route (absent from the production build's route table).
+- **T013 — controlled onboarding action**: `src/app/dashboard/onboarding/actions.ts`, calling only
+  `startOrganizationOnboarding` (`lib/kyb/mutations.ts`, built in RUN DB). No direct
+  `organizations`/`organization_members` insert anywhere in this file; no service-role client.
+  `already_member` is handled by redirecting to `/dashboard/` and letting fresh identity resolution
+  decide, never by fabricating an organization.
+- **Critical access rule closure**: `src/app/dashboard/layout.tsx` and `src/app/dashboard/page.tsx`
+  both gained a `!identity.isAuthorizedMember` guard — previously, ANY organization (including
+  `PENDING_KYB`) reached the ordinary `AppShell`/business page content once it existed at all. This
+  was a real gap this run closed: organization existence was being treated as sufficient, when only
+  `is_authorized_member()` (ACTIVE + APPROVED KYB) is authorization. The two pre-existing guard
+  predicate lines (`identity.kind !== "authenticated"`, `identity.organization === null`) remain
+  byte-identical, confirmed by `tests/design/uif-f.test.tsx`'s `git diff` assertion, which still
+  passes.
+
+### Live verification evidence (this run)
+
+Against the same live database, using the existing approved fixture set — no new persistent fixture
+accounts were left behind:
+
+- Anonymous header renders both Sign in and Create account links; zero console/page errors.
+- `/sign-up/` renders correctly (email + 2 password fields, `noindex, nofollow`).
+- A real sign-up submission reaches the server with correctly Zod-validated data (confirmed via
+  Server Action wire-format inspection) and Supabase's own rate-limit error is mapped to the intended
+  safe generic message — confirmed live. The plain success acknowledgement render was not
+  independently observed live: repeated real `signUp` calls during this same verification window hit
+  Supabase's own email-send rate limit before an unthrottled attempt could complete; the success
+  branch is a single `return {ok:true}`, already exercised structurally by the passing validation and
+  error-mapping tests. No throwaway signup accounts were left behind (confirmed via a read-only Auth
+  listing check).
+- The onboarding experience was confirmed to render correctly — BUYER/SELLER cards, progress steps,
+  company fields, consent checkbox, submit control, zero console/page errors — using the existing
+  approved `warehouse-admin+foundation-test@example.com` fixture (an operational-role-only account
+  with genuinely no organization membership). The form was **not submitted**, to leave that fixture's
+  no-org state untouched for every other test that depends on it (e.g. `tests/design/uif-fg.browser.mjs`'s
+  role-independence proof).
+- A genuine live proof of the `PENDING_KYB` dashboard-denial path (a real fixture with an organization
+  that exists but is not yet authorized) was **not performed** — no such fixture exists among the
+  three approved ones (`buyer-only`, `buyer-and-seller` are both `ACTIVE`+`APPROVED`;
+  `warehouse-admin` has no organization at all). Creating one is explicitly Phase 8's job (T029,
+  "org with `PENDING_KYB`" fixture variant), out of this run's scope. The guard itself is
+  static-verified (`tests/auth/run-a-sign-up-onboarding.test.ts`) and follows the same
+  `identity.isAuthorizedMember` field RUN DB's live verification already proved resolves correctly
+  from `is_authorized_member()` for a real `PENDING_KYB` organization.
+
+### Regression
+
+`typecheck` clean · `test` **362/362 passed** (32 files, +34 from this run's new
+`tests/auth/run-a-sign-up-onboarding.test.ts`, +1 fix to `tests/design/uif-f.test.tsx`'s
+"no new dashboard route" assertion to correctly distinguish a non-routable action-only directory
+from an actual route) · `build` succeeds (`/sign-up` now a real route;
+`/dashboard/onboarding` correctly absent from the route table) · `lint` unchanged pre-existing
+baseline (`docs/claude-design/**` only) · `git diff --check` clean.
+
+### Files changed this run
+
+New: `src/app/(auth)/sign-up/{page.tsx,actions.ts}`, `src/app/dashboard/onboarding/actions.ts`,
+`components/account/{sign-up-form,membership-application-form,onboarding-experience,
+awaiting-kyb-state,onboarding-progress}.tsx`, `lib/validation/{sign-up,membership-application}.ts`,
+`tests/auth/run-a-sign-up-onboarding.test.ts`. Modified: `components/public/{site-header,
+mobile-nav}.tsx`, `lib/public/copy/{en,ar}.ts` (`auth.signUp`, `account.signUp`),
+`lib/app/copy/{en,ar}.ts` (`onboarding.*`), `src/app/dashboard/{layout,page}.tsx` (authorization gate
+closure), `tests/design/uif-f.test.tsx`. No schema/migration change.
+
+### Known gaps intentionally deferred to RUN B
+
+KYB document upload/review UI, `lib/kyb/completeness.ts`, KYB draft edit/submit UI, status
+timeline/state screens for the seven KYB statuses, resubmission UI — all T014–T022, not started.
+
+## Exact next action (superseded — see RUN A UX Refinement below)
+
+RUN B (T014–T022, Phase 4 + Phase 5 — KYB draft/document/submission/status experience) is the next
+work item — **not** started in this run.
+
+---
+
+## RUN A UX Refinement (2026-09-11)
+
+A focused correction pass on the already-implemented RUN A — **not** a new task, and T014+ remain
+untouched/not started.
+
+### What changed
+
+1. **Reciprocal Sign-In ↔ Sign-Up navigation**: `/sign-in/` now has its own "Don't have an account?
+   Create account" link (`src/app/(auth)/sign-in/page.tsx`), mirroring `/sign-up/`'s existing
+   "Already have an account? Sign in" link — both live inside the page itself, not only in the
+   header, and use the identical footer placement/style for visual symmetry.
+2. **Password visibility**: new `components/ui/password-input.tsx` — a single reusable component
+   (eye/eye-off icon toggle, `type="button"` so it cannot submit the form, localized
+   `aria-label`/`aria-pressed`, positioned with logical `end-*` classes so it lands correctly in both
+   LTR and RTL, visibility state is local `useState` only). Applied to Sign-In's password field,
+   both Sign-Up password fields, and both `ResetPasswordConfirmForm` fields — no toggle logic is
+   duplicated across forms.
+3. **Sign-Up Full Name**: added as a required field, captured via `supabase.auth.signUp`'s own
+   `options.data` (Supabase's approved user-metadata mechanism — the same one
+   `scripts/seed-test-fixtures.ts` already uses). **Deliberately NOT written to
+   `public.profiles.full_name` in this pass** — see the decision record below.
+4. **Phone field**: confirmed, not changed. T011's `contactPhone` was already business/organization
+   contact information captured at onboarding (`lib/validation/membership-application.ts`), not
+   Sign-Up. No phone field exists on Sign-Up; no ambiguous double-collection exists.
+5. **Sign-Up polish**: a small supporting line under the lead paragraph
+   ("`auth.signUp.afterSignUpNote`") states the real sequence honestly — no fake percentage.
+6. Sign-In/Sign-Up visual/structural symmetry (card, spacing, typography, footer link placement,
+   password treatment) was already in place from RUN A and is unchanged; this pass only added the
+   missing reciprocal link and the shared `PasswordInput`.
+
+### Full Name persistence — decision record
+
+**Cannot be safely written to `public.profiles` at Sign-Up time without inventing a new DB
+capability**, so it was not attempted:
+
+- No database trigger creates a `profiles` row for a new `auth.users` row.
+- `profiles` RLS grants no member INSERT policy and no member UPDATE policy — the only existing
+  write path is `update_my_profile()`, which performs `UPDATE ... WHERE id = auth.uid()` and
+  therefore silently affects zero rows when no profile row exists yet (confirmed by reading its live
+  definition again this pass).
+- `supabase.auth.signUp()` returns no session in this project's Auth configuration (confirmed live
+  during RUN DB), so there is no authenticated context at Sign-Up time to call `update_my_profile()`
+  even if it could create rows, which it cannot.
+
+Inventing a new INSERT policy, trigger, or RPC to close this would be exactly the "new DB bypass"
+this run's instructions forbid. Full Name is captured through the one approved, already-precedented
+mechanism (`auth.users.raw_user_meta_data` via `signUp`'s `options.data`) and is available via
+`user.user_metadata.full_name` the moment a real session exists. Wiring it into `profiles.full_name`
+is a genuine, pre-existing Feature 001 gap (no user, fixture or otherwise, has ever had a `profiles`
+row created by anything other than the admin-only `scripts/seed-test-fixtures.ts`) — left for the
+approved profile/onboarding path to close, not papered over here.
+
+### Live verification evidence (this run)
+
+Real browser (Chrome via CDP), current production build, both a desktop/light/EN pass and a
+mobile (390px)/dark/Arabic-RTL pass:
+
+- Sign-in: Create Account link, Forgot password, submit, and the auth layout's Back-to-Hills-Coffee
+  link all present; no horizontal overflow.
+- Password toggle: `password` → `text` on click, `aria-label` flips `"Show password"` →
+  `"Hide password"`, the click does NOT submit or navigate away from `/sign-in/`, and the typed value
+  is preserved across the toggle. The toggle button is keyboard-focusable.
+- Sign-up: Sign-in link, Full Name field, exactly 2 password-eye buttons (password +
+  confirm password), and the supporting sequence note all present; no overflow.
+- Dark + Arabic/RTL: correct `dark` class and `dir="rtl"`, no horizontal overflow, the eye button's
+  `aria-label` is genuinely Arabic ("إظهار كلمة المرور"), and the button visually lands on the
+  correct (logical-end → visual-left in RTL) side of the field — proving the positioning is truly
+  logical-property-driven, not a hardcoded LTR assumption.
+- Zero console errors and zero page errors across both passes.
+
+### Regression
+
+`typecheck` clean · `test` **383/383 passed** (33 files: +21 new
+`tests/auth/run-a-ux-refinement.test.ts`, +1 pre-existing `SignUpInput` test fixed to include the
+new required `fullName` field) · `build` succeeds · `lint` unchanged pre-existing baseline
+(`docs/claude-design/**` only) · `git diff --check` clean.
+
+### Files changed this pass
+
+New: `components/ui/password-input.tsx`, `tests/auth/run-a-ux-refinement.test.ts`. Modified:
+`components/account/{sign-in-form,sign-up-form,reset-password-confirm-form}.tsx`,
+`components/ui/icon.tsx` (`eye`/`eye-off` glyphs), `src/app/(auth)/{sign-in,sign-up}/page.tsx`,
+`src/app/(auth)/sign-up/actions.ts` (full name via `options.data`),
+`lib/validation/sign-up.ts` (`fullName` field), `lib/public/copy/{en,ar}.ts` (`auth.signIn.noAccount`
+/`createAccount`, `auth.signUp.fullName`/`afterSignUpNote`, `auth.password.show`/`hide`),
+`tests/auth/run-a-sign-up-onboarding.test.ts` (added `fullName` to existing `SignUpInput` test
+payloads). No schema/migration/RLS change; no change to the three protected authorization functions.
+
+## RUN A Full Name Persistence Fix (2026-09-11)
+
+Closes the one remaining RUN A gap flagged by the UX refinement pass: "Full Name is captured but not
+yet visible anywhere in the product (never persisted to `profiles`)."
+
+### Investigation
+
+Re-confirmed against the live schema report (`docs/database/database-schema-report.json`, triple-
+unwrapped JSON) that:
+
+- `profiles` RLS has exactly 2 policies (`profiles_admin_update`, `profiles_select_own`) — **no
+  member INSERT policy of any kind**.
+- No trigger creates a `profiles` row for a new `auth.users` row (the only trigger on `profiles` is
+  `trg_profiles_updated_at`).
+- `update_my_profile(p_full_name, p_phone, p_company_name, p_avatar_path)` is **UPDATE-only**
+  (`UPDATE profiles SET ... WHERE id = auth.uid()`) — confirmed via its live `definition` in the
+  schema report, since it is not captured in any migration file in this repo (a pre-existing,
+  live-only function).
+- `supabase.auth.signUp()` returns no session in this project (re-confirmed from RUN DB) — so there
+  is no authenticated context at Sign-Up time to call any RPC even if one could create a row.
+
+**New discovery this pass**: `organizations.created_by uuid references public.profiles(id)` is a
+real, enforced foreign-key constraint (`supabase/trading_schema.sql:85`, the same pattern repeats
+across 14+ tables). This means `start_organization_onboarding` will hard-fail for any genuinely
+fresh real signup with no `profiles` row yet — a severe, pre-existing gap far broader than "Full Name
+doesn't display." It was invisible to every prior live-verification pass because every fixture this
+repository uses (`buyer-only`, `buyer-and-seller`, `warehouse-admin`, and RUN DB's own test users) was
+seeded with an explicit `profiles` row via the admin-only seed script — never through a genuinely
+organic signup reaching onboarding.
+
+### A. Exact persistence mechanism
+
+`src/app/dashboard/onboarding/actions.ts`'s `submitMembershipApplication` — the first point in the
+approved flow where a real, authenticated, write-capable session exists — now reads
+`user.user_metadata.full_name` (from `supabase.auth.getUser()`) and, only when
+`identity.profile.fullName` is not already set, calls the existing `update_my_profile()` RPC with it.
+No new RPC, no new RLS, no new migration, no service-role runtime code, no direct `profiles` write.
+
+### B. Exact database field populated
+
+`profiles.full_name`, via `update_my_profile`'s own `UPDATE ... WHERE id = auth.uid()` — the same RPC
+and call shape `src/app/dashboard/settings/actions.ts` already uses.
+
+### C. Verification flow behavior
+
+Live-verified via direct authenticated RPC calls (a temporary, immediately-deleted script — no
+service-role use outside that standalone script):
+
+- **Existing-profile caller** (has a `profiles` row, `full_name` still null): after the sync call,
+  `profiles.full_name` is populated with the exact `user_metadata.full_name` value, and the
+  subsequent `start_organization_onboarding` call still succeeds normally — no regression.
+- **Fresh caller with no `profiles` row**: the sync call is a true silent no-op (no error, confirmed
+  via a before/after read — no row is created), and the subsequent `start_organization_onboarding`
+  call fails with a real Postgres error: `23503`, `organizations_created_by_fkey`, "Key
+  (created_by)=(...) is not present in table \"profiles\"" — exactly the predicted, pre-existing gap.
+
+One synthetic fixture from this verification (`fullname-verify-*-with-profile@example.com`) could not
+be deleted afterward because it now carries an `audit_logs` row referencing it
+(`audit_logs_actor_user_id_fkey`) — the same append-only/audit-integrity pattern already documented
+for the T010g fixture cleanup. It is retained: harmless (no organization, no membership, no elevated
+role), uniquely tagged, and easy to identify.
+
+### D. Security boundary
+
+`auth.users.raw_user_meta_data` never carries anything but `full_name` (confirmed: Sign-Up's
+`options.data` block contains only that key). The onboarding action forwards the metadata value only
+as `update_my_profile`'s `p_full_name` argument — never as any authorization-shaped parameter — and
+`update_my_profile` itself is UPDATE-only against `auth.uid()`, so it cannot create a row, grant a
+role, or set a capability under any input.
+
+### E. Tests/results
+
+New `tests/auth/run-a-full-name-persistence.test.ts` (12 tests): the sync reads the real
+authenticated user (not a client-submitted field), calls the existing `update_my_profile` RPC with
+the established parameter shape, runs before the onboarding write it feeds, uses no service-role
+client, carries no authorization-shaped field, and the known FK gap is honestly documented in the
+action's own comment. Full regression: `typecheck` clean · full suite **395/395 passed** (34 files,
++12 new) · `build` succeeds · `lint` unchanged pre-existing baseline (`docs/claude-design/**` only) ·
+`git diff --check` clean (only benign CRLF/LF warnings).
+
+### F. Files changed
+
+Modified: `src/app/dashboard/onboarding/actions.ts` (full-name sync + doc comment naming the FK gap).
+New: `tests/auth/run-a-full-name-persistence.test.ts`. No migration, no RLS change, no change to the
+three protected authorization functions, no change to Sign-Up's own actions file (already correct
+from the UX refinement pass).
+
+### G. Whether RUN A now has zero known functional gaps
+
+**No.** The narrow Full Name wiring is complete and correct for any caller who already has a
+`profiles` row. But a genuinely fresh real signup (no seed script involved) will still fail at
+`start_organization_onboarding` with a foreign-key violation, because nothing in the approved,
+migration-free surface available to this pass can create that caller's first `profiles` row. Closing
+this requires a migration (an `auth.uid() = id`-scoped INSERT policy, an upsert-capable RPC, or a
+`handle_new_user`-style trigger) and is explicitly out of this pass's scope. This is a real,
+pre-existing platform gap that predates RUN A/RUN DB and should be prioritized before RUN B's KYB
+document work assumes a working end-to-end onboarding path for real users.
+
+## Exact next action
+
+RUN B (T014–T022, Phase 4 + Phase 5 — KYB draft/document/submission/status experience) is the next
+work item — **not** started in this run. Before or alongside it, the `organizations.created_by` /
+`profiles` row-creation gap documented above should be raised for an approved migration.
