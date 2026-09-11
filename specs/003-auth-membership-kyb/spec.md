@@ -2,7 +2,7 @@
 
 **Feature Directory**: `specs/003-auth-membership-kyb`
 **Created**: 2026-09-08
-**Status**: Planning prepared — implementation NOT started
+**Status**: Phase 1 + Phase 2 (T001–T010) COMPLETE / VERIFIED; RUN DB and Phase 3+ NOT STARTED
 **Primary surfaces**: Public entry routes (`/`-level auth routes) + Member Portal (`/dashboard`)
 **Depends on**: 001 (identity resolution, Supabase clients, server-action contract, states),
 002 (entry points into this feature)
@@ -23,7 +23,8 @@ feature must surface, never re-derive.
 
 ### In scope
 
-- Sign-in, sign-out, session lifecycle, email verification, password recovery, MFA enrolment/challenge.
+- Sign-up/account creation, sign-in, sign-out, session lifecycle, email verification, password recovery,
+  MFA enrolment/challenge.
 - Membership application entry and organization onboarding hand-off.
 - Organization membership context (which organization the signed-in user acts for).
 - KYB application creation, draft editing, document attachment, submission.
@@ -39,7 +40,9 @@ feature must surface, never re-derive.
 - Buying, listing, inventory, orders, payments (005–009).
 - The member dashboard shell itself (004) — this feature contributes the eligibility gate it uses.
 - Sanctions/PEP/adverse-media screening integration (policy-gated; see Open items).
-- Organization *record creation* where the database does not permit it (see DB-BLOCK-03).
+- Uncontrolled or direct organization-record creation outside the approved controlled onboarding
+  capability; the controlled path is in scope but is not available until its additive foundation is
+  implemented and verified (see DB-BLOCK-03).
 
 ## Actors
 
@@ -56,12 +59,53 @@ Owns Buyer-flow stages **Authentication / Membership → KYB / approval**, and t
 prerequisite ("approved seller-capable organization" — the `can_sell` capability itself is granted
 by compliance in 010, surfaced here).
 
+### Approved target journey
+
+The target journey is:
+
+`Sign Up → Verify Email → choose Buy or Buy + Sell → company information → controlled onboarding
+organization context → OWNER membership → PENDING_KYB → KYB information/documents → Submit →
+SUBMITTED / UNDER_REVIEW → Compliance decision`.
+
+The controlled onboarding capability must create only a non-trading organization and an `OWNER`
+membership for the authenticated caller. It must never grant trading authority. `BUYER` maps to
+`can_buy = true`, `can_sell = false`; `SELLER` maps to `can_buy = true`, `can_sell = true`, with
+the database capability functions remaining the only authority.
+
+Until the organization is genuinely eligible, the feature exposes no marketplace, buying, selling,
+inventory, orders, business dashboard modules, or protected trading actions. The only member-facing
+areas before approval are account, onboarding, KYB, status, profile, and sign-out experiences.
+Hiding a button is not authorization; the audited `organization_can_buy(...)`,
+`organization_can_sell(...)`, and `is_authorized_member(...)` implementations remain the only
+trading authority and require the genuine `ACTIVE` + `APPROVED` boundary.
+
+The Auth and onboarding sequence is deliberately separate: Auth `signUp` creates only the Auth user;
+after Verify Email, the authenticated verified user is still unattached, then chooses BUYER (Buy
+Coffee) or SELLER (Buy + Sell Coffee), supplies company details, and invokes the controlled database
+capability. That capability creates the external company/legal entity as `PENDING_KYB` and creates
+the caller's `OWNER` membership before KYB continues. This is not automatic approval.
+
+The internal database `organization` represents the customer's company/legal entity; member-facing
+copy should use company/business language where clearer. SELLER is never sell-only, and there are no
+separate Buyer and Seller dashboards.
+
+The controlled capability must reject caller attempts to choose `ACTIVE`, `APPROVED`,
+`can_buy`/`can_sell`, arbitrary user/member IDs, platform roles, Compliance/Admin roles, or any other
+approval/decision field.
+
+### Status refresh boundary
+
+Supabase Realtime is not part of the initial DB foundation, Sign-Up/onboarding, or KYB runs. Refresh
+from the server after mutations and resolve fresh state on navigation; narrow polling while
+`SUBMITTED`/`UNDER_REVIEW` is optional later. Any Realtime subscription remains a separate security
+reviewed enhancement.
+
 ## Prioritized stories
 
-### PS1 — Sign in, stay signed in safely, sign out (P1)
+### PS1 — Create an account, sign in safely, stay signed in, sign out (P1)
 
-A user authenticates with email/password (plus MFA where enrolled), gets a server-verified session,
-and can end it deliberately.
+A visitor creates an account and verifies email, then authenticates with email/password (plus MFA
+where enrolled), gets a server-verified session, and can end it deliberately.
 
 **Why P1**: everything private depends on it; 001 shipped only a minimal proof.
 **Independent test**: sign in, confirm a protected route renders; sign out, confirm the same route
@@ -77,6 +121,9 @@ denies access on the very next request.
    server-side on the next request without needing a cache purge.
 4. Given a user with MFA enrolled, when they sign in, then the second factor is required before any
    protected data is reachable.
+5. Given a visitor submits sign-up, when the account is created, then email verification is required
+   and the account receives no organization, membership, capability, or trading privilege from Auth
+   sign-up alone.
 
 ### PS2 — Apply for membership and be attached to an organization (P1)
 
@@ -87,16 +134,19 @@ KYB can begin.
 **Independent test**: complete the application entry and confirm the applicant reaches a truthful
 status state showing exactly what happens next and who acts.
 
-> **Constrained by DB-BLOCK-03**: the approved baseline permits organization creation and member
-> attachment **only** to platform admins. Self-service organization registration is therefore not
-> implementable without an approved database change. See FR-008 and Open items.
+> **Constrained by DB-BLOCK-03**: the current baseline permits organization creation and member
+> attachment only to platform admins. The approved target is a narrowly scoped, audited
+> `SECURITY DEFINER` onboarding capability; until that additive migration is implemented and
+> verified, the user must see a truthful waiting/admin-mediated state and must not receive a
+> fabricated organization or membership.
 
 **Acceptance scenarios**
 
 1. Given a signed-in user with no organization, when they open the member portal, then they see an
    accurate "not yet attached to an organization" state naming the next step and its owner.
-2. Given an applicant who submits the application entry, when it is recorded, then it captures
-   company identity, contact, intended activity (buy / buy+sell) and consent.
+2. Given an applicant who submits the application entry, when the controlled onboarding capability
+   succeeds, then it captures company identity, contact, intended activity (buy / buy+sell) and
+   consent, creates a `PENDING_KYB` organization, and creates only the caller's `OWNER` membership.
 3. Given the applicant, when they return later, then they can see the current state of their
    application without contacting anyone.
 
@@ -109,9 +159,11 @@ attaches documents, and submits for review.
 **Independent test**: create a draft, attach a document, submit, and confirm the application moves
 `DRAFT → SUBMITTED` with the submitter recorded and the documents linked.
 
-> **Constrained by DB-BLOCK-01**: no Supabase Storage bucket exists, so document **bytes** cannot be
-> stored. `kyb_documents` rows and `file_assets` metadata can be modelled, but upload/download
-> cannot be completed. See FR-012 and Open items.
+> **Constrained by DB-BLOCK-01**: no private Supabase Storage bucket currently exists, so document
+> bytes cannot be stored. `kyb_documents` rows and `file_assets` metadata can be modelled, but the
+> real upload/download path remains disabled until the private bucket and object policies are
+> implemented and verified. Member edits/submission also use constrained mutation paths rather than
+> broad table updates.
 
 **Acceptance scenarios**
 
@@ -194,9 +246,10 @@ Email verification, password reset and MFA enrolment/recovery work end to end.
 
 ## Functional Requirements
 
-- **FR-001**: The feature MUST provide sign-in, sign-out, email verification, password reset and MFA
-  enrolment/challenge using Supabase Auth, with all session verification server-side via 001's
-  `getRequestIdentity()` (`getUser()`, never `getSession()`).
+- **FR-001**: The feature MUST provide sign-up, sign-in, sign-out, email verification, password reset
+  and MFA enrolment/challenge using Supabase Auth, with all session verification server-side via
+  001's `getRequestIdentity()` (`getUser()`, never `getSession()`). Sign-up alone MUST grant no
+  organization, membership, capability, or trading privilege.
 - **FR-002**: Authentication failures MUST return a generic message that does not disclose account
   existence.
 - **FR-003**: Sign-out MUST invalidate the session such that the very next protected request is
@@ -213,20 +266,25 @@ Email verification, password reset and MFA enrolment/recovery work end to end.
 - **FR-007**: A signed-in user with no organization membership MUST reach a truthful, actionable
   state screen — not an error, and not a fabricated onboarding path.
 - **FR-008**: The membership application entry MUST capture company identity, contact, intended
-  activity (buy, or buy + sell) and consent. **Because organization creation and member attachment
-  are admin-only in the approved baseline (DB-BLOCK-03), this feature MUST NOT self-create
-  `organizations` or `organization_members` rows** by any means, including service-role. It routes
-  the applicant to the approved admin-mediated path and shows honest status.
-- **FR-009**: A KYB application MUST be creatable in `DRAFT` and editable by any member of the owning
-  organization, with `submitted_by = auth.uid()` on submission.
+  activity (buy, or buy + sell) and consent. Organization onboarding MUST use only the approved,
+  narrowly scoped controlled capability: `auth.uid()` and verified identity required, blocked users
+  refused, account type limited to `BUYER`/`SELLER`, organization starts `PENDING_KYB`, only the
+  caller receives `OWNER`, and no caller-controlled `ACTIVE`, `APPROVED`, `can_buy`, `can_sell`,
+  arbitrary user/member IDs, platform roles, Compliance/Admin roles, status, or approval fields.
+  Direct table inserts and service-role workarounds are forbidden; until the capability exists, the
+  feature stops at a truthful admin-mediated state.
+- **FR-009**: A KYB application MUST be creatable in `DRAFT` and editable by an owning organization
+  member only through constrained, database-approved mutation paths, with `submitted_by = auth.uid()`
+  on submission. Compliance-only decision fields MUST remain protected.
 - **FR-010**: KYB submission MUST validate required evidence completeness server-side and, on
   failure, name the specific missing items (never a generic "additional information required").
 - **FR-011**: A blocked user (`is_blocked_user()`) MUST be refused KYB submission and agreement
   acceptance server-side.
-- **FR-012**: KYB document handling MUST create `kyb_documents` + `file_assets` records with private
-  classification and restricted access. **Because no Storage bucket exists (DB-BLOCK-01), actual
-  upload/download MUST NOT be implemented via any improvised path** (no public bucket, no
-  base64-in-database, no third-party store) — the feature stops at the documented boundary.
+- **FR-012**: Once DB-BLOCK-01 is resolved, KYB document handling MUST use a private Supabase Storage
+  bucket with approved MIME/size limits, organization/application-scoped paths, restricted
+  server-mediated access, and `kyb_documents` + `file_assets` metadata. Until then, actual
+  upload/download MUST NOT be implemented via any improvised path (no public bucket, base64 in the
+  database, third-party store, or fabricated URL).
 - **FR-013**: Documents belonging to one organization MUST never be reachable by another
   organization, and access MUST be logged (SRS KYB-02, AC-08).
 - **FR-014**: Agreement acceptance MUST record agreement type, version, document hash, timestamp, IP
@@ -254,6 +312,14 @@ Email verification, password reset and MFA enrolment/recovery work end to end.
   the boundary.
 - **SEC-005**: MFA MUST be available and required for staff-adjacent accounts per SRS §13.2; the
   policy for member MFA enforcement is recorded, not invented.
+- **SEC-006**: The controlled onboarding capability MUST be atomic, retry-safe, non-escalating, and
+  must reject existing active membership explicitly rather than silently creating a second context;
+  it must reject self-approval, self-`ACTIVE`, self-`APPROVED`, arbitrary member/user IDs, platform
+  roles, Compliance/Admin roles, and caller-selected `can_buy`/`can_sell` values.
+- **SEC-007**: Private document access MUST be organization/application scoped, server-mediated where
+  appropriate, logged, and impossible through a public URL or browser service-role key. Reviewer
+  identity is retained for internal audit; member-facing copy may use "Hills Compliance" without
+  exposing an employee's personal name.
 
 ## Edge Cases
 
@@ -270,6 +336,12 @@ Email verification, password reset and MFA enrolment/recovery work end to end.
   problem, not silently ignored (SRS KYB-01).
 - Password reset requested for a non-existent account → identical response to the existing-account case.
 - User attempts KYB submission with no organization → refused server-side with a truthful state.
+- User retries onboarding with the same idempotency key → the same result is returned only to the same
+  caller and payload; reuse by another caller or with a different payload is refused.
+- User already has an active organization membership → onboarding does not silently create another
+  organization; the existing context or an explicit conflict is shown.
+- A rejected document is replaced during resubmission → the old evidence remains historical/superseded
+  and the replacement starts as a new pending version.
 
 ## Success Criteria
 
@@ -287,8 +359,9 @@ Email verification, password reset and MFA enrolment/recovery work end to end.
 ## Assumptions
 
 - Supabase Auth is the identity provider (already configured in 001's environment contract).
-- Manual KYB approval is the approved MVP model (SRS §16), so an admin-mediated onboarding path is
-  consistent with business intent — but the exact path still needs the DB-BLOCK-03 decision.
+- Manual KYB approval is the approved MVP model (SRS §16). The approved target onboarding path is a
+  controlled additive database capability; until it is implemented, the existing platform-admin
+  path remains the only database-authorized fallback.
 - Agreement documents/versions are supplied by legal; this feature presents and evidences them.
 - Screening (sanctions/PEP/adverse media) is policy-gated and out of scope until counsel-approved
   (SRS KYB-03).
@@ -297,12 +370,20 @@ Email verification, password reset and MFA enrolment/recovery work end to end.
 
 - **DB-BLOCK-03 (blocks PS2/FR-008)**: `organizations` has no non-admin INSERT policy and
   `organization_members` writes are admin-only, so an applicant cannot self-create an organization or
-  attach themselves — yet `kyb_applications` INSERT requires `is_org_member`. A product decision is
-  required: (a) admin-mediated onboarding (staff create org + attach user after an off-platform
-  application), (b) an approved database change adding a controlled self-service path, or (c) a
-  `SECURITY DEFINER` onboarding function approved through the database-change process.
-- **DB-BLOCK-01 (blocks PS3/FR-012)**: no Storage bucket exists for private KYB documents; bucket
-  provisioning plus private-access policies must be approved and audited before upload can ship.
+  attach themselves — yet `kyb_applications` INSERT requires `is_org_member`. The approved target is
+  a narrowly scoped `SECURITY DEFINER` onboarding capability delivered through a new additive,
+  reviewed migration; the blocker remains open until that capability is implemented and verified.
+  Until then, staff may create the organization and attach the user after an off-platform application
+  through the existing admin-only policies.
+- **DB-BLOCK-01 (blocks PS3/FR-012)**: no private Storage bucket or object policies exist for KYB
+  documents. The approved target is a private bucket with constrained object access; the blocker
+  remains open until bucket provisioning, policies, upload/download tests, and audit evidence pass.
+- **KYB-MUTATION-OPEN-01**: `kyb_applications` currently has member SELECT/INSERT but no member
+  UPDATE policy or resubmission RPC. The foundation must add constrained mutation/transition paths;
+  broad member UPDATE access is not acceptable.
+- **KYB-DOCUMENT-REVIEW-OPEN-01**: current `kyb_reviews` is application-level and has no specific
+  document/item link or replacement lineage. The foundation must add the minimum item-review and
+  evidence-version model while retaining prior evidence.
 - **KYB-03 screening**: provider, policy and refresh cadence are not approved; no screening
   integration may be invented.
 - **Member MFA enforcement policy**: SRS requires MFA for members and staff; the enforcement point

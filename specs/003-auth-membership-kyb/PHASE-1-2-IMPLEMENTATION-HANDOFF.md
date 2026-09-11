@@ -246,7 +246,104 @@ the session's own temp/scratchpad directories, never inside the repository.
   full multi-org switcher/management) — **not started**.
 - No commit, no push made in this run.
 
-## Exact next action
+## Exact next action (superseded — see RUN DB Execution below)
 
 Feature 003 Phase 3 (and Phase 7, if sequenced next) is the next work item — **not** to be started
 in this run.
+
+---
+
+## RUN DB Execution — KYB DB + private Storage foundation (T010b–T010g)
+
+**Status: COMPLETE.** Migration `supabase/migrations/20260911010000_feature_003_kyb_foundation.sql`
+written, security-reviewed and revised (2 review passes), applied to the live database, and
+live-verified (T010g) on 2026-09-10. Full contract: `specs/003-auth-membership-kyb/contracts/
+kyb-foundation.md`. DB-BLOCK-01 and DB-BLOCK-03 are RESOLVED
+(`docs/architecture/DATABASE-CAPABILITY-MAP.md` §9). `supabase/trading_schema.sql` now includes the
+applied foundation as an appended, clearly-marked section.
+
+### What was built
+
+- `start_organization_onboarding`, `create_kyb_draft`, `submit_kyb_application`,
+  `resubmit_kyb_application` — controlled onboarding and KYB state-machine mutations.
+- `attach_kyb_document` — the sole write seam for KYB evidence metadata, requiring the referenced
+  Storage object to genuinely exist first.
+- `create_kyb_review`, `list_kyb_document_reviews` — the sole write/read seam for the append-only
+  document review ledger (`kyb_review_items`), with a trigger that unconditionally refuses
+  UPDATE/DELETE.
+- Private `kyb-evidence` Storage bucket (10 MiB, PDF/JPEG/PNG), organization/application-scoped
+  object policies.
+- `kyb_documents` gained `version`/`supersedes_document_id`/`status` with lineage-integrity triggers
+  and a unique index preventing replacement branching.
+
+### Live verification evidence (T010g)
+
+Verified against the real applied database using temporary, uniquely-tagged fixture identities
+created and torn down via the service-role key confined to standalone verification scripts (never
+runtime code) — the same security boundary `scripts/seed-test-fixtures.ts` already establishes:
+
+- **Onboarding**: anonymous and blocked callers denied; a valid unattached user creates exactly one
+  `PENDING_KYB` organization + `OWNER` membership with server-derived `can_buy`/`can_sell`;
+  `HILLS_INTERNAL` and an unrecognized extra parameter (`p_can_buy`) are both rejected outright; a
+  retry returns `{ok:false, conflict:"already_member"}` naming no organization; `organization_can_buy`
+  /`organization_can_sell`/`is_authorized_member` all correctly deny the new org.
+- **KYB draft**: DRAFT creation, idempotent repeat calls, cross-org and blocked-member denial, exactly
+  one open application per org.
+- **Storage**: bucket confirmed private/10 MiB/PDF+JPEG+PNG via the Storage API; own-org upload under
+  the canonical path; cross-org path, anonymous, cross-org read, member overwrite, and member delete
+  all confirmed denied (the delete case required isolating the check via `remove()`'s return value —
+  an empty array with no error — rather than error presence, since a denied Storage delete returns
+  success-with-zero-effect rather than throwing); Compliance read confirmed.
+- **Real `storage.objects.metadata` shape** (previously undocumented, per the migration's own noted
+  residual verification requirement): `{eTag, size, mimetype, cacheControl, lastModified,
+  contentLength, httpStatusCode}` — confirms `metadata->>'mimetype'`/`metadata->>'size'` are real,
+  authoritative keys. A genuine MIME-mismatch call was confirmed live-rejected (`mime_type_mismatch`).
+- **Versioning**: a valid replacement reached version 2, superseded v1 (marked `SUPERSEDED`, not
+  deleted); a second branch from the same v1, a cross-application replacement, and a
+  cross-document-type replacement were all confirmed live-rejected.
+- **Review**: `create_kyb_review` derives `reviewer_user_id`/`created_at` itself (confirmed against
+  the live row); REJECTED without a reason denied, with a reason accepted; wrong document/application
+  pairing denied; a direct base-table INSERT denied even for the Compliance fixture; UPDATE and DELETE
+  of an existing review row were both confirmed to leave the row completely unchanged (append-only,
+  live-confirmed); member-facing `list_kyb_document_reviews` returns `reviewer_label:"Hills
+  Compliance"` and never a reviewer id.
+- **Submit/resubmit**: DRAFT→SUBMITTED, a second submit denied, a direct member self-`UPDATE` to
+  `APPROVED` had no effect, Compliance moving the application to `RESUBMISSION_REQUIRED` via the
+  existing (unchanged) compliance policy, resubmit correctly denied while a document was `REJECTED`,
+  and resubmit succeeding once that document was properly superseded.
+- **Cross-tenant isolation**: a fully synthetic "org B" (created via direct fixture insert, mirroring
+  `scripts/seed-test-fixtures.ts`'s own pattern, never via the onboarding RPC) proved org A's member
+  cannot read org B's `kyb_applications`, `kyb_documents`, or list its reviews.
+
+**One item could not be safely live-verified**: the `email_not_verified` branch. This Supabase
+project's Auth configuration refuses to issue any session for an unconfirmed account — neither
+`signInWithPassword` (an admin-created unconfirmed account) nor self-service `signUp` returns a
+session pre-confirmation — so the scenario the branch defends against cannot be reached via any real
+sign-in path in this project as currently configured. Reported honestly as not safely runnable rather
+than assumed either way; the branch's SQL was already static-verified in the prior review.
+
+### Cleanup and residual state
+
+All temporary Storage objects, and every temporary organization/application/document/file-asset/
+membership/profile/auth-user row that the append-only ledger trigger did not block, were deleted via
+the approved service-role-in-script-only pattern. Exactly what remains, and why: **one**
+`kyb_review_items` row (the append-only ledger correctly refuses to let anything delete it — by
+design, matching this schema's pre-existing `inventory_ownership_events`/`audit_logs` immutability),
+which via FK integrity transitively kept 4 `kyb_documents` rows, 2 `kyb_applications` rows, 2
+`organizations` rows, and 3 fixture `profiles`/`auth.users` rows (all clearly tagged
+`t010g-verify-1789077219872…`, synthetic placeholder content only, no real business data) in place.
+Forcing their removal would require disabling the append-only trigger via direct Postgres access —
+not available through this repository's tooling, and not attempted, since doing so would undermine
+the exact security property just verified. All temporary verification scripts were deleted from the
+repository before this handoff was written; none were committed.
+
+### Files changed this run
+
+`supabase/trading_schema.sql` (appended, applied foundation), `docs/architecture/
+DATABASE-CAPABILITY-MAP.md` (new capability rows; DB-BLOCK-01/03 marked resolved),
+`specs/003-auth-membership-kyb/tasks.md` (T010g marked complete), this handoff. No application/UI
+code changed. No commit, no push.
+
+## Exact next action
+
+RUN A (T010a, Sign-Up gap, then T011–T013) is the next work item — **not** started in this run.
