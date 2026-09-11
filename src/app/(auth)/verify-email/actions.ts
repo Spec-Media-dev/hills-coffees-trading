@@ -1,7 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-import type { ServerActionResult } from "@/lib/types/server-action";
+import { ACTION_FEEDBACK, type ActionFeedbackResult } from "@/lib/types/action-feedback";
 
 /**
  * Resend the email-verification link (Feature 003 T007 — spec FR-001).
@@ -10,7 +10,7 @@ import type { ServerActionResult } from "@/lib/types/server-action";
  * invented. Requires an active (even if unverified) session, since the email is read from the
  * caller's own verified `auth.getUser()` result rather than trusted from client input.
  */
-export async function resendVerificationEmail(): Promise<ServerActionResult<never>> {
+export async function resendVerificationEmail(): Promise<ActionFeedbackResult> {
   const supabase = await createClient();
 
   const {
@@ -19,14 +19,14 @@ export async function resendVerificationEmail(): Promise<ServerActionResult<neve
   } = await supabase.auth.getUser();
 
   if (userError || !user?.email) {
-    return { ok: false, error: "You need to sign in again to request a new verification email." };
+    return { ok: false, code: ACTION_FEEDBACK.SESSION_EXPIRED };
   }
 
   const { error } = await supabase.auth.resend({ type: "signup", email: user.email });
 
   if (error) {
-    return { ok: false, error: "That didn't send — please try again shortly." };
+    return { ok: false, code: ACTION_FEEDBACK.AUTH_GENERIC_ERROR };
   }
 
-  return { ok: true, data: undefined as never };
+  return { ok: true, data: undefined, code: ACTION_FEEDBACK.VERIFICATION_RESENT };
 }

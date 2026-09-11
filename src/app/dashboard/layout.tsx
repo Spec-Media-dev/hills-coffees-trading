@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 
 import { AppShell } from "@/components/app/app-shell";
 import { buildMemberNavGroups } from "@/components/app/member-navigation";
-import { AwaitingKybState } from "@/components/account/awaiting-kyb-state";
+import { PreAuthHeader } from "@/components/app/pre-auth-header";
 import { OnboardingExperience } from "@/components/account/onboarding-experience";
 import { OrganizationSelector } from "@/components/account/organization-selector";
 import { ResendVerificationButton } from "@/components/account/resend-verification-button";
@@ -56,16 +56,28 @@ export default async function DashboardLayout({
   const identity = await getRequestIdentity();
 
   if (identity.kind !== "authenticated") {
-    return <StateScreen kind="unauthorized" />;
+    return (
+      <div className="flex min-h-full flex-1 flex-col">
+        <PreAuthHeader />
+        <StateScreen kind="unauthorized" />
+      </div>
+    );
   }
 
+  // Every branch below this point is reachable only by an authenticated caller, but still BEFORE
+  // the business `AppShell` (whose own `Topbar` carries the theme/locale toggles) — none of these
+  // states get that shell, so `PreAuthHeader` supplies the same theme/locale controls and a way
+  // back to the public site that every other pre-authenticated surface already has (`(auth)/layout.tsx`).
   // Feature 003 T007 — gates everything past this point; an unverified email is denied the shell
   // outright, never merely shown a warning banner over otherwise-accessible content.
   if (!identity.isEmailVerified) {
     return (
-      <StateScreen kind="forbidden" title={appCopy.emailNotVerified.title} description={appCopy.emailNotVerified.description}>
-        <ResendVerificationButton />
-      </StateScreen>
+      <div className="flex min-h-full flex-1 flex-col">
+        <PreAuthHeader />
+        <StateScreen kind="forbidden" title={appCopy.emailNotVerified.title} description={appCopy.emailNotVerified.description}>
+          <ResendVerificationButton />
+        </StateScreen>
+      </div>
     );
   }
 
@@ -74,14 +86,24 @@ export default async function DashboardLayout({
   // "no organization at all" (the check immediately below, which only ever triggers once this one
   // has ruled out the ambiguous case).
   if (identity.requiresOrganizationSelection) {
-    return <OrganizationSelector organizations={identity.organizations} redirectTo="/dashboard/" />;
+    return (
+      <div className="flex min-h-full flex-1 flex-col">
+        <PreAuthHeader />
+        <OrganizationSelector organizations={identity.organizations} redirectTo="/dashboard/" />
+      </div>
+    );
   }
 
   // Feature 003 T012 — a verified, unattached user gets the real onboarding experience, not a
   // static "no organization" dead end. Rendered inline (same precedent as `OrganizationSelector`
   // above) rather than as a separate route.
   if (identity.organization === null) {
-    return <OnboardingExperience />;
+    return (
+      <div className="flex min-h-full flex-1 flex-col">
+        <PreAuthHeader />
+        <OnboardingExperience />
+      </div>
+    );
   }
 
   // Feature 003 T013/critical access rule — an organization existing is NOT authorization. A
@@ -89,8 +111,26 @@ export default async function DashboardLayout({
   // business dashboard shell below. `isAuthorizedMember` comes from `is_authorized_member()`
   // (never a raw `organizations.status` read) — the same authority `lib/auth/eligibility.ts`
   // translates into `nextAction: "await-authorization"`.
+  //
+  // RUN B (T016–T022) CHANGE FROM RUN A: this branch used to return a single static
+  // `<AwaitingKybState />` in place of `{children}`, which structurally prevented any real route
+  // under `/dashboard/*` from ever rendering while an organization is not yet authorized — but
+  // T016 requires exactly such a route (`/dashboard/kyb/`, the real draft/upload/submit screen).
+  // `{children}` now DOES render past this point, inside a shell that carries no business nav group
+  // — `AppShell`/`buildMemberNavGroups` are reached only in the final `return` below, strictly after
+  // this check, so the "no protected business modules pre-approval" property is unchanged: what
+  // changed is which non-business content is allowed to render, not whether business content can.
+  // Each page under `/dashboard/*` independently re-verifies `isAuthorizedMember` itself (the same
+  // rule this file's own header comment already states) and is responsible for rendering only
+  // KYB-appropriate content for its own route — `/dashboard/page.tsx` shows the state-aware KYB
+  // status hub, `/dashboard/kyb/page.tsx` shows the draft/upload screen for the editable states.
   if (!identity.isAuthorizedMember) {
-    return <AwaitingKybState />;
+    return (
+      <div className="flex min-h-full flex-1 flex-col">
+        <PreAuthHeader />
+        {children}
+      </div>
+    );
   }
 
   return (

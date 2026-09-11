@@ -3,8 +3,8 @@
 import { redirect } from "next/navigation";
 
 import { getRequestIdentity } from "@/lib/auth/dal";
-import type { ServerActionResult } from "@/lib/types/server-action";
-import { SIGN_IN_GENERIC_ERROR, SignInInput } from "@/lib/validation/sign-in";
+import { ACTION_FEEDBACK, type ActionFeedbackResult } from "@/lib/types/action-feedback";
+import { SignInInput } from "@/lib/validation/sign-in";
 import { createClient } from "@/lib/supabase/server";
 
 /**
@@ -17,22 +17,22 @@ import { createClient } from "@/lib/supabase/server";
  *    distinction (no pre-check "does this email exist" lookup, no different message per cause,
  *    no different status/redirect). That is the entire enumeration-resistance mechanism (SC-005);
  *    it needs no additional logic here to hold, only the discipline not to break it.
- * 3. MFA — if the session's authenticator level must step up (`aal1` → `aal2`), the user is routed
- *    to the challenge before anything else, never straight to a protected destination.
- * 4. ROUTE BY ELIGIBILITY — resolved AFTER a fresh `getRequestIdentity()` call for this same
- *    request (the new session cookie is already set at this point), never assumed from the
- *    sign-in form's own success alone.
+ * 3. PORTAL BOUNDARY — resolve identity from fresh DB authority. Operational admins are signed
+ *    straight back out and receive only the controlled `ADMIN_PORTAL_REQUIRED` code; this member
+ *    entry point never creates onboarding state or admits them to a member workspace.
+ * 4. MFA — member sessions that require `aal2` step up before a protected destination.
+ * 5. ROUTE BY MEMBER ELIGIBILITY — verified members continue to the member dashboard.
  */
 export async function signIn(
-  _prevState: ServerActionResult<never> | undefined,
+  _prevState: ActionFeedbackResult | undefined,
   formData: FormData
-): Promise<ServerActionResult<never>> {
+): Promise<ActionFeedbackResult> {
   // 1. VALIDATE
   const parsed = SignInInput.safeParse(Object.fromEntries(formData));
   if (!parsed.success) {
     return {
       ok: false,
-      error: "Check the highlighted fields.",
+      code: ACTION_FEEDBACK.VALIDATION_ERROR,
       fieldErrors: parsed.error.flatten().fieldErrors,
     };
   }
@@ -46,27 +46,32 @@ export async function signIn(
 
   if (error) {
     // The SAME generic message for every failure cause — never distinguish by error code/status.
-    return { ok: false, error: SIGN_IN_GENERIC_ERROR };
+    return { ok: false, code: ACTION_FEEDBACK.INVALID_CREDENTIALS };
   }
 
-  // 3. MFA STEP-UP
+  // 3. PORTAL BOUNDARY — resolve fresh DB-derived identity before any onward route.
+  const identity = await getRequestIdentity();
+  if (identity.kind !== "authenticated") {
+    await supabase.auth.signOut();
+    return { ok: false, code: ACTION_FEEDBACK.AUTH_GENERIC_ERROR };
+  }
+
+  if (identity.operationalRoles.length > 0) {
+    // Operational accounts use the dedicated admin portal. Do not leave a member-portal session
+    // behind and do not create/enter any member onboarding state.
+    await supabase.auth.signOut();
+    return { ok: false, code: ACTION_FEEDBACK.ADMIN_PORTAL_REQUIRED };
+  }
+
+  // 4. MFA STEP-UP
   const { data: aal, error: aalError } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
   if (!aalError && aal.nextLevel === "aal2" && aal.nextLevel !== aal.currentLevel) {
     redirect("/mfa/");
   }
 
-  // 4. ROUTE BY ELIGIBILITY
-  const identity = await getRequestIdentity();
-  if (identity.kind !== "authenticated") {
-    redirect("/sign-in/");
-  }
-
+  // 5. MEMBER ELIGIBILITY
   if (!identity.isEmailVerified) {
     redirect("/verify-email/");
-  }
-
-  if (identity.operationalRoles.length > 0) {
-    redirect("/dashboard-admin/");
   }
 
   redirect("/dashboard/");

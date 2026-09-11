@@ -3183,3 +3183,95 @@ grant execute on function public.attach_kyb_document(uuid, text, text, text, tex
 -- ============================================================================
 -- Deliberately no publication-membership statement of any kind anywhere in this file. Realtime
 -- remains a separate, future, security-reviewed enhancement (spec.md "Status refresh boundary").
+
+-- ============================================================================
+-- Feature 003 RUN B — profile bootstrap + KYB draft fields
+-- Applied and live-verified 2026-09-11. Source migrations:
+-- supabase/migrations/20260912000000_feature_003_profile_bootstrap.sql
+-- supabase/migrations/20260912010000_feature_003_kyb_draft_fields.sql
+-- Reconciled into this canonical snapshot per the Constitution's database-change process. The
+-- one-time guarded backfill statement (profile_bootstrap.sql SECTION 2) is data migration, not
+-- schema, and is deliberately not reproduced here — only the schema objects it introduces are.
+-- Do not hand-edit below this line; regenerate from the migration files if they change again.
+-- ============================================================================
+
+-- auth.users -> profiles bootstrap trigger (closes the fresh-signup profile-row gap; see the
+-- source migration's full header comment for the defect this closes and its live verification).
+create or replace function public.handle_new_user()
+returns trigger
+language plpgsql
+security definer
+set search_path = pg_catalog, public
+as $$
+begin
+  insert into public.profiles (id, full_name)
+  values (
+    new.id,
+    nullif(btrim(new.raw_user_meta_data ->> 'full_name'), '')
+  )
+  on conflict (id) do nothing;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists on_auth_user_created on auth.users;
+create trigger on_auth_user_created
+  after insert on auth.users
+  for each row execute function public.handle_new_user();
+revoke all on function public.handle_new_user() from public;
+
+-- kyb_applications draft business-data columns + the previously-deferred update_kyb_draft RPC
+-- (contract kyb-foundation.md §2 named this as Phase 4's responsibility to add).
+alter table public.kyb_applications
+  add column if not exists registered_address text;
+
+alter table public.kyb_applications
+  add column if not exists business_activity text;
+
+create or replace function public.update_kyb_draft(
+  p_application_id uuid,
+  p_registered_address text,
+  p_business_activity text
+)
+returns void
+language plpgsql
+security definer
+set search_path = pg_catalog, public, auth
+as $$
+declare
+  v_organization_id uuid;
+  v_status text;
+begin
+  if auth.uid() is null or public.is_blocked_user() then
+    raise exception 'forbidden';
+  end if;
+
+  select organization_id, status into v_organization_id, v_status
+  from public.kyb_applications
+  where id = p_application_id
+  for update;
+
+  if v_organization_id is null then
+    raise exception 'application_not_found';
+  end if;
+
+  if not public.is_org_member(v_organization_id) then
+    raise exception 'forbidden';
+  end if;
+
+  if not (v_status = any (array['DRAFT', 'RESUBMISSION_REQUIRED'])) then
+    raise exception 'invalid_transition';
+  end if;
+
+  update public.kyb_applications
+  set
+    registered_address = nullif(btrim(p_registered_address), ''),
+    business_activity = nullif(btrim(p_business_activity), ''),
+    updated_at = now()
+  where id = p_application_id;
+end;
+$$;
+
+revoke all on function public.update_kyb_draft(uuid, text, text) from public, anon;
+grant execute on function public.update_kyb_draft(uuid, text, text) to authenticated, service_role;

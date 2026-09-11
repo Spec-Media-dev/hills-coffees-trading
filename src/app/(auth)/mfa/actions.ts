@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 
 import { getRequestIdentity } from "@/lib/auth/dal";
 import { MfaCodeInput } from "@/lib/validation/mfa";
-import type { ServerActionResult } from "@/lib/types/server-action";
+import { ACTION_FEEDBACK, type ActionFeedbackResult } from "@/lib/types/action-feedback";
 import { createClient } from "@/lib/supabase/server";
 
 /**
@@ -17,14 +17,14 @@ import { createClient } from "@/lib/supabase/server";
  * database, not this page, is the actual enforcement boundary (spec T009 Verify).
  */
 export async function verifyMfaChallenge(
-  _prevState: ServerActionResult<never> | undefined,
+  _prevState: ActionFeedbackResult | undefined,
   formData: FormData
-): Promise<ServerActionResult<never>> {
+): Promise<ActionFeedbackResult> {
   const parsed = MfaCodeInput.safeParse(Object.fromEntries(formData));
   if (!parsed.success) {
     return {
       ok: false,
-      error: "Check the highlighted fields.",
+      code: ACTION_FEEDBACK.VALIDATION_ERROR,
       fieldErrors: parsed.error.flatten().fieldErrors,
     };
   }
@@ -36,7 +36,7 @@ export async function verifyMfaChallenge(
   });
 
   if (error) {
-    return { ok: false, error: "invalid-code" };
+    return { ok: false, code: ACTION_FEEDBACK.MFA_INVALID_CODE };
   }
 
   const identity = await getRequestIdentity();
@@ -52,14 +52,14 @@ export async function verifyMfaChallenge(
  * promotes the current session to `aal2` — Supabase's own documented enrollment completion step.
  */
 export async function confirmMfaEnrollment(
-  _prevState: ServerActionResult<never> | undefined,
+  _prevState: ActionFeedbackResult | undefined,
   formData: FormData
-): Promise<ServerActionResult<never>> {
+): Promise<ActionFeedbackResult> {
   const parsed = MfaCodeInput.safeParse(Object.fromEntries(formData));
   if (!parsed.success) {
     return {
       ok: false,
-      error: "Check the highlighted fields.",
+      code: ACTION_FEEDBACK.VALIDATION_ERROR,
       fieldErrors: parsed.error.flatten().fieldErrors,
     };
   }
@@ -71,8 +71,8 @@ export async function confirmMfaEnrollment(
   });
 
   if (error) {
-    return { ok: false, error: "invalid-code" };
+    return { ok: false, code: ACTION_FEEDBACK.MFA_INVALID_CODE };
   }
 
-  return { ok: true, data: undefined as never };
+  return { ok: true, data: undefined, code: ACTION_FEEDBACK.MFA_ENABLED };
 }

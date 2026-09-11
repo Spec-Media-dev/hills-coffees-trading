@@ -109,10 +109,15 @@ describe("Sign-Up Full Name", () => {
     expect(SIGN_UP_ACTIONS).not.toMatch(/\.from\(["']profiles["']\)/);
   });
 
-  it("the documented reason for not writing profiles.full_name at signup time is present and accurate", () => {
-    expect(SIGN_UP_ACTIONS).toMatch(/no database trigger creates a `profiles` row/);
-    expect(SIGN_UP_ACTIONS).toMatch(/update_my_profile\(\)/);
-    expect(SIGN_UP_ACTIONS).toMatch(/silently affects ZERO rows/);
+  it("the documented full-name-persistence mechanism is present and accurate (RUN B: the profile-bootstrap trigger, not update_my_profile, is now primary)", () => {
+    // Superseded by RUN B PART 0 (`supabase/migrations/20260912000000_feature_003_profile_bootstrap.sql`):
+    // a fresh signup no longer depends on an UPDATE against a not-yet-existing row — the
+    // `on_auth_user_created` trigger creates the `profiles` row itself, from the same `full_name`
+    // metadata this action sets. The old wording asserted here described the PRE-bootstrap gap;
+    // this test now asserts the accurate post-bootstrap mechanism instead.
+    expect(SIGN_UP_ACTIONS).toMatch(/on_auth_user_created/);
+    expect(SIGN_UP_ACTIONS).toMatch(/20260912000000_feature_003_profile_bootstrap\.sql/);
+    expect(SIGN_UP_ACTIONS).toMatch(/update_my_profile/);
   });
 });
 

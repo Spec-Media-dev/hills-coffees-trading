@@ -106,6 +106,7 @@ export const en = {
         consent: "I confirm this information is accurate and I'm authorized to submit it on behalf of this company.",
         submit: "Continue to KYB",
         submitting: "Submitting…",
+        serverError: "We couldn't start your membership application. Please try again.",
       },
       awaitingKyb: {
         title: "Business profile complete — KYB verification is next",
@@ -159,6 +160,126 @@ export const en = {
         disputes: "Disputes",
         audit: "Audit",
       },
+    },
+
+    /**
+     * Feature 003 RUN B (T014–T022) — the member-facing KYB draft/upload/status experience.
+     * `reviewerLabel` is always the literal constant the DB returns (`list_kyb_document_reviews`);
+     * this dictionary never invents its own reviewer-identity string.
+     */
+    kyb: {
+      hub: {
+        eyebrow: "Business verification",
+        noApplication: {
+          title: "Start your KYB verification",
+          description:
+            "Know Your Business (KYB) verification is the next step. It confirms your company's identity, ownership, and banking details before Hills Compliance can approve trading access.",
+          start: "Start KYB verification",
+        },
+        draft: {
+          title: "Continue your KYB verification",
+          description: "Your KYB application is in progress. Finish the remaining items to submit it for review.",
+          continue: "Continue verification",
+        },
+        submitted: {
+          title: "Your verification is under review",
+          description:
+            "Your documents were submitted. Hills Compliance will review them, and business/trading access remains locked until your organization is approved.",
+        },
+        underReview: {
+          title: "Under review",
+          description:
+            "Hills Compliance is reviewing your KYB application. Business/trading access remains locked until your organization is approved.",
+        },
+        resubmissionRequired: {
+          title: "Action needed on your verification",
+          description: "Hills Compliance requested changes to specific items. Fix the items listed below to continue.",
+          fix: "Fix these items",
+          reviewedBy: "Reviewed by {reviewer}",
+        },
+        rejected: {
+          title: "Your verification was not approved",
+          description: "Hills Compliance did not approve this application.",
+          reasonLabel: "Reason",
+          noReason: "No reason was recorded for this decision.",
+        },
+        suspended: {
+          title: "Your organization is suspended",
+          description: "Trading access is currently restricted. Contact Hills Coffee for more information.",
+        },
+        approved: {
+          title: "Verification approved",
+          description: "Your organization is approved. Business access is being finalized for your account.",
+        },
+      },
+      form: {
+        title: "Business verification details",
+        lead: "This information is reviewed by Hills Compliance alongside your submitted documents.",
+        registeredAddress: "Registered business address",
+        businessActivity: "Business activity",
+        save: "Save",
+        saving: "Saving…",
+        saved: "Saved",
+      },
+      documents: {
+        title: "Required documents",
+        lead: "Upload each required document below. Accepted formats: PDF, JPEG, or PNG, up to 10 MB.",
+        types: {
+          TRADE_LICENSE: "Trade licence",
+          PROOF_OF_INCORPORATION: "Proof of incorporation",
+          AUTHORIZED_SIGNATORY_ID: "Authorized signatory identity document",
+          UBO_DECLARATION: "Ultimate beneficial ownership declaration",
+          BANKING_EVIDENCE: "Bank account evidence",
+        },
+        status: {
+          missing: "Not uploaded",
+          PENDING: "Submitted — awaiting review",
+          ACCEPTED: "Accepted",
+          REJECTED: "Rejected — replacement required",
+        },
+        upload: "Upload",
+        replace: "Replace",
+        uploading: "Uploading…",
+        expiresOn: "Expires {date}",
+        expired: "Expired {date} — upload a current document",
+        rejectionReason: "Reason: {reason}",
+        fileRequired: "Choose a file to upload.",
+        invalidFileType: "Choose a PDF, JPEG, or PNG file.",
+        fileTooLarge: "Choose a file that is 10 MB or smaller.",
+      },
+      completeness: {
+        title: "Before you submit",
+        allComplete: "Everything required is complete.",
+        registeredAddressRequired: "Registered business address is required.",
+        businessActivityRequired: "A description of your business activity is required.",
+        documentRequired: "{document} is required or needs replacement.",
+        itemRequired: "A required item is missing.",
+      },
+      submit: {
+        submit: "Submit for review",
+        submitting: "Submitting…",
+        resubmit: "Resubmit for review",
+        resubmitting: "Resubmitting…",
+      },
+      toast: {
+        startFailed: "Could not start KYB verification. Please try again.",
+        draftSaved: "Business details saved.",
+        draftSaveFailed: "Could not save — please try again.",
+        uploadSuccess: "Document uploaded.",
+        uploadFailed: "Upload failed — please try again.",
+        applicationNotEditable: "This application cannot accept documents right now.",
+        replacementStale: "That document could not be replaced. Refresh and try again.",
+        submitSuccess: "Application submitted for review.",
+        submitFailed: "Could not submit — check the items below.",
+        resubmitSuccess: "Application resubmitted for review.",
+        resubmitFailed: "Could not resubmit — check the items below.",
+      },
+    },
+
+    feedback: {
+      signInRequired: "Please sign in to continue.",
+      profileSaved: "Profile changes saved.",
+      profileSaveFailed: "Could not save your profile. Please try again.",
     },
 
 } as const;

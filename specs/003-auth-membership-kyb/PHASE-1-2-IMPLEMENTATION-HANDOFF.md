@@ -639,8 +639,290 @@ this requires a migration (an `auth.uid() = id`-scoped INSERT policy, an upsert-
 pre-existing platform gap that predates RUN A/RUN DB and should be prioritized before RUN B's KYB
 document work assumes a working end-to-end onboarding path for real users.
 
+## RUN B Execution — Profile Bootstrap + Verified-Signup Redirect + T014–T022 (2026-09-11)
+
+Closes exactly the gap the previous section flagged, plus implements the member-facing KYB
+draft/upload/submit/status experience.
+
+### PART 0 — fresh-signup profile bootstrap
+
+New migration `supabase/migrations/20260912000000_feature_003_profile_bootstrap.sql` (paired
+`.rollback.sql`): an `on_auth_user_created` trigger (`AFTER INSERT on auth.users`) creates exactly
+one `public.profiles` row per new user, reading only `raw_user_meta_data->>'full_name'` — never
+`account_type`/`organization_id`/any role/`can_buy`/`can_sell`/status/`is_blocked` (none of those are
+read or settable through it). Idempotent (`on conflict (id) do nothing`), creates no organization, no
+membership, no capability. A guarded backfill statement in the same migration inserts a profile only
+for existing `auth.users` rows that genuinely have none yet (`where not exists`, never overwrites an
+existing row). Live scope check (read-only, service-role-only, standalone, deleted after use): of 7
+real `auth.users` rows in the intended environment, exactly 1 (`shadyshref2001@gmail.com`) was
+missing a profile — the backfill closes exactly that one row, nothing else.
+
+**Not yet applied to the live environment** — `MIGRATION READY — MANUAL APPLY REQUIRED`.
+
+### PART 1 — verified-signup routing
+
+Investigation found the existing T007/T008 callback (`src/app/auth/confirm/route.ts`) already
+redirects a successfully verified caller straight to `/dashboard/`, never forcing a manual re-sign-in
+— this was already correct. Added `emailRedirectTo: canonicalUrl("/dashboard/")` to `signUp()`
+(`(auth)/sign-up/actions.ts`), mirroring the existing `resetPasswordForEmail` precedent, so the
+confirmation link's destination is explicit rather than depending on the Supabase project's default
+Site URL configuration. Live-verified via a real headless-browser session: sign-in redirects straight
+to `/dashboard/` with no manual re-sign-in step, landing on the correct state-aware hub.
+
+### PART 2 — RUN B, T014–T022
+
+**New migration** `supabase/migrations/20260912010000_feature_003_kyb_draft_fields.sql` (paired
+`.rollback.sql`, guarded to refuse if real data exists): adds exactly two nullable text columns to
+`kyb_applications` (`registered_address`, `business_activity`) and the previously-deferred
+`update_kyb_draft(p_application_id, p_registered_address, p_business_activity)` RPC — UPDATE-only,
+`auth.uid()`-scoped via `is_org_member`, editable-state-gated (`DRAFT`/`RESUBMISSION_REQUIRED` only),
+same SECURITY DEFINER shape as the foundation migration's own functions. **Not yet applied to the
+live environment.** Everything else SRS §4.1 requires (trade licence, proof of incorporation,
+ownership/control authority evidence, banking evidence) uses the already-applied `kyb_documents`/
+`attach_kyb_document` document model — no further schema was needed.
+
+**New library layer**: `lib/validation/kyb-application.ts` (T014 — the closed 5-type document
+vocabulary + the two-field draft schema), `lib/kyb/completeness.ts` (T015 — specific missing-item
+messages, never generic), `lib/kyb/status.ts` + `lib/kyb/status-types.ts` (server-only vs
+client-safe split — the split exists because a client component importing anything from a module that
+transitively imports `lib/supabase/server` fails the Next.js build with a `next/headers`-in-client
+error; discovered and fixed this run). `lib/kyb/mutations.ts` gained `updateKybDraft`.
+
+**New Server Actions** `src/app/dashboard/kyb/actions.ts`: `startKybVerification`, `saveKybDraft`
+(T016), `uploadKybDocument` (T017 — real bytes to the live `kyb-evidence` bucket, orphan cleanup if
+metadata attach fails after a successful upload), `submitKyb` (T018), `resubmitKyb` (T020) — every one
+resolves the acting organization/application fresh, server-side, never from a client-supplied id.
+
+**New route** `src/app/dashboard/kyb/page.tsx` — the real draft/upload/submit workspace, reachable
+only for a not-yet-authorized organization in an editable state; independently re-verifies and
+redirects to `/dashboard/` otherwise.
+
+**Dashboard architecture change**: `dashboard/layout.tsx`'s `!identity.isAuthorizedMember` branch
+used to render a static `AwaitingKybState` in place of `{children}`, which structurally prevented any
+real route under `/dashboard/*` from ever rendering while not-yet-authorized. It now renders
+`{children}` directly (still never `AppShell`/business nav, which remain reached only after this
+check, in the final `return`) — the security property ("no protected business modules pre-approval")
+is unchanged; only the mechanism moved from "block all children" to "each child page renders only
+KYB-appropriate content and independently re-verifies," the same rule already established for
+`dashboard/page.tsx`. `AwaitingKybState` is retired; `components/account/kyb-status-screen.tsx`
+(T019/T021/T022 — all seven `kyb_applications` statuses plus the implicit "no application yet" state,
+plus an expiry warning surfaced regardless of status) replaces it, rendered by `dashboard/page.tsx`.
+
+**Toasts**: `<HillsToaster />` mounted in the root layout (`src/app/layout.tsx`), made locale/RTL-aware
+(`dir` follows `useLocale().direction`). Used for draft save, document upload, and submit/resubmit
+failure feedback in the new client components — the pre-existing RUN A forms (sign-in/sign-up) were
+deliberately left on their existing inline `role="alert"` pattern, not retrofitted, to avoid unrelated
+scope/test churn.
+
+### Live verification (this run)
+
+Two complementary real-environment checks, both using clearly tagged synthetic fixtures, cleaned up
+via the same approach as prior runs (temporary, immediately-deleted scripts; service-role key confined
+to those standalone scripts only):
+
+1. **Real headless-browser session** (after diagnosing and fixing two environment quirks unrelated to
+   the product code: Next.js 16 blocks cross-origin dev resources when the browser targets
+   `127.0.0.1` instead of `localhost`, silently breaking client hydration in dev mode; and a
+   throwaway QA script was missing its own `.env.local` loader, silently signing in with a wrong
+   fallback password): confirmed sign-in → straight to `/dashboard/` → the correct "Start your KYB
+   verification" hub state renders with honest copy and the right onboarding-progress step
+   highlighted → clicking through reaches `/dashboard/kyb/`.
+2. **Direct authenticated RPC calls** (bypassing the browser layer for the rest of the flow — the
+   same proven-reliable technique used for the RUN A Full Name Persistence fix) exercised the complete
+   member-side KYB lifecycle against the real, already-applied foundation migration: idempotent draft
+   creation, all 5 required documents uploaded via real Storage + `attach_kyb_document`, full
+   cross-tenant isolation (a second organization could not read the first's application or documents,
+   upload into its Storage path, or attach to its application), `DRAFT → SUBMITTED`, a direct
+   bypass-the-RPC `UPDATE kyb_applications SET status = 'APPROVED'` attempt from the member's own
+   client confirmed to affect **zero rows** (no self-approval possible even bypassing the application
+   layer entirely), a real document rejection via `create_kyb_review` (confirming `reviewer_user_id`
+   is never returned and `reviewer_label` is always the fixed `"Hills Compliance"` constant), a
+   premature resubmit correctly refused (`unresolved_rejected_document`), a replacement upload
+   correctly superseding the rejected document, and `RESUBMISSION_REQUIRED → SUBMITTED` succeeding
+   only after the replacement.
+
+`update_kyb_draft` itself returned `PGRST202` ("Could not find the function ... in the schema
+cache") — honestly confirming the T016 migration has not been applied yet; not faked as a pass. The
+call shape (function name, parameter names) was exercised for real and is correct.
+
+Eleven synthetic fixture accounts from this run's debugging could not be fully deleted afterward —
+each has an `audit_logs` row referencing it (`audit_logs_actor_user_id_fkey`, the same append-only/
+audit-integrity pattern already documented for the T010g and RUN A Full Name fixture cleanups). All
+are uniquely tagged (`kybqa-*`/`kybrpc-*@example.com`), harmless (most have no organization; the one
+that does has no membership left after cleanup), and retained for audit integrity, consistent with
+established precedent.
+
+### Regression
+
+`typecheck` clean · full suite **436/436 passed** (35 files, +41 new
+`tests/auth/run-b-kyb.test.ts`) · `build` succeeds (`/dashboard/kyb` registered as a new dynamic
+route) · `lint` unchanged pre-existing baseline (`docs/claude-design/**` only; one real
+`react-hooks/set-state-in-effect` finding in this run's own new code was found and fixed by keying
+`KybDocumentRow` on the current document's id/status instead of resetting local state from an effect)
+· `git diff --check` clean (only benign CRLF/LF warnings).
+
+### Files changed this pass
+
+New: `supabase/migrations/20260912000000_feature_003_profile_bootstrap.{sql,rollback.sql}`,
+`supabase/migrations/20260912010000_feature_003_kyb_draft_fields.{sql,rollback.sql}`,
+`lib/validation/kyb-application.ts`, `lib/kyb/completeness.ts`, `lib/kyb/status.ts`,
+`lib/kyb/status-types.ts`, `src/app/dashboard/kyb/{actions.ts,page.tsx}`,
+`components/account/kyb-{status-screen,draft-form,document-checklist,document-row,submit-panel}.tsx`,
+`tests/auth/run-b-kyb.test.ts`. Modified: `lib/kyb/mutations.ts` (+`updateKybDraft`),
+`src/app/(auth)/sign-up/actions.ts` (`emailRedirectTo` + updated doc comment),
+`src/app/dashboard/{layout.tsx,page.tsx}`, `src/app/layout.tsx` (+`HillsToaster`),
+`components/app/toast.tsx` (locale-aware `dir`), `lib/app/copy/{en,ar}.ts` (+`kyb` section),
+`tests/auth/{run-a-sign-up-onboarding,run-a-ux-refinement}.test.ts`,
+`tests/design/uif-f.test.tsx` (updated for the new `/dashboard/kyb/` route). Deleted:
+`components/account/awaiting-kyb-state.tsx` (superseded by `kyb-status-screen.tsx`). No change to
+the three protected authorization functions, no change to the already-applied RUN DB migration or
+Storage foundation.
+
+## PreAuthHeader — theme/locale controls for pre-authorized `/dashboard/*` states (2026-09-11)
+
+Small follow-up after RUN B: every `/dashboard/*` state rendered BEFORE the business `AppShell`
+(unverified email, multi-org selection, no-org onboarding, and every not-yet-authorized KYB
+status/workspace screen) had no theme toggle, no language switcher, and no way back to the public
+site — `AppShell`'s own `Topbar` carries those, but none of those states reach `AppShell`. New
+`components/app/pre-auth-header.tsx` (Server Component, mirrors `(auth)/layout.tsx`'s own header
+exactly — same logo/home link, same `ThemeToggle`/`LanguageSwitcher` islands) is now rendered above
+every one of `dashboard/layout.tsx`'s pre-`AppShell` branches. No new toggle implementation; no
+change to the authorization guard itself (only the JSX wrapping around each branch's existing return
+value changed). 4 new tests in `tests/auth/run-b-kyb.test.ts`; full regression re-run clean.
+
+## RUN B Live Verification — both migrations applied (2026-09-11)
+
+Both migrations from the RUN B pass above were manually applied to the intended Supabase environment
+and independently re-confirmed post-apply (trigger exists/enabled, `handle_new_user` is
+`SECURITY DEFINER`, `auth_users_missing_profile = 0`; `registered_address`/`business_activity`
+columns exist, `update_kyb_draft(uuid,text,text)` exists as `SECURITY DEFINER` with `authenticated`/
+`service_role` EXECUTE granted and `anon`/`PUBLIC` EXECUTE denied). This session performed a full,
+real, end-to-end live verification of the entire RUN B flow against the now-fully-applied schema.
+
+### What was live-verified (one continuous synthetic-fixture run, uniquely tagged, cleaned up after)
+
+**Profile bootstrap**: a real `auth.users` insert (via `admin.createUser` — see the note below on why
+the REAL public `signUp()` endpoint could not be used for this specific check) produced exactly one
+`profiles` row automatically, `profiles.id = auth.users.id`, `full_name` correctly populated from
+metadata, `is_blocked` at its safe default `false`, and zero organizations/memberships created at
+signup.
+
+**Real public signUp() endpoint — two genuine findings, reported honestly rather than worked
+around**: (1) `@example.com` addresses are rejected by the live signUp() endpoint specifically
+(`email_address_invalid` — `admin.createUser` does not apply this validation; this is a live
+Supabase Auth-side difference between the two paths, not a codebase defect). (2) After switching to a
+non-reserved synthetic domain, the attempt hit `over_email_send_rate_limit` (429) — Supabase's own
+send-rate limiter, exhausted by this session's extensive prior live testing. This second finding is
+itself a genuine, real-behavior re-confirmation that `sign-up/actions.ts`'s own
+`error.code === "over_email_send_rate_limit"` branch is live-correct. Given both, the rest of this
+verification used `admin.createUser` (an equivalent real `auth.users` INSERT, firing the identical
+trigger) rather than the rate-limited public endpoint.
+
+**Sign-in after verification**: confirming the email and signing in produced a real session.
+
+**Business onboarding (SELLER)**: `start_organization_onboarding` created a `PENDING_KYB`
+organization with the caller as `OWNER`; `organization_can_buy`/`organization_can_sell`/
+`is_authorized_member` were all confirmed `false` immediately after — registration is not
+authorization, live-confirmed.
+
+**KYB draft (T016, now live)**: idempotent `create_kyb_draft` (repeat call returns the same
+application id); `update_kyb_draft` persisted `registered_address`/`business_activity` for real;
+blocked user denied (`forbidden`); cross-org caller denied (`forbidden`); anonymous caller denied at
+the **Postgres grant layer itself** (`permission denied for function update_kyb_draft` — stronger
+than the RPC's own internal check, confirming the `revoke all ... from public, anon` hardening is
+genuinely live, not merely present in the migration source); attempting `update_kyb_draft` on a
+`SUBMITTED` (non-editable) application correctly refused with `invalid_transition`.
+
+**Private document upload (T017)**: bucket confirmed private (`public: false`, 10 MiB limit, exactly
+the 3 allowed MIME types) via `storage.getBucket`; anonymous upload denied (RLS); all 5 required
+document types uploaded as real bytes and attached via `attach_kyb_document`, producing real
+`file_assets`/`kyb_documents` rows; the resulting object's public URL returned a non-200 status when
+fetched directly (no public access exists); invalid MIME, oversized (`p_size_bytes` beyond the 10 MiB
+limit), wrong canonical path, and a never-actually-uploaded object were each independently rejected
+with their specific documented error code; a second organization was denied both uploading into the
+first organization's Storage path and attaching metadata to its application, and could read neither
+its application nor its documents (full cross-tenant isolation).
+
+**Completeness + submit (T018)**: `DRAFT → SUBMITTED` succeeded; a second submit was refused
+(`invalid_transition`); a direct member `UPDATE kyb_applications SET status = 'APPROVED'` bypassing
+every RPC produced no error but changed **zero rows** (status remained `SUBMITTED`) — no
+self-approval is possible even bypassing the application layer entirely.
+
+**Rejection / replacement / resubmit (T020)**: a real Compliance-role review rejected the trade
+licence document with a reason; the member's own `list_kyb_document_reviews` read showed the exact
+reason, a real timestamp, the fixed `"Hills Compliance"` label, and confirmed `reviewer_user_id` is
+never present in the returned row; a premature resubmit attempt (before replacing the rejected
+document) was correctly refused (`unresolved_rejected_document`); the replacement upload correctly
+superseded the prior version (old document → `SUPERSEDED` v1, new document → `PENDING` v2 with the
+correct `supersedes_document_id`); resubmit then succeeded, transitioning
+`RESUBMISSION_REQUIRED → SUBMITTED`.
+
+**REJECTED / SUSPENDED (T021) + expiry (T022)**: both terminal `kyb_applications.status` values were
+set (simulating Compliance decisions) and read back correctly, including the rejection reason; after
+both, `organization_can_buy`/`organization_can_sell`/`is_authorized_member` were re-confirmed still
+`false` — no accidental authorization leak from any of this session's state churn. The original
+(now-superseded) trade licence document's `expires_at` (deliberately set in the past, `2020-01-01`)
+and the replacement's `expires_at` (`2030-01-01`, not expired) both read back exactly as the T022
+expiry logic (`isDocumentExpired`) expects.
+
+**Authorization function integrity**: `git diff --stat supabase/trading_schema.sql` (the canonical
+checked-in snapshot of `organization_can_buy`/`organization_can_sell`/`is_authorized_member`, among
+everything else) was empty for the whole of this run before the post-verification reconciliation
+below — these three functions were never touched.
+
+### Synthetic fixture cleanup
+
+Most of this run's synthetic organizations, memberships, and Storage objects were successfully
+deleted. Three principals could not be deleted and are retained — the same append-only/audit-
+integrity pattern already documented for T010g and the RUN A Full Name Persistence fix's fixtures:
+one organization (`file_assets_organization_id_fkey` — it holds real uploaded evidence rows), and two
+profiles (`organizations_created_by_fkey` and, newly observed this run, `kyb_applications_decided_by_fkey`
+— the second profile was used as the simulated Compliance decision-maker and is now referenced by the
+REJECTED application's `decided_by` column). All are uniquely tagged (`runbfinal-*@example.com`),
+harmless, and retained rather than force-deleted, per the same audit-integrity discipline as every
+prior run.
+
+### Canonical reconciliation
+
+`supabase/trading_schema.sql` — appended the two now-applied migrations' schema objects (the
+`on_auth_user_created` trigger/`handle_new_user` function, the two `kyb_applications` columns, and
+`update_kyb_draft`) in the same style as the RUN DB migration's own reconciliation; the one-time
+guarded backfill statement is data migration, not schema, and was deliberately not reproduced.
+`docs/architecture/DATABASE-CAPABILITY-MAP.md` — added **DB-BLOCK-11** (RESOLVED, 2026-09-11) for the
+fresh-signup profile bootstrap gap this run closed. `docs/architecture/IMPLEMENTATION-ROADMAP.md` —
+Feature 003's row and the "Exact next task" note updated to reflect RUN B complete + live-verified;
+DB-BLOCK-11 added to the blocker summary table. `specs/003-auth-membership-kyb/tasks.md` — status
+header and each of T014–T022 tagged `LIVE-VERIFIED 2026-09-11`.
+
+### Regression
+
+`typecheck` clean · full suite **440/440 passed** (35 files) · `build` succeeds · `lint` unchanged
+pre-existing baseline (`docs/claude-design/**` only) · `git diff --check` clean.
+
+### Honest remaining gaps
+
+The REAL public `signUp()` endpoint's own fresh-account path could not be exercised end-to-end in
+this pass specifically because of Supabase's own email-send rate limiter (exhausted by this session's
+own extensive prior testing, not a defect) — the underlying trigger this pass exists to prove was
+still verified for real via an equivalent `auth.users` INSERT. No other honest gap is known; every
+other checklist item in this run's directive was live-verified against the real, now-fully-applied
+database.
+
+### Project-wide action feedback convention
+
+The shared product convention is now explicit: validation owned by one field remains inline beside
+that field; transient action, authorization, business-rule, network, upload, and server outcomes use
+the single root `HillsToaster`. Server Actions return typed codes from
+`lib/types/action-feedback.ts`, never provider/Postgres text. Client surfaces map those codes to the
+active EN/AR dictionaries, so backend names, RPC details, stack traces, and secrets cannot become
+UI copy. `useActionToast` records each result object before emitting, preventing Strict Mode,
+rerender, locale, and theme changes from replaying a stale toast. A successful action uses a toast
+when navigation does not already make success self-evident; redirecting terminal actions do not
+manufacture a client success message. The one provider remains in `src/app/layout.tsx`, with
+logical LTR/RTL positioning and the existing light/dark Sonner theme integration. Future features
+must reuse this code/result/copy pattern rather than adding providers, returning raw errors, or
+rendering a global action result inline.
+
 ## Exact next action
 
-RUN B (T014–T022, Phase 4 + Phase 5 — KYB draft/document/submission/status experience) is the next
-work item — **not** started in this run. Before or alongside it, the `organizations.created_by` /
-`profiles` row-creation gap documented above should be raised for an approved migration.
+Phase 6 (Agreements, T023–T025) is the next work item — not started in this run.

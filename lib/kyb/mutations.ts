@@ -124,3 +124,28 @@ export async function resubmitKybApplication(applicationId: string): Promise<Kyb
 
   return { ok: true };
 }
+
+/**
+ * Calls `update_kyb_draft` (RUN B, T016 — `supabase/migrations/20260912010000_feature_003_kyb_draft_fields.sql`).
+ * UPDATE-only against an application the caller already owns and that is in an editable state
+ * (`DRAFT`/`RESUBMISSION_REQUIRED`, enforced server-side). Writes ONLY `registered_address` and
+ * `business_activity` — never a status, decision, or membership field.
+ */
+export async function updateKybDraft(input: {
+  applicationId: string;
+  registeredAddress: string;
+  businessActivity: string;
+}): Promise<KybMutationResult> {
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("update_kyb_draft", {
+    p_application_id: input.applicationId,
+    p_registered_address: input.registeredAddress,
+    p_business_activity: input.businessActivity,
+  });
+
+  if (error) {
+    return { ok: false, error: "We could not save your business details." };
+  }
+
+  return { ok: true };
+}

@@ -689,9 +689,33 @@ export const en = {
       submitting: "Signing in…",
       forgotPassword: "Forgot your password?",
       genericError: "That email and password combination isn't recognised. Please try again.",
+      serverError: "We couldn't sign you in. Please try again.",
+      adminPortalRequired: "This account uses the Admin Portal. Please sign in there.",
+      adminPortalAction: "Open Admin Portal",
       metaTitle: "Sign in",
       noAccount: "Don't have an account?",
       createAccount: "Create account",
+    },
+    /**
+     * Dedicated ADMIN sign-in (admin-auth correction pass). Deliberately carries NO
+     * `noAccount`/`createAccount`-shaped key at all — there is no public admin registration, so
+     * this object structurally cannot render that CTA even by mistake. Reuses `auth.password.*`
+     * for the show/hide labels (same control, no duplicate copy) and `auth.layout.backToSite` for
+     * the footer link — nothing here is a new pattern, only new page-specific strings.
+     */
+    adminSignIn: {
+      eyebrow: "Admin Portal",
+      title: "Operations sign in",
+      lead: "Sign in with your Hills Coffee administrator account.",
+      email: "Email",
+      password: "Password",
+      submit: "Sign in",
+      submitting: "Signing in…",
+      forgotPassword: "Forgot your password?",
+      genericError: "That email and password combination isn't recognised. Please try again.",
+      accessDenied: "This account cannot access the Admin Portal.",
+      serverError: "We couldn't sign you in. Please try again.",
+      metaTitle: "Admin sign in",
     },
     signUp: {
       eyebrow: "Create your account",
@@ -704,6 +728,10 @@ export const en = {
       submit: "Create account",
       submitting: "Creating account…",
       acknowledgement: "Check your email to confirm your account and continue.",
+      invalidEmail: "Enter a valid email address.",
+      weakPassword: "Choose a stronger password and try again.",
+      rateLimited: "Too many attempts. Please wait a moment and try again.",
+      genericError: "We couldn't create your account. Please try again.",
       haveAccount: "Already have an account?",
       afterSignUpNote: "After creating your account, we'll verify your email before business setup.",
       metaTitle: "Create account",
@@ -726,6 +754,8 @@ export const en = {
       resend: "Resend verification email",
       resending: "Sending…",
       resent: "Verification email sent — check your inbox.",
+      resendFailed: "We couldn't send the verification email. Please try again shortly.",
+      sessionExpired: "Please sign in again to request a new verification email.",
       metaTitle: "Verify your email",
       gatedTitle: "Verify your email to continue",
       gatedDescription: "This area requires a verified email address. Check your inbox for the verification link, or request a new one.",
@@ -749,6 +779,7 @@ export const en = {
       confirmSuccess: "Your password has been updated. You can sign in with it now.",
       passwordMismatch: "Those passwords don't match.",
       invalidLink: "This reset link is invalid or has expired. Request a new one.",
+      genericError: "We couldn't complete that request. Please try again.",
       metaTitleConfirm: "Choose a new password",
     },
     mfa: {

@@ -6,6 +6,8 @@ import { Controller, useForm } from "react-hook-form";
 import { cn } from "cn";
 
 import { AppBilingual } from "@/components/locale/app-bilingual";
+import { useActionToast } from "@/components/app/use-action-toast";
+import { useLocale } from "@/components/locale/locale-provider";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Field, FieldGroup, FormActionBar } from "@/components/ui/field";
@@ -17,6 +19,7 @@ import {
   ONBOARDING_ACCOUNT_TYPES,
   type MembershipApplicationFormInput,
 } from "@/lib/validation/membership-application";
+import { ACTION_FEEDBACK } from "@/lib/types/action-feedback";
 
 import { submitMembershipApplication } from "@/src/app/dashboard/onboarding/actions";
 
@@ -46,7 +49,14 @@ function NativeSelect({ className, ...props }: React.ComponentProps<"select">) {
  * compliance role — `MembershipApplicationInput` has no such fields to submit even if it wanted to.
  */
 export function MembershipApplicationForm() {
+  const { tApp } = useLocale();
   const [state, dispatch, isPending] = useActionState(submitMembershipApplication, undefined);
+  useActionToast(
+    state,
+    state?.ok === false && state.code !== ACTION_FEEDBACK.VALIDATION_ERROR
+      ? { tone: "error", message: tApp.onboarding.form.serverError }
+      : null
+  );
 
   const {
     register,
@@ -212,11 +222,6 @@ export function MembershipApplicationForm() {
         </Button>
       </FormActionBar>
 
-      {state?.ok === false ? (
-        <p role="alert" className="hc-meta text-destructive">
-          {state.error}
-        </p>
-      ) : null}
     </form>
   );
 }

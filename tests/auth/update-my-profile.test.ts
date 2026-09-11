@@ -65,7 +65,7 @@ describe.sequential("updateMyProfile against Phase 8 fixtures", () => {
 
     expect(result).toEqual({
       ok: false,
-      error: "You need to sign in to do that.",
+      code: "profile_auth_required",
     });
     expect(rpc).not.toHaveBeenCalled();
   });
@@ -96,6 +96,7 @@ describe.sequential("updateMyProfile against Phase 8 fixtures", () => {
       const result = await updateMyProfile(undefined, validProfileForm());
       expect(result).toEqual({
         ok: true,
+        code: "profile_saved",
         data: {
           fullName: "Foundation Test — Phase 9 Updated",
           companyName: "Foundation Test — Phase 9 Company",
@@ -165,7 +166,7 @@ describe.sequential("updateMyProfile against Phase 8 fixtures", () => {
 
     expect(result).toEqual({
       ok: false,
-      error: "That didn't save — please try again.",
+      code: "profile_save_failed",
     });
     expect(serializedResult).not.toContain(rawErrorSentinel);
     expect(serializedResult.toLowerCase()).not.toContain("stack");

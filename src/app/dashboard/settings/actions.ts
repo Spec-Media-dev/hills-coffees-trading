@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 
 import { getRequestIdentity } from "@/lib/auth/dal";
 import { createClient } from "@/lib/supabase/server";
-import type { ServerActionResult } from "@/lib/types/server-action";
+import { ACTION_FEEDBACK, type ActionFeedbackResult } from "@/lib/types/action-feedback";
 import { MyProfileInput } from "@/lib/validation/my-profile";
 
 /**
@@ -35,15 +35,15 @@ import { MyProfileInput } from "@/lib/validation/my-profile";
  *    user-scoped write.
  */
 export async function updateMyProfile(
-  _prevState: ServerActionResult<{ fullName: string | null; companyName: string | null }> | undefined,
+  _prevState: ActionFeedbackResult<{ fullName: string | null; companyName: string | null }> | undefined,
   formData: FormData
-): Promise<ServerActionResult<{ fullName: string | null; companyName: string | null }>> {
+): Promise<ActionFeedbackResult<{ fullName: string | null; companyName: string | null }>> {
   // 1. VALIDATE
   const parsed = MyProfileInput.safeParse(Object.fromEntries(formData));
   if (!parsed.success) {
     return {
       ok: false,
-      error: "Check the highlighted fields.",
+      code: ACTION_FEEDBACK.VALIDATION_ERROR,
       fieldErrors: parsed.error.flatten().fieldErrors,
     };
   }
@@ -51,7 +51,7 @@ export async function updateMyProfile(
   // 2. AUTHENTICATE
   const identity = await getRequestIdentity();
   if (identity.kind !== "authenticated") {
-    return { ok: false, error: "You need to sign in to do that." };
+    return { ok: false, code: ACTION_FEEDBACK.PROFILE_AUTH_REQUIRED };
   }
 
   // 3. AUTHORIZE — see comment above; no additional check for this action.
@@ -67,7 +67,7 @@ export async function updateMyProfile(
 
   // 5. SAFE ERROR MAPPING — the raw RPC error's own message detail never reaches the caller.
   if (error) {
-    return { ok: false, error: "That didn't save — please try again." };
+    return { ok: false, code: ACTION_FEEDBACK.PROFILE_SAVE_FAILED };
   }
 
   // 6. REVALIDATE
@@ -75,6 +75,7 @@ export async function updateMyProfile(
 
   return {
     ok: true,
+    code: ACTION_FEEDBACK.PROFILE_SAVED,
     data: {
       fullName: parsed.data.fullName ?? null,
       companyName: parsed.data.companyName ?? null,

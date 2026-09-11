@@ -1,11 +1,14 @@
 import { PageHeader } from "@/components/app/page-header";
 import { FoundationOverview } from "@/components/app/foundation-overview";
+import { KybStatusScreen } from "@/components/account/kyb-status-screen";
 import { AppBilingual } from "@/components/locale/app-bilingual";
 import { StateScreen } from "@/components/layout/state-screen";
 import { getRequestIdentity } from "@/lib/auth/dal";
+import { listKybDocumentReviews } from "@/lib/kyb/review-items";
+import { currentDocuments, getKybWorkspace } from "@/lib/kyb/status";
 
 /**
- * Member Portal overview (Phase 5.5, UIF-036 — contract §1).
+ * Member Portal overview (Phase 5.5, UIF-036 — contract §1; Feature 003 RUN B, T019).
  *
  * Deliberately contains no business functionality — the member overview and its modules are
  * 004-member-dashboard's scope, and every business module is 005-012's. This exists so `/dashboard`
@@ -14,7 +17,7 @@ import { getRequestIdentity } from "@/lib/auth/dal";
  *
  * WHY THIS PAGE RE-VERIFIES (FR-006, Constitution Principle VIII):
  *
- * Next.js renders route segments in PARALLEL. A parent layout that returns `StateScreen` instead of
+ * Next.js renders route segments in PARALLEL. A parent layout that returns something other than
  * `{children}` does NOT prevent this page from executing — the page still runs and its output is
  * still serialized into the RSC flight payload. A layout guard alone therefore protects the visible
  * shell but not the data. That is why FR-006 requires every protected route to independently
@@ -23,18 +26,30 @@ import { getRequestIdentity } from "@/lib/auth/dal";
  *
  * Every later page under `/dashboard` MUST follow this pattern before fetching protected data.
  *
- * UIF-036 restyles this onto `PageHeader` and states honestly, via the T000-style copy dictionary,
- * that modules arrive with later features — no invented number, order, balance or KPI anywhere.
+ * RUN B CHANGE: `!identity.isAuthorizedMember` is no longer lumped into the same `unauthorized`
+ * `StateScreen` as a genuinely unauthenticated/unattached caller — an organization that exists but is
+ * not yet authorized gets the real, state-aware KYB status hub (`KybStatusScreen`, T019–T022)
+ * instead. `dashboard/layout.tsx`'s own guard already prevents this branch from ever reaching the
+ * business `AppShell`/nav; this split only changes what non-business content renders for that case.
  */
 export default async function DashboardPage() {
   const identity = await getRequestIdentity();
 
-  // Independent re-verification — identical predicate to the layout guard, enforced again here.
-  // Feature 003 T013/critical access rule: an organization existing is not authorization, so this
-  // page's own guard additionally re-checks `isAuthorizedMember` — the layout's inline
-  // `AwaitingKybState` render does not stop this parallel route segment from executing on its own.
-  if (identity.kind !== "authenticated" || identity.organization === null || !identity.isAuthorizedMember) {
+  if (identity.kind !== "authenticated" || identity.organization === null) {
     return <StateScreen kind="unauthorized" />;
+  }
+
+  if (!identity.isAuthorizedMember) {
+    const workspace = await getKybWorkspace(identity.organization.organizationId);
+    const documents = currentDocuments(workspace.documents);
+    const reviews = workspace.application ? await listKybDocumentReviews(workspace.application.id) : { ok: true as const, reviews: [] };
+    return (
+      <KybStatusScreen
+        application={workspace.application}
+        currentDocuments={documents}
+        reviews={reviews.ok ? reviews.reviews : []}
+      />
+    );
   }
 
   return (

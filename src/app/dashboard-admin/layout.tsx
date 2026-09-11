@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 
 import { AppShell } from "@/components/app/app-shell";
 import { buildAdminNavGroups } from "@/components/app/admin-navigation";
@@ -55,8 +56,14 @@ export default async function DashboardAdminLayout({
 }) {
   const identity = await getRequestIdentity();
 
+  // Admin-auth correction: an anonymous visitor to the OPERATIONS console is sent to the
+  // DEDICATED admin sign-in route, never the member `/sign-in/` page (`src/proxy.ts` already
+  // handles the common no-cookie case optimistically; this covers the stale/expired-cookie edge
+  // case that reaches this layout guard for real). The guard predicate itself — the actual
+  // authorization boundary — is untouched: only what renders for a denied anonymous request
+  // changed, from a static card to a redirect to the correct sign-in surface.
   if (identity.kind !== "authenticated") {
-    return <StateScreen kind="unauthorized" />;
+    redirect("/admin/sign-in/");
   }
 
   if (identity.operationalRoles.length === 0) {

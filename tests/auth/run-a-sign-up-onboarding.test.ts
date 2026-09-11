@@ -156,8 +156,10 @@ describe("T011 — onboarding validation input", () => {
 describe("T012 — onboarding UI/state", () => {
   it("the onboarding experience renders no fake KPI, inventory, listing, order, or trading module content", () => {
     const experience = readFileSync("components/account/onboarding-experience.tsx", "utf8");
-    const awaitingKyb = readFileSync("components/account/awaiting-kyb-state.tsx", "utf8");
-    for (const surface of [experience, awaitingKyb, ONBOARDING_FORM]) {
+    // RUN B superseded the static `AwaitingKybState` with the state-aware `KybStatusScreen`
+    // (T019–T022) — the same "no fake business content" property now applies there instead.
+    const kybStatusScreen = readFileSync("components/account/kyb-status-screen.tsx", "utf8");
+    for (const surface of [experience, kybStatusScreen, ONBOARDING_FORM]) {
       expect(surface).not.toMatch(/\$\d|AED|USD|inventory|marketplace|order (count|total)/i);
     }
   });
@@ -202,11 +204,13 @@ describe("T013 — controlled organization onboarding", () => {
 });
 
 describe("Critical access rule — PENDING_KYB / not-yet-authorized denial", () => {
-  it("dashboard/layout.tsx denies the ordinary AppShell to an organization that is not yet authorized", () => {
+  it("dashboard/layout.tsx denies the ordinary business AppShell (and its nav) to an organization that is not yet authorized", () => {
     expect(DASHBOARD_LAYOUT).toMatch(/if \(!identity\.isAuthorizedMember\)/);
     const guardIndex = DASHBOARD_LAYOUT.indexOf("if (!identity.isAuthorizedMember)");
     const appShellIndex = DASHBOARD_LAYOUT.indexOf("<AppShell");
     expect(guardIndex).toBeGreaterThan(-1);
+    // AppShell (and the business nav it carries) is reached ONLY after this check, in the final
+    // `return` — the not-yet-authorized branch returns before ever constructing it.
     expect(appShellIndex).toBeGreaterThan(guardIndex);
   });
 
@@ -219,15 +223,22 @@ describe("Critical access rule — PENDING_KYB / not-yet-authorized denial", () 
     expect(DASHBOARD_LAYOUT).toContain("if (identity.organization === null) {");
   });
 
-  it("the layout never renders AppShell/{children} before the authorization check", () => {
-    const orgNullIndex = DASHBOARD_LAYOUT.indexOf("if (identity.organization === null)");
+  it("RUN B: the not-yet-authorized branch renders {children} directly (never AppShell) so a real route like /dashboard/kyb/ can render its own content", () => {
+    // Superseded by RUN B (T016, then again when PreAuthHeader was added): the old assertion here
+    // required `{children}` to render nowhere before the authorization check, because the check
+    // used to return a static component instead of `{children}` outright. T016 requires a REAL
+    // route (`/dashboard/kyb/page.tsx`) to be reachable while `!isAuthorizedMember`, which is
+    // structurally impossible if the layout never renders that segment's own `{children}`. The
+    // invariant that actually matters — AppShell (the business shell/nav) is never reached for a
+    // not-yet-authorized organization — is covered by the test directly above; this test instead
+    // confirms the not-yet-authorized branch's body renders `{children}` (now alongside
+    // `PreAuthHeader`, not bare), never a business shell.
     const authCheckIndex = DASHBOARD_LAYOUT.indexOf("if (!identity.isAuthorizedMember)");
-    // The real JSX usage, not the doc comment near the top of the file that also mentions
-    // "{children}" in prose.
-    const childrenJsxIndex = DASHBOARD_LAYOUT.indexOf(">\n      {children}");
-    expect(orgNullIndex).toBeLessThan(authCheckIndex);
-    expect(childrenJsxIndex).toBeGreaterThan(-1);
-    expect(authCheckIndex).toBeLessThan(childrenJsxIndex);
+    const finalAppShellReturnIndex = DASHBOARD_LAYOUT.indexOf("return (\n    <AppShell");
+    const notAuthorizedBlock = DASHBOARD_LAYOUT.slice(authCheckIndex, finalAppShellReturnIndex);
+    expect(finalAppShellReturnIndex).toBeGreaterThan(-1);
+    expect(notAuthorizedBlock).toMatch(/\{children\}/);
+    expect(notAuthorizedBlock).not.toMatch(/<AppShell/);
   });
 });
 

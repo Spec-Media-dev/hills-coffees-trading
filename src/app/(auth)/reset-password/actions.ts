@@ -1,7 +1,7 @@
 "use server";
 
 import { ResetPasswordRequestInput } from "@/lib/validation/reset-password";
-import type { ServerActionResult } from "@/lib/types/server-action";
+import { ACTION_FEEDBACK, type ActionFeedbackResult } from "@/lib/types/action-feedback";
 import { createClient } from "@/lib/supabase/server";
 import { canonicalUrl } from "@/lib/public/site";
 
@@ -17,14 +17,14 @@ import { canonicalUrl } from "@/lib/public/site";
  * Uses the approved Supabase Auth mechanism only — no custom reset-token table or storage.
  */
 export async function requestPasswordReset(
-  _prevState: ServerActionResult<never> | undefined,
+  _prevState: ActionFeedbackResult | undefined,
   formData: FormData
-): Promise<ServerActionResult<never>> {
+): Promise<ActionFeedbackResult> {
   const parsed = ResetPasswordRequestInput.safeParse(Object.fromEntries(formData));
   if (!parsed.success) {
     return {
       ok: false,
-      error: "Check the highlighted field.",
+      code: ACTION_FEEDBACK.VALIDATION_ERROR,
       fieldErrors: parsed.error.flatten().fieldErrors,
     };
   }
@@ -36,5 +36,5 @@ export async function requestPasswordReset(
 
   // Deliberately ignore the call's own error/success distinction — see file header. The
   // acknowledgement is identical either way.
-  return { ok: true, data: undefined as never };
+  return { ok: true, data: undefined, code: ACTION_FEEDBACK.RESET_REQUESTED };
 }

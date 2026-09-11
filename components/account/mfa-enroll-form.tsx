@@ -3,9 +3,11 @@
 import { startTransition, useActionState } from "react";
 
 import { useLocale } from "@/components/locale/locale-provider";
+import { useActionToast } from "@/components/app/use-action-toast";
 import { Button } from "@/components/ui/button";
 import { Field, FormActionBar } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { ACTION_FEEDBACK } from "@/lib/types/action-feedback";
 
 import { confirmMfaEnrollment } from "@/src/app/(auth)/mfa/actions";
 
@@ -26,6 +28,7 @@ export function MfaEnrollForm({
   const { t } = useLocale();
   const copy = t.auth.mfa;
   const [state, dispatch, isPending] = useActionState(confirmMfaEnrollment, undefined);
+  useActionToast(state, state?.ok === true ? { tone: "success", message: copy.enrollSuccess } : null);
 
   const onSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -35,14 +38,6 @@ export function MfaEnrollForm({
       dispatch(formData);
     });
   };
-
-  if (state?.ok === true) {
-    return (
-      <p role="status" className="text-center text-[length:var(--text-body)] leading-[1.7] text-muted-foreground text-pretty">
-        {copy.enrollSuccess}
-      </p>
-    );
-  }
 
   return (
     <div className="flex flex-col items-center gap-6">
@@ -55,17 +50,21 @@ export function MfaEnrollForm({
       </p>
 
       <form onSubmit={onSubmit} noValidate className="flex w-full flex-col gap-6">
-        <Field label={copy.code} control={<Input name="code" inputMode="numeric" autoComplete="one-time-code" maxLength={6} />} />
+        <Field
+          label={copy.code}
+          control={<Input name="code" inputMode="numeric" autoComplete="one-time-code" maxLength={6} />}
+          error={
+            state?.ok === false &&
+            (state.code === ACTION_FEEDBACK.VALIDATION_ERROR || state.code === ACTION_FEEDBACK.MFA_INVALID_CODE)
+              ? copy.invalidCode
+              : undefined
+          }
+        />
         <FormActionBar className="justify-start bg-transparent backdrop-blur-none">
           <Button type="submit" disabled={isPending} className="w-full">
             {isPending ? copy.enrollConfirming : copy.enrollConfirm}
           </Button>
         </FormActionBar>
-        {state?.ok === false ? (
-          <p role="alert" className="hc-meta text-center text-destructive">
-            {copy.invalidCode}
-          </p>
-        ) : null}
       </form>
     </div>
   );

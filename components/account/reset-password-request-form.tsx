@@ -5,6 +5,7 @@ import { startTransition, useActionState } from "react";
 import { useForm } from "react-hook-form";
 
 import { useLocale } from "@/components/locale/locale-provider";
+import { useActionToast } from "@/components/app/use-action-toast";
 import { Button } from "@/components/ui/button";
 import { Field, FormActionBar } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -17,20 +18,13 @@ export function ResetPasswordRequestForm() {
   const { t } = useLocale();
   const copy = t.auth.resetPassword;
   const [state, dispatch, isPending] = useActionState(requestPasswordReset, undefined);
+  useActionToast(state, state?.ok === true ? { tone: "success", message: copy.acknowledgement } : null);
 
   const {
     register,
     handleSubmit,
     formState: { errors },
   } = useForm<ResetPasswordRequestInput>({ resolver: zodResolver(ResetPasswordRequestInput) });
-
-  if (state?.ok === true) {
-    return (
-      <p role="status" className="text-center text-[length:var(--text-body)] leading-[1.7] text-muted-foreground text-pretty">
-        {copy.acknowledgement}
-      </p>
-    );
-  }
 
   const onValid = handleSubmit((data) => {
     const formData = new FormData();

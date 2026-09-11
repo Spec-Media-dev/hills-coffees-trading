@@ -6,9 +6,16 @@ SRS §3, §4, §13.2–13.3.
 
 **Status**: Phase 1 + Phase 2 (T001–T010) COMPLETE / VERIFIED. RUN DB (T010b–T010g) is COMPLETE —
 migration applied to the live database 2026-09-10 and live-verified (T010g); DB-BLOCK-01 and
-DB-BLOCK-03 RESOLVED. RUN A (T010a, T011–T013) is COMPLETE. RUN B and Phase 3–11 NOT STARTED.
-**Task inventory**: 47 tasks — existing T001–T040 plus additive T010a–T010g; T001–T013 and
-T010b–T010g are complete; T014+ remain.
+DB-BLOCK-03 RESOLVED. RUN A (T010a, T011–T013) is COMPLETE. RUN A Full Name Persistence fix is
+COMPLETE (2026-09-11). **PART 0/PART 1/RUN B (T014–T022) is COMPLETE AND LIVE-VERIFIED (2026-09-11)**
+— both new migrations (`20260912000000_feature_003_profile_bootstrap.sql`,
+`20260912010000_feature_003_kyb_draft_fields.sql`) are APPLIED to the live environment and
+end-to-end live-verified (fresh-signup profile bootstrap, DRAFT→SUBMITTED→RESUBMISSION_REQUIRED→
+SUBMITTED, 5-document real upload, Compliance rejection/replacement/resubmit, cross-tenant isolation,
+pre-approval authorization gate) — see the handoff doc's "RUN B Live Verification" section.
+DB-BLOCK-11 RESOLVED. Phase 6–11 NOT STARTED.
+**Task inventory**: 47 tasks — existing T001–T040 plus additive T010a–T010g; T001–T022 and
+T010b–T010g are complete; T023+ remain.
 **Prerequisite**: 001 implemented (identity DAL, Supabase clients, server-action contract, state
 components, i18n, test tooling + fixtures).
 
@@ -240,21 +247,21 @@ path. They are intentionally unchecked; this planning update does not create or 
 
 ## RUN B — Phase 4 — KYB draft & evidence model
 
-- [ ] T014 [P] Create `lib/validation/kyb-application.ts` — company, ownership/control, users,
+- [x] T014 LIVE-VERIFIED 2026-09-11 [P] Create `lib/validation/kyb-application.ts` — company, ownership/control, users,
   banking and agreement evidence field schemas per SRS §4.1.
   - Req: FR-009, FR-010 | Depends: T010b, T010g
   - Verify: schema mirrors the SRS §4.1 evidence table; no invented required field
   - Codex: GPT-5.6 Sol — High · Claude: Sonnet — High
   - Why: schema must match an external requirements table exactly.
 
-- [ ] T015 Create `lib/kyb/completeness.ts` — maps a draft to the specific list of missing evidence
+- [x] T015 LIVE-VERIFIED 2026-09-11 Create `lib/kyb/completeness.ts` — maps a draft to the specific list of missing evidence
   items (never a generic message).
   - Req: FR-010 | Depends: T014
   - Verify: a draft missing two documents returns exactly those two named items
   - Codex: GPT-5.6 Sol — High · Claude: Sonnet — High
   - Why: focused rule module with a clear contract.
 
-- [ ] T016 [PS3] Implement KYB draft create/edit (`src/app/dashboard/kyb/page.tsx` + actions) writing
+- [x] T016 LIVE-VERIFIED 2026-09-11 [PS3] Implement KYB draft create/edit (`src/app/dashboard/kyb/page.tsx` + actions) writing
   `kyb_applications` in `DRAFT` through the constrained foundation capability.
   - Req: FR-009, FR-016 | Depends: T010c, T010e, T014, T001
   - Verify: a member of the owning org can use the approved draft capability; a member of another org
@@ -262,7 +269,7 @@ path. They are intentionally unchecked; this planning update does not create or 
   - Codex: GPT-5.6 Sol — High · Claude: Sonnet — High
   - Why: first real member-scoped write; RLS behaviour must be confirmed, not assumed.
 
-- [ ] T017 [PS3] Implement `lib/kyb/documents.ts` — the approved private Storage upload/download
+- [x] T017 LIVE-VERIFIED 2026-09-11 [PS3] Implement `lib/kyb/documents.ts` — the approved private Storage upload/download
   path plus `file_assets` + `kyb_documents` metadata and version linkage.
   - Req: FR-012, FR-013, SEC-001, SC-007 | Depends: T010d, T010f, T016
   - Verify: real bytes use only the private approved bucket and scoped path; MIME/size, own-org and
@@ -272,7 +279,7 @@ path. They are intentionally unchecked; this planning update does not create or 
   - Codex: GPT-5.6 Sol — High · Claude: Sonnet — High
   - Why: private-document handling is the highest-consequence area in this feature (AC-08) and the blocker must be respected precisely.
 
-- [ ] T018 [PS3] Implement KYB submission Server Action: server-side completeness validation → status
+- [x] T018 LIVE-VERIFIED 2026-09-11 [PS3] Implement KYB submission Server Action: server-side completeness validation → status
   `DRAFT → SUBMITTED` with `submitted_by`/`submitted_at`; refuse blocked users.
   - Req: FR-010, FR-011, FR-016 | Depends: T010e, T010f, T015, T016, T017
   - Verify: incomplete submission returns the specific missing list and does not change status; a
@@ -285,28 +292,28 @@ path. They are intentionally unchecked; this planning update does not create or 
 
 ## RUN B — Phase 5 — KYB status & member-facing states
 
-- [ ] T019 [PS4] Build the status timeline/state screens for all seven KYB statuses using the approved
+- [x] T019 LIVE-VERIFIED 2026-09-11 [PS4] Build the status timeline/state screens for all seven KYB statuses using the approved
   vocabulary and 001's state components.
   - Req: FR-006, FR-019, SC-003 | Depends: T010f, T016
   - Verify: each of the seven statuses renders its exact label and a correct next action
   - Codex: GPT-5.6 Sol — High · Claude: Sonnet — High
   - Why: repetitive but must match a closed vocabulary exactly.
 
-- [ ] T020 [PS4] Implement `RESUBMISSION_REQUIRED` handling: show the specific outstanding items plus
+- [x] T020 LIVE-VERIFIED 2026-09-11 [PS4] Implement `RESUBMISSION_REQUIRED` handling: show the specific outstanding items plus
   a direct action to fix them.
   - Req: FR-010, PS4 | Depends: T010e, T010f, T015, T019
   - Verify: the screen lists named items ("Certified trade licence — expired") and links to the exact step
   - Codex: GPT-5.6 Sol — High · Claude: Sonnet — High
   - Why: the design system's hardest content rule ("name what is missing") applied to real data.
 
-- [ ] T021 [PS4] Surface `REJECTED` / `SUSPENDED` with the compliance-recorded reason and no trading
+- [x] T021 LIVE-VERIFIED 2026-09-11 [PS4] Surface `REJECTED` / `SUSPENDED` with the compliance-recorded reason and no trading
   entry point.
   - Req: FR-006, PS4, SC-004 | Depends: T010f, T019, T001
   - Verify: with a suspended org, no trading CTA renders and protected actions refuse server-side
   - Codex: GPT-5.6 Sol — High · Claude: Sonnet — High
   - Why: UI-and-server agreement on a denial state is security-relevant.
 
-- [ ] T022 Surface expired KYB documents (`kyb_documents.expires_at` past) as an authorization problem
+- [x] T022 LIVE-VERIFIED 2026-09-11 Surface expired KYB documents (`kyb_documents.expires_at` past) as an authorization problem
   with a clear remediation path.
   - Req: FR-013, Edge Cases | Depends: T010d, T010f, T019
   - Verify: a seeded expired document produces a visible, actionable warning rather than silence

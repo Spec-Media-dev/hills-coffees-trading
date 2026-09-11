@@ -5,9 +5,12 @@ import { startTransition, useActionState } from "react";
 import { useForm } from "react-hook-form";
 
 import { Button } from "@/components/ui/button";
+import { useActionToast } from "@/components/app/use-action-toast";
+import { useLocale } from "@/components/locale/locale-provider";
 import { Field, FieldGroup, FormActionBar } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { MyProfileInput, type MyProfileInput as MyProfileInputType } from "@/lib/validation/my-profile";
+import { ACTION_FEEDBACK } from "@/lib/types/action-feedback";
 
 import { updateMyProfile } from "./actions";
 
@@ -44,7 +47,22 @@ type Props = {
  * form's native `action` prop — only once client-side validation has passed.
  */
 export function ProfileSettingsForm({ initialValues }: Props) {
+  const { tApp } = useLocale();
   const [state, dispatch, isPending] = useActionState(updateMyProfile, undefined);
+  useActionToast(
+    state,
+    state?.ok === true
+      ? { tone: "success", message: tApp.feedback.profileSaved }
+      : state?.ok === false && state.code !== ACTION_FEEDBACK.VALIDATION_ERROR
+        ? {
+            tone: "error",
+            message:
+              state.code === ACTION_FEEDBACK.PROFILE_AUTH_REQUIRED
+                ? tApp.feedback.signInRequired
+                : tApp.feedback.profileSaveFailed,
+          }
+        : null
+  );
 
   const {
     register,
@@ -92,16 +110,6 @@ export function ProfileSettingsForm({ initialValues }: Props) {
         <Button type="submit" disabled={isPending}>
           {isPending ? "Saving…" : "Save changes"}
         </Button>
-        {state?.ok === true ? (
-          <p role="status" className="hc-meta text-muted-foreground">
-            Saved.
-          </p>
-        ) : null}
-        {state?.ok === false ? (
-          <p role="alert" className="hc-meta text-destructive">
-            {state.error}
-          </p>
-        ) : null}
       </FormActionBar>
     </form>
   );

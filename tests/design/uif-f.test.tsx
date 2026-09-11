@@ -168,8 +168,14 @@ describe("Phase 5.5 UIF-036 — member shell applied at /dashboard", () => {
     expect(page).toContain("modulesArriveLater");
   });
 
-  it("leaves the RFQ / update-my-profile Server Action file untouched", () => {
-    expect(gitDiff("src/app/dashboard/settings/actions.ts").trim()).toBe("");
+  it("preserves the update-my-profile security contract while returning controlled feedback codes", () => {
+    const action = source("src/app/dashboard/settings/actions.ts");
+    expect(action).toContain("MyProfileInput.safeParse");
+    expect(action).toContain("await getRequestIdentity()");
+    expect(action).toContain('supabase.rpc("update_my_profile"');
+    expect(action).toContain("ACTION_FEEDBACK.PROFILE_SAVE_FAILED");
+    expect(action).toContain("ACTION_FEEDBACK.PROFILE_SAVED");
+    expect(action).not.toMatch(/error\.message|SERVICE_ROLE/);
   });
 
   it("converges the settings surface onto the UIF-008 Field scaffold", () => {
@@ -185,10 +191,17 @@ describe("Phase 5.5 UIF-036 — member shell applied at /dashboard", () => {
     expect(shell).toContain('data-testid="hills-settings-card"');
   });
 
-  it("creates no new /dashboard/* business ROUTE (a non-routable action-only directory is not one)", () => {
+  it("creates no new /dashboard/* BUSINESS route (kyb is the KYB verification workspace itself, not a business module; onboarding stays action-only)", () => {
     const entries = readdirSync(path.join(root, "src", "app", "dashboard"), { withFileTypes: true });
     const dirs = entries.filter((e) => e.isDirectory()).map((e) => e.name);
-    expect(dirs.sort()).toEqual(["onboarding", "settings"]);
+    // Feature 003 RUN B (T016) deliberately adds `dashboard/kyb/` as a real route — the KYB
+    // draft/upload/submit workspace tasks.md explicitly requires at `src/app/dashboard/kyb/page.tsx`.
+    // It is reachable only for a not-yet-authorized organization (`dashboard/layout.tsx` never
+    // renders the business `AppShell`/nav for that case — see the "Critical access rule" tests in
+    // `tests/auth/run-a-sign-up-onboarding.test.ts`), and it carries no business content (no
+    // inventory, marketplace, order, or listing data) — it is the verification gate itself, not a
+    // module past it.
+    expect(dirs.sort()).toEqual(["kyb", "onboarding", "settings"]);
 
     // Feature 003 T013 added `dashboard/onboarding/` for the controlled-onboarding Server Action
     // only — it carries no `page.tsx`, so Next.js never registers it as a route. The onboarding
@@ -197,6 +210,11 @@ describe("Phase 5.5 UIF-036 — member shell applied at /dashboard", () => {
     // "no new business route" property this test names, rather than merely forbidding the directory.
     const onboardingEntries = readdirSync(path.join(root, "src", "app", "dashboard", "onboarding"));
     expect(onboardingEntries).not.toContain("page.tsx");
+
+    const kybEntries = readdirSync(path.join(root, "src", "app", "dashboard", "kyb"));
+    expect(kybEntries).toContain("page.tsx");
+    const kybPage = readFileSync(path.join(root, "src", "app", "dashboard", "kyb", "page.tsx"), "utf8");
+    expect(kybPage).not.toMatch(/\$\d|AED|USD|inventory|marketplace|order (count|total)/i);
   });
 });
 

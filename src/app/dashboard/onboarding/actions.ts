@@ -6,7 +6,7 @@ import { revalidatePath } from "next/cache";
 import { getRequestIdentity } from "@/lib/auth/dal";
 import { startOrganizationOnboarding } from "@/lib/kyb/mutations";
 import { createClient } from "@/lib/supabase/server";
-import type { ServerActionResult } from "@/lib/types/server-action";
+import { ACTION_FEEDBACK, type ActionFeedbackResult } from "@/lib/types/action-feedback";
 import { MembershipApplicationInput } from "@/lib/validation/membership-application";
 
 /**
@@ -53,9 +53,9 @@ import { MembershipApplicationInput } from "@/lib/validation/membership-applicat
  * script), which is why this gap did not surface during RUN A's or RUN DB's live verification.
  */
 export async function submitMembershipApplication(
-  _prevState: ServerActionResult<never> | undefined,
+  _prevState: ActionFeedbackResult | undefined,
   formData: FormData
-): Promise<ServerActionResult<never>> {
+): Promise<ActionFeedbackResult> {
   const identity = await getRequestIdentity();
 
   if (identity.kind !== "authenticated") {
@@ -75,7 +75,7 @@ export async function submitMembershipApplication(
   if (!parsed.success) {
     return {
       ok: false,
-      error: "Check the highlighted fields.",
+      code: ACTION_FEEDBACK.VALIDATION_ERROR,
       fieldErrors: parsed.error.flatten().fieldErrors,
     };
   }
@@ -115,7 +115,7 @@ export async function submitMembershipApplication(
   });
 
   if (!result.ok) {
-    return { ok: false, error: result.error };
+    return { ok: false, code: ACTION_FEEDBACK.ONBOARDING_FAILED };
   }
 
   revalidatePath("/dashboard/");

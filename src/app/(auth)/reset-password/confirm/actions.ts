@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 
 import { ResetPasswordConfirmInput } from "@/lib/validation/reset-password";
-import type { ServerActionResult } from "@/lib/types/server-action";
+import { ACTION_FEEDBACK, type ActionFeedbackResult } from "@/lib/types/action-feedback";
 import { createClient } from "@/lib/supabase/server";
 
 /**
@@ -14,14 +14,14 @@ import { createClient } from "@/lib/supabase/server";
  * itself. Uses the approved Supabase Auth mechanism only.
  */
 export async function confirmPasswordReset(
-  _prevState: ServerActionResult<never> | undefined,
+  _prevState: ActionFeedbackResult | undefined,
   formData: FormData
-): Promise<ServerActionResult<never>> {
+): Promise<ActionFeedbackResult> {
   const parsed = ResetPasswordConfirmInput.safeParse(Object.fromEntries(formData));
   if (!parsed.success) {
     return {
       ok: false,
-      error: "Check the highlighted fields.",
+      code: ACTION_FEEDBACK.VALIDATION_ERROR,
       fieldErrors: parsed.error.flatten().fieldErrors,
     };
   }
@@ -30,7 +30,7 @@ export async function confirmPasswordReset(
   const { error } = await supabase.auth.updateUser({ password: parsed.data.password });
 
   if (error) {
-    return { ok: false, error: "That didn't save — the reset link may have expired. Request a new one." };
+    return { ok: false, code: ACTION_FEEDBACK.RESET_LINK_INVALID };
   }
 
   redirect("/sign-in/");

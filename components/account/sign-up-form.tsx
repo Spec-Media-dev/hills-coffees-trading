@@ -5,11 +5,13 @@ import { startTransition, useActionState } from "react";
 import { useForm } from "react-hook-form";
 
 import { useLocale } from "@/components/locale/locale-provider";
+import { useActionToast } from "@/components/app/use-action-toast";
 import { Button } from "@/components/ui/button";
 import { Field, FormActionBar } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
 import { SignUpInput } from "@/lib/validation/sign-up";
+import { ACTION_FEEDBACK } from "@/lib/types/action-feedback";
 
 import { signUp } from "@/src/app/(auth)/sign-up/actions";
 
@@ -24,6 +26,20 @@ export function SignUpForm() {
   const { t } = useLocale();
   const copy = t.auth.signUp;
   const [state, dispatch, isPending] = useActionState(signUp, undefined);
+  useActionToast(
+    state,
+    state?.ok === true
+      ? { tone: "success", message: copy.acknowledgement }
+      : state?.ok === false &&
+          state.code !== ACTION_FEEDBACK.VALIDATION_ERROR &&
+          state.code !== ACTION_FEEDBACK.WEAK_PASSWORD
+        ? {
+            tone: "error",
+            message:
+              state.code === ACTION_FEEDBACK.RATE_LIMITED ? copy.rateLimited : copy.genericError,
+          }
+        : null
+  );
 
   const {
     register,
@@ -42,14 +58,6 @@ export function SignUpForm() {
     });
   });
 
-  if (state?.ok === true) {
-    return (
-      <p role="status" className="text-center text-[length:var(--text-body)] leading-[1.7] text-muted-foreground text-pretty">
-        {copy.acknowledgement}
-      </p>
-    );
-  }
-
   return (
     <form onSubmit={onValid} noValidate className="flex flex-col gap-6">
       <div className="flex flex-col gap-5">
@@ -58,7 +66,11 @@ export function SignUpForm() {
           control={<Input autoComplete="name" {...register("fullName")} />}
           error={errors.fullName?.message}
         />
-        <Field label={copy.email} control={<Input type="email" autoComplete="email" {...register("email")} />} error={errors.email?.message} />
+        <Field
+          label={copy.email}
+          control={<Input type="email" autoComplete="email" {...register("email")} />}
+          error={errors.email?.message ?? (state?.ok === false && state.fieldErrors?.email ? copy.invalidEmail : undefined)}
+        />
         <Field
           label={copy.password}
           control={
@@ -69,7 +81,10 @@ export function SignUpForm() {
               {...register("password")}
             />
           }
-          error={errors.password?.message}
+          error={
+            errors.password?.message ??
+            (state?.ok === false && state.code === ACTION_FEEDBACK.WEAK_PASSWORD ? copy.weakPassword : undefined)
+          }
         />
         <Field
           label={copy.confirmPassword}
@@ -91,11 +106,6 @@ export function SignUpForm() {
         </Button>
       </FormActionBar>
 
-      {state?.ok === false ? (
-        <p role="alert" className="hc-meta text-center text-destructive">
-          {state.error}
-        </p>
-      ) : null}
     </form>
   );
 }

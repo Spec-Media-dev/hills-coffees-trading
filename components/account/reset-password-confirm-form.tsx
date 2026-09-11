@@ -5,10 +5,12 @@ import { startTransition, useActionState } from "react";
 import { useForm } from "react-hook-form";
 
 import { useLocale } from "@/components/locale/locale-provider";
+import { useActionToast } from "@/components/app/use-action-toast";
 import { Button } from "@/components/ui/button";
 import { Field, FormActionBar } from "@/components/ui/field";
 import { PasswordInput } from "@/components/ui/password-input";
 import { ResetPasswordConfirmInput } from "@/lib/validation/reset-password";
+import { ACTION_FEEDBACK } from "@/lib/types/action-feedback";
 
 import { confirmPasswordReset } from "@/src/app/(auth)/reset-password/confirm/actions";
 
@@ -17,6 +19,12 @@ export function ResetPasswordConfirmForm() {
   const { t } = useLocale();
   const copy = t.auth.resetPassword;
   const [state, dispatch, isPending] = useActionState(confirmPasswordReset, undefined);
+  useActionToast(
+    state,
+    state?.ok === false && state.code !== ACTION_FEEDBACK.VALIDATION_ERROR
+      ? { tone: "error", message: state.code === ACTION_FEEDBACK.RESET_LINK_INVALID ? copy.invalidLink : copy.genericError }
+      : null
+  );
 
   const {
     register,
@@ -68,11 +76,6 @@ export function ResetPasswordConfirmForm() {
         </Button>
       </FormActionBar>
 
-      {state?.ok === false ? (
-        <p role="alert" className="hc-meta text-center text-destructive">
-          {state.error}
-        </p>
-      ) : null}
     </form>
   );
 }

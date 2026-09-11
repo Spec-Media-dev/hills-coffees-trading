@@ -1,7 +1,8 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-import type { ServerActionResult } from "@/lib/types/server-action";
+import { canonicalUrl } from "@/lib/public/site";
+import { ACTION_FEEDBACK, type ActionFeedbackResult } from "@/lib/types/action-feedback";
 import { SignUpInput } from "@/lib/validation/sign-up";
 
 /**
@@ -23,33 +24,33 @@ import { SignUpInput } from "@/lib/validation/sign-up";
  * `src/app/auth/confirm/route.ts` (already built for T007/T008) is the same shared callback that
  * completes it.
  *
- * FULL NAME PERSISTENCE (RUN A UX refinement — deliberately NOT written to `public.profiles` here):
- * `full_name` is passed through `signUp`'s own `options.data`, which Supabase stores as
- * `auth.users.raw_user_meta_data` — an approved, already-used mechanism in this codebase
- * (`scripts/seed-test-fixtures.ts` sets `user_metadata` the same way). It is NOT written into
- * `profiles.full_name` here, because there is currently no approved way to do that safely:
- *   - no database trigger creates a `profiles` row for a new `auth.users` row;
- *   - `profiles` RLS grants no member INSERT policy and no member UPDATE policy — the only write
- *     path is the existing `update_my_profile()` RPC, which performs `UPDATE ... WHERE id =
- *     auth.uid()` and therefore silently affects ZERO rows when no profile row exists yet;
- *   - `signUp` itself returns no session in this project's Auth configuration (confirmed during
- *     RUN DB's live verification), so there is no authenticated context here even to call
- *     `update_my_profile()` if it could create rows, which it cannot.
- * Inventing a new INSERT policy, a new trigger, or a new RPC to close this gap is exactly the "new
- * DB bypass" this run's instructions forbid. The name is captured safely and is available (via
- * `user.user_metadata.full_name`) the moment a real session exists; wiring it into `profiles` is
- * left for the approved profile/onboarding path to pick up — a genuine, pre-existing Feature 001
- * gap, not something this run should paper over.
+ * FULL NAME PERSISTENCE: `full_name` is passed through `signUp`'s own `options.data`, which
+ * Supabase stores as `auth.users.raw_user_meta_data` — an approved, already-used mechanism in this
+ * codebase (`scripts/seed-test-fixtures.ts` sets `user_metadata` the same way). It is NOT written
+ * into `profiles.full_name` directly here — that now happens automatically, server-side, via the
+ * `on_auth_user_created` trigger (`supabase/migrations/20260912000000_feature_003_profile_bootstrap.sql`,
+ * PART 0 of the run that closed the fresh-signup profile bootstrap defect): the trigger fires on the
+ * SAME `auth.users` INSERT this call produces, reads only `raw_user_meta_data->>'full_name'`, and
+ * creates the caller's `profiles` row with it — before any session exists, which is exactly why the
+ * write could never happen from THIS action (`signUp` itself returns no session in this project's
+ * Auth configuration). `dashboard/onboarding/actions.ts`'s own `update_my_profile` call remains as a
+ * safe fallback for any `profiles` row that predates the trigger, never as the primary path.
+ *
+ * PART 1: `emailRedirectTo` is set explicitly (mirroring the `resetPasswordForEmail` precedent in
+ * `(auth)/reset-password/actions.ts`) so the confirmation email's link is unambiguous regardless of
+ * the Supabase project's default Site URL configuration — the same shared verification callback
+ * route T007/T008 already built handles the actual confirmation, and it already redirects a
+ * successfully verified caller straight to `/dashboard/`, never back to `/sign-in/`.
  */
 export async function signUp(
-  _prevState: ServerActionResult<never> | undefined,
+  _prevState: ActionFeedbackResult | undefined,
   formData: FormData
-): Promise<ServerActionResult<never>> {
+): Promise<ActionFeedbackResult> {
   const parsed = SignUpInput.safeParse(Object.fromEntries(formData));
   if (!parsed.success) {
     return {
       ok: false,
-      error: "Check the highlighted fields.",
+      code: ACTION_FEEDBACK.VALIDATION_ERROR,
       fieldErrors: parsed.error.flatten().fieldErrors,
     };
   }
@@ -60,29 +61,30 @@ export async function signUp(
     password: parsed.data.password,
     options: {
       data: { full_name: parsed.data.fullName },
+      emailRedirectTo: canonicalUrl("/dashboard/"),
     },
   });
 
   if (error) {
     if (error.code === "user_already_exists" || error.code === "email_exists") {
       // Same success path as a genuinely new account — never disclose that this email exists.
-      return { ok: true, data: undefined as never };
+      return { ok: true, data: undefined, code: ACTION_FEEDBACK.SIGN_UP_ACKNOWLEDGED };
     }
 
     if (error.code === "weak_password") {
-      return { ok: false, error: "Choose a stronger password and try again." };
+      return { ok: false, code: ACTION_FEEDBACK.WEAK_PASSWORD };
     }
 
     if (error.code === "email_address_invalid") {
-      return { ok: false, error: "Enter a valid email address." };
+      return { ok: false, code: ACTION_FEEDBACK.VALIDATION_ERROR, fieldErrors: { email: ["invalid"] } };
     }
 
     if (error.code === "over_email_send_rate_limit" || error.code === "over_request_rate_limit") {
-      return { ok: false, error: "Too many attempts. Please wait a moment and try again." };
+      return { ok: false, code: ACTION_FEEDBACK.RATE_LIMITED };
     }
 
-    return { ok: false, error: "We couldn't create your account. Please try again." };
+    return { ok: false, code: ACTION_FEEDBACK.AUTH_GENERIC_ERROR };
   }
 
-  return { ok: true, data: undefined as never };
+  return { ok: true, data: undefined, code: ACTION_FEEDBACK.SIGN_UP_ACKNOWLEDGED };
 }

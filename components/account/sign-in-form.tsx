@@ -2,15 +2,18 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { startTransition, useActionState } from "react";
 import { useForm } from "react-hook-form";
 
 import { useLocale } from "@/components/locale/locale-provider";
+import { useActionToast } from "@/components/app/use-action-toast";
 import { Button } from "@/components/ui/button";
 import { Field, FormActionBar } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
-import { SignInInput, SIGN_IN_GENERIC_ERROR } from "@/lib/validation/sign-in";
+import { ACTION_FEEDBACK } from "@/lib/types/action-feedback";
+import { SignInInput } from "@/lib/validation/sign-in";
 
 import { signIn } from "@/src/app/(auth)/sign-in/actions";
 
@@ -21,15 +24,32 @@ import { signIn } from "@/src/app/(auth)/sign-in/actions";
  * product uses), so this page shares the exact form language of `/contact/`'s RFQ form and
  * `/dashboard/settings`'s profile form rather than inventing a fourth pattern.
  *
- * The failure state is ALWAYS the same generic message regardless of what `signIn` returned as its
- * cause (spec SC-005) — this component does not branch on the error value at all, only on
- * ok/not-ok, which is what makes it structurally impossible for this form to leak a distinction
- * the server action itself doesn't already refuse to make.
+ * Invalid credentials always map to one localized message. An authenticated operational account
+ * is signed out by the action and receives a safe toast link to the dedicated Admin Portal.
  */
 export function SignInForm() {
   const { t } = useLocale();
+  const router = useRouter();
   const copy = t.auth.signIn;
   const [state, dispatch, isPending] = useActionState(signIn, undefined);
+  useActionToast(
+    state,
+    state?.ok === false && state.code !== ACTION_FEEDBACK.VALIDATION_ERROR
+      ? {
+          tone: "error",
+          message:
+            state.code === ACTION_FEEDBACK.ADMIN_PORTAL_REQUIRED
+              ? copy.adminPortalRequired
+              : state.code === ACTION_FEEDBACK.INVALID_CREDENTIALS
+                ? copy.genericError
+                : copy.serverError,
+          action:
+            state.code === ACTION_FEEDBACK.ADMIN_PORTAL_REQUIRED
+              ? { label: copy.adminPortalAction, onClick: () => router.push("/admin/sign-in/") }
+              : undefined,
+        }
+      : null
+  );
 
   const {
     register,
@@ -77,11 +97,6 @@ export function SignInForm() {
         </Button>
       </FormActionBar>
 
-      {state?.ok === false ? (
-        <p role="alert" className="hc-meta text-center text-destructive">
-          {state.error === SIGN_IN_GENERIC_ERROR ? copy.genericError : state.error}
-        </p>
-      ) : null}
     </form>
   );
 }

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Cairo, Readex_Pro } from "next/font/google";
 import localFont from "next/font/local";
 
+import { HillsToaster } from "@/components/app/toast";
 import { LocaleProvider } from "@/components/locale/locale-provider";
 import { preferenceScript } from "@/components/theme/preferences";
 import { ThemeProvider } from "@/components/theme/theme-provider";
@@ -90,6 +91,7 @@ export default function RootLayout({
         <ThemeProvider>
           <LocaleProvider>
             <I18nProvider>{children}</I18nProvider>
+            <HillsToaster />
           </LocaleProvider>
         </ThemeProvider>
       </body>

@@ -30,6 +30,16 @@ import { NextResponse, type NextRequest } from "next/server";
  */
 const SIGN_IN_PATH = "/sign-in/";
 
+/**
+ * Where an obviously-anonymous visitor to the OPERATIONS console is sent — the dedicated admin
+ * sign-in route (admin-auth correction pass). The member and admin portals are intentionally
+ * separate sign-in experiences (no "Create Account"/onboarding on the admin side), so an anonymous
+ * `/dashboard-admin/*` visitor must never be optimistically routed into the member `/sign-in/` page
+ * — same reasoning as `SIGN_IN_PATH` above, just a different destination for a different matcher
+ * prefix.
+ */
+const ADMIN_SIGN_IN_PATH = "/admin/sign-in/";
+
 /** Supabase (`@supabase/ssr`) writes its auth token to `sb-<project-ref>-auth-token`, which may be
  * split into chunked cookies (`...auth-token.0`, `...auth-token.1`). Presence of any chunk counts. */
 function hasSupabaseAuthCookie(request: NextRequest): boolean {
@@ -45,7 +55,9 @@ export function proxy(request: NextRequest) {
   // Optimistic only: no cookie at all => almost certainly anonymous => skip rendering the shell.
   if (!hasSupabaseAuthCookie(request)) {
     const url = request.nextUrl.clone();
-    url.pathname = SIGN_IN_PATH;
+    url.pathname = request.nextUrl.pathname.startsWith("/dashboard-admin")
+      ? ADMIN_SIGN_IN_PATH
+      : SIGN_IN_PATH;
     url.search = "";
     return NextResponse.redirect(url);
   }
