@@ -99,4 +99,20 @@ export type RequestIdentity =
        * consulted (`lib/auth/eligibility.ts#getEligibility`).
        */
       hasAcceptedCurrentAgreements: boolean;
+      /**
+       * Security remediation (T033) — `true` when this session must complete an MFA step-up before
+       * touching protected data: Supabase Auth's own `getAuthenticatorAssuranceLevel()` reports a
+       * verified factor exists (`nextLevel === "aal2"`) and this session has not yet reached it
+       * (`currentLevel !== nextLevel`). `false` for the overwhelming majority of accounts, which have
+       * never enrolled a factor at all — Supabase's own AAL semantics naturally encode "not required
+       * for you" as `nextLevel === currentLevel`, so this is never a blanket "everyone must MFA"
+       * rule, only "if you enrolled it, your session must reflect it." Resolved fresh every request,
+       * from the verified JWT/session — never inferred from factor existence alone, frontend state,
+       * or a cookie. Every protected surface must check this BEFORE resolving/rendering
+       * `organization`/`operationalRoles`-gated data (`lib/auth/dal.ts#getRequestIdentity`) — the
+       * database's own `mfa_satisfied()`-gated RLS is the real last-line boundary (see the T033
+       * remediation migration); this field is the application-layer half of that same policy, not a
+       * substitute for it.
+       */
+      requiresMfaStepUp: boolean;
     };

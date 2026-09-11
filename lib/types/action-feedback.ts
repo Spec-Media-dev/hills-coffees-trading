@@ -20,6 +20,7 @@ export const ACTION_FEEDBACK = {
   SESSION_EXPIRED: "session_expired",
   MFA_INVALID_CODE: "mfa_invalid_code",
   MFA_ENABLED: "mfa_enabled",
+  MFA_STEP_UP_REQUIRED: "mfa_step_up_required",
   ONBOARDING_FAILED: "onboarding_failed",
   KYB_START_FAILED: "kyb_start_failed",
   KYB_DRAFT_SAVED: "kyb_draft_saved",

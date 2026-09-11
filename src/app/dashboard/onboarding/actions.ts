@@ -62,6 +62,13 @@ export async function submitMembershipApplication(
     redirect("/sign-in/");
   }
 
+  // T033: this action is independently POST-able, so the dashboard layout is not a sufficient
+  // boundary. Refuse a session that has an enrolled factor but has not completed this session's
+  // step-up before either profile synchronization or organization creation can run.
+  if (identity.requiresMfaStepUp) {
+    redirect("/mfa/");
+  }
+
   if (!identity.isEmailVerified) {
     redirect("/verify-email/");
   }

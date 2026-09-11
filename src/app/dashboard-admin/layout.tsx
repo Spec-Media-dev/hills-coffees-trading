@@ -66,6 +66,15 @@ export default async function DashboardAdminLayout({
     redirect("/admin/sign-in/");
   }
 
+  // T033 remediation — same session-assurance gate as the Member Portal
+  // (`src/app/dashboard/layout.tsx`), applied uniformly: `adminSignIn` already redirects a
+  // step-up-pending session to `/mfa/` at sign-in time, so an operator who later reaches this
+  // layout with a stale/expired step-up (e.g. re-entering via a bookmarked URL after their session
+  // partially expired) must be denied here too, before any operational-role content renders.
+  if (identity.requiresMfaStepUp) {
+    redirect("/mfa/");
+  }
+
   if (identity.operationalRoles.length === 0) {
     return (
       <StateScreen

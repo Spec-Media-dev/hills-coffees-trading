@@ -18,6 +18,12 @@ vi.mock("@/src/app/dashboard/actions", () => ({
   acceptAgreement: vi.fn(async () => ({ ok: true, data: undefined, code: "agreement_accepted" })),
 }));
 
+// T033: `AgreementRow` now calls `useRouter()` (for the MFA-step-up toast action's navigation) —
+// this render-only test has no mounted Next.js app router, so the hook itself needs a stub.
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn() }),
+}));
+
 afterEach(cleanup);
 
 function withLocale(children: React.ReactNode) {

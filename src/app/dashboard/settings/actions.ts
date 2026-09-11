@@ -54,6 +54,10 @@ export async function updateMyProfile(
   if (identity.kind !== "authenticated") {
     return { ok: false, code: ACTION_FEEDBACK.PROFILE_AUTH_REQUIRED };
   }
+  // T033 remediation — a step-up-pending session must not be able to mutate profile data.
+  if (identity.requiresMfaStepUp) {
+    return { ok: false, code: ACTION_FEEDBACK.MFA_STEP_UP_REQUIRED };
+  }
 
   // 3. AUTHORIZE — see comment above; no additional check for this action.
 
@@ -112,6 +116,10 @@ export async function updateOrganizationContact(
   const identity = await getRequestIdentity();
   if (identity.kind !== "authenticated") {
     return { ok: false, code: ACTION_FEEDBACK.PROFILE_AUTH_REQUIRED };
+  }
+  // T033 remediation — a step-up-pending session must not be able to mutate organization data.
+  if (identity.requiresMfaStepUp) {
+    return { ok: false, code: ACTION_FEEDBACK.MFA_STEP_UP_REQUIRED };
   }
 
   // 3. AUTHORIZE — a fresh, unambiguous acting organization is required; the RPC re-verifies

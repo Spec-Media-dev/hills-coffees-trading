@@ -24,9 +24,12 @@
  * DATABASE BOUNDARY
  * ============================================================================
  *
- * This script writes ONLY rows, and only to the five tables named below. It never alters schema,
- * RLS, policies, functions, triggers, or Storage. It creates no inventory, listing, order,
- * payment, settlement, or dispute data.
+ * This script writes ONLY rows — to `profiles`, `organizations`, `kyb_applications`,
+ * `organization_members`, `platform_admins`, the public catalogue tables (002), and, since Feature
+ * 003 Phase 8/9, `file_assets`/`kyb_documents` (fixed-id, metadata-only rows — no real Storage bytes;
+ * see `upsertFixtureKybDocument`'s own doc comment). It never alters schema, RLS, policies,
+ * functions, triggers, or Storage. It creates no listing, order, payment, settlement, or dispute
+ * data.
  *
  * ============================================================================
  * USAGE
@@ -36,6 +39,10 @@
  *   npm run test:seed:teardown     # delete exactly the fixtures this script creates
  *   --set-buyer-and-seller-can-sell=true|false
  *                                  # Phase 9 freshness-test control; exact fixture row only
+ *   --set-suspended-organization-status=ACTIVE|SUSPENDED
+ *                                  # T031 freshness-test control; the `suspended` fixture only
+ *   --reset-complete-draft-application
+ *                                  # T032 restore control; resets `completeDraft` back to DRAFT
  *
  * Requires `.env.local` to define NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY and
  * TEST_FIXTURE_PASSWORD. Run only against the development Supabase project — never one labelled
@@ -474,6 +481,529 @@ async function teardownCatalogue(admin: SupabaseClient): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
+// Phase 8 (003 T029) — authorization/state-variant fixtures
+// ---------------------------------------------------------------------------
+
+/**
+ * Every id below is fixed (same discipline as `ORGANIZATION_IDS`/`KYB_APPLICATION_IDS` above), in a
+ * distinct numeric range (0x61+) so it can never collide with the 001/002 fixture ids already in use.
+ *
+ * These EXTEND the existing fixture architecture — same script, same privileged boundary, same
+ * `npm run test:seed` / `test:seed:teardown` entry points — rather than forking a second seed system.
+ * Each organization exists ONLY because a specific T029/Phase 9 requirement names it; none is
+ * speculative ("do not invent unnecessary product states").
+ */
+const PHASE89_ORGANIZATION_IDS = {
+  pendingKyb: "f0000000-0000-4000-8000-000000000061",
+  completeDraft: "f0000000-0000-4000-8000-000000000062",
+  underReview: "f0000000-0000-4000-8000-000000000063",
+  suspended: "f0000000-0000-4000-8000-000000000064",
+  blockedMember: "f0000000-0000-4000-8000-000000000065",
+  mfaMember: "f0000000-0000-4000-8000-000000000066",
+  multiOrgA: "f0000000-0000-4000-8000-000000000067",
+  multiOrgB: "f0000000-0000-4000-8000-000000000068",
+} as const;
+
+const PHASE89_KYB_APPLICATION_IDS = {
+  pendingKyb: "f0000000-0000-4000-8000-000000000071",
+  completeDraft: "f0000000-0000-4000-8000-000000000072",
+  underReview: "f0000000-0000-4000-8000-000000000073",
+  suspended: "f0000000-0000-4000-8000-000000000074",
+  blockedMember: "f0000000-0000-4000-8000-000000000075",
+  mfaMember: "f0000000-0000-4000-8000-000000000076",
+  multiOrgA: "f0000000-0000-4000-8000-000000000077",
+  multiOrgB: "f0000000-0000-4000-8000-000000000078",
+} as const;
+
+/**
+ * `completeDraft`'s 5 required documents (T032 "complete valid DRAFT → SUBMITTED"). Written directly
+ * (service-role), bypassing `attach_kyb_document`'s real-Storage-object check — this fixture proves
+ * the METADATA-level completeness/transition contract (`checkKybCompleteness`, `submit_kyb_application`),
+ * not the upload path itself (already covered live by RUN B and the KYB-upload-transport fix).
+ * `file_assets`/`kyb_documents` ids are fixed for the same idempotency reason every other fixture id
+ * is: without a fixed id + upsert target, re-running the seed would insert 5 MORE rows every time.
+ */
+const COMPLETE_DRAFT_DOCUMENT_IDS: Record<
+  "TRADE_LICENSE" | "PROOF_OF_INCORPORATION" | "AUTHORIZED_SIGNATORY_ID" | "UBO_DECLARATION" | "BANKING_EVIDENCE",
+  { fileAssetId: string; documentId: string }
+> = {
+  TRADE_LICENSE: { fileAssetId: "f0000000-0000-4000-8000-000000000081", documentId: "f0000000-0000-4000-8000-000000000091" },
+  PROOF_OF_INCORPORATION: { fileAssetId: "f0000000-0000-4000-8000-000000000082", documentId: "f0000000-0000-4000-8000-000000000092" },
+  AUTHORIZED_SIGNATORY_ID: { fileAssetId: "f0000000-0000-4000-8000-000000000083", documentId: "f0000000-0000-4000-8000-000000000093" },
+  UBO_DECLARATION: { fileAssetId: "f0000000-0000-4000-8000-000000000084", documentId: "f0000000-0000-4000-8000-000000000094" },
+  BANKING_EVIDENCE: { fileAssetId: "f0000000-0000-4000-8000-000000000085", documentId: "f0000000-0000-4000-8000-000000000095" },
+};
+
+/**
+ * One supporting document per ALREADY-approved org (`buyerOnly`/`buyerAndSeller`) — minimum data
+ * T030's cross-organization isolation test needs to prove `kyb_documents` (via its `file_assets`
+ * join) is tenant-scoped, on top of the existing `kyb_applications` rows those fixtures already have.
+ */
+const CROSS_ORG_ISOLATION_DOCUMENT_IDS = {
+  buyerOnly: { fileAssetId: "f0000000-0000-4000-8000-000000000096", documentId: "f0000000-0000-4000-8000-000000000098" },
+  buyerAndSeller: { fileAssetId: "f0000000-0000-4000-8000-000000000097", documentId: "f0000000-0000-4000-8000-000000000099" },
+} as const;
+
+type Phase89Organization = {
+  id: string;
+  kybApplicationId: string;
+  legalName: string;
+  displayName: string;
+  organizationStatus: "PENDING_KYB" | "UNDER_REVIEW" | "ACTIVE" | "SUSPENDED";
+  kybStatus: "DRAFT" | "SUBMITTED" | "UNDER_REVIEW" | "APPROVED";
+  canBuy: boolean;
+  canSell: boolean;
+  registeredAddress: string | null;
+  businessActivity: string | null;
+};
+
+type Phase89Fixture = {
+  label: string;
+  email: string;
+  fullName: string;
+  isBlocked: boolean;
+  organizations: readonly Phase89Organization[];
+};
+
+const PHASE89_FIXTURES: readonly Phase89Fixture[] = [
+  {
+    label: "pending-kyb",
+    email: "pending-kyb+foundation-test@example.com",
+    fullName: "Foundation Test — Pending KYB",
+    isBlocked: false,
+    organizations: [
+      {
+        id: PHASE89_ORGANIZATION_IDS.pendingKyb,
+        kybApplicationId: PHASE89_KYB_APPLICATION_IDS.pendingKyb,
+        legalName: "Foundation Test Pending KYB FZE",
+        displayName: "Foundation Test — Pending KYB",
+        organizationStatus: "PENDING_KYB",
+        kybStatus: "DRAFT",
+        canBuy: true,
+        canSell: false,
+        // Deliberately incomplete — T032's "incomplete DRAFT submission blocked" fixture.
+        registeredAddress: null,
+        businessActivity: null,
+      },
+    ],
+  },
+  {
+    label: "complete-draft",
+    email: "complete-draft+foundation-test@example.com",
+    fullName: "Foundation Test — Complete Draft",
+    isBlocked: false,
+    organizations: [
+      {
+        id: PHASE89_ORGANIZATION_IDS.completeDraft,
+        kybApplicationId: PHASE89_KYB_APPLICATION_IDS.completeDraft,
+        legalName: "Foundation Test Complete Draft FZE",
+        displayName: "Foundation Test — Complete Draft",
+        organizationStatus: "PENDING_KYB",
+        kybStatus: "DRAFT",
+        canBuy: true,
+        canSell: false,
+        // Complete — T032's "complete valid DRAFT → SUBMITTED" fixture. Resettable to DRAFT via
+        // `--reset-complete-draft-application` after a test transitions it to SUBMITTED.
+        registeredAddress: "Foundation Test Free Zone, Building 9, Dubai, UAE",
+        businessActivity: "Green coffee import and wholesale distribution.",
+      },
+    ],
+  },
+  {
+    label: "under-review",
+    email: "under-review+foundation-test@example.com",
+    fullName: "Foundation Test — Under Review",
+    isBlocked: false,
+    organizations: [
+      {
+        id: PHASE89_ORGANIZATION_IDS.underReview,
+        kybApplicationId: PHASE89_KYB_APPLICATION_IDS.underReview,
+        legalName: "Foundation Test Under Review FZE",
+        displayName: "Foundation Test — Under Review",
+        organizationStatus: "UNDER_REVIEW",
+        kybStatus: "UNDER_REVIEW",
+        canBuy: true,
+        canSell: false,
+        registeredAddress: "Foundation Test Free Zone, Building 4, Dubai, UAE",
+        businessActivity: "Green coffee import.",
+      },
+    ],
+  },
+  {
+    label: "suspended",
+    email: "suspended+foundation-test@example.com",
+    fullName: "Foundation Test — Suspended",
+    isBlocked: false,
+    organizations: [
+      {
+        id: PHASE89_ORGANIZATION_IDS.suspended,
+        kybApplicationId: PHASE89_KYB_APPLICATION_IDS.suspended,
+        legalName: "Foundation Test Suspended FZE",
+        displayName: "Foundation Test — Suspended",
+        // Previously approved, now suspended — T031's freshness-toggle fixture
+        // (`--set-suspended-organization-status=`).
+        organizationStatus: "SUSPENDED",
+        kybStatus: "APPROVED",
+        canBuy: true,
+        canSell: false,
+        registeredAddress: "Foundation Test Free Zone, Building 7, Dubai, UAE",
+        businessActivity: "Green coffee import.",
+      },
+    ],
+  },
+  {
+    label: "blocked-member",
+    email: "blocked-member+foundation-test@example.com",
+    fullName: "Foundation Test — Blocked Member",
+    // Otherwise-fully-approved organization, BUT the user is blocked — proves blocking overrides an
+    // already-approved organization, not merely an additional restriction on a pending one.
+    isBlocked: true,
+    organizations: [
+      {
+        id: PHASE89_ORGANIZATION_IDS.blockedMember,
+        kybApplicationId: PHASE89_KYB_APPLICATION_IDS.blockedMember,
+        legalName: "Foundation Test Blocked Member FZE",
+        displayName: "Foundation Test — Blocked Member",
+        organizationStatus: "ACTIVE",
+        kybStatus: "APPROVED",
+        canBuy: true,
+        canSell: false,
+        registeredAddress: "Foundation Test Free Zone, Building 2, Dubai, UAE",
+        businessActivity: "Green coffee import.",
+      },
+    ],
+  },
+  {
+    label: "mfa-member",
+    email: "mfa-member+foundation-test@example.com",
+    fullName: "Foundation Test — MFA Member",
+    isBlocked: false,
+    organizations: [
+      {
+        id: PHASE89_ORGANIZATION_IDS.mfaMember,
+        kybApplicationId: PHASE89_KYB_APPLICATION_IDS.mfaMember,
+        legalName: "Foundation Test MFA Member FZE",
+        displayName: "Foundation Test — MFA Member",
+        organizationStatus: "ACTIVE",
+        kybStatus: "APPROVED",
+        canBuy: true,
+        canSell: false,
+        registeredAddress: "Foundation Test Free Zone, Building 3, Dubai, UAE",
+        businessActivity: "Green coffee import.",
+      },
+    ],
+  },
+  {
+    label: "multi-org",
+    email: "multi-org+foundation-test@example.com",
+    fullName: "Foundation Test — Multi Org",
+    isBlocked: false,
+    // Two ACTIVE + APPROVED organizations for the SAME user — T028/T002 multi-org acting-organization
+    // proof ("never organizations[0]", explicit selection required, fresh switch resolution).
+    organizations: [
+      {
+        id: PHASE89_ORGANIZATION_IDS.multiOrgA,
+        kybApplicationId: PHASE89_KYB_APPLICATION_IDS.multiOrgA,
+        legalName: "Foundation Test Multi Org A FZE",
+        displayName: "Foundation Test — Multi Org A",
+        organizationStatus: "ACTIVE",
+        kybStatus: "APPROVED",
+        canBuy: true,
+        canSell: false,
+        registeredAddress: "Foundation Test Free Zone, Building 5, Dubai, UAE",
+        businessActivity: "Green coffee import.",
+      },
+      {
+        id: PHASE89_ORGANIZATION_IDS.multiOrgB,
+        kybApplicationId: PHASE89_KYB_APPLICATION_IDS.multiOrgB,
+        legalName: "Foundation Test Multi Org B FZE",
+        displayName: "Foundation Test — Multi Org B",
+        organizationStatus: "ACTIVE",
+        kybStatus: "APPROVED",
+        canBuy: true,
+        canSell: true,
+        registeredAddress: "Foundation Test Free Zone, Building 6, Dubai, UAE",
+        businessActivity: "Green coffee import and resale.",
+      },
+    ],
+  },
+  {
+    // T029 variant 5 — authenticated user with NO organization at all.
+    label: "no-organization",
+    email: "no-organization+foundation-test@example.com",
+    fullName: "Foundation Test — No Organization",
+    isBlocked: false,
+    organizations: [],
+  },
+];
+
+async function seedPhase89(admin: SupabaseClient, password: string): Promise<void> {
+  console.log("\nSeeding 003-auth-membership-kyb Phase 8/9 fixtures…\n");
+
+  for (const fixture of PHASE89_FIXTURES) {
+    const { userId, created } = await ensureAuthUser(admin, fixture.email, password);
+
+    const { error: profileError } = await admin.from("profiles").upsert(
+      {
+        id: userId,
+        full_name: fixture.fullName,
+        company_name: fixture.organizations[0]?.displayName ?? null,
+        is_blocked: fixture.isBlocked,
+      },
+      { onConflict: "id" }
+    );
+    if (profileError) throw new SafeFixtureError("profiles upsert failed (Phase 8/9).");
+
+    for (const org of fixture.organizations) {
+      const { error: orgError } = await admin.from("organizations").upsert(
+        {
+          id: org.id,
+          legal_name: org.legalName,
+          display_name: org.displayName,
+          account_type: org.canSell ? "SELLER" : "BUYER",
+          status: org.organizationStatus,
+          is_hills_internal: false,
+          can_buy: org.canBuy,
+          can_sell: org.canSell,
+        },
+        { onConflict: "id" }
+      );
+      if (orgError) throw new SafeFixtureError("organizations upsert failed (Phase 8/9).");
+
+      const submittedAt = org.kybStatus === "DRAFT" ? null : new Date(0).toISOString();
+      const decidedAt = org.kybStatus === "APPROVED" ? new Date(0).toISOString() : null;
+      const { error: kybError } = await admin.from("kyb_applications").upsert(
+        {
+          id: org.kybApplicationId,
+          organization_id: org.id,
+          submitted_by: userId,
+          status: org.kybStatus,
+          registered_address: org.registeredAddress,
+          business_activity: org.businessActivity,
+          submitted_at: submittedAt,
+          decided_at: decidedAt,
+        },
+        { onConflict: "id" }
+      );
+      if (kybError) throw new SafeFixtureError("kyb_applications upsert failed (Phase 8/9).");
+
+      const { error: memberError } = await admin.from("organization_members").upsert(
+        { organization_id: org.id, user_id: userId, member_role: "OWNER", is_active: true },
+        { onConflict: "organization_id,user_id" }
+      );
+      if (memberError) throw new SafeFixtureError("organization_members upsert failed (Phase 8/9).");
+    }
+
+    console.log(`  ${created ? "created" : "reused "}  ${fixture.label.padEnd(17)} ${fixture.email}`);
+  }
+
+  // `completeDraft`'s 5 required documents — metadata only (no real Storage object behind them; see
+  // the constant's own doc comment for why that is safe for this fixture's purpose).
+  for (const [documentType, ids] of Object.entries(COMPLETE_DRAFT_DOCUMENT_IDS)) {
+    await upsertFixtureKybDocument(admin, {
+      fileAssetId: ids.fileAssetId,
+      documentId: ids.documentId,
+      organizationId: PHASE89_ORGANIZATION_IDS.completeDraft,
+      applicationId: PHASE89_KYB_APPLICATION_IDS.completeDraft,
+      documentType,
+      status: "ACCEPTED",
+    });
+  }
+
+  // One supporting document each for the pre-existing approved 001 fixtures, so T030 can prove
+  // `kyb_documents` isolation on top of the `kyb_applications` isolation those fixtures already allow.
+  await upsertFixtureKybDocument(admin, {
+    fileAssetId: CROSS_ORG_ISOLATION_DOCUMENT_IDS.buyerOnly.fileAssetId,
+    documentId: CROSS_ORG_ISOLATION_DOCUMENT_IDS.buyerOnly.documentId,
+    organizationId: ORGANIZATION_IDS.buyerOnly,
+    applicationId: KYB_APPLICATION_IDS.buyerOnly,
+    documentType: "TRADE_LICENSE",
+    status: "ACCEPTED",
+  });
+  await upsertFixtureKybDocument(admin, {
+    fileAssetId: CROSS_ORG_ISOLATION_DOCUMENT_IDS.buyerAndSeller.fileAssetId,
+    documentId: CROSS_ORG_ISOLATION_DOCUMENT_IDS.buyerAndSeller.documentId,
+    organizationId: ORGANIZATION_IDS.buyerAndSeller,
+    applicationId: KYB_APPLICATION_IDS.buyerAndSeller,
+    documentType: "TRADE_LICENSE",
+    status: "ACCEPTED",
+  });
+
+  console.log(
+    `\n  ${PHASE89_FIXTURES.length} Phase 8/9 identities, ` +
+      `${PHASE89_FIXTURES.reduce((n, f) => n + f.organizations.length, 0)} organizations, ` +
+      `${Object.keys(COMPLETE_DRAFT_DOCUMENT_IDS).length + 2} supporting kyb_documents.`
+  );
+}
+
+async function upsertFixtureKybDocument(
+  admin: SupabaseClient,
+  input: {
+    fileAssetId: string;
+    documentId: string;
+    organizationId: string;
+    applicationId: string;
+    documentType: string;
+    status: "PENDING" | "ACCEPTED" | "REJECTED";
+  }
+): Promise<void> {
+  const { error: fileAssetError } = await admin.from("file_assets").upsert(
+    {
+      id: input.fileAssetId,
+      organization_id: input.organizationId,
+      bucket_name: "kyb-evidence",
+      object_path: `org/${input.organizationId}/application/${input.applicationId}/${input.documentType.toLowerCase()}-fixture.pdf`,
+      original_name: `${input.documentType.toLowerCase()}-fixture.pdf`,
+      mime_type: "application/pdf",
+      size_bytes: 1024,
+      is_private: true,
+    },
+    { onConflict: "id" }
+  );
+  if (fileAssetError) throw new SafeFixtureError("file_assets upsert failed (Phase 8/9).");
+
+  const { error: documentError } = await admin.from("kyb_documents").upsert(
+    {
+      id: input.documentId,
+      application_id: input.applicationId,
+      document_type: input.documentType,
+      file_asset_id: input.fileAssetId,
+      version: 1,
+      status: input.status,
+    },
+    { onConflict: "id" }
+  );
+  if (documentError) throw new SafeFixtureError("kyb_documents upsert failed (Phase 8/9).");
+}
+
+/**
+ * Deletes exactly the Phase 8/9 rows `seedPhase89()` creates, in foreign-key-safe order.
+ *
+ * NOT DELETED, DELIBERATELY: `audit_logs`/`account_status_history` rows the database's own triggers
+ * append (same append-only-audit rule the 001 teardown already follows), and `agreement_acceptances`
+ * rows any Phase 9 test live-inserted for these fixtures — `authenticated` holds no DELETE grant on
+ * that table (by design; see `lib/agreements/acceptance-status.ts`), and this script never uses its
+ * service-role connection to bypass that for evidence rows. When either kind of real evidence still
+ * points at an organization or profile, that row is RETAINED rather than force-deleted — see
+ * `deleteOrganizationsRetainingAuditEvidence`/`deleteAuthUsersRetainingAuditEvidence`, and this
+ * function's own logged summary for exactly which fixtures that affected on a given run. Retained
+ * rows are documented SYNTHETIC AUDIT PRINCIPALS: real evidence-shaped rows tagged only by belonging
+ * to an obviously-synthetic `+foundation-test@example.com` organization/user, never colliding with
+ * real data, and consistent with "do not delete immutable audit history just to make teardown clean."
+ */
+async function teardownPhase89(admin: SupabaseClient): Promise<void> {
+  console.log("\nTearing down 003-auth-membership-kyb Phase 8/9 fixtures…\n");
+
+  const userIdByFixtureLabel = new Map<string, string>();
+  const userIds: string[] = [];
+  for (const fixture of PHASE89_FIXTURES) {
+    const userId = await findAuthUserIdByEmail(admin, fixture.email);
+    if (userId !== null) {
+      userIds.push(userId);
+      userIdByFixtureLabel.set(fixture.label, userId);
+    }
+  }
+
+  const organizationIds = Object.values(PHASE89_ORGANIZATION_IDS);
+  const kybApplicationIds = Object.values(PHASE89_KYB_APPLICATION_IDS);
+  const documentIds = [
+    ...Object.values(COMPLETE_DRAFT_DOCUMENT_IDS).map((d) => d.documentId),
+    CROSS_ORG_ISOLATION_DOCUMENT_IDS.buyerOnly.documentId,
+    CROSS_ORG_ISOLATION_DOCUMENT_IDS.buyerAndSeller.documentId,
+  ];
+  const fileAssetIds = [
+    ...Object.values(COMPLETE_DRAFT_DOCUMENT_IDS).map((d) => d.fileAssetId),
+    CROSS_ORG_ISOLATION_DOCUMENT_IDS.buyerOnly.fileAssetId,
+    CROSS_ORG_ISOLATION_DOCUMENT_IDS.buyerAndSeller.fileAssetId,
+  ];
+
+  const deleteByIds = async (table: string, column: string, ids: readonly string[]): Promise<void> => {
+    if (ids.length === 0) return;
+    const { error } = await admin.from(table).delete().in(column, ids);
+    if (error) throw new SafeFixtureError(`${table} delete failed (Phase 8/9).`);
+  };
+
+  await deleteByIds("kyb_documents", "id", documentIds);
+  await deleteByIds("file_assets", "id", fileAssetIds);
+
+  if (userIds.length > 0) {
+    const { error } = await admin.from("platform_admins").delete().in("user_id", userIds);
+    if (error) throw new SafeFixtureError("platform_admins delete failed (Phase 8/9).");
+  }
+
+  await deleteByIds("organization_members", "organization_id", organizationIds);
+  await deleteByIds("kyb_applications", "id", kybApplicationIds);
+
+  const { deleted: deletedOrganizations, retained: retainedOrganizations } =
+    await deleteOrganizationsRetainingAuditEvidence(admin, organizationIds);
+
+  // A user whose organization is retained (real agreement_acceptances evidence) is attempted anyway
+  // below — `deleteAuthUsersRetainingAuditEvidence` treats any failure (that FK included, plus e.g. a
+  // real audit_logs.actor_user_id row from a live test's authenticated RPC call) as retained.
+  const { deleted: deletedUsers, retained: retainedUserIds } = await deleteAuthUsersRetainingAuditEvidence(
+    admin,
+    userIds
+  );
+  const retainedUserIdSet = new Set(retainedUserIds);
+  const retainedUserLabels = PHASE89_FIXTURES.filter((fixture) => {
+    const userId = userIdByFixtureLabel.get(fixture.label);
+    return userId !== undefined && retainedUserIdSet.has(userId);
+  }).map((fixture) => fixture.label);
+
+  if (retainedOrganizations.length > 0 || retainedUserIds.length > 0) {
+    console.log(
+      `  RETAINED (documented, not a failure): ${retainedUserLabels.join(", ") || "(no fixture user, org only)"} — ` +
+        `organization(s) [${retainedOrganizations.join(", ") || "none"}], user(s) [${retainedUserIds.join(", ") || "none"}] — ` +
+        `still referenced by real audit evidence (agreement_acceptances and/or audit_logs) a live ` +
+        `test produced. No DELETE grant/privilege bypass is used to force this through.`
+    );
+  }
+
+  console.log(
+    `  removed ${deletedUsers.length} auth user(s) + profile(s), ${deletedOrganizations.length} organization(s), ` +
+      `${kybApplicationIds.length} kyb application(s), ${documentIds.length} kyb_documents row(s).`
+  );
+}
+
+/**
+ * T031 freshness-proof control: flips ONLY the `suspended` fixture's organization between ACTIVE and
+ * SUSPENDED. Scoped to that one fixed organization id — never an arbitrary caller-supplied id — the
+ * same narrow-control precedent `setBuyerAndSellerCanSell` already established.
+ */
+async function setSuspendedOrganizationStatus(admin: SupabaseClient, status: "ACTIVE" | "SUSPENDED"): Promise<void> {
+  const { data, error } = await admin
+    .from("organizations")
+    .update({ status })
+    .eq("id", PHASE89_ORGANIZATION_IDS.suspended)
+    .select("id")
+    .maybeSingle();
+
+  if (error) throw new SafeFixtureError("fixture organization status update failed.");
+  if (!data) throw new Error("suspended fixture is missing; run npm run test:seed first");
+}
+
+/**
+ * T032 restore control: resets `completeDraft`'s application back to `DRAFT` (undoing a test's own
+ * `DRAFT -> SUBMITTED` transition) so the fixture is reusable across runs. `authenticated` has no
+ * direct UPDATE grant on `kyb_applications` (every mutation is RPC-mediated), so only this privileged
+ * script can restore it — the same reason `setBuyerAndSellerCanSell` exists for its own column.
+ */
+async function resetCompleteDraftApplication(admin: SupabaseClient): Promise<void> {
+  // `submitted_by` is NOT NULL (`kyb_applications` schema) — it is the fixture owner both before and
+  // after submission (`create_kyb_draft` sets it at DRAFT creation, `transition_kyb_application`
+  // re-asserts it at SUBMITTED), so only `status`/`submitted_at` need resetting here.
+  const { data, error } = await admin
+    .from("kyb_applications")
+    .update({ status: "DRAFT", submitted_at: null })
+    .eq("id", PHASE89_KYB_APPLICATION_IDS.completeDraft)
+    .select("id")
+    .maybeSingle();
+
+  if (error) throw new SafeFixtureError("fixture application reset failed.");
+  if (!data) throw new Error("complete-draft fixture is missing; run npm run test:seed first");
+}
+
+// ---------------------------------------------------------------------------
 // Supabase admin access
 // ---------------------------------------------------------------------------
 
@@ -687,21 +1217,99 @@ async function setBuyerAndSellerCanSell(
 // ---------------------------------------------------------------------------
 
 /**
+ * Deletes each given organization individually, tolerating a foreign-key violation (Postgres
+ * `23503`) as an INTENTIONALLY RETAINED synthetic audit principal rather than letting it abort the
+ * whole teardown run. This is the concrete case the run directive names: "if foreign keys require
+ * retained synthetic audit principals: block/disable them safely, document exactly why they remain,
+ * do not fabricate complete deletion." A live test's `agreement_acceptances` insert (Phase 6/7's own
+ * `agreement-acceptance.test.ts`, and this run's T030/T034 tests) is real evidence-shaped data this
+ * script never deletes (`authenticated` holds no DELETE grant on that table, and this script does not
+ * use its own service-role privilege to bypass that for evidence rows either) — its `organization_id`
+ * foreign key is exactly what then blocks that organization's own deletion. Retained organizations
+ * are still safe: they carry no live capability beyond being a foreign-key target (their
+ * `organization_members`/`kyb_applications`/`platform_admins` rows are deleted by the caller before
+ * this runs), so nothing "accidentally usable" survives — only an inert row an evidence record still
+ * points at.
+ */
+async function deleteOrganizationsRetainingAuditEvidence(
+  admin: SupabaseClient,
+  organizationIds: readonly string[]
+): Promise<{ deleted: string[]; retained: string[] }> {
+  const deleted: string[] = [];
+  const retained: string[] = [];
+
+  for (const organizationId of organizationIds) {
+    const { error } = await admin.from("organizations").delete().eq("id", organizationId);
+    if (!error) {
+      deleted.push(organizationId);
+      continue;
+    }
+    if (error.code === "23503") {
+      retained.push(organizationId);
+      continue;
+    }
+    throw new SafeFixtureError("organizations delete failed.");
+  }
+
+  return { deleted, retained };
+}
+
+/**
+ * The auth-user counterpart of `deleteOrganizationsRetainingAuditEvidence` above, generalized rather
+ * than keyed to one specific table: the Auth Admin API's `deleteUser` reports any referencing-row
+ * failure as a generic `500 "Database error deleting user"` (no distinguishable Postgres error code
+ * the way PostgREST table deletes give one), so this treats ANY failure as "retained," not only a
+ * `agreement_acceptances` one. Confirmed against a real case this run surfaced live: a fixture whose
+ * own test drove a REAL, RLS-respecting `submit_kyb_application` RPC call — executed AS that fixture
+ * user, unlike every other fixture's rows, which are written by this script's own service-role
+ * connection with no `auth.uid()` — leaves a real, non-null `audit_logs.actor_user_id` row pointing at
+ * that profile. `audit_logs` is the platform's own append-only audit trail (documented elsewhere in
+ * this file as never removed), so the correct outcome is exactly this: the affected user is retained,
+ * not force-deleted through some new privileged bypass.
+ */
+async function deleteAuthUsersRetainingAuditEvidence(
+  admin: SupabaseClient,
+  userIds: readonly string[]
+): Promise<{ deleted: string[]; retained: string[] }> {
+  const deleted: string[] = [];
+  const retained: string[] = [];
+
+  for (const userId of userIds) {
+    const { error } = await admin.auth.admin.deleteUser(userId);
+    if (!error) {
+      deleted.push(userId);
+      continue;
+    }
+    retained.push(userId);
+  }
+
+  return { deleted, retained };
+}
+
+/**
  * Deletes exactly the rows `seed()` creates, in foreign-key-safe order.
  *
  * Not deleted, deliberately: `audit_logs` and `account_status_history` rows written by the
  * database's own triggers. Those are the approved baseline's append-only audit trail
  * (Constitution auditability); removing them would mean deleting audit history, which this
- * script must never do. They carry a NULL actor because the service-role connection has no
- * `auth.uid()`, so they hold no fixture credential material.
+ * script must never do. Ordinarily they carry a NULL actor (the service-role connection has no
+ * `auth.uid()`), so they hold no fixture credential material — but a fixture whose OWN test drove a
+ * real, RLS-respecting Server Action/RPC call (rather than this script's own privileged writes) can
+ * leave a real, non-null `audit_logs.actor_user_id` pointing at that profile. When that happens, this
+ * organization/user pair is retained rather than force-deleted — see
+ * `deleteOrganizationsRetainingAuditEvidence`/`deleteAuthUsersRetainingAuditEvidence`.
  */
 async function teardown(admin: SupabaseClient): Promise<void> {
   console.log("Tearing down 001-platform-foundation test fixtures…\n");
 
+  const userIdByFixtureLabel = new Map<string, string>();
   const userIds: string[] = [];
   for (const fixture of FIXTURES) {
     const userId = await findAuthUserIdByEmail(admin, fixture.email);
-    if (userId !== null) userIds.push(userId);
+    if (userId !== null) {
+      userIds.push(userId);
+      userIdByFixtureLabel.set(fixture.label, userId);
+    }
   }
 
   const organizationIds = Object.values(ORGANIZATION_IDS);
@@ -731,24 +1339,36 @@ async function teardown(admin: SupabaseClient): Promise<void> {
     throw new SafeFixtureError("kyb_applications delete failed.");
   }
 
-  const { error: orgError } = await admin
-    .from("organizations")
-    .delete()
-    .in("id", organizationIds);
-  if (orgError) {
-    throw new SafeFixtureError("organizations delete failed.");
-  }
+  const { deleted: deletedOrganizations, retained: retainedOrganizations } =
+    await deleteOrganizationsRetainingAuditEvidence(admin, organizationIds);
 
   // Deleting the Auth user cascades to `profiles` (profiles.id references auth.users ON DELETE
-  // CASCADE), which is why every referencing row above is removed first.
-  for (const userId of userIds) {
-    const { error } = await admin.auth.admin.deleteUser(userId);
-    if (error) throw new SafeFixtureError("auth user delete failed.");
+  // CASCADE), which is why every referencing row above is removed first. Attempted for every fixture
+  // regardless of whether its organization was retained — `deleteAuthUsersRetainingAuditEvidence`
+  // treats ANY failure (an `agreement_acceptances.user_id` block, or a real `audit_logs.actor_user_id`
+  // row from a live test's authenticated RPC call) as a retained synthetic audit principal, never a
+  // hard failure to force through.
+  const { deleted: deletedUsers, retained: retainedUserIds } = await deleteAuthUsersRetainingAuditEvidence(
+    admin,
+    userIds
+  );
+  const retainedUserIdSet = new Set(retainedUserIds);
+  const retainedUserLabels = FIXTURES.filter((fixture) => {
+    const userId = userIdByFixtureLabel.get(fixture.label);
+    return userId !== undefined && retainedUserIdSet.has(userId);
+  }).map((fixture) => fixture.label);
+
+  if (retainedOrganizations.length > 0 || retainedUserIds.length > 0) {
+    console.log(
+      `  RETAINED (documented, not a failure): ${retainedUserLabels.join(", ") || "(no fixture user, org only)"} — ` +
+        `organization(s) [${retainedOrganizations.join(", ") || "none"}], user(s) [${retainedUserIds.join(", ") || "none"}] — ` +
+        `still referenced by real audit evidence (agreement_acceptances and/or audit_logs) a live ` +
+        `test produced. No DELETE grant/privilege bypass is used to force this through.`
+    );
   }
 
   console.log(
-    `  removed ${userIds.length} auth user(s) + profile(s), ` +
-      `${organizationIds.length} organization(s), ` +
+    `  removed ${deletedUsers.length} auth user(s) + profile(s), ${deletedOrganizations.length} organization(s), ` +
       `${kybApplicationIds.length} kyb application(s), and their membership/admin rows.`
   );
   console.log("\nDone. No other rows were touched.");
@@ -766,6 +1386,11 @@ async function main(): Promise<void> {
   const capabilityArgument = process.argv.find((argument) =>
     argument.startsWith(capabilityArgumentPrefix)
   );
+  const suspendedStatusArgumentPrefix = "--set-suspended-organization-status=";
+  const suspendedStatusArgument = process.argv.find((argument) =>
+    argument.startsWith(suspendedStatusArgumentPrefix)
+  );
+  const isResetCompleteDraft = process.argv.includes("--reset-complete-draft-application");
   const admin = createAdminClient();
 
   if (capabilityArgument) {
@@ -780,15 +1405,39 @@ async function main(): Promise<void> {
     return;
   }
 
+  if (suspendedStatusArgument) {
+    const value = suspendedStatusArgument.slice(suspendedStatusArgumentPrefix.length);
+    if (value !== "ACTIVE" && value !== "SUSPENDED") {
+      throw new SafeFixtureError(
+        "--set-suspended-organization-status must be exactly ACTIVE or SUSPENDED"
+      );
+    }
+
+    await setSuspendedOrganizationStatus(admin, value);
+    return;
+  }
+
+  if (isResetCompleteDraft) {
+    await resetCompleteDraftApplication(admin);
+    return;
+  }
+
   if (isTeardown) {
     // Catalogue first: it is the leaf of the dependency order and never references an identity row.
+    // Phase 8/9 BEFORE 001's own teardown: `CROSS_ORG_ISOLATION_DOCUMENT_IDS`'s `file_assets` rows
+    // hold a (non-cascading) foreign key to the 001 `buyerOnly`/`buyerAndSeller` organizations —
+    // those must be removed before `teardown()` can delete those organizations, or the delete fails
+    // with a foreign-key violation.
     await teardownCatalogue(admin);
+    await teardownPhase89(admin);
     await teardown(admin);
     return;
   }
 
-  await seed(admin, requireEnv("TEST_FIXTURE_PASSWORD"));
+  const password = requireEnv("TEST_FIXTURE_PASSWORD");
+  await seed(admin, password);
   await seedCatalogue(admin);
+  await seedPhase89(admin, password);
 }
 
 main().catch((error: unknown) => {

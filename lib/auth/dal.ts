@@ -71,6 +71,21 @@ async function callBooleanRpc(
   return data === true;
 }
 
+/**
+ * Security remediation (T033). Reads the CURRENT session's own authenticator assurance level from
+ * Supabase Auth's own API — a local decode of the already server-verified JWT, not a network call
+ * and not a second, app-invented notion of "MFA truth." `nextLevel === currentLevel` (including the
+ * common case of a user with no enrolled factor at all, where both are always `"aal1"`) means no
+ * step-up is currently owed. Fails CLOSED (`true` — step-up still required) on any error: unlike a
+ * capability RPC, where "false" is the safe failure direction, here the safe direction is the one
+ * that denies rather than silently admits a session this call could not actually verify.
+ */
+async function resolveMfaStepUpRequired(supabase: SupabaseServerClient): Promise<boolean> {
+  const { data, error } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+  if (error || !data) return true;
+  return data.nextLevel === "aal2" && data.currentLevel !== data.nextLevel;
+}
+
 async function resolveOperationalRoles(
   supabase: SupabaseServerClient
 ): Promise<OperationalRole[]> {
@@ -185,7 +200,7 @@ export const getRequestIdentity = cache(async (): Promise<RequestIdentity> => {
 
   if (error || !user) return { kind: "anonymous" };
 
-  const [profileRow, organizations, isAuthorizedMember, operationalRoles] = await Promise.all([
+  const [profileRow, organizations, isAuthorizedMember, operationalRoles, requiresMfaStepUp] = await Promise.all([
     supabase
       .from("profiles")
       .select("full_name, company_name")
@@ -194,6 +209,7 @@ export const getRequestIdentity = cache(async (): Promise<RequestIdentity> => {
     resolveOrganizations(supabase, user.id),
     callBooleanRpc(supabase, "is_authorized_member"),
     resolveOperationalRoles(supabase),
+    resolveMfaStepUpRequired(supabase),
   ]);
 
   const { organization, requiresSelection } = await resolveActingOrganization(organizations);
@@ -221,5 +237,6 @@ export const getRequestIdentity = cache(async (): Promise<RequestIdentity> => {
     isEmailVerified: user.email_confirmed_at != null,
     operationalRoles,
     hasAcceptedCurrentAgreements,
+    requiresMfaStepUp,
   };
 });

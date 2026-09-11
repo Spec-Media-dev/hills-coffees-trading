@@ -1,6 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useRouter } from "next/navigation";
 import { startTransition, useActionState } from "react";
 import { useForm } from "react-hook-form";
 
@@ -28,6 +29,7 @@ export function OrganizationContactForm({
   initialValues: { displayName: string; email: string; phone: string };
 }) {
   const { tApp } = useLocale();
+  const router = useRouter();
   const copy = tApp.organization;
   const [state, dispatch, isPending] = useActionState(updateOrganizationContact, undefined);
   useActionToast(
@@ -35,7 +37,13 @@ export function OrganizationContactForm({
     state?.ok === true
       ? { tone: "success", message: tApp.feedback.organizationContactSaved }
       : state?.ok === false && state.code !== ACTION_FEEDBACK.VALIDATION_ERROR
-        ? { tone: "error", message: tApp.feedback.organizationContactSaveFailed }
+        ? state.code === ACTION_FEEDBACK.MFA_STEP_UP_REQUIRED
+          ? {
+              tone: "warning",
+              message: tApp.feedback.mfaStepUpRequired,
+              action: { label: tApp.feedback.mfaStepUpAction, onClick: () => router.push("/mfa/") },
+            }
+          : { tone: "error", message: tApp.feedback.organizationContactSaveFailed }
         : null
   );
 

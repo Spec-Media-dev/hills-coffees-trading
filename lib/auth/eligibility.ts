@@ -32,6 +32,7 @@ import type { RequestIdentity } from "@/lib/auth/types";
 
 export type BlockingReason =
   | "anonymous"
+  | "mfa-step-up-required"
   | "unattached"
   | "organization-selection-required"
   | "not-authorized"
@@ -40,6 +41,7 @@ export type BlockingReason =
 
 export type NextAction =
   | "sign-in"
+  | "step-up-mfa"
   | "choose-organization"
   | "await-onboarding"
   | "await-authorization"
@@ -72,6 +74,21 @@ export function getEligibility(identity: RequestIdentity): Eligibility {
   const canBuy = identity.organization?.canBuy ?? false;
   const canSell = identity.organization?.canSell ?? false;
   const canReachTrading = identity.isAuthorizedMember;
+
+  // T033 remediation — checked BEFORE any organization/authorization branch below: a session that
+  // must step up is denied uniformly, regardless of how otherwise-eligible the underlying
+  // organization is. This is a session-assurance gate, not a KYB/org authorization outcome — it
+  // never implies or substitutes for one (canReachTrading/canBuy/canSell below still reflect the
+  // real, independent DB truth, not something this branch invents).
+  if (identity.requiresMfaStepUp) {
+    return {
+      canReachTrading,
+      canBuy,
+      canSell,
+      blockingReason: "mfa-step-up-required",
+      nextAction: "step-up-mfa",
+    };
+  }
 
   if (identity.requiresOrganizationSelection) {
     return {

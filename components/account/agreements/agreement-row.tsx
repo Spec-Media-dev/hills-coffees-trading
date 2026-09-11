@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useActionState } from "react";
 
 import { useActionToast } from "@/components/app/use-action-toast";
@@ -7,6 +8,7 @@ import { useLocale } from "@/components/locale/locale-provider";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import type { AgreementDefinition } from "@/lib/auth/agreements";
+import { ACTION_FEEDBACK } from "@/lib/types/action-feedback";
 
 import { acceptAgreement } from "@/src/app/dashboard/actions";
 
@@ -27,6 +29,7 @@ export function AgreementRow({
   latestAcceptance: { version: string; acceptedAt: string } | undefined;
 }) {
   const { tApp, locale } = useLocale();
+  const router = useRouter();
   const copy = tApp.agreements;
   const [state, dispatch, isPending] = useActionState(acceptAgreement, undefined);
   useActionToast(
@@ -34,7 +37,13 @@ export function AgreementRow({
     state?.ok === true
       ? { tone: "success", message: copy.toast.accepted }
       : state?.ok === false
-        ? { tone: "error", message: copy.toast.acceptFailed }
+        ? state.code === ACTION_FEEDBACK.MFA_STEP_UP_REQUIRED
+          ? {
+              tone: "warning",
+              message: tApp.feedback.mfaStepUpRequired,
+              action: { label: tApp.feedback.mfaStepUpAction, onClick: () => router.push("/mfa/") },
+            }
+          : { tone: "error", message: copy.toast.acceptFailed }
         : null
   );
 

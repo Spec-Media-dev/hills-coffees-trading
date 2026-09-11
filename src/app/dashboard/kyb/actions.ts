@@ -42,6 +42,10 @@ async function requireOnboardingOrganization() {
   const identity = await getRequestIdentity();
 
   if (identity.kind !== "authenticated") redirect("/sign-in/");
+  // T033 remediation — before ANY KYB read/mutation below: a step-up-pending session is redirected
+  // to complete it first, defence in depth alongside the `/dashboard` layout guard (this action is
+  // independently reachable by a direct POST regardless of which page rendered its form).
+  if (identity.requiresMfaStepUp) redirect("/mfa/");
   if (!identity.isEmailVerified) redirect("/verify-email/");
   if (identity.organization === null || identity.requiresOrganizationSelection) redirect("/dashboard/");
   // Already authorized — there is no more KYB action to take.

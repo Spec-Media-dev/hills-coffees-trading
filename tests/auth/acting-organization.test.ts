@@ -46,6 +46,14 @@ function fakeClient(userId: string, orgRows: OrgRow[]): SupabaseClient {
   const client = {
     auth: {
       getUser: async () => ({ data: { user: { id: userId } }, error: null }),
+      mfa: {
+        // No enrolled factor for any T002 fixture in this narrow unit test — currentLevel/nextLevel
+        // both "aal1" is Supabase's own honest representation of "no step-up owed" (T033).
+        getAuthenticatorAssuranceLevel: async () => ({
+          data: { currentLevel: "aal1", nextLevel: "aal1", currentAuthenticationMethods: [] },
+          error: null,
+        }),
+      },
     },
     from(table: string) {
       return {

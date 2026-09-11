@@ -250,6 +250,8 @@ export const ar: DeepPartial<AppCopy> = {
       organizationContactSaved: "تم حفظ بيانات التواصل التجارية.",
       organizationContactSaveFailed: "تعذر حفظ بيانات التواصل التجارية. يرجى المحاولة مرة أخرى.",
       actingOrganizationSwitchFailed: "تعذر تبديل المنظمة. يرجى المحاولة مرة أخرى.",
+      mfaStepUpRequired: "يرجى إكمال التحقق من تسجيل الدخول للمتابعة.",
+      mfaStepUpAction: "تحقق الآن",
     },
 
     agreements: {

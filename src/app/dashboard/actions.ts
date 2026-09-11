@@ -55,6 +55,11 @@ export async function acceptAgreement(
   if (identity.kind !== "authenticated") {
     return { ok: false, code: ACTION_FEEDBACK.PROFILE_AUTH_REQUIRED };
   }
+  // T033 remediation — a step-up-pending session must not be able to write a legal-acceptance
+  // evidence row before completing it.
+  if (identity.requiresMfaStepUp) {
+    return { ok: false, code: ACTION_FEEDBACK.MFA_STEP_UP_REQUIRED };
+  }
   if (identity.organization === null || identity.requiresOrganizationSelection) {
     return { ok: false, code: ACTION_FEEDBACK.AGREEMENT_ACCEPT_FAILED };
   }

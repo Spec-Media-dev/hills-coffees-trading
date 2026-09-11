@@ -34,6 +34,53 @@ export const FOUNDATION_FIXTURES = {
   },
 } as const;
 
+/**
+ * Feature 003 Phase 8 (T029) — authorization/state-variant fixtures, created by
+ * `scripts/seed-test-fixtures.ts`'s `seedPhase89()`. Ids mirror that script's own constants exactly
+ * (kept as separate literals here, same precedent as `FOUNDATION_FIXTURES` above, so this file never
+ * needs to import the privileged script).
+ */
+export const PHASE89_FIXTURES = {
+  pendingKyb: {
+    email: "pending-kyb+foundation-test@example.com",
+    organizationId: "f0000000-0000-4000-8000-000000000061",
+    applicationId: "f0000000-0000-4000-8000-000000000071",
+  },
+  completeDraft: {
+    email: "complete-draft+foundation-test@example.com",
+    organizationId: "f0000000-0000-4000-8000-000000000062",
+    applicationId: "f0000000-0000-4000-8000-000000000072",
+  },
+  underReview: {
+    email: "under-review+foundation-test@example.com",
+    organizationId: "f0000000-0000-4000-8000-000000000063",
+    applicationId: "f0000000-0000-4000-8000-000000000073",
+  },
+  suspended: {
+    email: "suspended+foundation-test@example.com",
+    organizationId: "f0000000-0000-4000-8000-000000000064",
+    applicationId: "f0000000-0000-4000-8000-000000000074",
+  },
+  blockedMember: {
+    email: "blocked-member+foundation-test@example.com",
+    organizationId: "f0000000-0000-4000-8000-000000000065",
+    applicationId: "f0000000-0000-4000-8000-000000000075",
+  },
+  mfaMember: {
+    email: "mfa-member+foundation-test@example.com",
+    organizationId: "f0000000-0000-4000-8000-000000000066",
+    applicationId: "f0000000-0000-4000-8000-000000000076",
+  },
+  multiOrg: {
+    email: "multi-org+foundation-test@example.com",
+    organizationAId: "f0000000-0000-4000-8000-000000000067",
+    organizationBId: "f0000000-0000-4000-8000-000000000068",
+  },
+  noOrganization: {
+    email: "no-organization+foundation-test@example.com",
+  },
+} as const;
+
 function loadTestEnvironment(): void {
   let contents: string;
   try {
@@ -92,6 +139,15 @@ export function createAnonymousFixtureClient(): SupabaseClient {
   return newSessionClient();
 }
 
+/**
+ * The shared fixture password, for the rare test that must build its own sign-in FormData (T033's
+ * live Server Action proof) rather than use `signInAsFixture`'s direct `signInWithPassword` call.
+ * Never logged, never included in any assertion message — callers must not print it either.
+ */
+export function fixturePassword(): string {
+  return requireTestEnvironment("TEST_FIXTURE_PASSWORD");
+}
+
 export async function signInAsFixture(
   email: string
 ): Promise<SupabaseClient> {
@@ -115,13 +171,27 @@ export async function signInAsFixture(
  * runtime never reads or imports the privileged credential.
  */
 export function setBuyerAndSellerCanSell(canSell: boolean): void {
+  runFixtureScript([`--set-buyer-and-seller-can-sell=${String(canSell)}`]);
+}
+
+/** T031 freshness-proof control — flips ONLY the `suspended` fixture's organization status. */
+export function setSuspendedOrganizationStatus(status: "ACTIVE" | "SUSPENDED"): void {
+  runFixtureScript([`--set-suspended-organization-status=${status}`]);
+}
+
+/** T032 restore control — resets `completeDraft`'s application back to `DRAFT` after a test transitions it. */
+export function resetCompleteDraftApplication(): void {
+  runFixtureScript(["--reset-complete-draft-application"]);
+}
+
+function runFixtureScript(args: readonly string[]): void {
   loadTestEnvironment();
   execFileSync(
     process.execPath,
     [
       resolve(process.cwd(), "node_modules", "tsx", "dist", "cli.mjs"),
       resolve(process.cwd(), "scripts", "seed-test-fixtures.ts"),
-      `--set-buyer-and-seller-can-sell=${String(canSell)}`,
+      ...args,
     ],
     {
       cwd: process.cwd(),

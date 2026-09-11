@@ -13,11 +13,14 @@ COMPLETE (2026-09-11). **PART 0/PART 1/RUN B (T014–T022) is COMPLETE AND LIVE-
 end-to-end live-verified (fresh-signup profile bootstrap, DRAFT→SUBMITTED→RESUBMISSION_REQUIRED→
 SUBMITTED, 5-document real upload, Compliance rejection/replacement/resubmit, cross-tenant isolation,
 pre-approval authorization gate) — see the handoff doc's "RUN B Live Verification" section.
-DB-BLOCK-11 RESOLVED. **Phase 6 Agreements (T023–T025) and Phase 7 Organization & Profile
-Self-Service (T026–T028) are COMPLETE AND LIVE-VERIFIED (2026-09-11)** — see the handoff doc's
-"Phase 6 + 7 Live Verification" section. Phase 8–11 NOT STARTED.
-**Task inventory**: 47 tasks — existing T001–T040 plus additive T010a–T010g; T001–T028 and
-T010b–T010g are complete; T029+ remain.
+DB-BLOCK-11 RESOLVED. Phase 6 Agreements (T023–T025) and Phase 7 Organization & Profile
+Self-Service (T026–T028) are COMPLETE AND LIVE-VERIFIED (2026-09-11) — see the handoff doc's
+"Phase 6 + 7 Live Verification" section. **Phase 8 Test Fixtures (T029) is COMPLETE (2026-09-11).
+Phase 9 Authorization & Isolation Tests (T030–T034) are COMPLETE AND LIVE-VERIFIED (2026-09-11),
+including T033's applied MFA database/RPC/Storage gate — see the handoff's “T033 Post-Apply Live
+Verification” section. Phase 10–11 remain NOT STARTED.
+**Task inventory**: 47 tasks — existing T001–T040 plus additive T010a–T010g; T001–T034 and
+T010b–T010g are complete; T035+ remain.
 **Prerequisite**: 001 implemented (identity DAL, Supabase clients, server-action contract, state
 components, i18n, test tooling + fixtures).
 
@@ -373,7 +376,7 @@ path. They are intentionally unchecked; this planning update does not create or 
 
 ## Phase 8 — Test fixtures extension
 
-- [ ] T029 Extend 001's `scripts/seed-test-fixtures.ts` with KYB-state variants: org with
+- [x] T029 Extend 001's `scripts/seed-test-fixtures.ts` with KYB-state variants: org with
   `PENDING_KYB`, org `UNDER_REVIEW`, org `ACTIVE`+`APPROVED`, org `SUSPENDED`, user with no
   organization, user in two organizations, blocked user.
   - Req: SC-001..SC-004 | Depends: T010c, T010f
@@ -385,35 +388,43 @@ path. They are intentionally unchecked; this planning update does not create or 
 
 ## Phase 9 — Authorization & isolation tests
 
-- [ ] T030 [P] Write `tests/auth/isolation.test.ts`: org A member cannot read org B's
+- [x] T030 [P] Write `tests/auth/isolation.test.ts`: org A member cannot read org B's
   `kyb_applications`, `kyb_documents`, or `agreement_acceptances`.
   - Req: SEC-002, SC-002, AC-08 | Depends: T010d, T010f, T029, T016
   - Verify: `npm test -- isolation` passes; each cross-org read returns empty/denied
   - Codex: GPT-5.6 Sol — High · Claude: Opus — High
   - Why: this is the release-blocking cross-tenant guarantee (SRS AC-08).
 
-- [ ] T031 [P] Write `tests/auth/eligibility-freshness.test.ts`: flipping org status / KYB status
+- [x] T031 [P] Write `tests/auth/eligibility-freshness.test.ts`: flipping org status / KYB status
   between two resolutions changes the second result without re-authentication.
   - Req: FR-005, SC-001, SC-004 | Depends: T001, T010c, T029
   - Verify: `npm test -- eligibility-freshness` passes
   - Codex: GPT-5.6 Sol — High · Claude: Opus — High
   - Why: proves no stale authorization caching — the core promise of the identity layer.
 
-- [ ] T032 [P] Write `tests/auth/kyb-transitions.test.ts`: incomplete submission blocked with named
+- [x] T032 [P] Write `tests/auth/kyb-transitions.test.ts`: incomplete submission blocked with named
   items; valid submission moves `DRAFT → SUBMITTED`; blocked user refused.
   - Req: FR-010, FR-011 | Depends: T010e, T010f, T018, T029
   - Verify: `npm test -- kyb-transitions` passes
   - Codex: GPT-5.6 Sol — High · Claude: Sonnet — High
   - Why: state-transition correctness against DB constraints.
 
-- [ ] T033 [P] Write `tests/auth/session.test.ts`: sign-out denies the next protected request; MFA
+- [x] T033 [P] Write `tests/auth/session.test.ts`: sign-out denies the next protected request; MFA
   challenge gates data; auth errors do not disclose account existence.
+  - **COMPLETE — post-apply live verification (2026-09-11).**
+    `20260913000000_feature_003_t033_mfa_data_gate.sql` is applied. A real verified-factor user on a
+    fresh AAL1 session receives no direct rows from every protected public table, cannot create a
+    `kyb-evidence` object, and receives SQLSTATE `42501`/`mfa_step_up_required` from every protected
+    browser-callable SECURITY DEFINER RPC. The same browser-held session becomes AAL2 through a real
+    TOTP challenge (without a re-login) and can again read/mutate data for which its existing
+    membership otherwise authorizes it. No-factor AAL1 remains allowed. See the handoff's “T033
+    Post-Apply Live Verification” section.
   - Req: FR-002, FR-003, SC-005 | Depends: T005, T006, T009
   - Verify: `npm test -- session` passes
   - Codex: GPT-5.6 Sol — High · Claude: Sonnet — High
   - Why: session/MFA behaviours are security assertions, not UI assertions.
 
-- [ ] T034 Write `tests/auth/agreements.test.ts`: acceptance evidence completeness and version-bump
+- [x] T034 Write `tests/auth/agreements.test.ts`: acceptance evidence completeness and version-bump
   re-gating.
   - Req: FR-014, SC-006 | Depends: T024, T025
   - Verify: `npm test -- agreements` passes

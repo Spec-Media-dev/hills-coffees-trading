@@ -1,6 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useRouter } from "next/navigation";
 import { startTransition, useActionState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 
@@ -64,19 +65,26 @@ type Props = {
  */
 export function ProfileSettingsForm({ initialValues }: Props) {
   const { tApp } = useLocale();
+  const router = useRouter();
   const [state, dispatch, isPending] = useActionState(updateMyProfile, undefined);
   useActionToast(
     state,
     state?.ok === true
       ? { tone: "success", message: tApp.feedback.profileSaved }
       : state?.ok === false && state.code !== ACTION_FEEDBACK.VALIDATION_ERROR
-        ? {
-            tone: "error",
-            message:
-              state.code === ACTION_FEEDBACK.PROFILE_AUTH_REQUIRED
-                ? tApp.feedback.signInRequired
-                : tApp.feedback.profileSaveFailed,
-          }
+        ? state.code === ACTION_FEEDBACK.MFA_STEP_UP_REQUIRED
+          ? {
+              tone: "warning",
+              message: tApp.feedback.mfaStepUpRequired,
+              action: { label: tApp.feedback.mfaStepUpAction, onClick: () => router.push("/mfa/") },
+            }
+          : {
+              tone: "error",
+              message:
+                state.code === ACTION_FEEDBACK.PROFILE_AUTH_REQUIRED
+                  ? tApp.feedback.signInRequired
+                  : tApp.feedback.profileSaveFailed,
+            }
         : null
   );
 

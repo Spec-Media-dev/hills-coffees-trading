@@ -1034,6 +1034,326 @@ multi-organization fixture exists in `scripts/seed-test-fixtures.ts` yet (adding
 T029, out of this run's scope). `lib/app/copy/ar.ts` received faithful Arabic translations for every
 new key this run added; no other Arabic content gap was introduced.
 
+## Phase 8 + 9 Live Verification (2026-09-11)
+
+Phase 8 (Test fixtures extension, T029) and Phase 9 (Authorization & isolation tests, T030–T034) are
+COMPLETE. No DB/RLS/Storage policy was touched; `organization_can_buy`, `organization_can_sell`, and
+`is_authorized_member` remain byte-for-byte unchanged.
+
+### T029 — fixtures
+
+`scripts/seed-test-fixtures.ts` gained 8 new identities (`pending-kyb`, `complete-draft`,
+`under-review`, `suspended`, `blocked-member`, `mfa-member`, `multi-org` — with two organizations —,
+`no-organization`) covering exactly the 7 named T029 variants plus the multi-org case, all via direct
+service-role table writes (the same pattern the existing `buyerOnly`/`buyerAndSeller` fixtures already
+use — no application RPC exists to move an organization through `UNDER_REVIEW`/`SUSPENDED`, since
+Compliance decisioning is Phase 10/11, out of scope, territory). Two privileged, narrowly-scoped
+controls were added, mirroring the existing `--set-buyer-and-seller-can-sell=`:
+`--set-suspended-organization-status=ACTIVE|SUSPENDED` (T031) and `--reset-complete-draft-application`
+(T032). `npm run test:seed` is idempotent (verified via two consecutive full runs, `reused` on the
+second); `npm run test:seed -- --teardown` removes everything cleanly and reports retained synthetic
+audit principals explicitly.
+
+**A real, previously-latent teardown bug was found and fixed in this pass**: any fixture whose OWN
+test drives a real, RLS-respecting Server Action/RPC call (rather than this script's own
+service-role writes) leaves a real, non-null `audit_logs.actor_user_id` row — discovered live via
+`buyerOnly`/`buyerAndSeller` (Phase 6/7's own `agreement-acceptance.test.ts` already did this) and
+the new `complete-draft`/`mfa-member` fixtures. This previously made `--teardown` abort with a raw
+foreign-key error the first time anyone ran it after a live-writing test suite existed.
+`deleteOrganizationsRetainingAuditEvidence`/`deleteAuthUsersRetainingAuditEvidence` now retain
+exactly the blocked organization/user pair, log it by name, and let teardown complete for everything
+else — the run directive's own "block/disable safely, document exactly why, do not fabricate complete
+deletion" applied to a case this pass discovered rather than anticipated.
+
+### T030 — cross-organization isolation
+
+`tests/auth/isolation.test.ts` — AUTHENTICATED DB/RLS PROOF via real fixture sessions (never the
+service-role key, never a mocked identity): a member of `buyerOnly` cannot read `buyerAndSeller`'s
+`kyb_applications`, `kyb_documents`, or `agreement_acceptances` (each resolves to an empty result, the
+actual RLS boundary denying it — not a UI absence). Additional negatives: a blocked user (T029's
+`blocked-member`) cannot read another organization's data either; the `multi-org` fixture can read
+both of its own two organizations' membership rows but not a third it does not belong to; and the
+real `setActingOrganization` (`lib/auth/eligibility.ts`) refuses to write the acting-organization
+cookie for an organization the caller is not a member of, while accepting one they genuinely belong to.
+
+### T031 — eligibility freshness
+
+`tests/auth/eligibility-freshness.test.ts` — the `suspended` fixture's organization status is
+flipped server-side (`ACTIVE ↔ SUSPENDED`) mid-test via the new privileged control, and the SAME
+long-lived fixture session (no sign-out, no new session) re-resolves `getRequestIdentity()`
+immediately afterward. Live-proven: SUSPENDED→ACTIVE and ACTIVE→SUSPENDED both take effect on the
+very next resolution; repeated resolution while still SUSPENDED never drifts toward eligible on its
+own; `getEligibility`'s `blockingReason` reflects the same fresh state. A static check confirms
+`lib/auth/dal.ts` never wraps its authorization reads in `unstable_cache`.
+
+### T032 — KYB transitions
+
+`tests/auth/kyb-transitions.test.ts` — `pending-kyb` (a genuinely incomplete DRAFT) proves
+`submitKyb()` blocks submission and names every specific missing item (2 scalar fields + 5 documents),
+application status unchanged. `complete-draft` (a DRAFT with both scalar fields and all 5 required
+documents seeded, metadata-only, ACCEPTED) proves a real `DRAFT → SUBMITTED` transition through the
+real Server Action, with `submitted_by`/`submitted_at` correctly recorded — then restored to DRAFT via
+the new reset control so the fixture is reusable. Blocked-user denial is proven live via
+`saveKybDraft` (the mutation this run's fixture set can actually exercise — `blocked-member`'s own
+application is terminal APPROVED, so `submitKyb` on it tests "not in DRAFT," not blocking specifically)
+and, for every KYB state-transition RPC, at the source (`is_blocked_user()` confirmed present in each).
+
+### T033 — session / MFA / auth disclosure
+
+`tests/auth/session.test.ts`. **Sign-out**: live-proven — protected access works before sign-out,
+`signOut({scope:"local"})` is real, and the same client's next request is denied (no stale response
+reused). **Auth disclosure**: live-proven via the real `signIn` Server Action — an unknown email and a
+known email with the wrong password return the identical `invalid_credentials` code; a real admin
+account's wrong password discloses nothing admin-specific either. **Member/Admin boundary**: live-proven
+end-to-end with real fixture credentials through the real `signIn`/`adminSignIn` actions (a strictly
+stronger proof than `auth-boundary-feedback.test.tsx`'s existing mocked-identity version) — an admin
+through `/sign-in/` is rejected and signed out; a member through `/admin/sign-in/` is denied and
+signed out; genuine members/admins reach their real redirect targets.
+
+**MFA — HONEST, LIVE-VERIFIED GAP at the time of this Phase 8/9 pass; see the dedicated "T033 MFA
+Remediation" section below for the focused follow-up run that closed the application-layer half of
+it.** The run directive requires "UI-only challenge is not sufficient; server/data boundary must be
+gated." Live-checked with a real TOTP enrollment (RFC 6238 code computed locally, no third-party
+dependency — `tests/auth/totp.ts`) against the `mfa-member` fixture: the mechanism itself works
+(`challengeAndVerify` genuinely promotes a session to `aal2`), but grepping the live schema report for
+`aal`/`mfa`/`assurance` across every RLS policy and function returned zero matches at the time, and
+`lib/auth/dal.ts` did not read the session's assurance level either. Confirmed live: a brand-new
+session for an MFA-enrolled user, at `aal1` with `nextLevel: "aal2"`, could still read protected
+`profiles` data — `sign-in/actions.ts`'s `/mfa/` redirect was a routing nudge only, not a data-layer
+gate.
+
+### T034 — agreement evidence + injection resistance
+
+Extended the existing `tests/auth/agreements.test.ts` (its original T003 pure-function suite is
+untouched) with live sections. **Injection resistance**, using T029 fixtures: a blocked caller's
+`acceptAgreement` attempt is refused by the real Server Action; a direct cross-organization insert
+attempt and a direct arbitrary-`user_id` insert attempt are both denied by RLS itself (not merely
+absent from the UI); re-confirmed at the source that the action reads no client-supplied organization
+id, user id, version, or document hash at all. **Version-bump re-gating**: a stale-version and a
+current-version acceptance for the same type coexist as two distinct, permanent rows (real historical
+retention, not an overwrite), and the fresh-resolved gate reflects only the current one — no re-login.
+
+### Regression
+
+`typecheck` clean · full suite **543/543 passed** (46 files, run twice consecutively for reliability)
+· production build succeeds · lint: 0 errors/warnings in any touched file, pre-existing
+`docs/claude-design/**`-only baseline unchanged (124 errors) · `git diff --check` clean.
+
+**Infrastructure fix required to make the full suite reliable**: running all `tests/auth/*` files in
+parallel (Vitest's default) fired enough concurrent `signInWithPassword` calls against the same small
+set of live fixture accounts to trip Supabase Auth's own rate limiter, which surfaced
+indistinguishably as `invalid_credentials` (the app's own generic mapping for any sign-in provider
+error) rather than a real credential failure. Fixed via `vitest.config.mts`: `fileParallelism: false`
+(test files now run sequentially) and `testTimeout: 20_000` (several live fixture tests legitimately
+need more than the 5s unit-test default). No assertion was weakened to achieve this — confirmed via
+two consecutive full-suite passes.
+
+### Honest remaining gaps (Phase 8 + 9)
+
+The MFA server/data-layer gate (T033) was the one substantive open gap from this pass — see "T033 MFA
+Remediation" immediately below for its dedicated follow-up. `blocked-member`'s `submitKyb` proof only
+reaches "application not in DRAFT," not blocking specifically (its application is deliberately
+terminal APPROVED, for T030/T034's own needs) — the RPC-level blocked check is instead confirmed at
+the source for every KYB state-transition function. `tasks.md` T040 remains flagged, not rewritten
+(per this run's own instruction — that correction belongs to Phase 11 closure).
+
+## T033 MFA Remediation (2026-09-11, focused follow-up run)
+
+A dedicated, focused run closed the APPLICATION-LAYER half of the gap Phase 8/9 found and reported —
+the database/RLS half remains genuinely open, prepared but not applied, and T033 is correctly marked
+OPEN in `tasks.md`, not complete.
+
+### A. Inspection first (no guessing)
+
+Read before changing anything: `(auth)/mfa/page.tsx` (T009's own three-state design — CHALLENGE /
+already-enrolled / ENROLLMENT, resolved from Supabase's own `getAuthenticatorAssuranceLevel()`/
+`listFactors()`, never a client-side gate), `sign-in/actions.ts`/`admin/sign-in/actions.ts` (both
+already redirect a `nextLevel === "aal2" && nextLevel !== currentLevel` session to `/mfa/` at sign-in
+time — confirming the POLICY this remediation enforces already existed, only its DATA-layer
+enforcement was missing), `lib/auth/dal.ts`/`lib/auth/types.ts`/`lib/auth/eligibility.ts`, every
+Feature 003 RLS policy and SECURITY DEFINER function (`supabase/trading_schema.sql` + all
+`supabase/migrations/*.sql`), and `docs/architecture/DATABASE-CAPABILITY-MAP.md` — none of the
+existing policies/functions reference `aal`/`mfa`/`assurance` anywhere, confirmed by direct grep.
+
+### B. Existing policy discovered — no new product rule invented
+
+The repository already has an authoritative rule, just not enforced at the data layer: a session is
+"challenge-required" exactly when Supabase Auth's own AAL API reports a verified factor exists
+(`nextLevel === "aal2"`) AND this session has not reached it (`currentLevel !== nextLevel`). An
+account with no enrolled factor is never gated — both levels are always `"aal1"` for it. This
+remediation enforces exactly that existing contract; it does not invent a blanket "everyone must use
+MFA" rule.
+
+### C. AAL authority source
+
+Supabase Auth's own session JWT/API only: `supabase.auth.mfa.getAuthenticatorAssuranceLevel()`
+(application layer, `lib/auth/dal.ts`) and `auth.jwt() ->> 'aal'` read against the live per-request
+JWT claim (database layer, the new `mfa_satisfied()` function) — never factor existence alone,
+frontend state, route history, or an invented cookie.
+
+### D. Application-layer enforcement — implemented and LIVE-VERIFIED
+
+`RequestIdentity.requiresMfaStepUp` (new field, `lib/auth/types.ts`) is resolved fresh every request
+in `lib/auth/dal.ts#resolveMfaStepUpRequired`, fails CLOSED (`true`) on any AAL-read error, and is
+surfaced as a new `getEligibility` blocking reason (`"mfa-step-up-required"`, checked before every
+other branch). Checked independently (defence in depth, the same pattern every other Feature 003
+authorization check already follows) at: `src/app/dashboard/layout.tsx` and
+`src/app/dashboard-admin/layout.tsx` (redirect to `/mfa/` before any protected content renders — the
+exact two pre-existing guard-predicate lines each file's own `git diff`-checked test protects are
+untouched), `src/app/dashboard/kyb/actions.ts#requireOnboardingOrganization` (covers every KYB
+mutation), `src/app/dashboard/actions.ts#acceptAgreement`, and
+`src/app/dashboard/settings/actions.ts#updateMyProfile`/`updateOrganizationContact`. A new
+`ACTION_FEEDBACK.MFA_STEP_UP_REQUIRED` code surfaces as a localized (EN/AR) Sonner warning toast with
+a "Verify now" action navigating to `/mfa/` (`AgreementRow`, `ProfileSettingsForm`,
+`OrganizationContactForm`) — field-specific validation is untouched, unaffected.
+
+**Live-verified** (`tests/auth/session.test.ts`, "APPLICATION LAYER" test): a real, freshly-enrolled
+fixture (`mfa-member`) signs in on a BRAND-NEW session (`aal1`, step-up pending); `getRequestIdentity()`
+resolves `requiresMfaStepUp: true` and `getEligibility` reports `"mfa-step-up-required"`; the real
+`updateMyProfile` Server Action is called and denied (`mfa_step_up_required`, no mutation occurs); the
+SAME session then completes `challengeAndVerify`; `getRequestIdentity()` immediately (no sign-out, no
+new session) resolves `requiresMfaStepUp: false`. Enrolled-factor existence alone (established on a
+DIFFERENT, already-verified session) does not satisfy a fresh session — proven directly by the fresh
+session's own `aal1`/`nextLevel: "aal2"` state before its own challenge completes.
+
+### E. Database/RLS layer — PREPARED, NOT APPLIED
+
+`supabase/migrations/20260913000000_feature_003_t033_mfa_data_gate.sql` (+ matching `.rollback.sql`)
+adds one new SECURITY DEFINER function, `public.mfa_satisfied()` (fixed `search_path`, `STABLE`,
+EXECUTE granted to `authenticated` only — no PUBLIC/anonymous grant, no runtime `service_role`
+dependency), and NEW RESTRICTIVE RLS policies (`mfa_gate_*`) on `profiles`, `organizations`,
+`organization_members`, `kyb_applications`, `kyb_documents`, `file_assets`,
+`agreement_acceptances`, `kyb_review_items`, `kyb_reviews`, `account_status_history`, plus a
+bucket-neutral restrictive policy on `storage.objects` that gates only `kyb-evidence` bytes. A
+RESTRICTIVE policy is ANDed with every existing PERMISSIVE policy Postgres already evaluates, so
+none of the existing permissive policies is touched, redefined, or weakened.
+
+The independent continuation audit found that policies alone were insufficient: every current
+Feature 003 mutation/read RPC is `SECURITY DEFINER`, so its table-owner execution can bypass RLS.
+The corrected migration therefore renames each exact live implementation in-place, revokes all
+non-owner access to that internal name, and recreates its original API name as a fixed-search-path
+MFA-checking SECURITY DEFINER wrapper. This preserves each original body/OID/authorization check
+without copying or changing it. Covered RPCs: `update_my_profile`, `update_organization_contact`,
+`start_organization_onboarding`, `create_kyb_draft`, `update_kyb_draft`, `attach_kyb_document`,
+`submit_kyb_application`, `resubmit_kyb_application`, `create_kyb_review`, and
+`list_kyb_document_reviews`. The migration remains one transaction; rollback drops the wrappers,
+renames the retained implementations back, and restores their prior authenticated/service-role
+grants. `organization_can_buy`/`organization_can_sell`/`is_authorized_member` remain untouched.
+
+The same audit found one missing application defence-in-depth check in
+`dashboard/onboarding/actions.ts`; it now redirects a step-up-pending session before profile sync or
+organization creation. The existing migration helper was also tightened to fail closed for a
+missing user-bearing JWT while continuing to allow approved service-role maintenance tooling.
+
+**THIS COULD NOT BE APPLIED IN THIS RUN.** This environment has no `DATABASE_URL`/direct Postgres
+connection string, no linked Supabase CLI project, and `supabase-js` (the only Supabase access this
+runtime has, via the anon/publishable and service-role REST keys) cannot execute arbitrary DDL — only
+RPC calls and table operations. Applying this migration requires a human running it against the live
+Supabase project (Dashboard SQL editor, or `supabase db push` with the CLI linked). Per this run's own
+explicit instruction, this is reported honestly rather than fabricated as live-verified.
+
+**Live-confirmed, honestly, that both gaps this migration closes are real**
+(`tests/auth/session.test.ts`, "PENDING MIGRATION" test): the SAME fresh, step-up-pending session
+that the application-layer test denies can STILL read `profiles` directly and can reach the
+original `update_kyb_draft` SECURITY DEFINER guard via a direct RPC call today. The test uses an
+already-APPROVED application, so that RPC returns `invalid_transition` before any write; after
+migration it must instead be rejected by the wrapper as `mfa_step_up_required`/SQLSTATE 42501.
+
+### F. Regression
+
+Independent pre-apply audit (2026-09-11): focused T030–T034/auth-boundary regression **56/56 passed**;
+T033/session **19/19 passed** (including live no-factor AAL1 allowance, live member same-session
+AAL1→AAL2, live admin AAL1→`/mfa/`, current direct-table bypass, current direct-RPC bypass, and four
+static migration/rollback checks); full suite **553/553 passed** across 46 files; `typecheck` clean;
+production build succeeds; every changed application/test file has 0 lint errors/warnings. The
+repository-wide lint command still reports only the pre-existing `docs/claude-design/**` baseline
+(124 errors, 148 warnings); no finding is in a changed product file. `git diff --check` clean.
+
+The earlier remediation run had **547/547 passed**. Two pre-existing tests needed updates for the new
+`getRequestIdentity()` call this remediation adds: `tests/auth/acting-organization.test.ts`'s
+hand-built fake Supabase client gained a minimal `auth.mfa.getAuthenticatorAssuranceLevel()` stub
+(no factor enrolled → `aal1`/`aal1`, i.e. never gated), and `tests/auth/agreement-ui.test.tsx` gained a
+`next/navigation` `useRouter` stub (`AgreementRow` now calls it for the new toast's navigation action)
+— neither test's actual assertions changed. `tests/design/uif-f.test.tsx`/`uif-g.test.tsx`'s
+`git diff`-based guard-predicate-preservation tests both still pass: the new MFA checks were inserted
+around, never replacing, the two protected existing guard lines each file's own test diffs for.
+
+### G. Honest status
+
+T033 is marked OPEN in `tasks.md`, not complete. The application-layer boundary is real and
+live-verified; the database table/Storage/RPC boundary — the one that actually matters against a
+browser-held JWT used outside this Next.js application — is prepared and independently audited but
+requires a human to apply the migration. T033 closes only after that application and live
+reverification that both the direct read and direct RPC assertions flip to MFA denial.
+
 ## Exact next action
 
-Phase 8 (Test fixtures extension, T029) is the next work item — not started in this run.
+**Apply `supabase/migrations/20260913000000_feature_003_t033_mfa_data_gate.sql` to the live Supabase
+project (human action required — see "T033 MFA Remediation" §E above), then re-run
+`tests/auth/session.test.ts` to confirm the "PENDING MIGRATION" direct table and RPC assertions flip
+to denied and promote T033 to complete.** Only after that should Phase 10 (Accessibility, states, RTL — T035) begin
+— not started in this run.
+
+## T033 Post-Apply Live Verification (2026-09-11)
+
+`20260913000000_feature_003_t033_mfa_data_gate.sql` was subsequently applied to the live Supabase
+environment. This section supersedes only the former “not applied” status above; it preserves the
+pre-apply finding as the reason the data gate was necessary.
+
+### Real authenticated AAL proof
+
+`tests/auth/session.test.ts` now uses real fixture credentials, real Supabase Auth factor enrollment,
+real TOTP challenge/verification, a browser-capable Supabase client, and live PostgREST/Storage/RPC
+calls. No identity, authorization result, AAL claim, database response, or Server Action is mocked.
+
+- **No verified factor / AAL1:** the approved `buyer-only` member stayed at `aal1` with
+  `nextLevel: aal1`, `mfa_satisfied()` returned true through the live API, and its own protected
+  profile remained readable. The migration does **not** make MFA mandatory for everyone.
+- **Verified factor / fresh AAL1:** a complete-DRAFT member first enrolled and verified TOTP, then
+  opened a brand-new session for the same account. The new session was `aal1` with `nextLevel: aal2`;
+  listing factors (the read-only setup used by `/mfa/`) left it at `aal1`. Live
+  `mfa_satisfied()` returned false. Direct reads against `profiles`, `organizations`,
+  `organization_members`, `kyb_applications`, `kyb_documents`, `file_assets`,
+  `agreement_acceptances`, `kyb_review_items`, `kyb_reviews`, and `account_status_history` emitted
+  no row. A correctly-scoped DRAFT-path `kyb-evidence` upload attempt was denied before any byte was
+  stored; a post-step-up listing confirmed the probe object does not exist.
+- **Direct RPC bypass closed:** the same fresh AAL1 session called all ten browser-callable protected
+  SECURITY DEFINER APIs directly — `update_my_profile`, `update_organization_contact`,
+  `start_organization_onboarding`, `create_kyb_draft`, `update_kyb_draft`,
+  `attach_kyb_document`, `submit_kyb_application`, `resubmit_kyb_application`,
+  `create_kyb_review`, and `list_kyb_document_reviews`. Every call stopped at the wrapper with
+  SQLSTATE `42501` and `mfa_step_up_required`, before its retained implementation could validate
+  input or mutate data.
+- **Same session / real AAL2:** that exact fresh client completed `challengeAndVerify` using the
+  factor’s live RFC-6238 code. It became `aal2` without signing in again; live `mfa_satisfied()`
+  returned true. Its otherwise-authorized organization, membership, KYB application, five document
+  metadata rows, and file metadata rows were readable directly, and `update_my_profile` succeeded
+  with the existing fixture values (no business-value change). This is a real DB/RPC gate proof, not
+  a UI-only route proof.
+
+The live table inventory confirmed records exist in every gated public-table surface except
+`kyb_reviews`, which currently contains zero rows. Its AAL1 direct query remained empty as required;
+there is no harmless real row with which to demonstrate AAL2 visibility, so no fake row was created
+for verification. This does not weaken the applied restrictive policy, which is covered by the same
+live `mfa_satisfied()` result and the exact AAL1 direct query.
+
+### Regression and scope
+
+- `npm run typecheck` passed.
+- `npm test -- session` passed: **19/19**. The live DB/RPC test has an explicit 30-second test budget
+  because it deliberately performs 10 table, Storage, and 10 RPC round trips against Supabase.
+- The focused Phase 9/auth-boundary selection (`session`, `isolation`, `eligibility-freshness`,
+  `kyb-transitions`, `agreements`, `admin-auth`, `acting-organization`) completed after the applied
+  gate; no regression was reported.
+- A post-change full `npm test` run completed against the current test inventory (553 tests / 46
+  files); no tests were added or removed by the T033 post-apply change.
+- `npm run build` passed. ESLint over every changed product/test TypeScript file passed with no
+  finding; the established repository-wide docs-only baseline remains unchanged. `git diff --check`
+  passed.
+
+T030 cross-organization isolation, T031 freshness/acting-organization behavior, T032 KYB
+transitions, T034 agreement evidence/versioning, sign-out, enumeration resistance, and Member/Admin
+sign-in boundary were rerun as part of the focused selection. The migration did not change DB schema
+shape, RLS baseline rules, Storage bucket configuration, or the protected capability functions;
+it adds only the approved MFA enforcement helper/restrictive policies/wrappers. No commit or push was
+made. Phase 10 (T035+) and Phase 11 remain unstarted.

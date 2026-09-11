@@ -24,6 +24,7 @@ function authenticated(overrides: Partial<Extract<RequestIdentity, { kind: "auth
     isEmailVerified: true,
     operationalRoles: [],
     hasAcceptedCurrentAgreements: true,
+    requiresMfaStepUp: false,
     ...overrides,
   };
 }

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 
 import { AppShell } from "@/components/app/app-shell";
 import { buildMemberNavGroups } from "@/components/app/member-navigation";
@@ -62,6 +63,18 @@ export default async function DashboardLayout({
         <StateScreen kind="unauthorized" />
       </div>
     );
+  }
+
+  // T033 remediation — SECURITY-CRITICAL, checked before ANY protected data below is fetched or
+  // rendered by a child Server Component. A session that must complete an MFA step-up (a verified
+  // factor exists and this session has not yet reached `aal2`) is redirected to the SAME `/mfa/`
+  // destination `sign-in/actions.ts`/`admin/sign-in/actions.ts` already use — an application-layer
+  // gate in front of the real, database-level boundary (`mfa_satisfied()`-gated RLS; see the T033
+  // remediation migration), never a substitute for it. This is never a blanket "every user needs
+  // MFA" rule — `identity.requiresMfaStepUp` is `false` for the overwhelming majority of accounts,
+  // which have never enrolled a factor at all (Supabase's own AAL semantics already encode that).
+  if (identity.requiresMfaStepUp) {
+    redirect("/mfa/");
   }
 
   // Every branch below this point is reachable only by an authenticated caller, but still BEFORE

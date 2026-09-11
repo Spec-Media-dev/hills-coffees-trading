@@ -283,6 +283,8 @@ export const en = {
       organizationContactSaved: "Business contact details saved.",
       organizationContactSaveFailed: "Could not save business contact details. Please try again.",
       actingOrganizationSwitchFailed: "Could not switch organization. Please try again.",
+      mfaStepUpRequired: "Please complete your sign-in verification to continue.",
+      mfaStepUpAction: "Verify now",
     },
 
     /**
