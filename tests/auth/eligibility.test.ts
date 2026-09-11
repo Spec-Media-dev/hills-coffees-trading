@@ -23,6 +23,7 @@ function authenticated(overrides: Partial<Extract<RequestIdentity, { kind: "auth
     isAuthorizedMember: false,
     isEmailVerified: true,
     operationalRoles: [],
+    hasAcceptedCurrentAgreements: true,
     ...overrides,
   };
 }
@@ -115,5 +116,62 @@ describe("T001 — getEligibility branches", () => {
     const result = getEligibility(identity);
     expect(result.canReachTrading).toBe(true);
     expect(result.canBuy).toBe(false);
+  });
+});
+
+/**
+ * Feature 003 T025 — the agreement gate. Checked ONLY after KYB/organization eligibility already
+ * passes; never a substitute for it (spec: "existing eligibility remains authoritative").
+ */
+describe("T025 — agreement gate", () => {
+  function authorizedIdentity(hasAcceptedCurrentAgreements: boolean): RequestIdentity {
+    return authenticated({
+      organizations: [{ organizationId: "a", displayName: "A", memberRole: "OWNER", canBuy: true, canSell: true }],
+      organization: { organizationId: "a", displayName: "A", memberRole: "OWNER", canBuy: true, canSell: true },
+      isAuthorizedMember: true,
+      hasAcceptedCurrentAgreements,
+    });
+  }
+
+  it("authorized organization, current agreements NOT accepted → agreements-required gate", () => {
+    const result = getEligibility(authorizedIdentity(false));
+    expect(result.blockingReason).toBe("agreements-required");
+    expect(result.nextAction).toBe("accept-agreements");
+    // The underlying KYB/trading eligibility is unchanged and still true — the agreement gate is
+    // additive, never a replacement for it.
+    expect(result.canReachTrading).toBe(true);
+    expect(result.canBuy).toBe(true);
+    expect(result.canSell).toBe(true);
+  });
+
+  it("authorized organization, current agreements accepted → no blocking reason", () => {
+    const result = getEligibility(authorizedIdentity(true));
+    expect(result.blockingReason).toBeNull();
+    expect(result.nextAction).toBe("none");
+  });
+
+  it("a version bump re-gates a previously-accepted organization on the very next resolution — no reauth, no caching", () => {
+    // `hasAcceptedCurrentAgreements` is resolved fresh per request by the DAL (never cached on the
+    // identity object across requests); this test proves getEligibility reacts correctly to that
+    // fresh value flipping from true to false, exactly as a registry version bump would produce.
+    const acceptedBeforeBump = getEligibility(authorizedIdentity(true));
+    expect(acceptedBeforeBump.blockingReason).toBeNull();
+
+    const sameOrgAfterBump = getEligibility(authorizedIdentity(false));
+    expect(sameOrgAfterBump.blockingReason).toBe("agreements-required");
+    expect(sameOrgAfterBump.nextAction).toBe("accept-agreements");
+  });
+
+  it("agreements are never evaluated before KYB/organization eligibility — not-authorized still wins", () => {
+    const identity = authenticated({
+      organizations: [{ organizationId: "a", displayName: "A", memberRole: "OWNER", canBuy: false, canSell: false }],
+      organization: { organizationId: "a", displayName: "A", memberRole: "OWNER", canBuy: false, canSell: false },
+      isAuthorizedMember: false,
+      hasAcceptedCurrentAgreements: false,
+    });
+    const result = getEligibility(identity);
+    // A PENDING_KYB/unauthorized org must never be told "accept agreements to unlock trading".
+    expect(result.blockingReason).toBe("not-authorized");
+    expect(result.nextAction).toBe("await-authorization");
   });
 });

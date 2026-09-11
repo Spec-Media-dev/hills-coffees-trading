@@ -35,6 +35,7 @@ export type BlockingReason =
   | "unattached"
   | "organization-selection-required"
   | "not-authorized"
+  | "agreements-required"
   | null;
 
 export type NextAction =
@@ -42,6 +43,7 @@ export type NextAction =
   | "choose-organization"
   | "await-onboarding"
   | "await-authorization"
+  | "accept-agreements"
   | "none";
 
 export type Eligibility = {
@@ -98,6 +100,22 @@ export function getEligibility(identity: RequestIdentity): Eligibility {
       canSell,
       blockingReason: "not-authorized",
       nextAction: "await-authorization",
+    };
+  }
+
+  // Feature 003 T025 — checked ONLY after KYB/organization eligibility already passed
+  // (`canReachTrading` true). Agreement acceptance is an ADDITIONAL condition on top of the
+  // approved authorization truth, never a substitute for it: a PENDING_KYB/SUBMITTED/UNDER_REVIEW/
+  // REJECTED/SUSPENDED organization is denied above by `not-authorized` and never reaches this
+  // branch, so agreements are never presented as if accepting them could unlock trading on their
+  // own (run directive "UNAPPROVED USERS").
+  if (!identity.hasAcceptedCurrentAgreements) {
+    return {
+      canReachTrading,
+      canBuy,
+      canSell,
+      blockingReason: "agreements-required",
+      nextAction: "accept-agreements",
     };
   }
 

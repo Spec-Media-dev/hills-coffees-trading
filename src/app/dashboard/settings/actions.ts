@@ -6,6 +6,7 @@ import { getRequestIdentity } from "@/lib/auth/dal";
 import { createClient } from "@/lib/supabase/server";
 import { ACTION_FEEDBACK, type ActionFeedbackResult } from "@/lib/types/action-feedback";
 import { MyProfileInput } from "@/lib/validation/my-profile";
+import { OrganizationContactInput } from "@/lib/validation/organization-contact";
 
 /**
  * `updateMyProfile` — the FR-012 Server Action Contract reference implementation
@@ -81,4 +82,60 @@ export async function updateMyProfile(
       companyName: parsed.data.companyName ?? null,
     },
   };
+}
+
+/**
+ * `updateOrganizationContact` — Feature 003 T026. Same six-step shape as `updateMyProfile` above.
+ *
+ * ONLY `update_organization_contact` is ever called — no direct `organizations` table UPDATE
+ * anywhere in this file. The RPC itself (confirmed against the live schema report) accepts exactly
+ * `p_organization_id, p_display_name, p_email, p_phone` and writes exactly those three columns; it
+ * has no parameter through which `status`/`account_type`/`can_buy`/`can_sell`/`is_hills_internal`/
+ * `created_by` could ever be supplied, by this action or by a tampered request directly against it.
+ *
+ * `p_organization_id` is the caller's FRESH acting organization from `getRequestIdentity()` —
+ * never a hidden form field. The RPC independently re-verifies `is_org_member(p_organization_id)`
+ * and `NOT is_blocked_user()` itself (`raise exception 'forbidden'` otherwise) — defence in depth,
+ * not this action's only line of defence against a cross-org or blocked-caller attempt.
+ */
+export async function updateOrganizationContact(
+  _prevState: ActionFeedbackResult | undefined,
+  formData: FormData
+): Promise<ActionFeedbackResult> {
+  // 1. VALIDATE
+  const parsed = OrganizationContactInput.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) {
+    return { ok: false, code: ACTION_FEEDBACK.VALIDATION_ERROR, fieldErrors: parsed.error.flatten().fieldErrors };
+  }
+
+  // 2. AUTHENTICATE
+  const identity = await getRequestIdentity();
+  if (identity.kind !== "authenticated") {
+    return { ok: false, code: ACTION_FEEDBACK.PROFILE_AUTH_REQUIRED };
+  }
+
+  // 3. AUTHORIZE — a fresh, unambiguous acting organization is required; the RPC re-verifies
+  // membership itself regardless.
+  if (identity.organization === null || identity.requiresOrganizationSelection) {
+    return { ok: false, code: ACTION_FEEDBACK.ORGANIZATION_CONTACT_SAVE_FAILED };
+  }
+
+  // 4. CONTROLLED DATA ACCESS
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("update_organization_contact", {
+    p_organization_id: identity.organization.organizationId,
+    p_display_name: parsed.data.displayName || null,
+    p_email: parsed.data.email || null,
+    p_phone: parsed.data.phone || null,
+  });
+
+  // 5. SAFE ERROR MAPPING
+  if (error) {
+    return { ok: false, code: ACTION_FEEDBACK.ORGANIZATION_CONTACT_SAVE_FAILED };
+  }
+
+  // 6. REVALIDATE
+  revalidatePath("/dashboard/settings");
+
+  return { ok: true, data: undefined, code: ACTION_FEEDBACK.ORGANIZATION_CONTACT_SAVED };
 }

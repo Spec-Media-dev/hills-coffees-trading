@@ -38,6 +38,11 @@ export const ACTION_FEEDBACK = {
   PROFILE_AUTH_REQUIRED: "profile_auth_required",
   PROFILE_SAVE_FAILED: "profile_save_failed",
   PROFILE_SAVED: "profile_saved",
+  AGREEMENT_ACCEPTED: "agreement_accepted",
+  AGREEMENT_ACCEPT_FAILED: "agreement_accept_failed",
+  ORGANIZATION_CONTACT_SAVED: "organization_contact_saved",
+  ORGANIZATION_CONTACT_SAVE_FAILED: "organization_contact_save_failed",
+  ACTING_ORGANIZATION_SWITCH_FAILED: "acting_organization_switch_failed",
 } as const;
 
 export type ActionFeedbackCode = (typeof ACTION_FEEDBACK)[keyof typeof ACTION_FEEDBACK];

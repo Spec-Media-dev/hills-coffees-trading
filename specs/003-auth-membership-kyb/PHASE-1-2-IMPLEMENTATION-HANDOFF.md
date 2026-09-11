@@ -923,6 +923,117 @@ logical LTR/RTL positioning and the existing light/dark Sonner theme integration
 must reuse this code/result/copy pattern rather than adding providers, returning raw errors, or
 rendering a global action result inline.
 
+## Phase 6 + 7 Live Verification (2026-09-11)
+
+Phase 6 (Agreements, T023–T025) and Phase 7 (Organization & Profile Self-Service, T026–T028) are
+COMPLETE and live-verified against the real, already-applied database. No migration and no
+authorization-function change was required or made — `organization_can_buy`, `organization_can_sell`,
+and `is_authorized_member` are byte-for-byte unchanged from RUN B.
+
+### T023/T024 — agreement presentation + acceptance evidence
+
+`components/account/agreements/{agreement-list,agreement-row}.tsx` render every entry in the existing
+`lib/auth/agreements.ts` `CURRENT_AGREEMENTS` registry (no invented type or version), distinguishing
+CURRENT+ACCEPTED, CURRENT+NOT ACCEPTED, and OLDER-ACCEPTANCE/VERSION-UPDATED. `public.
+agreement_acceptances` already existed live but was uncaptured in `supabase/trading_schema.sql` and
+in `docs/architecture/DATABASE-CAPABILITY-MAP.md` (same "live-only, never migrated-in-repo" situation
+as `update_my_profile`/`update_organization_contact`) — its own RLS INSERT policy (`agreement_accept`:
+`user_id = auth.uid() AND is_org_member(organization_id) AND NOT is_blocked_user()`) is a complete,
+already-applied security boundary, so `acceptAgreement` (`src/app/dashboard/actions.ts`) writes
+through it directly — no RPC, no migration, no service-role. Evidence recorded: `agreement_type`,
+`agreement_version`/`document_hash` (both from the registry, never client input), `accepted_at`
+(column default), `organization_id`/`user_id` (from `getRequestIdentity()`, never form input),
+`ip_address` (leftmost `x-forwarded-for` hop, else `x-real-ip`, else honestly `null` — never
+fabricated), `user_agent` (from request headers). A repeat acceptance of the same current version
+hits the schema's own `(organization_id, user_id, agreement_type, agreement_version)` unique
+constraint (`23505`), handled as an idempotent success. Live-verified end to end against the
+`buyer-only+foundation-test@example.com` fixture (`tests/auth/agreement-acceptance.test.ts`); the row
+this run inserted is retained rather than deleted — `authenticated` holds no DELETE grant on this
+table by design, and re-running the test exercises the same idempotency path.
+
+### T025 — current-version agreement gate
+
+`RequestIdentity.hasAcceptedCurrentAgreements` (`lib/auth/types.ts`/`lib/auth/dal.ts`) is resolved
+fresh every request, never cached beyond it. `getEligibility` (`lib/auth/eligibility.ts`) checks it
+only after `canReachTrading` already passed — a PENDING_KYB/SUBMITTED/UNDER_REVIEW/REJECTED/SUSPENDED
+organization is denied by the pre-existing `not-authorized` branch and never reaches the agreement
+gate. `src/app/dashboard/page.tsx` renders `AgreementList` instead of `FoundationOverview` exactly
+when `eligibility.nextAction === "accept-agreements"`. A registry version bump flips
+`hasAcceptedCurrentAgreements` to `false` on the very next resolution with no re-login required
+(`tests/auth/eligibility.test.ts`, "T025 — agreement gate" describe block).
+
+### T026 — organization contact self-service
+
+`updateOrganizationContact` (`src/app/dashboard/settings/actions.ts`) calls only
+`public.update_organization_contact(p_organization_id, p_display_name, p_email, p_phone)` — no direct
+`organizations` table UPDATE anywhere in the file. The RPC accepts no parameter for
+`status`/`account_type`/`can_buy`/`can_sell`/`is_hills_internal`/`created_by`, so none of those fields
+is reachable through this path, by this action or a tampered direct call. `p_organization_id` comes
+from the fresh acting organization; the RPC re-verifies `is_org_member`/`NOT is_blocked_user` itself.
+Live-verified against the buyer-only fixture, restoring the organization's captured original contact
+row afterward (`tests/auth/organization-contact.test.ts`).
+
+### T027 — profile self-service
+
+`ProfileSettingsForm` now separates concerns clearly: `companyName` carries an explicit hint that it
+is legacy/personal data, never the organization's legal or trading identity (that lives in the new
+Organization section, T026). No avatar upload workflow exists in this repository (no Storage bucket,
+no signed-URL contract) and none was fabricated; the form now shows an initials-derived
+`Avatar`/`AvatarFallback` preview instead of a raw "avatar path" text field, while a hidden field
+preserves the current `avatarPath` value unedited so `update_my_profile`'s full-column-replace
+semantics never null it out. `full_name` persistence is unchanged from RUN A
+(`tests/auth/update-my-profile.test.ts`, still passing).
+
+### T028 — membership view + acting-organization switcher
+
+`OrganizationMembersPanel` shows every row RLS returns for the acting organization's
+`organization_members` (own-org visible, cross-org denied — reverified live in
+`tests/auth/organization-membership-view.test.ts`). **Honest, named gap**: `profiles_select_own`'s
+RLS (`id = auth.uid() OR is_platform_admin()`) has no `is_org_member(...)` branch, and no
+member-listing RPC exists in the live database, so an ordinary member's own request cannot read a
+co-member's name — only `member_role` and membership date are genuinely visible for co-members; the
+panel shows the caller's own real name for their own row and a truthful generic "Team member" label
+for every other row, never a fabricated name. Closing this for real needs a schema-authority decision
+(a new `profiles` SELECT policy or a narrow SECURITY DEFINER RPC) outside this self-service-only run.
+`ActingOrganizationSwitcher` reuses T002's exact `setActingOrganization` mechanism (per-button
+Server Action bound to a server-resolved `organizationId`, re-verified against the fresh membership
+list); it renders only when `identity.organizations.length > 1`, and `organizations[0]` is never used
+as an implicit fallback anywhere in the new code.
+
+### Regression
+
+`typecheck` clean · full suite **505/505 passed** (41 files, including 6 new/modified Phase 6/7 test
+files) · `build` succeeds (Turbopack) · `lint` unchanged pre-existing baseline
+(`docs/claude-design/**` only — 124 errors/150 warnings, all pre-existing and outside application
+code) · `git diff --check` clean (line-ending notices only, no real conflicts).
+
+One real build-time issue was found and fixed during this pass: the client component
+`agreement-list.tsx` originally imported `latestAcceptanceForType`/`AgreementAcceptanceRow` from the
+same module as the server-only `getOrganizationAgreementAcceptances` (which transitively imports
+`next/headers`), which Turbopack correctly rejected. Fixed by splitting
+`lib/agreements/acceptance-status.ts` into a server-only fetch module and a new pure, client-safe
+`lib/agreements/acceptance-records.ts` — the same pure/impure separation `lib/auth/agreements.ts`
+already established, applied one level further.
+
+### Documentation consistency note
+
+`specs/003-auth-membership-kyb/tasks.md` T040 ("re-confirm DB-BLOCK-01/DB-BLOCK-03 remain open and
+unbypassed") is now STALE wording — both blockers were formally RESOLVED by RUN DB
+(2026-09-10, live-verified T010g) and the tasks.md status header has said so since. Per this run's
+explicit instruction, this was flagged rather than silently rewritten; the later Feature 003 closure
+pass should correct T040's wording to "re-confirm DB-BLOCK-01/DB-BLOCK-03 remain RESOLVED" (or
+equivalent) rather than "remain open."
+
+### Honest remaining gaps
+
+Co-member real names are not shown in the T028 membership view (RLS/schema gap, documented above —
+not a bug). Blocked-user and cross-organization denial for `acceptAgreement` were proven at the
+source level (the action reads no client-supplied organization/user id at all) and via the
+already-applied, already-verified RLS policy text, not via a live fixture — no blocked-user or
+multi-organization fixture exists in `scripts/seed-test-fixtures.ts` yet (adding one is Phase 8's
+T029, out of this run's scope). `lib/app/copy/ar.ts` received faithful Arabic translations for every
+new key this run added; no other Arabic content gap was introduced.
+
 ## Exact next action
 
-Phase 6 (Agreements, T023–T025) is the next work item — not started in this run.
+Phase 8 (Test fixtures extension, T029) is the next work item — not started in this run.

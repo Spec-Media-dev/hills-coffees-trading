@@ -2,8 +2,9 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { startTransition, useActionState } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { useActionToast } from "@/components/app/use-action-toast";
 import { useLocale } from "@/components/locale/locale-provider";
@@ -13,6 +14,21 @@ import { MyProfileInput, type MyProfileInput as MyProfileInputType } from "@/lib
 import { ACTION_FEEDBACK } from "@/lib/types/action-feedback";
 
 import { updateMyProfile } from "./actions";
+
+/**
+ * Feature 003 T027 — no approved avatar upload workflow exists in this repository (no Storage
+ * bucket, no signed-URL/media contract). Rather than fabricate one, this derives a stable initials
+ * fallback from the user's own current name — the directive's explicit "a fallback initials/avatar
+ * is acceptable" allowance — and nothing else. `avatarPath` itself is preserved unedited via a
+ * hidden field below so `update_my_profile`'s full-column-replace semantics never null it out.
+ */
+function initialsFromName(fullName: string): string {
+  const parts = fullName.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "?";
+  const first = parts[0]?.[0] ?? "";
+  const last = parts.length > 1 ? (parts[parts.length - 1]?.[0] ?? "") : "";
+  return (first + last).toUpperCase() || "?";
+}
 
 type Props = {
   initialValues: {
@@ -67,11 +83,14 @@ export function ProfileSettingsForm({ initialValues }: Props) {
   const {
     register,
     handleSubmit,
+    control,
     formState: { errors },
   } = useForm<MyProfileInputType>({
     resolver: zodResolver(MyProfileInput),
     values: initialValues,
   });
+
+  const watchedFullName = useWatch({ control, name: "fullName" });
 
   const onValid = handleSubmit((data) => {
     const formData = new FormData();
@@ -87,28 +106,34 @@ export function ProfileSettingsForm({ initialValues }: Props) {
 
   return (
     <form onSubmit={onValid} noValidate className="mt-6 flex flex-col gap-6">
+      <div className="flex items-center gap-4">
+        <Avatar size="lg">
+          <AvatarFallback>{initialsFromName(watchedFullName || initialValues.fullName)}</AvatarFallback>
+        </Avatar>
+        <p className="text-[length:var(--text-small)] text-muted-foreground">{tApp.profile.avatarFallbackHint}</p>
+      </div>
+      {/* No approved avatar upload workflow exists — preserve the current stored value unedited so
+          `update_my_profile`'s full-column-replace semantics never null it out on save. */}
+      <input type="hidden" {...register("avatarPath")} />
+
       <FieldGroup>
         <Field
-          label="Full name"
+          label={tApp.profile.fullName}
           control={<Input {...register("fullName")} />}
           error={errors.fullName?.message}
         />
-        <Field label="Phone" control={<Input {...register("phone")} />} error={errors.phone?.message} />
+        <Field label={tApp.profile.phone} control={<Input {...register("phone")} />} error={errors.phone?.message} />
         <Field
-          label="Company name"
+          label={tApp.profile.companyName}
+          hint={tApp.profile.companyNameHint}
           control={<Input {...register("companyName")} />}
           error={errors.companyName?.message}
-        />
-        <Field
-          label="Avatar path"
-          control={<Input {...register("avatarPath")} />}
-          error={errors.avatarPath?.message}
         />
       </FieldGroup>
 
       <FormActionBar className="justify-start bg-transparent backdrop-blur-none">
         <Button type="submit" disabled={isPending}>
-          {isPending ? "Saving…" : "Save changes"}
+          {isPending ? tApp.profile.saving : tApp.profile.save}
         </Button>
       </FormActionBar>
     </form>

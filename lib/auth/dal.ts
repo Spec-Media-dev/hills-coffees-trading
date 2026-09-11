@@ -2,11 +2,13 @@ import { cache } from "react";
 import { cookies } from "next/headers";
 
 import { createClient } from "@/lib/supabase/server";
+import { hasAcceptedAllCurrentAgreements } from "@/lib/auth/agreements";
 import type {
   OperationalRole,
   OrganizationMembership,
   RequestIdentity,
 } from "@/lib/auth/types";
+import { getOrganizationAgreementAcceptances, toAcceptanceRecords } from "@/lib/agreements/acceptance-status";
 
 /**
  * Cookie holding the caller's chosen acting-organization id (003, T002). This is a PREFERENCE
@@ -196,6 +198,15 @@ export const getRequestIdentity = cache(async (): Promise<RequestIdentity> => {
 
   const { organization, requiresSelection } = await resolveActingOrganization(organizations);
 
+  // Feature 003 T025 — resolved fresh, same as everything else here: no caching beyond this
+  // request's own React `cache()` memoization. Only meaningful once an acting organization exists;
+  // `true` (vacuously) otherwise — see the field's own doc comment in `lib/auth/types.ts`.
+  const hasAcceptedCurrentAgreements = organization
+    ? hasAcceptedAllCurrentAgreements(
+        toAcceptanceRecords(await getOrganizationAgreementAcceptances(organization.organizationId, user.id))
+      )
+    : true;
+
   return {
     kind: "authenticated",
     userId: user.id,
@@ -209,5 +220,6 @@ export const getRequestIdentity = cache(async (): Promise<RequestIdentity> => {
     isAuthorizedMember,
     isEmailVerified: user.email_confirmed_at != null,
     operationalRoles,
+    hasAcceptedCurrentAgreements,
   };
 });

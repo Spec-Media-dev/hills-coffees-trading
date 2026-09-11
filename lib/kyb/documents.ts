@@ -1,5 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 
+export { KYB_EVIDENCE_ALLOWED_MIME_TYPES, KYB_EVIDENCE_MAX_SIZE_BYTES } from "@/lib/kyb/limits";
+
 /**
  * Thin, server-only wrapper around the RUN DB private Storage + metadata write seam
  * (`supabase/migrations/20260911010000_feature_003_kyb_foundation.sql`,
@@ -57,10 +59,6 @@ export async function attachKybDocument(input: AttachKybDocumentInput): Promise<
 
 /** The bucket every KYB document lives in. Never public; see contract §3. */
 export const KYB_EVIDENCE_BUCKET = "kyb-evidence";
-
-/** The approved MIME/size limits (contract §3) — mirrored here for client-side pre-validation only; the bucket and `attach_kyb_document` remain the real, server-side enforcement. */
-export const KYB_EVIDENCE_ALLOWED_MIME_TYPES = ["application/pdf", "image/jpeg", "image/png"] as const;
-export const KYB_EVIDENCE_MAX_SIZE_BYTES = 10 * 1024 * 1024;
 
 /** Builds the enforced, organization/application-scoped object path (contract §3). */
 export function buildKybObjectPath(organizationId: string, applicationId: string, generatedObjectName: string): string {

@@ -6,9 +6,9 @@ import { Card, CardContent } from "@/components/ui/card";
 
 type SettingsFoundationShellProps = {
   children: ReactNode;
-  description: string;
+  description: ReactNode;
   dir?: "ltr" | "rtl";
-  title: string;
+  title: ReactNode;
 };
 
 /**

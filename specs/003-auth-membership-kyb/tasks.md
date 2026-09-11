@@ -13,9 +13,11 @@ COMPLETE (2026-09-11). **PART 0/PART 1/RUN B (T014–T022) is COMPLETE AND LIVE-
 end-to-end live-verified (fresh-signup profile bootstrap, DRAFT→SUBMITTED→RESUBMISSION_REQUIRED→
 SUBMITTED, 5-document real upload, Compliance rejection/replacement/resubmit, cross-tenant isolation,
 pre-approval authorization gate) — see the handoff doc's "RUN B Live Verification" section.
-DB-BLOCK-11 RESOLVED. Phase 6–11 NOT STARTED.
-**Task inventory**: 47 tasks — existing T001–T040 plus additive T010a–T010g; T001–T022 and
-T010b–T010g are complete; T023+ remain.
+DB-BLOCK-11 RESOLVED. **Phase 6 Agreements (T023–T025) and Phase 7 Organization & Profile
+Self-Service (T026–T028) are COMPLETE AND LIVE-VERIFIED (2026-09-11)** — see the handoff doc's
+"Phase 6 + 7 Live Verification" section. Phase 8–11 NOT STARTED.
+**Task inventory**: 47 tasks — existing T001–T040 plus additive T010a–T010g; T001–T028 and
+T010b–T010g are complete; T029+ remain.
 **Prerequisite**: 001 implemented (identity DAL, Supabase clients, server-action contract, state
 components, i18n, test tooling + fixtures).
 
@@ -324,20 +326,20 @@ path. They are intentionally unchecked; this planning update does not create or 
 
 ## Phase 6 — Agreements (after RUN B)
 
-- [ ] T023 [PS5] Build the agreement presentation + acceptance UI (`components/account/agreements/`).
+- [x] T023 [PS5] Build the agreement presentation + acceptance UI (`components/account/agreements/`).
   - Req: FR-014, PS5 | Depends: T003
   - Verify: each required agreement type renders with its version and is individually acceptable
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — Medium
   - Why: standard component work over an explicit registry.
 
-- [ ] T024 [PS5] Implement the acceptance Server Action recording type, version, document hash,
+- [x] T024 [PS5] Implement the acceptance Server Action recording type, version, document hash,
   timestamp, IP and user agent into `agreement_acceptances`.
   - Req: FR-014, SC-006 | Depends: T003, T023
   - Verify: a recorded acceptance contains all five evidence fields; a blocked user is refused
   - Codex: GPT-5.6 Sol — High · Claude: Sonnet — High
   - Why: legal-evidence capture; a missing field undermines the record's purpose.
 
-- [ ] T025 [PS5] Wire the agreement gate into trading entry points (unaccepted current version blocks,
+- [x] T025 [PS5] Wire the agreement gate into trading entry points (unaccepted current version blocks,
   with the reason shown).
   - Req: FR-014, PS5 | Depends: T003, T024, T001
   - Verify: bumping a version re-gates a previously-accepted organization on its next request
@@ -348,20 +350,20 @@ path. They are intentionally unchecked; this planning update does not create or 
 
 ## Phase 7 — Organization & profile self-service
 
-- [ ] T026 [P] Implement organization contact self-service via `update_organization_contact()`.
+- [x] T026 [P] Implement organization contact self-service via `update_organization_contact()`.
   - Req: FR-015, FR-016 | Depends: T001
   - Verify: the action calls the approved function; direct table writes to `organizations` are absent
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — Medium
   - Why: focused action over an existing DB function.
 
-- [ ] T027 [P] Extend the member profile surface (from 001's proof) into the real profile screen using
+- [x] T027 [P] Extend the member profile surface (from 001's proof) into the real profile screen using
   `update_my_profile()`.
   - Req: FR-015 | Depends: —
   - Verify: profile updates persist and are scoped to the caller
   - Codex: GPT-5.6 Sol — Low · Claude: Sonnet — Low
   - Why: extends an already-proven pattern.
 
-- [ ] T028 [P] Render the organization membership view (members, `member_role`, acting-org switcher).
+- [x] T028 [P] Render the organization membership view (members, `member_role`, acting-org switcher).
   - Req: FR-005, T002 | Depends: T002
   - Verify: a member sees only their own organization's membership rows
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — Medium

@@ -88,4 +88,15 @@ export type RequestIdentity =
       isEmailVerified: boolean;
       /** `[]` when the user has no `platform_admins` row. */
       operationalRoles: OperationalRole[];
+      /**
+       * Feature 003 Phase 6 (T025) — has the ACTING organization accepted every entry in
+       * `lib/auth/agreements.ts`'s `CURRENT_AGREEMENTS` registry, at its current version, for this
+       * user? Resolved fresh every request from `agreement_acceptances` (`lib/agreements/
+       * acceptance-status.ts`) — never cached, so a registry version bump re-gates the very next
+       * request with no re-login required. `true` (vacuously) when there is no acting organization
+       * yet — agreements are meaningless without one, and the earlier `organization`/
+       * `requiresOrganizationSelection` gates already handle that case before this field is ever
+       * consulted (`lib/auth/eligibility.ts#getEligibility`).
+       */
+      hasAcceptedCurrentAgreements: boolean;
     };

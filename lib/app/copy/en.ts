@@ -280,6 +280,88 @@ export const en = {
       signInRequired: "Please sign in to continue.",
       profileSaved: "Profile changes saved.",
       profileSaveFailed: "Could not save your profile. Please try again.",
+      organizationContactSaved: "Business contact details saved.",
+      organizationContactSaveFailed: "Could not save business contact details. Please try again.",
+      actingOrganizationSwitchFailed: "Could not switch organization. Please try again.",
+    },
+
+    /**
+     * Feature 003 Phase 6 (T023–T025). `types.*` keys mirror `lib/auth/agreements.ts`'s
+     * `AGREEMENT_TYPES` exactly — one label per closed registry entry, never invented. No real legal
+     * text exists yet (`documentHash === "PENDING_LEGAL_DOCUMENT"`), so `documentPending` is the
+     * only content shown for that state — never fabricated legal prose.
+     */
+    agreements: {
+      eyebrow: "Required agreements",
+      title: "Accept required agreements",
+      lead: "Your organization is approved. Review and accept each agreement below to continue.",
+      types: {
+        platform_terms: "Platform Terms of Use",
+        purchase_terms: "Purchase Terms",
+        storage_custody_terms: "Storage & Custody Terms",
+        marketplace_terms: "Marketplace Terms",
+        privacy_policy: "Privacy Policy",
+      },
+      versionLabel: "Version {version}",
+      acceptedOn: "Accepted on {date}",
+      staleAcceptance: "You accepted version {version} on {date}. A newer version is available and must be accepted.",
+      notAccepted: "Not yet accepted.",
+      documentPending: "Full legal text is pending Hills Coffee Legal approval.",
+      documentReference: "See the current agreement document for full terms.",
+      accept: "Accept",
+      accepting: "Accepting…",
+      toast: {
+        accepted: "Agreement accepted.",
+        acceptFailed: "Could not record your acceptance. Please try again.",
+      },
+    },
+
+    /**
+     * Feature 003 Phase 7 (T027) — personal profile self-service. `companyNameHint` exists
+     * specifically to prevent the directive's named risk: a member reading `companyName` as the
+     * organization's legal/trading identity. It is legacy/personal profile data only — the real
+     * organization identity lives in the separate `organization.*` section below, backed by
+     * `update_organization_contact`, never this field.
+     */
+    settingsPage: {
+      description: "Manage your personal profile and your organization's business contact details.",
+    },
+    profile: {
+      title: "Personal profile",
+      lead: "Your own account details. This is separate from your organization's business contact information.",
+      fullName: "Full name",
+      phone: "Personal phone",
+      companyName: "Company name (personal note)",
+      companyNameHint: "Legacy personal field — not your organization's official trading name or legal identity.",
+      avatarFallbackHint: "Shown as your initials. No avatar upload is available yet.",
+      save: "Save",
+      saving: "Saving…",
+    },
+
+    /** Feature 003 Phase 7 (T026–T028) — organization contact self-service + membership view. */
+    organization: {
+      title: "Organization",
+      lead: "Business contact details shown to Hills Coffee and, where applicable, to trading counterparties.",
+      displayName: "Trading name",
+      email: "Business email",
+      phone: "Business phone",
+      save: "Save",
+      saving: "Saving…",
+    },
+    membership: {
+      title: "Team members",
+      lead: "Members of your acting organization.",
+      you: "You",
+      roleOwner: "Owner",
+      roleMember: "Member",
+      memberSince: "Member since {date}",
+      nameNotVisible: "Team member",
+    },
+    actingOrganization: {
+      title: "Acting organization",
+      lead: "You belong to more than one organization. Choose which one you're acting for.",
+      current: "Current",
+      switchTo: "Switch to {organization}",
     },
 
 } as const;

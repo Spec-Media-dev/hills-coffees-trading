@@ -14,12 +14,30 @@ import {
   type KybDocumentType,
 } from "@/lib/validation/kyb-application";
 import { isDocumentExpired, type CurrentKybDocumentSummary } from "@/lib/kyb/status-types";
+import { KYB_EVIDENCE_ALLOWED_MIME_TYPES, KYB_EVIDENCE_MAX_SIZE_BYTES } from "@/lib/kyb/limits";
 import type { KybDocumentReview } from "@/lib/kyb/review-items";
 import { ACTION_FEEDBACK } from "@/lib/types/action-feedback";
 
 import { uploadKybDocument } from "@/src/app/dashboard/kyb/actions";
 
-const ACCEPT = "application/pdf,image/jpeg,image/png";
+// Derived from the same canonical registry the Server Action enforces (`lib/kyb/limits.ts`) — never
+// a second, independently-typed MIME list.
+const ACCEPT = KYB_EVIDENCE_ALLOWED_MIME_TYPES.join(",");
+
+/**
+ * Client-side pre-validation against the EXACT SAME canonical contract the Server Action enforces
+ * (`lib/kyb/limits.ts`) — UX only, never the real boundary. Catches an invalid selection (wrong
+ * type, too large, or genuinely empty) before the file is ever serialized into the Server Action's
+ * request body, so an oversized file never hits the Next.js transport body-size limit and never
+ * reaches the Next.js Runtime Error overlay for an entirely expected, everyday input mistake.
+ */
+function validateKybFileSelection(file: File | null): "fileRequired" | "invalidFileType" | "fileTooLarge" | null {
+  if (!file) return null; // No selection yet is not itself an error — only an empty *submission* is.
+  if (file.size === 0) return "fileRequired";
+  if (!(KYB_EVIDENCE_ALLOWED_MIME_TYPES as readonly string[]).includes(file.type)) return "invalidFileType";
+  if (file.size > KYB_EVIDENCE_MAX_SIZE_BYTES) return "fileTooLarge";
+  return null;
+}
 
 /**
  * Feature 003 T017/T020/T022 — one required-document row: current status, expiry, the exact
@@ -39,8 +57,8 @@ export function KybDocumentRow({
   const copy = tApp.kyb.documents;
   const config = kybDocumentTypeConfig(documentType);
   const [state, dispatch, isPending] = useActionState(uploadKybDocument, undefined);
-  const [fileName, setFileName] = useState<string | null>(null);
-  const fileError =
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const serverFileError =
     state?.ok === false && state.fieldErrors?.file
       ? state.code === ACTION_FEEDBACK.KYB_FILE_REQUIRED
         ? copy.fileRequired
@@ -48,6 +66,18 @@ export function KybDocumentRow({
           ? copy.invalidFileType
           : copy.fileTooLarge
       : undefined;
+  // Same canonical check the Server Action performs (`validateKybFileSelection` /
+  // `lib/kyb/limits.ts`), run the moment a file is chosen — never on submit alone — so an
+  // oversized/invalid file never reaches the Server Action's request body at all. Once a file is
+  // selected in this row, its own (possibly passing) client result governs the displayed message,
+  // rather than a stale server-returned error from a previous, different attempt.
+  const clientValidation = validateKybFileSelection(selectedFile);
+  const fileError = selectedFile
+    ? clientValidation
+      ? copy[clientValidation]
+      : undefined
+    : serverFileError;
+  const canSubmit = selectedFile !== null && clientValidation === null;
   useActionToast(
     state,
     state?.ok === true
@@ -96,7 +126,16 @@ export function KybDocumentRow({
         />
       </div>
 
-      <form action={dispatch} className="flex flex-wrap items-center gap-3">
+      <form
+        action={dispatch}
+        className="flex flex-wrap items-center gap-3"
+        onSubmit={(event) => {
+          // Belt-and-suspenders alongside the disabled submit button below (e.g. a stray Enter
+          // keypress) — an invalid/oversized selection must never reach the Server Action's request
+          // body, so it never has a chance to hit the Next.js transport body-size limit.
+          if (!canSubmit) event.preventDefault();
+        }}
+      >
         <input type="hidden" name="documentType" value={documentType} />
         {status === "REJECTED" && currentDocument ? (
           <input type="hidden" name="supersedesDocumentId" value={currentDocument.id} />
@@ -106,9 +145,9 @@ export function KybDocumentRow({
           accept={ACCEPT}
           disabled={isPending}
           className="max-w-xs"
-          onChange={(event) => setFileName(event.currentTarget.files?.[0]?.name ?? null)}
+          onChange={(event) => setSelectedFile(event.currentTarget.files?.[0] ?? null)}
         />
-        <Button type="submit" variant="outline" size="sm" disabled={isPending || !fileName}>
+        <Button type="submit" variant="outline" size="sm" disabled={isPending || !canSubmit}>
           {isPending ? copy.uploading : status === "missing" ? copy.upload : copy.replace}
         </Button>
       </form>
