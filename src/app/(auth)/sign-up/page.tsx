@@ -26,7 +26,7 @@ export default function SignUpPage() {
         <p className="text-[length:var(--text-body)] leading-[1.7] text-muted-foreground text-pretty">
           <Bilingual pick={(c) => c.auth.signUp.lead} />
         </p>
-        <p className="hc-meta text-muted-foreground/80">
+        <p className="hc-meta text-muted-foreground">
           <Bilingual pick={(c) => c.auth.signUp.afterSignUpNote} />
         </p>
       </div>

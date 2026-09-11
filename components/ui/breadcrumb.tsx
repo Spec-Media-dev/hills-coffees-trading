@@ -19,6 +19,13 @@ function BreadcrumbList({ className, ...props }: React.ComponentProps<"ol">) {
   return (
     <ol
       data-slot="breadcrumb-list"
+      // Explicit `list`/`listitem` roles (below, on BreadcrumbItem) — callers wrap each item plus
+      // its separator in a `display: contents` `<span>` (PageHeader's own breadcrumb trail
+      // renderer) so that a real `<li>` boundary never has to straddle a decorative separator.
+      // `display: contents` is meant to make that wrapper invisible to the accessibility tree, but
+      // axe-core's list/listitem rule does not reliably credit it — explicit roles keep the
+      // semantics correct regardless of that tooling limitation.
+      role="list"
       className={cn(
         "flex flex-wrap items-center gap-1.5 text-sm wrap-break-word text-muted-foreground",
         className
@@ -32,6 +39,7 @@ function BreadcrumbItem({ className, ...props }: React.ComponentProps<"li">) {
   return (
     <li
       data-slot="breadcrumb-item"
+      role="listitem"
       className={cn("inline-flex items-center gap-1", className)}
       {...props}
     />

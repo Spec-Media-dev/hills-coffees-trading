@@ -312,7 +312,11 @@
   --muted-foreground: #9db0a6;
   --accent: #c8893a;
   --accent-foreground: #17211d;
-  --destructive: #d4614c;
+  /* Brightened from #d4614c: that value only reached ~3.9:1 against --card/--surface-subtle
+     (#1e2c26), failing WCAG AA (4.5:1) for the small (14px) destructive text Feature 003 renders on
+     card surfaces (e.g. the KYB "missing items" list) — this keeps the same hue/red identity while
+     clearing the bar (~4.6:1 measured against #1e2c26). */
+  --destructive: #d97563;
   --border: #2e3e38;
   --input: #3d5249;
   --ring: #e8a84e;

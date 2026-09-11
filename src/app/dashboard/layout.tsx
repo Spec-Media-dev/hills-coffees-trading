@@ -60,7 +60,9 @@ export default async function DashboardLayout({
     return (
       <div className="flex min-h-full flex-1 flex-col">
         <PreAuthHeader />
-        <StateScreen kind="unauthorized" />
+        <main className="flex flex-1 flex-col">
+          <StateScreen kind="unauthorized" />
+        </main>
       </div>
     );
   }
@@ -87,9 +89,11 @@ export default async function DashboardLayout({
     return (
       <div className="flex min-h-full flex-1 flex-col">
         <PreAuthHeader />
-        <StateScreen kind="forbidden" title={appCopy.emailNotVerified.title} description={appCopy.emailNotVerified.description}>
-          <ResendVerificationButton />
-        </StateScreen>
+        <main className="flex flex-1 flex-col">
+          <StateScreen kind="forbidden" title={appCopy.emailNotVerified.title} description={appCopy.emailNotVerified.description}>
+            <ResendVerificationButton />
+          </StateScreen>
+        </main>
       </div>
     );
   }
@@ -102,7 +106,9 @@ export default async function DashboardLayout({
     return (
       <div className="flex min-h-full flex-1 flex-col">
         <PreAuthHeader />
-        <OrganizationSelector organizations={identity.organizations} redirectTo="/dashboard/" />
+        <main className="flex flex-1 flex-col">
+          <OrganizationSelector organizations={identity.organizations} redirectTo="/dashboard/" />
+        </main>
       </div>
     );
   }
@@ -114,7 +120,9 @@ export default async function DashboardLayout({
     return (
       <div className="flex min-h-full flex-1 flex-col">
         <PreAuthHeader />
-        <OnboardingExperience />
+        <main className="flex flex-1 flex-col">
+          <OnboardingExperience />
+        </main>
       </div>
     );
   }
@@ -141,7 +149,9 @@ export default async function DashboardLayout({
     return (
       <div className="flex min-h-full flex-1 flex-col">
         <PreAuthHeader />
-        {children}
+        <main className="flex flex-1 flex-col">
+          {children}
+        </main>
       </div>
     );
   }

@@ -20,7 +20,9 @@ export function OrganizationSelector({
   redirectTo: string;
 }) {
   return (
-    <main className="hc-container flex min-h-[60vh] flex-1 items-center justify-center py-16">
+    // A plain `<div>`: rendered only inline in `dashboard/layout.tsx`'s
+    // `requiresOrganizationSelection` branch, which already supplies the page's `<main>` landmark.
+    <div className="hc-container flex min-h-[60vh] flex-1 items-center justify-center py-16">
       <div className="w-full max-w-md rounded-[var(--radius-lg)] border border-border bg-[var(--surface-card)] p-8 text-center shadow-[var(--shadow-xs)]">
         <h1 className="hc-heading-3 font-semibold text-foreground">
           <AppBilingual pick={(c) => c.organizationSelection.title} />
@@ -38,6 +40,6 @@ export function OrganizationSelector({
           ))}
         </div>
       </div>
-    </main>
+    </div>
   );
 }

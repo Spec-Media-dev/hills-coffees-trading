@@ -32,7 +32,9 @@ export function KybStatusScreen({
   reviews: KybDocumentReview[];
 }) {
   return (
-    <main className="hc-container flex min-h-[60vh] flex-1 items-center py-12">
+    // A plain `<div>`: this renders only as `{children}` inside `dashboard/layout.tsx`'s
+    // `!isAuthorizedMember` branch, which already supplies the page's `<main>` landmark.
+    <div className="hc-container flex min-h-[60vh] flex-1 items-center py-12">
       <div className="mx-auto grid w-full max-w-3xl gap-8 sm:grid-cols-[14rem_1fr]">
         <OnboardingProgress currentStep="kyb" />
         <div className="flex flex-col gap-5 rounded-[var(--radius-xl)] border border-border bg-card p-7 shadow-[var(--shadow-md)] sm:p-9">
@@ -43,7 +45,7 @@ export function KybStatusScreen({
           <KybStatusBody application={application} currentDocuments={currentDocuments} reviews={reviews} />
         </div>
       </div>
-    </main>
+    </div>
   );
 }
 

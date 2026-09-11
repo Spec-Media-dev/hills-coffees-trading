@@ -64,9 +64,9 @@ export default async function DashboardPage() {
   if (eligibility.nextAction === "accept-agreements") {
     const acceptances = await getOrganizationAgreementAcceptances(identity.organization.organizationId, identity.userId);
     return (
-      <main className="hc-container flex min-h-[60vh] flex-1 items-center py-12">
+      <div className="hc-container flex min-h-[60vh] flex-1 items-center py-12">
         <AgreementList acceptances={acceptances} />
-      </main>
+      </div>
     );
   }
 

@@ -111,7 +111,12 @@ export function StateScreen({
   const stateIcon: IconName = kind === "loading" ? "clock" : kind === "error" || kind === "retry" ? "warning" : kind === "empty" ? "inbox" : "alert-circle";
 
   return (
-    <main
+    // A plain `<div>`, not `<main>`: this is reusable inline content, rendered inside whichever
+    // ambient `<main>` the calling route/layout already owns (the single-landmark invariant is the
+    // caller's responsibility — see `components/public/route-error.tsx` and
+    // `src/app/dashboard-admin/layout.tsx`'s forbidden branch for the two call sites that had no
+    // ambient `<main>` and supply their own wrapper around this component instead).
+    <div
       data-state-screen={kind}
       className="hc-container flex min-h-[60vh] flex-1 items-center justify-center py-16"
     >
@@ -127,6 +132,6 @@ export function StateScreen({
         </p>
         {children ? <div className="mt-6">{children}</div> : null}
       </div>
-    </main>
+    </div>
   );
 }

@@ -118,7 +118,7 @@ export function MobileAppNav({ groups, logoHref, logoLabel, footerNote }: Mobile
         </div>
 
         {footerNote ? (
-          <p className="border-t border-[var(--sidebar-border)] px-4 py-3 text-[length:var(--text-micro)] text-[color-mix(in_srgb,var(--sidebar-foreground)_56%,transparent)]" dir={direction}>
+          <p className="border-t border-[var(--sidebar-border)] px-4 py-3 text-[length:var(--text-micro)] text-[color-mix(in_srgb,var(--sidebar-foreground)_70%,transparent)]" dir={direction}>
             {footerNote}
           </p>
         ) : null}

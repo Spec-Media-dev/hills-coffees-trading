@@ -104,7 +104,7 @@ export function Sidebar({
                           {item.label}
                         </span>
                         {item.description ? (
-                          <span className="truncate text-[length:var(--text-micro)] text-[color-mix(in_srgb,var(--sidebar-foreground)_56%,transparent)]">
+                          <span className="truncate text-[length:var(--text-micro)] text-[color-mix(in_srgb,var(--sidebar-foreground)_70%,transparent)]">
                             {item.description}
                           </span>
                         ) : null}
@@ -124,7 +124,7 @@ export function Sidebar({
       </div>
 
       {footerNote ? (
-        <div className="border-t border-[var(--sidebar-border)] p-4 text-[length:var(--text-micro)] text-[color-mix(in_srgb,var(--sidebar-foreground)_56%,transparent)]">
+        <div className="border-t border-[var(--sidebar-border)] p-4 text-[length:var(--text-micro)] text-[color-mix(in_srgb,var(--sidebar-foreground)_70%,transparent)]">
           {footerNote}
         </div>
       ) : null}

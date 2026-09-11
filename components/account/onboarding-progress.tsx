@@ -26,7 +26,11 @@ export function OnboardingProgress({ currentStep }: { currentStep: Extract<StepK
               "flex items-center gap-3 rounded-[var(--radius-md)] px-3 py-2 text-[length:var(--text-small)]",
               state === "current" && "bg-[var(--surface-subtle)] font-semibold text-foreground",
               state === "complete" && "text-muted-foreground",
-              state === "upcoming" && "text-muted-foreground/70"
+              // Full-opacity muted-foreground, not a dimmed variant: the unfilled step badge already
+              // signals "upcoming" visually — the step NAME remains real information and must clear
+              // the same WCAG contrast bar as every other state's text (an opacity reduction here
+              // previously failed axe's color-contrast rule at small text size).
+              state === "upcoming" && "text-muted-foreground"
             )}
           >
             <span

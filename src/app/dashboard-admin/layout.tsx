@@ -77,11 +77,13 @@ export default async function DashboardAdminLayout({
 
   if (identity.operationalRoles.length === 0) {
     return (
-      <StateScreen
-        kind="forbidden"
-        title={appCopy.noOperationalRole.title}
-        description={appCopy.noOperationalRole.description}
-      />
+      <main className="flex flex-1 flex-col">
+        <StateScreen
+          kind="forbidden"
+          title={appCopy.noOperationalRole.title}
+          description={appCopy.noOperationalRole.description}
+        />
+      </main>
     );
   }
 

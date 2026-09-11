@@ -34,10 +34,12 @@ export function RouteError({ error, reset }: { error: Error & { digest?: string 
   }, [error.digest]);
 
   return (
-    <StateScreen kind="error">
-      <Button variant="outline" onClick={reset}>
-        Try again
-      </Button>
-    </StateScreen>
+    <main className="flex flex-1 flex-col">
+      <StateScreen kind="error">
+        <Button variant="outline" onClick={reset}>
+          Try again
+        </Button>
+      </StateScreen>
+    </main>
   );
 }

@@ -1356,4 +1356,146 @@ transitions, T034 agreement evidence/versioning, sign-out, enumeration resistanc
 sign-in boundary were rerun as part of the focused selection. The migration did not change DB schema
 shape, RLS baseline rules, Storage bucket configuration, or the protected capability functions;
 it adds only the approved MFA enforcement helper/restrictive policies/wrappers. No commit or push was
-made. Phase 10 (T035+) and Phase 11 remain unstarted.
+made.
+
+## Feature 003 Final Closure (2026-09-11 — Phase 10/11, T035–T040)
+
+**Scope of this run**: Phase 10 (T035 accessibility/state pass, T036 RTL/copy/responsive/theme pass)
+and Phase 11 (T037 final automated verification, T038 security/storage/secret audit, T039 manual/live
+authorization sweep, T040 documentation/roadmap closure) only. No Feature 004 work, no
+marketplace/orders/payments/Admin Operations Console work, and no changes to
+`organization_can_buy`/`organization_can_sell`/`is_authorized_member` or the applied T033 migration
+were made. Work stayed on `main`; nothing was committed or pushed.
+
+### T035 — Accessibility + complete state pass
+
+Built `tests/browser/feature003-closure.browser.mjs`, a real-Chrome (CDP, headless) + axe-core script
+on the same harness Feature 002's Phase 12 established (`tests/browser/cdp-harness.mjs`) — no external
+browser-automation dependency. Ran it against an **isolated production build** (`npx next build` +
+`npx next start -p 3311`, never the developer's own long-running dev server on port 3230) because that
+dev server exhibited an environmental Turbopack hydration failure (fibers/props never attached to the
+DOM even after 12+ seconds — confirmed via a direct `__reactFiber*`/`__reactProps*` key check and an
+independent password-toggle click sanity check) that is not a Feature 003 code defect; the isolated
+production build hydrated and behaved correctly.
+
+Found and fixed 8 genuine, axe-confirmed defects, all now verified clean by a final re-run (0
+violations, 0 console/page errors):
+
+1. **`landmark-main-is-top-level` / `landmark-no-duplicate-main` / `landmark-unique`** —
+   `src/app/dashboard/page.tsx`'s agreement-gate branch rendered its own `<main>` nested inside
+   `AppShell`'s `<main>`. Fixed by changing it to `<div>` (matching the sibling branch).
+2. **`landmark-one-main`** (zero `<main>` anywhere on the page) — `src/app/dashboard/layout.tsx`'s 5
+   pre-`AppShell` branches (unauthorized, email-not-verified, requires-org-selection,
+   organization-null, not-yet-authorized-member) rendered `<PreAuthHeader/>` + content with no `<main>`
+   at all; this is what caused the real failure on `/dashboard/kyb/` for a `PENDING_KYB` org. Fixed by
+   wrapping each branch's content in `<main className="flex flex-1 flex-col">`, leaving the two
+   `git diff`-protected guard-condition lines (`identity.kind !== "authenticated"`,
+   `identity.organization === null`) byte-identical (confirmed via `git diff --unified=0`, and via
+   `tests/design/uif-f.test.tsx`/`uif-g.test.tsx` passing unchanged).
+3. Discovering that fix then duplicated landmarks again, because four shared leaf components
+   (`components/layout/state-screen.tsx`, `components/account/kyb-status-screen.tsx`,
+   `components/account/onboarding-experience.tsx`, `components/account/organization-selector.tsx`)
+   each also rendered their own top-level `<main>`. Moved landmark ownership to the
+   layout/route level: all four now render a plain `<div>`, and the two call sites that had no ambient
+   `<main>` of their own (`src/app/dashboard-admin/layout.tsx`'s `operationalRoles.length === 0`
+   branch, `components/public/route-error.tsx`, used by both `src/app/error.tsx` and
+   `src/app/(public)/error.tsx`) gained one.
+4. **`list`/`listitem`** — `components/ui/breadcrumb.tsx`'s `BreadcrumbList`/`BreadcrumbItem`, wrapped
+   per-item by `PageHeader` in a `display:contents` `<span>` that axe-core's list rule does not
+   reliably credit as transparent (a known tooling limitation). Fixed with explicit `role="list"` /
+   `role="listitem"`.
+5. **`color-contrast`** — `src/app/(auth)/sign-up/page.tsx`'s post-sign-up note used
+   `text-muted-foreground/80`; fixed by removing the opacity modifier.
+6. **`color-contrast`** — `components/account/onboarding-progress.tsx`'s "upcoming" step used
+   `text-muted-foreground/70`; same fix, found proactively via `grep` before axe reached that surface.
+7. **`label` (critical)** — the KYB `<input type="file">` control (`components/ui/file-upload.tsx`,
+   rendered per document type by `components/account/kyb-document-row.tsx`) had zero programmatic
+   label. Fixed with an `aria-label` built from the row's own existing localized copy
+   (`${copy.upload|copy.replace} — ${copy.types[documentType]}`) — no new hardcoded string introduced.
+8. **`color-contrast` (serious, dark mode)** — two real dark-mode token failures, confirmed by direct
+   `getComputedStyle` measurement, not merely axe's report: (a) `--destructive: #d4614c` measured
+   ~3.9:1 against `--card`/`--surface-subtle` (#1e2c26) for the KYB "missing items" list
+   (`components/account/kyb-submit-panel.tsx`) — below the 4.5:1 AA bar for 14px text; fixed by
+   brightening to `--destructive: #d97563` (~4.6:1, same hue/red identity, light mode unaffected —
+   light mode already measured 7.5:1). (b) the sidebar/mobile-nav footer note and nav-item description
+   text (`components/app/sidebar.tsx`, `components/app/mobile-app-nav.tsx`) used
+   `color-mix(in srgb, var(--sidebar-foreground) 56%, transparent)`, measured ~4.24:1 in light mode
+   (fails) and worse in dark; raised to 70% (~5.7–7:1 in both themes, computed both from first
+   principles and re-confirmed by the axe re-run).
+
+**State completeness beyond the browser-driven fixtures** (MFA states, other KYB statuses,
+agreement-registry states, settings self-service): verified via the existing, passing
+`tests/auth/*`/`tests/design/*` suites (553/553) and direct source review, not independently
+re-driven through a live browser this run — stated here honestly rather than claimed as a live-browser
+result. No inapplicable state was manufactured, and no trading/marketplace access was exposed.
+
+### T036 — RTL / copy / responsive / themes
+
+- The exact grep the task specifies (`text-left|text-right|[^-]pl-|[^-]pr-` over
+  `src/app/(auth)`, `src/app/dashboard/kyb`, `src/app/dashboard/onboarding`) returns nothing; a
+  broadened sweep over `src/app/dashboard`, `src/app/dashboard-admin`, `src/app/admin`,
+  `components/account` also returns nothing.
+- Real-browser RTL entry (`localStorage['hills-locale']='ar'`) on all 4 public routes at 390px:
+  `dir="rtl"` confirmed, no horizontal overflow (`scrollWidth <= clientWidth`).
+- KYB upload transport regression re-confirmed via the existing `tests/auth/kyb-upload-transport.test.tsx`
+  (6/6, unchanged) — the 10 MiB file cap and the Next Server Action transport correction remain in
+  force. No unsafe production data was created to re-drive this manually; this remains
+  test/integration-verified rather than freshly hand-driven through a real oversized upload this run.
+- Light/dark visual pass: covered by the axe color-contrast findings above (both themes actually
+  measured, not assumed) plus a general review of the authenticated surfaces exercised by the browser
+  script; no redesign was performed — only the two genuine contrast defects were changed.
+
+### T037 — Final automated verification
+
+`npm run typecheck` clean. `npm test`: **553/553 passing, 46 files** (focused `session` and `design`
+suites re-run first: 19/19 and 64/64). `npm run build` clean. `npm run lint`: 272 problems (124
+errors, 148 warnings) — every single one under `docs/claude-design/` (confirmed by grepping the lint
+output's own file-header lines: zero matches outside that directory), the same pre-existing historical
+baseline prior closure runs already established; **zero new lint findings in Feature 003 application
+code** (`src/`, `lib/`, `components/`). `git diff --check` clean (only benign LF→CRLF
+autocrlf notices, no real whitespace/conflict-marker errors).
+
+### T038 — Security / storage / secret audit + MFA regression
+
+`grep -rn "SERVICE_ROLE|service_role" src lib components` returns nothing. `.env.local` is
+gitignored and confirmed not tracked (`git ls-files` shows only `.env.example`). KYB document bytes
+remain exclusively in the private `kyb-evidence` Storage bucket with metadata-only
+`file_assets`/`kyb_documents` rows — unchanged this run. **MFA regression**: re-ran
+`tests/auth/session.test.ts` unmodified — 19/19 passing, including the live DB/RPC gate test, against
+the already-applied migration (not edited this run). `organization_can_buy`, `organization_can_sell`,
+and `is_authorized_member` were not touched (no migration files were created or modified this run).
+
+### T039 — Manual/live authorization sweep
+
+Re-ran the existing live-fixture-backed suites that already prove UI truth and server/data truth
+agree for every required state (all passing, no changes needed): `isolation.test.ts` (7/7),
+`kyb-transitions.test.ts` (6/6), `eligibility-freshness.test.ts` (5/5), `admin-auth.test.ts` (26/26),
+`session.test.ts` (19/19), `agreements.test.ts` (12/12), `request-identity.test.ts` (5/5),
+`organization-membership-view.test.ts` (7/7). Additionally re-confirmed via real browser: the
+buyer-only fixture's `/dashboard/`/`/dashboard/settings/` and the pending-kyb fixture's
+`/dashboard/`/`/dashboard/kyb/` all render the correct state with 0 axe violations. Multi-org
+freshness, the Member/Admin boundary, profile/organization self-service (including the T028
+co-member-name "Team member" fallback, kept as documented — not bypassed), and agreements closure are
+unchanged from the Phase 6–9 live verification already recorded above in this document.
+
+### T040 — Documentation / roadmap closure
+
+Corrected the stale T040 task wording in `tasks.md` (it previously said to "re-confirm DB-BLOCK-01/
+DB-BLOCK-03 remain open" — false; both are RESOLVED, applied and live-verified 2026-09-10). Updated
+`docs/architecture/IMPLEMENTATION-ROADMAP.md`'s Feature 003 row, its DB-BLOCK-01/03 table rows, and
+its "Exact next task" section to state Feature 003 is complete/closed and name Feature 004 as next. No
+resolved blocker was reopened.
+
+### Known limitations OUTSIDE Feature 003 (not blockers to this closure)
+
+- The T028 co-member-real-name visibility gap (no approved RLS/RPC path) — deliberate schema/privacy
+  limitation, documented, unchanged.
+- `docs/claude-design/` reference `.jsx` files carry a pre-existing lint baseline (undefined-component
+  references, unused imports) — historical design-reference material, not runtime application code,
+  unchanged by this closure.
+- Marketplace, orders, payments, settlement, and the Admin Operations Console (010) remain unbuilt —
+  out of Feature 003's scope by design.
+- This closure's verdict applies to Feature 003 only. It does not certify marketplace, payments,
+  compliance-review console, legal-content finalization, or whole-platform production readiness.
+
+**Verdict: GO — FEATURE 003 COMPLETE — VERIFIED — CLOSED — READY FOR FEATURE 004.**

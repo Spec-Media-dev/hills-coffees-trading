@@ -23,7 +23,7 @@ commission capability (§8), which is already implemented in the database.
 |---|---|---|---|---|
 | 001 | Platform Foundation | All three (foundation) | Constitution ✅ · Specify ✅ · Clarify ✅ · Plan ✅ · Tasks ✅ · Analyze ✅ · **Implement ✅ — IMPLEMENTED / VERIFIED (50/50 tasks)** | [spec](../../specs/001-platform-foundation/spec.md) · [plan](../../specs/001-platform-foundation/plan.md) · [tasks](../../specs/001-platform-foundation/tasks.md) · research · data-model · contracts · quickstart · AGENT-HANDOFF |
 | 002 | Public Website | Public `/`, Member `/dashboard` shell, Admin `/dashboard-admin` shell | **IMPLEMENTED / VERIFIED / CLOSED — 59 / 59 current tasks through Phase 13 (2026-09-10)** · **Phase 5.5 Full Product UI Foundation — IMPLEMENTED / VERIFIED — 58 / 58 UIF tasks, all 9 blocks (A–I) closed 2026-09-10** · reference-pack + GSAP amendment reconciled 2026-09-09 (ASSET-REF-01, MOTION-GSAP-01, both still true and unresolved) · Member/Admin application shell (`components/app/*`) and its own copy root (`lib/app/copy`, `CONTENT-AR-01` scope) remain reusable inventory for Features 003–012 · business blockers remain recorded in the canonical handoff · [spec](../../specs/002-public-website/spec.md) · [plan](../../specs/002-public-website/plan.md) · [tasks](../../specs/002-public-website/tasks.md) · [canonical handoff](../../specs/002-public-website/IMPLEMENTATION-HANDOFF.md) · [Phase 5.5 plan](../../specs/002-public-website/PHASE-5.5-UI-FOUNDATION-PLAN.md) · [Phase 5.5 tasks](../../specs/002-public-website/PHASE-5.5-TASKS.md) · [Phase 5.5 handoff](../../specs/002-public-website/PHASE-5.5-IMPLEMENTATION-HANDOFF.md) |
-| 003 | Auth, Membership & KYB | Public auth routes + `/dashboard` | Phase 1 + Phase 2 (T001–T010) COMPLETE / VERIFIED · RUN DB (T010b–T010g) COMPLETE — applied + live-verified 2026-09-10, DB-BLOCK-01/03 RESOLVED · RUN A (T010a, T011–T013) COMPLETE · RUN A Full Name Persistence fix COMPLETE · RUN B (T014–T022, PART 0/1) COMPLETE — applied + live-verified 2026-09-11, DB-BLOCK-11 RESOLVED · Phase 6 (T023–T025) + Phase 7 (T026–T028) COMPLETE — live-verified 2026-09-11, no migration required · Phase 8 (T029) COMPLETE, Phase 9 T030/T031/T032/T034 COMPLETE (2026-09-11) · **T033 OPEN — MFA remediation pass (2026-09-11) closed the application-layer gate (live-verified); the RLS-level gate is prepared (`supabase/migrations/20260913000000_feature_003_t033_mfa_data_gate.sql`) but requires human application before T033 can close** · Phase 10+ NOT STARTED | [spec](../../specs/003-auth-membership-kyb/spec.md) · [plan](../../specs/003-auth-membership-kyb/plan.md) · [tasks](../../specs/003-auth-membership-kyb/tasks.md) · [handoff](../../specs/003-auth-membership-kyb/PHASE-1-2-IMPLEMENTATION-HANDOFF.md) |
+| 003 | Auth, Membership & KYB | Public auth routes + `/dashboard` | **IMPLEMENTED / VERIFIED / CLOSED — 47 / 47 tasks (T001–T040 + T010a–T010g), 2026-09-11.** Phase 1 + Phase 2 (T001–T010) COMPLETE / VERIFIED · RUN DB (T010b–T010g) COMPLETE — applied + live-verified 2026-09-10, DB-BLOCK-01/03 RESOLVED · RUN A (T010a, T011–T013) COMPLETE · RUN A Full Name Persistence fix COMPLETE · RUN B (T014–T022, PART 0/1) COMPLETE — applied + live-verified 2026-09-11, DB-BLOCK-11 RESOLVED · Phase 6 (T023–T025) + Phase 7 (T026–T028) COMPLETE — live-verified 2026-09-11 · Phase 8 (T029) COMPLETE · Phase 9 (T030–T034) COMPLETE AND LIVE-VERIFIED 2026-09-11, including **T033's applied MFA data gate** (`supabase/migrations/20260913000000_feature_003_t033_mfa_data_gate.sql` — applied, live-proven: no-factor stays aal1-allowed, a verified-factor aal1 session is denied at table+RPC level across 10 protected surfaces, the same session after real aal2 succeeds) · **Phase 10 (T035–T036) + Phase 11 (T037–T040) COMPLETE 2026-09-11** — real-browser (Chrome/CDP + axe-core) accessibility pass found and fixed 8 genuine defects (duplicate/missing `<main>` landmarks, a breadcrumb ARIA gap, 2 light-mode opacity-contrast defects, a missing file-input label, and 2 dark-mode color-contrast token failures); RTL/logical-CSS grep clean; 553/553 tests passing; lint has zero new findings outside the historical `docs/claude-design/` baseline; build clean; `git diff --check` clean; no service-role/secret leakage; authorization truth (`organization_can_buy`/`organization_can_sell`/`is_authorized_member`) unmodified. **This verdict covers Feature 003 only** — it does not imply marketplace/payments/Admin Operations Console/whole-platform readiness. | [spec](../../specs/003-auth-membership-kyb/spec.md) · [plan](../../specs/003-auth-membership-kyb/plan.md) · [tasks](../../specs/003-auth-membership-kyb/tasks.md) · [handoff](../../specs/003-auth-membership-kyb/PHASE-1-2-IMPLEMENTATION-HANDOFF.md) |
 | 004 | Member Dashboard | `/dashboard` | Planning prepared · Implement NOT STARTED | [spec](../../specs/004-member-dashboard/spec.md) · [plan](../../specs/004-member-dashboard/plan.md) · [tasks](../../specs/004-member-dashboard/tasks.md) |
 | 005 | Inventory, Custody & Storage | `/dashboard` + shared layer | Planning prepared · Implement NOT STARTED | [spec](../../specs/005-inventory-custody-storage/spec.md) · [plan](../../specs/005-inventory-custody-storage/plan.md) · [tasks](../../specs/005-inventory-custody-storage/tasks.md) |
 | 006 | Marketplace, Listings & Resale | `/dashboard` | Planning prepared · Implement NOT STARTED | [spec](../../specs/006-marketplace-listings-resale/spec.md) · [plan](../../specs/006-marketplace-listings-resale/plan.md) · [tasks](../../specs/006-marketplace-listings-resale/tasks.md) |
@@ -107,27 +107,25 @@ lifecycle fixtures), `tests/design/uif-fg.browser.mjs` (24 authenticated Member/
 anonymous/cross-surface denial cases against REAL Supabase sessions), `tests/design/
 uif-h-closure.browser.mjs` (keyboard-only drawer open/focus-trap/close/focus-restore, heading order).
 
-**Exact next task**: Feature 003 **apply the prepared T033 MFA-gate migration, then close T033**. Feature
-003 Phase 1 + Phase 2, RUN DB (T010b–T010g, applied + live-verified 2026-09-10, closing DB-BLOCK-01/03),
-RUN A (T010a, T011–T013 — Sign-Up, onboarding, controlled organization creation, live-verified
-2026-09-10), the RUN A Full Name Persistence fix, RUN B (T014–T022, Phase 4 + Phase 5 — KYB
-draft/document upload/submission/status experience, COMPLETE and LIVE-VERIFIED 2026-09-11), including
-its two additive migrations (`20260912000000_feature_003_profile_bootstrap.sql`, closing DB-BLOCK-11;
-`20260912010000_feature_003_kyb_draft_fields.sql`), both applied and live-verified end to end,
-Phase 6 (Agreements, T023–T025) + Phase 7 (Organization & Profile Self-Service, T026–T028), and
-**Phase 8 (Test fixtures extension, T029) is COMPLETE; Phase 9 (Authorization & isolation tests) T030,
-T031, T032, T034 are COMPLETE (2026-09-11)** — 8 new fixture identities/organizations,
-cross-organization isolation, eligibility freshness, KYB transitions, and agreement injection
-resistance + version-bump re-gating, all live-verified against real fixture sessions and RLS, with no
-authorization-function change. **T033 (session/MFA/auth-disclosure) remains OPEN**: sign-out and
-auth-disclosure resistance are closed, and a focused remediation pass (2026-09-11) closed the
-application-layer half of the MFA gate (live-verified — `dashboard/layout.tsx`,
-`dashboard-admin/layout.tsx`, and every Feature 003 mutation Server Action now deny a step-up-pending
-session), but the database-level half — the one that matters against a browser-held JWT used outside
-the Next.js app — is only prepared, not applied: see
-`supabase/migrations/20260913000000_feature_003_t033_mfa_data_gate.sql` and the handoff doc's "T033
-MFA Remediation" section for exactly what a human needs to run and reverify. The T028 co-member-names
-gap (RLS/schema boundary, not a bug) also remains, unchanged. Feature 002 is closed.
+**Exact next task**: Feature 003 is **COMPLETE, VERIFIED, AND CLOSED (2026-09-11)** — GO. Every task
+(T001–T040, T010a–T010g — 47/47) is done and live-verified. Phase 1 + Phase 2, RUN DB (T010b–T010g,
+applied + live-verified 2026-09-10, closing DB-BLOCK-01/03), RUN A (T010a, T011–T013 — Sign-Up,
+onboarding, controlled organization creation, live-verified 2026-09-10), the RUN A Full Name
+Persistence fix, RUN B (T014–T022, Phase 4 + Phase 5 — KYB draft/document upload/submission/status
+experience, live-verified 2026-09-11) including its two additive migrations
+(`20260912000000_feature_003_profile_bootstrap.sql`, closing DB-BLOCK-11;
+`20260912010000_feature_003_kyb_draft_fields.sql`), Phase 6 (Agreements, T023–T025) + Phase 7
+(Organization & Profile Self-Service, T026–T028), Phase 8 (Test fixtures, T029), and Phase 9
+(Authorization & isolation tests, T030–T034) are all COMPLETE and LIVE-VERIFIED. **T033's MFA data
+gate is APPLIED** (`supabase/migrations/20260913000000_feature_003_t033_mfa_data_gate.sql` — a fresh
+verified-factor aal1 session is denied at table+RPC level across 10 protected surfaces, SQLSTATE
+42501; the same session after a real aal2 challenge succeeds; a no-factor session correctly stays
+aal1-allowed) — live-proven, not merely prepared. **Phase 10 (T035–T036) + Phase 11 (T037–T040) closed
+2026-09-11** — see `specs/003-auth-membership-kyb/tasks.md`'s per-task "CLOSURE (2026-09-11)" notes and
+the handoff doc's "Feature 003 Final Closure" section for full evidence (real-browser axe pass, 8
+genuine accessibility/contrast defects found and fixed, 553/553 tests, clean lint/typecheck/build/diff
+check). The T028 co-member-names gap (RLS/schema boundary, not a bug) remains, documented, and does not
+block closure. Feature 002 is closed. **Next feature: 004.**
 
 ---
 
@@ -292,9 +290,9 @@ business decision.
 
 | ID | Summary | Blocks | Release impact |
 |---|---|---|---|
-| DB-BLOCK-01 | No Supabase Storage bucket — no private document bytes can be stored | 003, 008, 009, 012 | **AC-08** (private KYB documents) |
+| DB-BLOCK-01 | No Supabase Storage bucket — no private document bytes can be stored — **RESOLVED 2026-09-10, applied + live-verified** (private `kyb-evidence` bucket + object policies, 003 RUN DB) | 003, 008, 009, 012 | **AC-08** (private KYB documents) |
 | DB-BLOCK-02 | No destination for an anonymous RFQ | 002 | Public conversion path |
-| DB-BLOCK-03 | Organizations/members are admin-insert only — no self-service onboarding | 003 | Membership funnel |
+| DB-BLOCK-03 | Organizations/members are admin-insert only — no self-service onboarding — **RESOLVED 2026-09-10, applied + live-verified** (controlled onboarding capability, 003 RUN DB) | 003 | Membership funnel |
 | DB-BLOCK-04 | Notifications can be neither created nor marked read | 004, 012 | Notification system entirely |
 | DB-BLOCK-07 | Delivery request does not reserve inventory | 005, 006, 009 | **AC-04** |
 | DB-BLOCK-11 | No mechanism created a `profiles` row for a fresh Auth signup — RESOLVED 2026-09-11, applied + live-verified | 003 | Fresh-signup onboarding path |

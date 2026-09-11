@@ -18,9 +18,12 @@ Self-Service (T026–T028) are COMPLETE AND LIVE-VERIFIED (2026-09-11) — see t
 "Phase 6 + 7 Live Verification" section. **Phase 8 Test Fixtures (T029) is COMPLETE (2026-09-11).
 Phase 9 Authorization & Isolation Tests (T030–T034) are COMPLETE AND LIVE-VERIFIED (2026-09-11),
 including T033's applied MFA database/RPC/Storage gate — see the handoff's “T033 Post-Apply Live
-Verification” section. Phase 10–11 remain NOT STARTED.
-**Task inventory**: 47 tasks — existing T001–T040 plus additive T010a–T010g; T001–T034 and
-T010b–T010g are complete; T035+ remain.
+Verification” section. **Phase 10–11 (T035–T040) are COMPLETE AND CLOSED (2026-09-11)** — see each
+task's own "CLOSURE (2026-09-11)" note below, and the handoff doc's "Feature 003 Final Closure"
+section.
+**FEATURE 003 STATUS: COMPLETE — CLOSED — GO.** Every task in this file (T001–T040, T010a–T010g) is
+`[x]`.
+**Task inventory**: 47 tasks — existing T001–T040 plus additive T010a–T010g; all 47 are complete.
 **Prerequisite**: 001 implemented (identity DAL, Supabase clients, server-action contract, state
 components, i18n, test tooling + fixtures).
 
@@ -435,48 +438,127 @@ path. They are intentionally unchecked; this planning update does not create or 
 
 ## Phase 10 — Accessibility, states, RTL
 
-- [ ] T035 Accessibility and state pass across all auth/KYB screens (labels, error association, focus,
+- [x] T035 Accessibility and state pass across all auth/KYB screens (labels, error association, focus,
   landmarks) plus loading/empty/error/unauthorized/suspended states.
   - Req: FR-019, FR-020 | Depends: Phases 2–7
   - Verify: automated a11y check reports no critical violations; every screen has all applicable states
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — High
   - Why: forms + denial states need contextual judgment to be genuinely usable.
+  - **CLOSURE (2026-09-11)**: real Chrome/CDP + axe-core pass (`tests/browser/feature003-closure.browser.mjs`,
+    isolated production server) found and fixed 8 genuine defects: duplicate/nested `<main>` landmarks
+    (`dashboard/page.tsx`'s agreement gate, and `dashboard/layout.tsx`'s 5 pre-`AppShell` branches which
+    previously had NO `<main>` at all, causing a real `landmark-one-main` failure on `/dashboard/kyb/` for
+    a `PENDING_KYB` org); shared leaf components (`StateScreen`, `KybStatusScreen`, `OnboardingExperience`,
+    `OrganizationSelector`) each owning their own competing `<main>` (moved landmark ownership to the
+    layout/route level, added `<main>` to the two call sites — `dashboard-admin/layout.tsx`'s forbidden
+    branch, `components/public/route-error.tsx` — that had no ambient one); a `list`/`listitem` axe
+    finding on `Breadcrumb` from a `display:contents` wrapper (explicit `role="list"`/`role="listitem"`);
+    2 color-contrast violations from opacity-reduced muted text (`sign-up/page.tsx`,
+    `onboarding-progress.tsx`); a missing programmatic label on the KYB file-upload control
+    (`kyb-document-row.tsx`, `aria-label` built from existing localized copy); and a real dark-mode
+    color-contrast failure (`--destructive: #d4614c` measured ~3.9:1 against `--card`/`--surface-subtle`
+    in dark mode, and the sidebar/mobile-nav footer note's `color-mix(...56%...)` measured ~4.24:1 in
+    light mode — both below the 4.5:1 AA bar for small text; fixed by brightening `--destructive` to
+    `#d97563` (~4.6:1) and raising the sidebar footer/description opacity mix from 56% to 70% (~5.7–7:1
+    both themes)). Final re-run: 0 axe violations across `/sign-in/`, `/sign-up/`, `/reset-password/`,
+    `/admin/sign-in/` (mobile+desktop), RTL entry for all four, and authenticated `/dashboard/`,
+    `/dashboard/settings/` (buyer-only fixture), `/dashboard/`, `/dashboard/kyb/` (pending-kyb fixture) —
+    0 console/page errors. Broader MFA-state/other-KYB-status/agreement-state coverage beyond these
+    fixtures is component/integration-verified (existing `tests/auth/*` + `tests/design/*` suites,
+    553/553 passing) and manually reasoned from source, not independently re-driven through a live
+    browser this run — documented here honestly rather than claimed as automated.
 
-- [ ] T036 RTL/logical-property and externalised-copy pass across this feature's screens.
+- [x] T036 RTL/logical-property and externalised-copy pass across this feature's screens.
   - Req: FR-020 | Depends: Phases 2–7
   - Verify: `grep -rn "text-left\|text-right\|[^-]pl-\|[^-]pr-" src/app/\(auth\) src/app/dashboard/kyb src/app/dashboard/onboarding` returns nothing; no inline hardcoded UI strings
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — Medium
   - Why: mechanical but broad.
+  - **CLOSURE (2026-09-11)**: the exact grep above, and a broadened sweep over
+    `src/app/dashboard`, `src/app/dashboard-admin`, `src/app/admin`, `components/account`, both return
+    nothing — no physical left/right utilities found; the codebase already uses logical properties
+    throughout. Real-browser RTL entry (`localStorage hills-locale=ar`) on all 4 public routes at 390px
+    confirmed `dir="rtl"` with no horizontal overflow (`scrollWidth <= clientWidth`). KYB upload
+    transport regression re-confirmed via `tests/auth/kyb-upload-transport.test.tsx` (6/6 passing,
+    unchanged from prior closure) — 10 MiB file cap and the Next Server Action transport correction
+    both remain in force; no unsafe production data was created to re-drive this manually.
 
 ---
 
 ## Phase 11 — Verification & closure
 
-- [ ] T037 Run `npm run lint`, `npm run typecheck`, `npm test`, `npm run build`.
+- [x] T037 Run `npm run lint`, `npm run typecheck`, `npm test`, `npm run build`.
   - Req: — | Depends: all, including T010a–T010g
   - Verify: four exit-0 results
   - Codex: GPT-5.6 Sol — Low · Claude: Sonnet — Low
   - Why: mechanical execution.
+  - **CLOSURE (2026-09-11)**: typecheck clean; `npm test` 553/553 passing across 46 files (focused
+    `session`/`design` suites re-run first — 19/19 and 64/64); production build clean; lint —
+    272 problems (124 errors, 148 warnings), ALL under the pre-existing, historical
+    `docs/claude-design/` baseline (confirmed by grepping the lint output's file headers — zero hits
+    outside that directory); zero new lint findings in Feature 003 application code
+    (`src/`, `lib/`, `components/`); `git diff --check` clean (only benign CRLF-normalization notices,
+    no whitespace/conflict-marker errors).
 
-- [ ] T038 Verify no service-role usage and no document bytes stored anywhere in this feature.
+- [x] T038 Verify no service-role usage and no document bytes stored anywhere in this feature.
   - Req: SEC-001, SC-007, FR-012 | Depends: T037
   - Verify: `grep -rn "SERVICE_ROLE" src lib components` returns nothing; no upload transport is active
   - Codex: GPT-5.6 Sol — Low · Claude: Opus — Medium
   - Why: confirming a deliberately-unbuilt capability stayed unbuilt requires judgment about what counts as a workaround.
+  - **CLOSURE (2026-09-11) — CORRECTED INVARIANT**: the "no upload transport is active" wording above is
+    stale — real private KYB evidence upload/download is now implemented and load-bearing (RUN B,
+    T014–T022). The current, correct invariant, verified this run: `grep -rn "SERVICE_ROLE" src lib
+    components` returns nothing; no service-role secret reaches the browser; `.env.local` is gitignored
+    and not tracked (only `.env.example` is committed); no KYB bytes live in Postgres/base64/text
+    columns — bytes live only in the private `kyb-evidence` Storage bucket, metadata only in
+    `file_assets`/`kyb_documents`; no public KYB bucket/permanent public URL; cross-org byte isolation
+    and the T033 MFA AAL data gate remain enforced (re-confirmed live, not merely re-asserted — see
+    below). **MFA final security regression**: re-ran `tests/auth/session.test.ts` (19/19 passing,
+    unmodified) against the ALREADY-APPLIED `20260913000000_feature_003_t033_mfa_data_gate.sql` —
+    no-verified-factor stays allowed at aal1; a fresh MFA-enrolled aal1 session is denied at both table
+    and RPC level across all 10 protected surfaces (SQLSTATE 42501); the SAME session after a real
+    `challengeAndVerify` succeeds. The applied migration was not edited. **Authorization truth
+    untouched**: `organization_can_buy`, `organization_can_sell`, `is_authorized_member` were not
+    modified this run (confirmed via `git status`/diff — no migration files touched); no hand-rolled
+    ACTIVE+APPROVED KYB was introduced.
 
-- [ ] T039 Manual authorization sweep: suspended org, rejected org, unattached user, blocked user,
+- [x] T039 Manual authorization sweep: suspended org, rejected org, unattached user, blocked user,
   multi-org user — confirm UI and server agree in every case.
   - Req: SC-003, SC-004 | Depends: T037
   - Verify: for each fixture, UI shows the correct state and a direct protected action is refused server-side
   - Codex: GPT-5.6 Sol — Medium · Claude: Opus — High
   - Why: cross-cutting judgment that the whole eligibility model behaves coherently.
+  - **CLOSURE (2026-09-11)**: re-ran the existing live fixture-backed suites that already prove UI truth
+    and server/data truth agree for every required state — `tests/auth/isolation.test.ts` (cross-org
+    denial + acting-org switch refusal for a non-membership org, 7/7), `tests/auth/kyb-transitions.test.ts`
+    (blocked-user mutation refusal, incomplete-submission block, DRAFT→SUBMITTED, 6/6),
+    `tests/auth/eligibility-freshness.test.ts` (SUSPENDED⇄ACTIVE flips on the very next resolution, no
+    caching, 5/5), `tests/auth/admin-auth.test.ts` (admin/non-admin operationalRoles source, 26/26),
+    `tests/auth/session.test.ts` (admin/member cross-boundary sign-in denial + cleanup + no dual-role
+    creation, MFA-required/AAL2-after-challenge, 19/19), `tests/auth/agreements.test.ts` (blocked-user
+    and cross-org acceptance injection denied by RLS, 12/12), `tests/auth/request-identity.test.ts` and
+    `tests/auth/organization-membership-view.test.ts` (multi-org: 0/1/>1 membership semantics, no
+    `organizations[0]`, own-org-only visibility). Real-browser pass additionally re-confirmed the
+    buyer-only and pending-kyb fixtures' UI state matches server truth with 0 axe violations and 0
+    console errors. **Multi-org freshness**, **Member/Admin boundary**, **profile/organization
+    self-service** (including the T028 co-member-name fallback, kept as documented, not bypassed), and
+    **agreements closure** (current-registry-only, version gating, history retained, org-scoped,
+    no injection) are unchanged from the Phase 6–9 live verification already recorded in the handoff
+    doc's "Phase 6 + 7 Live Verification" and "T033 Post-Apply Live Verification" sections — re-run,
+    not re-authored, this closure run.
 
-- [ ] T040 Update `docs/architecture/IMPLEMENTATION-ROADMAP.md` status for 003 and re-confirm
+- [x] T040 Update `docs/architecture/IMPLEMENTATION-ROADMAP.md` status for 003 and re-confirm
   DB-BLOCK-01/DB-BLOCK-03 remain open and unbypassed.
   - Req: spec.md Open items | Depends: T037
   - Verify: roadmap row accurate; capability-map blockers unchanged unless formally resolved
   - Codex: GPT-5.6 Sol — Low · Claude: Opus — Medium
   - Why: honest continuity reporting.
+  - **CLOSURE (2026-09-11) — CORRECTED WORDING**: the task title/verify text above is stale — DB-BLOCK-01,
+    DB-BLOCK-03, and DB-BLOCK-11 are already RESOLVED (line 8–9 and line 16 of this file's own status
+    banner; RUN DB migration applied and live-verified 2026-09-10; RUN B migrations applied and
+    live-verified 2026-09-11). This closure does NOT reopen them. `docs/architecture/IMPLEMENTATION-ROADMAP.md`
+    updated with Feature 003's final completion status, the T035–T040 results above, and the note that
+    the applied T033 MFA gate and private `kyb-evidence` Storage architecture are both live and
+    verified, not planned.
 
 ---
 

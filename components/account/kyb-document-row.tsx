@@ -145,6 +145,7 @@ export function KybDocumentRow({
           accept={ACCEPT}
           disabled={isPending}
           className="max-w-xs"
+          aria-label={`${status === "missing" ? copy.upload : copy.replace} — ${copy.types[documentType]}`}
           onChange={(event) => setSelectedFile(event.currentTarget.files?.[0] ?? null)}
         />
         <Button type="submit" variant="outline" size="sm" disabled={isPending || !canSubmit}>
