@@ -192,7 +192,7 @@ describe("Phase 5.5 UIF-036 — member shell applied at /dashboard", () => {
     expect(shell).toContain('data-testid="hills-settings-card"');
   });
 
-  it("creates no new /dashboard/* BUSINESS route (kyb is the KYB verification workspace itself, not a business module; onboarding stays action-only)", () => {
+  it("creates no /dashboard/* BUSINESS route beyond what its OWN owning feature genuinely ships (kyb is the KYB verification workspace itself, not a business module; onboarding stays action-only; inventory/storage are Feature 005's own real, live routes)", () => {
     const entries = readdirSync(path.join(root, "src", "app", "dashboard"), { withFileTypes: true });
     const dirs = entries.filter((e) => e.isDirectory()).map((e) => e.name);
     // Feature 003 RUN B (T016) deliberately adds `dashboard/kyb/` as a real route — the KYB
@@ -202,7 +202,17 @@ describe("Phase 5.5 UIF-036 — member shell applied at /dashboard", () => {
     // `tests/auth/run-a-sign-up-onboarding.test.ts`), and it carries no business content (no
     // inventory, marketplace, order, or listing data) — it is the verification gate itself, not a
     // module past it.
-    expect(dirs.sort()).toEqual(["kyb", "onboarding", "settings"]);
+    //
+    // Feature 005 RUN B adds `dashboard/inventory/` and `dashboard/storage/` as genuinely-live
+    // business routes (T007–T012), registered with Feature 004's own module contract
+    // (`lib/dashboard/registry.tsx`) — this is exactly the kind of real module this test's own
+    // original comment anticipated arriving later ("no inventory... module past it" describes `kyb`,
+    // not a permanent ban on any feature ever adding one). No OTHER business area (marketplace,
+    // orders, payments, delivery, disputes) has a directory here yet.
+    expect(dirs.sort()).toEqual(["inventory", "kyb", "onboarding", "settings", "storage"]);
+    for (const stillUnbuilt of ["marketplace", "orders", "payments", "delivery", "disputes", "listings"]) {
+      expect(dirs).not.toContain(stillUnbuilt);
+    }
 
     // Feature 003 T013 added `dashboard/onboarding/` for the controlled-onboarding Server Action
     // only — it carries no `page.tsx`, so Next.js never registers it as a route. The onboarding

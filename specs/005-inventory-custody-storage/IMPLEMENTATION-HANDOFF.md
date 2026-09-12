@@ -262,11 +262,180 @@ release-blocking isolation suite").
   built), Phase 4 (Feature 004 module registration), Phases 5–7 (formal isolation/a11y/closure) all
   remain entirely unstarted, as directed.
 
+## RUN B RECONCILIATION (2026-09-12) — read this before the RUN B narrative below
+
+Before RUN B was considered closed, two of its own closure claims were re-audited on the user's
+explicit request:
+
+1. **T010 order linkage** — RUN B originally shipped with NO order reference on the storage page,
+   reasoning `lib/inventory/allocations.ts` didn't join `order_items`/`orders`. Re-audited against the
+   live schema/RLS: `storage_allocations.order_item_id` → `order_items` (`order_items_view`:
+   `can_view_order(order_id)`) → `orders` (`orders_view`: `can_view_order(id)`) is a GENUINE,
+   member-readable chain — both policies call `can_view_order()` directly at the top level, unlike
+   DB-OPEN-12's nested, broken chain. **Empirically proven live** (service-role setup/teardown only;
+   real authenticated read as the allocation owner and an unrelated cross-org member): the owner read
+   through to the real `order_code`; the unrelated member got zero rows everywhere. Fixed:
+   `getStorageAllocations` now resolves this chain (new `StorageAllocationOrderContext` type,
+   `resolveOrderContext` helper); the storage page renders the order code as plain reference text
+   (never a hyperlink — no order-detail route exists yet in this codebase).
+2. **T015 module contract** — RUN B originally composed the "what did I buy"/"where is it" overview
+   cards directly in `src/app/dashboard/page.tsx`, bypassing the module contract because
+   `composeOverview` was synchronous and `lib/inventory/*` reads are inherently async. Re-examined:
+   this established exactly the second, page-specific integration path Feature 004's module contract
+   was designed to prevent — the first real module should not be the one to break that discipline.
+   Fixed with the smallest safe extension: `DashboardModule.overviewCards`/`actionItems` may now
+   return a `Promise`, `composeOverview` is `async` (resolving every granted module concurrently,
+   deterministic order preserved), and the "inventory" module's `overviewCards` performs its own
+   bounded COUNT reads directly. `dashboard/page.tsx` is back to a plain `await composeOverview(...)`.
+   No ambient state, no shared cache, no authorization change — a module still receives only
+   `{ organization }`. All 5 pre-existing Feature 004 tests were mechanically updated to `await`, and
+   the 3 that feed the real registry now mock `@/lib/supabase/server` (the same technique
+   `tests/inventory/*` already uses) since the real registry now contains a module that performs a
+   real (mocked) read — every original guarantee those tests proved still holds and still passes. 3
+   new tests prove the positive contract path end-to-end.
+
+Both fixes are reflected in `tasks.md`'s T010/T015 closure notes (as RECONCILIATION addenda) and in
+the code below. Regression re-run after these fixes: focused inventory/dashboard tests, full suite,
+typecheck, build, lint, `git diff --check` — see this reconciliation's own final report for exact
+figures.
+
+## RUN B (2026-09-12) — Phase 2 (Member inventory surfaces, T007–T012) + Phase 4 (T015)
+
+**Scope of this run**: T007–T012, T015 only. No Phase 3 (T013/T014 — depends on 010's warehouse
+model), no Phase 5 (T016–T019 — formal release-blocking isolation suite), no Phase 6 (T020/T021 —
+formal a11y/RTL/mobile closure), no Phase 7. Zero mutations confirmed: no `"use server"`, no
+`SERVICE_ROLE`, no cache directive, no schema/RLS change anywhere in this run's diff.
+
+### Pages/routes created
+
+- `src/app/dashboard/inventory/page.tsx` (T007) — positions list, bounded `?page=` pagination.
+- `src/app/dashboard/inventory/[positionId]/page.tsx` (T008) — position detail + availability.
+- `src/app/dashboard/storage/page.tsx` (T010) — custody allocations list.
+- `src/app/dashboard/inventory/history/page.tsx` (T011) — ownership ledger, no top-level nav entry.
+- `src/app/dashboard/not-found.tsx` (new, shared) — dashboard-scoped 404, renders inside `AppShell`
+  rather than bouncing to the public site's `src/app/not-found.tsx` (which renders `PublicShell`).
+- `components/inventory/availability-breakdown.tsx` (T009), `ledger-timeline.tsx` (T012),
+  `storage-status-badge.tsx` (new, small — see "storage status" note below).
+- `lib/inventory/positions.ts` gains `getInventoryPositionById` (org-scoped single lookup, `null` for
+  both "not found" and "cross-org") and `getInventoryPositionsCount` (bounded count-only).
+- `lib/inventory/allocations.ts` gains `getStoredAllocationsCount` (bounded count-only, `STORED` only).
+- `lib/dashboard/registry.tsx` gains a real "inventory" module (nav-only — see T015's closure note in
+  `tasks.md` for why overview cards are composed at the page level instead).
+- `src/app/dashboard/page.tsx` merges two bounded COUNT-only overview cards into `bought`/`where`.
+- `lib/app/copy/{en,ar}.ts` gain a full `inventory.*` section — every new string exists in both
+  languages; no hardcoded English anywhere in the new pages/components.
+
+### Exact quantity labels used (per the Phase 1 reconciliation)
+
+Only TWO labels exist — "Owned quantity" (`availableQuantityKg`) and "Reserved quantity"
+(`reservedQuantityKg`). There is deliberately no third "Available"/"Free to trade" label: the database
+exposes no such distinct value, and computing one (`owned - reserved`) would violate LOT-02/FR-002.
+This is the exact reconciled terminology `lib/app/copy/en.ts#inventory`'s header comment documents.
+
+### DB-OPEN-05 UI degradation
+
+`InventoryPosition.lot === null` renders a dedicated "Lot detail unavailable" panel (list: inline
+text; detail: a bordered notice) — the position itself always still renders. No coffee/origin/grade
+value is ever fabricated.
+
+### DB-OPEN-12 reservation-cause behavior
+
+`AvailabilityBreakdown` renders `{ kind: "unknown" }` as "Reservation details are unavailable right
+now" — never "no reservation," never implying the reserved quantity can be released or the
+reservation modified. A resolvable `{ kind: "order", ... }` cause (forward-compatible, currently
+unreachable per DB-OPEN-12) renders the order code and, when present, `hold_expires_at`.
+
+### Allocation status mapping
+
+`StorageStatusBadge` (new; NOT `components/ui/status-badge.tsx`'s `StatusBadge`, whose closed
+`STATUS_VALUES` union does not include `STORED`/`RELEASED`) maps the DB's exact three values to
+localized dot+text labels. No fourth value invented.
+
+### Ledger privacy/redaction behavior
+
+`LedgerTimeline` shows the localized event type, quantity+unit, direction, and — when the
+counterparty is unreadable (`redacted: true`) — the safe "Another organization" wording, never the
+real name and never dropping the event. No edit/delete/reorder/correct control exists anywhere.
+
+### Feature 004 registration / overview contribution
+
+Superseded by the RECONCILIATION section above — the "inventory" module now contributes its bounded
+overview cards THROUGH the module contract (`overviewCards`, now allowed to be async), not a
+page-level merge step. See `tasks.md`'s T015 closure/reconciliation notes for the full reasoning.
+
+### EN/AR, RTL, Light/Dark, mobile, accessibility
+
+- EN/AR: every new string lives in `lib/app/copy/{en,ar}.ts`'s new `inventory` section; rendered via
+  `<AppBilingual>` throughout (never a bare English string in JSX).
+- RTL: `grep -rn "text-left\|text-right\|[^-]pl-\|[^-]pr-" src/app/dashboard/inventory
+  src/app/dashboard/storage components/inventory` returns nothing — logical properties only.
+- Light/Dark: only existing design-system tokens used (`text-foreground`, `text-muted-foreground`,
+  `bg-card`, `--status-*-surface`/`--status-*` pairs already proven across both themes elsewhere).
+- Mobile: `TableCardList` (Feature 004's existing responsive primitive) used for both list pages —
+  zero new responsive logic invented.
+- Accessibility: real `<table>`/`<th scope="col">` on desktop (via `TableCardList`), heading hierarchy
+  (`<h1>` via `PageHeader`, `<h2>` per section), breadcrumbs via the existing `PageHeader`/`Breadcrumb`
+  primitives, an sr-only header for the list's action column, accessible link names throughout.
+
+### Browser/console evidence — honest scope
+
+**Not performed.** No real Chrome/CDP pass was run this run: every inventory-adjacent table remains
+genuinely empty in the live database (confirmed in the RUN A/reconciliation work — Features 007/008
+do not exist yet, so no real position/allocation/ownership row can exist), so a live browser session
+would show only empty states, and this run's constraints (no schema/mutation work, no new fixture
+infrastructure beyond what Issue 2's reconciliation already used and tore down) did not extend to
+building the multi-table synthetic-position fixture a meaningful positive-content browser pass would
+require. Verification for this run rests on: `npm run build` (clean, all three routes compile and
+render as dynamic Server Components), `npm run typecheck` (clean), the full test suite (643/643), and
+targeted component/unit tests (`tests/inventory/run-b-ui.test.tsx`) proving the presentation contracts
+(labels, redaction, no-arithmetic, no-mutation-affordance, notFound() privacy) directly. This is
+reported honestly rather than claiming an unrun browser verification.
+
+### Tests
+
+`tests/inventory/run-b-ui.test.tsx` (21 tests): `getInventoryPositionById`/count-query correctness,
+`AvailabilityBreakdown` (verbatim quantities, unknown-cause copy, negative-value integrity guard —
+never `Math.max(0, ...)`), `LedgerTimeline` (no mutation control, redaction, plain-text
+reason/correlation), `StorageStatusBadge` (all three statuses), the T010 order-context resolution (4
+tests, added in the reconciliation), and a structural audit (no Client Components, no
+mutation/cache/service-role, `notFound()` privacy, no public-route import of `lib/inventory`).
+`tests/dashboard/registry.test.tsx` (19 tests) covers both the genuinely-new "inventory"/"storage"
+routes AND (added in the reconciliation) the T015 module-contract overview contribution end-to-end:
+real counts surface through `overviewCards`, zero counts contribute nothing, and a `canBuy: false`
+organization gets no inventory overview contribution. `tests/design/uif-f.test.tsx`,
+`tests/dashboard/org-switcher.test.tsx` and `tests/dashboard/states.test.tsx` were mechanically
+updated (the reconciliation's `composeOverview` → `async` change) with no guarantee they prove
+weakened.
+
+### Regression run (post-reconciliation)
+
+- `npm run typecheck` — clean.
+- `npm test` — **650/650 passing, 57 files** (up from RUN B's original 643/57 — net +7 across the two
+  reconciliation fixes: +4 T010 order-context tests, +3 T015 module-contract positive-path tests;
+  zero regressions across Feature 003/004's existing suites).
+- `npm run build` — clean; the same four dynamic routes appear (`/dashboard/inventory`,
+  `/dashboard/inventory/[positionId]`, `/dashboard/inventory/history`, `/dashboard/storage`).
+- `npx eslint lib/inventory lib/dashboard lib/app/copy components/inventory src/app/dashboard
+  tests/inventory tests/dashboard` — zero findings.
+- `git diff --check` — clean (only benign LF/CRLF warnings).
+
+### Honest remaining gaps
+
+- No real Chrome/CDP browser pass — every inventory table remains genuinely empty; formal a11y/RTL/
+  mobile closure is explicitly Phase 6's job (T020/T021), not this run's.
+- Phase 3 (T013/T014, custody trust/variance) remains unstartable until 010's warehouse model exists.
+- Phase 5's formal release-blocking cross-tenant isolation suite (T016–T019, real seeded positive vs.
+  negative data across two organizations) still does not exist — this run's tests prove the
+  presentation/read-layer contracts (including, now, the T010 order-linkage and T015 module-contract
+  paths, each with a real empirical live proof performed during reconciliation), not a full formal
+  isolation suite.
+- No order-detail route exists yet (Features 007/008's scope) — the storage page's order reference
+  renders as plain text, never a hyperlink, for exactly that reason.
+
 ## Exact next run
 
-Phase 2 (T007–T012 — member inventory/storage/ledger UI pages and presentational components) is the
-next scoped unit of work, reading exclusively through this run's `lib/inventory/*` DTO layer per
-FR-001. Before building it, read this handoff's two "material findings" sections above — they affect
-what the UI can honestly claim to show (no "owned" figure without a product decision on what that
-should mean; reservation-cause display should expect `"unknown"` to be the common case today, not the
-exception).
+Phase 3 (T013/T014) is blocked on Feature 010's warehouse model and should not be attempted next.
+Phase 5 (T016–T019 — the formal release-blocking isolation suite, following the same seeded-fixture
+pattern the reconciliation's DB-OPEN-12 proof already established) is the next scoped, unblocked unit
+of work, followed by Phase 6 (a11y/RTL/mobile closure, including the still-missing real browser pass)
+and Phase 7 (final closure).

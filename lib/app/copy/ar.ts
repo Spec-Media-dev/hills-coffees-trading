@@ -350,4 +350,124 @@ export const ar: DeepPartial<AppCopy> = {
       switchTo: "التبديل إلى {organization}",
     },
 
+    inventory: {
+      nav: {
+        inventory: "المخزون",
+        storage: "التخزين",
+      },
+      overview: {
+        positionsCard: "المراكز المملوكة",
+        positionsValue: "{count} مركز",
+        positionsValuePlural: "{count} مراكز",
+        storedCard: "في عهدة هيلز",
+        storedValue: "{count} تخصيص",
+        storedValuePlural: "{count} تخصيصات",
+      },
+      list: {
+        title: "المخزون",
+        description: "القهوة التي تملكها منظمتك، ومكان وجودها.",
+        caption: "مراكز مخزونك",
+        empty: {
+          title: "لا يوجد مخزون بعد",
+          description: "تظهر المراكز هنا بمجرد تسوية عملية شراء ضمن عهدة منظمتك.",
+        },
+        columns: {
+          lot: "الدفعة",
+          warehouse: "المستودع",
+          ownedQuantity: "الكمية المملوكة",
+          reservedQuantity: "الكمية المحجوزة",
+          actions: "الإجراءات",
+        },
+        lotUnavailable: "تفاصيل الدفعة غير متاحة",
+        warehouseUnavailable: "تفاصيل المستودع غير متاحة",
+        viewDetails: "عرض المركز",
+        pagination: {
+          previous: "السابق",
+          next: "التالي",
+          pageLabel: "الصفحة {page}",
+        },
+      },
+      detail: {
+        title: "المركز",
+        breadcrumb: "المخزون",
+        lotHeading: "الدفعة",
+        lotUnavailable: {
+          title: "تفاصيل الدفعة غير متاحة",
+          description: "هذا المركز مملوك لك فعليًا — لكن تفاصيل القهوة/الدفعة غير قابلة للقراءة بموجب صلاحيات الوصول الحالية.",
+        },
+        warehouseHeading: "موقع العهدة",
+        warehouseUnavailable: "تفاصيل المستودع غير متاحة.",
+        recordedSince: "مسجّل منذ {date}",
+        updated: "آخر تحديث {date}",
+      },
+      availability: {
+        title: "التوفر",
+        ownedQuantity: "الكمية المملوكة",
+        reservedQuantity: "الكمية المحجوزة",
+        reservationCause: {
+          heading: "الحجز",
+          knownOrder: "محجوز مقابل الطلب {orderCode}",
+          knownHoldExpires: "ينتهي الحجز في {date}",
+          knownNoCode: "محجوز مقابل طلب يمكنك الاطلاع عليه.",
+          unknown: "تفاصيل الحجز غير متاحة حاليًا.",
+          none: "لا توجد كمية محجوزة حاليًا.",
+        },
+        integrityError: {
+          title: "مشكلة في سلامة البيانات",
+          description: "الكمية المحجوزة لهذا المركز لا تتوافق مع الكمية المملوكة. تواصل مع دعم هيلز كوفي.",
+        },
+      },
+      storage: {
+        title: "التخزين",
+        description: "قهوتك في عهدة هيلز المعتمدة، بحسب التخصيص.",
+        caption: "تخصيصات التخزين الخاصة بك",
+        empty: {
+          title: "لا يوجد شيء في التخزين بعد",
+          description: "تظهر التخصيصات هنا بمجرد وضع قهوتك المشتراة في العهدة.",
+        },
+        columns: {
+          status: "الحالة",
+          allocatedQuantity: "الكمية المخصصة",
+          releasedQuantity: "الكمية المفرج عنها",
+          order: "الطلب",
+        },
+        status: {
+          STORED: "مخزّن",
+          RELEASED: "تم الإفراج عنه",
+          DELIVERED: "تم التسليم",
+        },
+        orderUnavailable: "مرجع الطلب غير متاح",
+      },
+      history: {
+        title: "سجل الملكية",
+        breadcrumb: "المخزون",
+        description: "سجل غير قابل للتغيير يوضح كيفية نشوء ملكية قهوتك. لا يمكن تعديل أي شيء هنا أو حذفه.",
+        empty: {
+          title: "لا يوجد سجل بعد",
+          description: "تظهر أحداث الملكية هنا بمجرد أن تصبح منظمتك طرفًا في عملية نقل.",
+        },
+        eventType: {
+          INITIAL_ALLOCATION: "تخصيص أولي",
+          SALE: "بيع",
+          RESALE: "إعادة بيع",
+          ADJUSTMENT: "تسوية",
+          VOID: "إبطال",
+        },
+        direction: {
+          incoming: "إلى منظمتك",
+          outgoing: "من منظمتك",
+          both: "نقل داخلي",
+        },
+        counterpartyRedacted: "منظمة أخرى",
+        reasonLabel: "السبب",
+        correlationLabel: "المرجع",
+        immutableNote: "هذا السجل للقراءة فقط، ولا يمكن تعديله أو تصحيحه أو إعادة ترتيبه.",
+      },
+      notFound: {
+        title: "المركز غير موجود",
+        description: "هذا المركز غير موجود أو غير متاح لمنظمتك.",
+        backAction: "العودة إلى المخزون",
+      },
+    },
+
 };

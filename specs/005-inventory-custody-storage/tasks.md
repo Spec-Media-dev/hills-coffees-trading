@@ -3,12 +3,13 @@
 **Input**: [spec.md](./spec.md), [plan.md](./plan.md), `docs/architecture/DATABASE-CAPABILITY-MAP.md`,
 `.specify/memory/constitution.md` (v2.0.0), SRS §7 (LOT-01..LOT-04, DEL-01).
 
-**Status**: **RUN A (2026-09-12) COMPLETE — Phase 1 (T001–T006), 6/25 tasks.** Phases 2–7
-(T007–T025 — UI pages, module registration, variance surfacing, formal isolation tests, a11y/RTL,
-closure) remain NOT STARTED. See
-[IMPLEMENTATION-HANDOFF.md](./IMPLEMENTATION-HANDOFF.md) for full evidence, including a materially
-important schema-vs-plan finding on `inventory_positions`' quantity columns and the
-`inventory_reservation_items` RLS chain — read before building Phase 2.
+**Status**: **RUN B (2026-09-12) COMPLETE — Phase 1 (T001–T006, RECONCILED) + Phase 2 (T007–T012) +
+Phase 4 (T015), 13/25 tasks.** Phase 3 (T013–T014, custody trust/variance — depends on 010's
+warehouse model, not yet built), Phase 5 (T016–T019, formal release-blocking isolation suite),
+Phase 6 (T020–T021, formal a11y/RTL/mobile closure) and Phase 7 (T022–T025, final closure) remain
+NOT STARTED. See [IMPLEMENTATION-HANDOFF.md](./IMPLEMENTATION-HANDOFF.md) for full evidence,
+including the Phase 1 reconciliation (owned-quantity semantics, DB-OPEN-12) and RUN B's UI/module
+registration decisions — read before starting Phase 3/5.
 **Prerequisite**: 001, 003, 004 implemented. This feature ships **zero mutations**.
 
 ## Task format
@@ -157,47 +158,98 @@ important schema-vs-plan finding on `inventory_positions`' quantity columns and 
 
 ## Phase 2 — Member inventory surfaces
 
-- [ ] T007 [PS1] Implement `src/app/dashboard/inventory/page.tsx` — positions list with owned,
+- [x] T007 [PS1] Implement `src/app/dashboard/inventory/page.tsx` — positions list with owned,
   reserved and available quantities, warehouse and lot context, paginated.
   - Req: FR-001, FR-003, FR-012, FR-013 | Depends: T002, T005
   - Verify: every quantity renders with unit; zero positions renders the honest empty state
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — Medium
   - Why: standard list page over the DTO layer.
+  - **CLOSURE (2026-09-12, RUN B)**: Server Component, reads exclusively through
+    `getInventoryPositions` (`lib/inventory/positions.ts`), bounded `?page=` pagination (25/page).
+    Only two quantity labels are shown — "Owned quantity" and "Reserved quantity" — per the
+    reconciled labeling decision (see T001's note): there is no third "available" figure to show, and
+    none is fabricated. Lot/warehouse context degrades honestly (DB-OPEN-05) via the existing
+    `lot: null`/`warehouse: null` states — never a fabricated value. Uses
+    `components/dashboard/responsive/table-card-list.tsx` (Feature 004's shared primitive) — table on
+    desktop, cards at mobile, zero new responsive logic.
 
-- [ ] T008 [PS1] Implement `src/app/dashboard/inventory/[positionId]/page.tsx` — position detail with
+- [x] T008 [PS1] Implement `src/app/dashboard/inventory/[positionId]/page.tsx` — position detail with
   the availability breakdown and reservation causes.
   - Req: FR-002, FR-007, PS4 | Depends: T005, T007
   - Verify: a position with an active reservation shows reserved excluded from available, with its cause
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — High
   - Why: the availability presentation is the member's mental model of the inventory invariant; must be unambiguous.
+  - **CLOSURE (2026-09-12, RUN B)**: added `getInventoryPositionById` to `lib/inventory/positions.ts`
+    — org-scoped exactly like the list, so a nonexistent id and a cross-org id return the identical
+    `null`; the page calls `notFound()` for both with no branching that could leak which case
+    occurred. `notFound()` resolves to `src/app/dashboard/not-found.tsx` (new — see below), staying
+    inside the authenticated `AppShell`. Renders `AvailabilityBreakdown` (T009) for the resolved
+    breakdown; DB-OPEN-05 lot-unavailable and DB-OPEN-12 reservation-cause-unknown states both render
+    without crashing (proven by `tests/inventory/run-b-ui.test.tsx`).
 
-- [ ] T009 [P] [PS1] Build `components/inventory/availability-breakdown.tsx` (owned / reserved /
+- [x] T009 [P] [PS1] Build `components/inventory/availability-breakdown.tsx` (owned / reserved /
   available with cause labels and units).
   - Req: FR-003, PS4 | Depends: T001
   - Verify: renders all three figures with units and never shows a negative value
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — Medium
   - Why: focused presentational component with clear rules.
+  - **CLOSURE (2026-09-12, RUN B) — TASK WORDING CORRECTED**: renders exactly TWO figures ("owned" /
+    "reserved"), not three — per the Phase 1 reconciliation, no authoritative "available to trade now"
+    figure exists without `owned - reserved` arithmetic, which this component never performs (proven
+    by structural test). A genuine negative value (which the DB's own CHECK constraints should make
+    impossible) is never silently clamped via `Math.max(0, ...)` — it renders a controlled
+    data-integrity `Alert` instead, exactly as the run directive requires. Reservation cause renders
+    `{ kind: "unknown" }` as an honest "unavailable right now" message (DB-OPEN-12), never as "no
+    reservation."
 
-- [ ] T010 [PS2] Implement `src/app/dashboard/storage/page.tsx` — custody allocations with approved
+- [x] T010 [PS2] Implement `src/app/dashboard/storage/page.tsx` — custody allocations with approved
   state labels, linked to originating order items where permitted.
   - Req: FR-006, PS2 | Depends: T003
   - Verify: `STORED`/`RELEASED`/`DELIVERED` all render correctly; links resolve only where `can_view_order` permits
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — Medium
   - Why: straightforward list over an explicit vocabulary.
+  - **CLOSURE (2026-09-12, RUN B)**: `STORED`/`RELEASED`/`DELIVERED` render via the new
+    `StorageStatusBadge` (dot + text, exact DB vocabulary, no fourth value). Allocated/released
+    quantities are two independent columns, never one derived from the other.
+  - **RECONCILIATION (2026-09-12) — ORDER LINK GAP CLOSED**: the original closure above shipped with
+    no order reference at all, reasoning that `lib/inventory/allocations.ts` did not join
+    `order_items`/`orders`. Re-audited: `storage_allocations.order_item_id` → `order_items.id`
+    (`order_items_view`: `can_view_order(order_id)`) → `order_items.order_id` → `orders.id`
+    (`orders_view`: `can_view_order(id)`) is a GENUINE, member-readable chain — unlike DB-OPEN-12's
+    `inventory_reservation_items`, both policies call `can_view_order()` directly at the top level,
+    with no nesting into an admin-only table. Empirically proven live (service-role setup/teardown
+    only; real authenticated read as the allocation's owning-org buyer and as an unrelated cross-org
+    member, synthetic rows deleted immediately after): the buyer read the full chain through to
+    `orders.order_code`; the unrelated member got zero rows at every step. `getStorageAllocations`
+    (`lib/inventory/allocations.ts`) now resolves this chain (`resolveOrderContext`, a new
+    `StorageAllocationOrderContext` field on `StorageAllocation`) and the storage page renders the
+    order CODE as plain reference text (never a hyperlink — no `/dashboard/orders/[id]` or equivalent
+    destination exists yet in this codebase; linking to a nonexistent route would itself be the
+    "guessed/fabricated relationship" the run directive forbids). `null`/"Order reference unavailable"
+    renders when there is no order_item or the order genuinely is not readable — never a raw id, never
+    a guess. Proven by 4 new tests in `tests/inventory/run-b-ui.test.tsx`.
 
-- [ ] T011 [PS3] Implement `src/app/dashboard/inventory/history/page.tsx` — the append-only ownership
+- [x] T011 [PS3] Implement `src/app/dashboard/inventory/history/page.tsx` — the append-only ownership
   ledger view with type, quantity, timestamp, reason and correlation ID.
   - Req: FR-005, PS3, SEC-005 | Depends: T004
   - Verify: the page exposes no edit/delete/reorder control; reason text is escaped
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — High
   - Why: an immutable-evidence surface where accidentally offering a mutation affordance would contradict LOT-03.
+  - **CLOSURE (2026-09-12, RUN B)**: no top-level nav entry (discoverable from the inventory list
+    page's header action, per the run directive); no edit/delete/reorder control anywhere on the page
+    or in `LedgerTimeline` (proven by structural test — no `onClick`/`<button>`/`<Button>` in the
+    timeline component). Reason/correlation text renders as plain React text (default escaping),
+    never `dangerouslySetInnerHTML`.
 
-- [ ] T012 [P] Build `components/inventory/ledger-timeline.tsx` rendering events with monospace
+- [x] T012 [P] Build `components/inventory/ledger-timeline.tsx` rendering events with monospace
   correlation IDs and closed-vocabulary event types.
   - Req: FR-003, FR-005 | Depends: T001
   - Verify: all five event types render their approved labels; correlation IDs are monospaced
   - Codex: GPT-5.6 Sol — Low · Claude: Sonnet — Low
   - Why: presentational component with an explicit vocabulary.
+  - **CLOSURE (2026-09-12, RUN B)**: all five `OwnershipEventType` values have a localized EN/AR
+    label; correlation id rendered `font-mono`/`dir="ltr"`. Redacted counterparty renders the safe
+    "Another organization" wording (never the real name, never dropped the event) — proven by test.
 
 ---
 
@@ -221,12 +273,42 @@ important schema-vs-plan finding on `inventory_positions`' quantity columns and 
 
 ## Phase 4 — Module registration & overview contributions
 
-- [ ] T015 Register `inventory` and `storage` nav entries and the "what did I buy" / "where is it"
+- [x] T015 Register `inventory` and `storage` nav entries and the "what did I buy" / "where is it"
   overview cards with 004's module contract.
   - Req: FR-012 | Depends: T007, T010
   - Verify: entries appear for member organizations; bounded summary queries only (no full scans)
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — Medium
   - Why: contract-conformant registration with a performance constraint.
+  - **CLOSURE (2026-09-12, RUN B)**: `lib/dashboard/registry.tsx` gains a real "inventory" module
+    (`requiredCapability: "buy"`) with `/dashboard/inventory` and `/dashboard/storage` nav entries —
+    no history entry (discoverable from the inventory page).
+  - **RECONCILIATION (2026-09-12) — OVERVIEW CARDS MOVED INTO THE MODULE CONTRACT**: the original
+    closure composed the "what did I buy"/"where is it" summary cards directly in
+    `src/app/dashboard/page.tsx`, reasoning that `composeOverview` was a pure synchronous function and
+    forcing it async for one module was too large a change. Re-examined: that reasoning under-weighted
+    the cost of establishing a SECOND, page-specific overview-integration path the very first time a
+    real module existed — exactly what Feature 004's module contract was designed to prevent. Fixed
+    with the smallest safe extension: `DashboardModule.overviewCards`/`actionItems`
+    (`lib/dashboard/modules.ts`) may now return their result directly OR as a `Promise`, and
+    `composeOverview` (`lib/dashboard/overview.tsx`) is `async`, resolving every granted module's
+    contribution concurrently (`Promise.all`, preserving deterministic per-module order). A module
+    function still receives ONLY `{ organization }` — no ambient state, no shared cache, no
+    authorization change; declaration remains presentational only. The "inventory" module's
+    `overviewCards` now performs the two bounded COUNT-only reads itself
+    (`getInventoryPositionsCount`/`getStoredAllocationsCount`), directly through the module contract —
+    `src/app/dashboard/page.tsx` is back to a plain `await composeOverview(...)` with no
+    Feature-005-specific merge step. A zero count still contributes no card (never a fabricated zero).
+    All 5 pre-existing Feature 004 test files were updated to `await composeOverview(...)` (a
+    mechanical, required change now that the function returns a `Promise`) and — for the 3 that feed
+    the REAL `DASHBOARD_MODULES` registry through it — to mock `@/lib/supabase/server` with the same
+    fake-table technique `tests/inventory/*.test.ts` already established, since the real registry now
+    contains a module that performs a real (mocked) database read; every original assertion/guarantee
+    those tests proved is unchanged and still passes. 3 new tests prove the positive path: real
+    non-zero counts surface through the contract, zero counts contribute nothing, and a `canBuy: false`
+    organization gets no inventory overview contribution at all. `tests/dashboard/registry.test.tsx`
+    and `tests/design/uif-f.test.tsx` were separately updated (unrelated to the async change) to
+    reflect the genuinely-new "inventory"/"storage" routes (previously asserting no business module
+    existed yet — now honestly outdated).
 
 ---
 

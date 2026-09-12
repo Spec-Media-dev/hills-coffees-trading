@@ -24,8 +24,17 @@ export function createFakeSupabaseClient(tableRows: Record<string, readonly unkn
   return {
     from(table: string) {
       const rows = tableRows[table] ?? [];
+      // RUN B (T015) addition: `{ count: "exact", head: true }` count-only reads
+      // (`getInventoryPositionsCount`/`getStoredAllocationsCount`) — tracked per-builder so `then`
+      // can resolve the shape real supabase-js returns for a `head: true` read (`data: null`, real
+      // `count`), without changing the default row-returning behavior every other RUN A/B test relies
+      // on.
+      let headCount = false;
       const builder: Record<string, unknown> = {
-        select: () => builder,
+        select: (_columns?: string, options?: { count?: "exact"; head?: boolean }) => {
+          if (options?.head) headCount = true;
+          return builder;
+        },
         eq: () => builder,
         or: () => builder,
         in: () => builder,
@@ -34,8 +43,8 @@ export function createFakeSupabaseClient(tableRows: Record<string, readonly unkn
         limit: () => builder,
         maybeSingle: async () => ({ data: rows[0] ?? null, error: null }),
         single: async () => ({ data: rows[0] ?? null, error: null }),
-        then: (resolve: (value: { data: readonly unknown[]; error: null }) => void) =>
-          Promise.resolve({ data: rows, error: null }).then(resolve),
+        then: (resolve: (value: { data: readonly unknown[] | null; count?: number; error: null }) => void) =>
+          Promise.resolve(headCount ? { data: null, count: rows.length, error: null } : { data: rows, error: null }).then(resolve),
       };
       return builder;
     },

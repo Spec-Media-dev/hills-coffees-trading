@@ -421,4 +421,137 @@ export const en = {
       switchTo: "Switch to {organization}",
     },
 
+    /**
+     * Feature 005 RUN B (T007–T012, T015) — member inventory/custody/history surfaces.
+     *
+     * QUANTITY LABELING (Feature 005 reconciliation, 2026-09-12): `inventory_positions` exposes
+     * exactly two authoritative columns, `available_quantity_kg` and `reserved_quantity_kg`. Live
+     * function tracing (`checkout_order`, `admin_review_payment`) proved `available_quantity_kg` is
+     * the position's TOTAL/gross OWNED quantity, not "currently free to trade" as its column name
+     * might suggest — the database has no column, view or function for a distinct "owned" or
+     * "available to trade now" figure. `ownedQuantity`/`reservedQuantity` below are therefore the
+     * ONLY two quantity labels this dictionary defines for a position; there is deliberately no
+     * third "available"/"free" label, since presenting one would either misuse the misleading raw
+     * column name or require the forbidden `owned - reserved` arithmetic.
+     */
+    inventory: {
+      nav: {
+        inventory: "Inventory",
+        storage: "Storage",
+      },
+      overview: {
+        positionsCard: "Owned positions",
+        positionsValue: "{count} position",
+        positionsValuePlural: "{count} positions",
+        storedCard: "In Hills custody",
+        storedValue: "{count} allocation",
+        storedValuePlural: "{count} allocations",
+      },
+      list: {
+        title: "Inventory",
+        description: "Coffee your organization owns, and where it is held.",
+        caption: "Your inventory positions",
+        empty: {
+          title: "No inventory yet",
+          description: "Positions appear here once a purchase settles into your organization's custody.",
+        },
+        columns: {
+          lot: "Lot",
+          warehouse: "Warehouse",
+          ownedQuantity: "Owned quantity",
+          reservedQuantity: "Reserved quantity",
+          actions: "Actions",
+        },
+        lotUnavailable: "Lot detail unavailable",
+        warehouseUnavailable: "Warehouse detail unavailable",
+        viewDetails: "View position",
+        pagination: {
+          previous: "Previous",
+          next: "Next",
+          pageLabel: "Page {page}",
+        },
+      },
+      detail: {
+        title: "Position",
+        breadcrumb: "Inventory",
+        lotHeading: "Lot",
+        lotUnavailable: {
+          title: "Lot detail unavailable",
+          description: "This position is genuinely yours — its coffee/lot detail is not readable under current access rules.",
+        },
+        warehouseHeading: "Custody location",
+        warehouseUnavailable: "Warehouse detail unavailable.",
+        recordedSince: "Recorded since {date}",
+        updated: "Last updated {date}",
+      },
+      availability: {
+        title: "Availability",
+        ownedQuantity: "Owned quantity",
+        reservedQuantity: "Reserved quantity",
+        reservationCause: {
+          heading: "Reservation",
+          knownOrder: "Reserved against order {orderCode}",
+          knownHoldExpires: "Hold expires {date}",
+          knownNoCode: "Reserved against an order you can view.",
+          unknown: "Reservation details are unavailable right now.",
+          none: "No quantity is currently reserved.",
+        },
+        integrityError: {
+          title: "Data integrity issue",
+          description: "This position's reserved quantity does not fit within its owned quantity. Contact Hills Coffee support.",
+        },
+      },
+      storage: {
+        title: "Storage",
+        description: "Your coffee in Hills-approved custody, by allocation.",
+        caption: "Your storage allocations",
+        empty: {
+          title: "Nothing in storage yet",
+          description: "Allocations appear here once your purchased coffee is placed into custody.",
+        },
+        columns: {
+          status: "Status",
+          allocatedQuantity: "Allocated quantity",
+          releasedQuantity: "Released quantity",
+          order: "Order",
+        },
+        status: {
+          STORED: "Stored",
+          RELEASED: "Released",
+          DELIVERED: "Delivered",
+        },
+        orderUnavailable: "Order reference unavailable",
+      },
+      history: {
+        title: "Ownership history",
+        breadcrumb: "Inventory",
+        description: "An immutable record of how ownership of your coffee came to be. Nothing here can be edited or removed.",
+        empty: {
+          title: "No history yet",
+          description: "Ownership events appear here once your organization is party to a transfer.",
+        },
+        eventType: {
+          INITIAL_ALLOCATION: "Initial allocation",
+          SALE: "Sale",
+          RESALE: "Resale",
+          ADJUSTMENT: "Adjustment",
+          VOID: "Void",
+        },
+        direction: {
+          incoming: "To your organization",
+          outgoing: "From your organization",
+          both: "Internal transfer",
+        },
+        counterpartyRedacted: "Another organization",
+        reasonLabel: "Reason",
+        correlationLabel: "Reference",
+        immutableNote: "This history is read-only and cannot be edited, corrected or reordered.",
+      },
+      notFound: {
+        title: "Position not found",
+        description: "This position doesn't exist or isn't available to your organization.",
+        backAction: "Back to inventory",
+      },
+    },
+
 } as const;

@@ -134,6 +134,23 @@ export type DashboardModuleContext = {
  * entries have no such requirement (a route's existence and required capability are compile-time
  * facts), so `navGroups` stays a plain, static array.
  */
+/**
+ * Feature 005 RUN B reconciliation — `overviewCards`/`actionItems` may return their result directly
+ * OR as a `Promise`. This is the SMALLEST safe extension to the contract, added when Feature 005
+ * became the first module needing a genuine per-request bounded database read (`lib/inventory/*`,
+ * inherently async — a real request-scoped data-layer call through `next/headers`) rather than a
+ * purely synchronous computation over `context.organization` alone.
+ *
+ * This does NOT weaken declaration-is-never-authorization or introduce ambient state: a module
+ * function still receives ONLY `context` (`{ organization }`, the caller's already-resolved acting
+ * organization for THIS request — never a global, never memoized, never shared across requests/
+ * organizations). An async module resolves its own bounded query itself, server-side, from that same
+ * organization id — exactly what this file's own `DashboardModuleContext` doc comment already
+ * anticipated ("a module needing more... resolves that itself"), now simply allowed to be async. A
+ * module with no such need stays a plain synchronous function — nothing changes for it.
+ */
+type MaybePromise<T> = T | Promise<T>;
+
 export type DashboardModule = {
   /** Stable id, unique across the registry (e.g. `"account"`, later `"inventory"`, `"marketplace"`). */
   id: string;
@@ -144,6 +161,6 @@ export type DashboardModule = {
    */
   requiredCapability: DashboardCapability;
   navGroups?: readonly NavGroupContribution[];
-  overviewCards?: (context: DashboardModuleContext) => readonly OverviewCard[];
-  actionItems?: (context: DashboardModuleContext) => readonly ActionItem[];
+  overviewCards?: (context: DashboardModuleContext) => MaybePromise<readonly OverviewCard[]>;
+  actionItems?: (context: DashboardModuleContext) => MaybePromise<readonly ActionItem[]>;
 };

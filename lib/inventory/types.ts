@@ -123,6 +123,25 @@ export type PaginatedResult<T> = {
  * approved schema itself grows one. */
 export type StorageAllocationStatus = "STORED" | "RELEASED" | "DELIVERED";
 
+/**
+ * RUN B reconciliation (2026-09-12) — `storage_allocations.order_item_id` → `order_items.id` →
+ * `order_items.order_id` → `orders.id` is a GENUINE, member-readable chain: unlike
+ * `inventory_reservation_items`' broken `reservation_items_view` policy (DB-OPEN-12, a plain subquery
+ * into the admin-only `inventory_reservations`), both `order_items_view`
+ * (`can_view_order(order_id)`) and `orders_view` (`can_view_order(id)`) are TOP-LEVEL policies calling
+ * the same `SECURITY DEFINER` `can_view_order()` helper directly — no nesting into an unreadable
+ * table. Empirically proven live (service-role setup/teardown only; real authenticated read as the
+ * order's buyer and as an unrelated cross-org member, synthetic rows deleted immediately after): the
+ * buyer read the full chain through to `orders.order_code`; the unrelated member got zero rows at
+ * every step. `null` here means either `order_item_id` is null (no originating order — e.g. a
+ * warehouse-operator-created position) or the order genuinely is not readable by the caller
+ * (`can_view_order` returned false) — both degrade to the same honest `null`, never fabricated.
+ */
+export type StorageAllocationOrderContext = {
+  orderId: string;
+  orderCode: string | null;
+};
+
 export type StorageAllocation = {
   id: string;
   orderItemId: string | null;
@@ -138,6 +157,8 @@ export type StorageAllocation = {
   status: StorageAllocationStatus;
   startedAt: string | null;
   releasedAt: string | null;
+  /** `null` when there is no originating order, or the caller cannot read it — see the type's own doc comment. */
+  order: StorageAllocationOrderContext | null;
 };
 
 /** The approved, closed vocabulary — `inventory_ownership_events.event_type`'s own CHECK constraint. */

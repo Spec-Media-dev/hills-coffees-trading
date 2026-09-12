@@ -1,7 +1,9 @@
 import { AppBilingual } from "@/components/locale/app-bilingual";
 import { Icon } from "@/components/ui/icon";
+import { getStoredAllocationsCount } from "@/lib/inventory/allocations";
+import { getInventoryPositionsCount } from "@/lib/inventory/positions";
 
-import type { DashboardModule } from "./modules";
+import type { DashboardModule, OverviewCard } from "./modules";
 
 /**
  * Feature 004 T002 — the static registry of IMPLEMENTED dashboard modules.
@@ -68,5 +70,89 @@ export const DASHBOARD_MODULES: readonly DashboardModule[] = [
         ],
       },
     ],
+  },
+  /**
+   * Feature 005 RUN B (T015, reconciled) — the first genuinely-live business module, and the first to
+   * contribute real `overviewCards` THROUGH the module contract rather than a page-level workaround.
+   * `DashboardModule.overviewCards` may be async (`lib/dashboard/modules.ts`'s doc comment) precisely
+   * to support this: two bounded COUNT-only reads (`getInventoryPositionsCount`,
+   * `getStoredAllocationsCount` — `{ count: "exact", head: true }`, no row data, no full scan),
+   * resolved fresh per call from `context.organization.organizationId` alone — no ambient state, no
+   * caching, no client-side authority; declaration is still never authorization (every route this
+   * module links to independently re-verifies its own access, unchanged).
+   *
+   * A zero count contributes NO card (never a fabricated "0 positions"/"0 allocations") — the
+   * existing honest empty-state message in `dashboardOverview.bought.empty`/`where.empty` keeps
+   * showing on `src/app/dashboard/page.tsx`.
+   *
+   * History (`/dashboard/inventory/history`) intentionally has NO separate top-level nav entry — it
+   * is discoverable from the inventory list page's own header action, per the run directive
+   * ("do not overload top-level nav without reason").
+   */
+  {
+    id: "inventory",
+    requiredCapability: "buy",
+    navGroups: [
+      {
+        key: "trading",
+        label: <AppBilingual pick={(c) => c.inventory.nav.inventory} />,
+        entries: [
+          {
+            id: "inventory",
+            label: <AppBilingual pick={(c) => c.inventory.nav.inventory} />,
+            href: "/dashboard/inventory",
+            icon: <Icon name="package" className="size-[18px]" />,
+            requiredCapability: "buy",
+          },
+          {
+            id: "storage",
+            label: <AppBilingual pick={(c) => c.inventory.nav.storage} />,
+            href: "/dashboard/storage",
+            icon: <Icon name="truck" className="size-[18px]" />,
+            requiredCapability: "buy",
+          },
+        ],
+      },
+    ],
+    overviewCards: async ({ organization }) => {
+      const [positionsCount, storedCount] = await Promise.all([
+        getInventoryPositionsCount({ organizationId: organization.organizationId }),
+        getStoredAllocationsCount({ organizationId: organization.organizationId }),
+      ]);
+
+      const cards: OverviewCard[] = [];
+      if (positionsCount > 0) {
+        cards.push({
+          id: "inventory-positions",
+          area: "bought",
+          title: <AppBilingual pick={(c) => c.inventory.overview.positionsCard} />,
+          value: (
+            <AppBilingual
+              pick={(c) =>
+                (positionsCount === 1 ? c.inventory.overview.positionsValue : c.inventory.overview.positionsValuePlural).replace(
+                  "{count}",
+                  String(positionsCount)
+                )
+              }
+            />
+          ),
+          href: "/dashboard/inventory",
+        });
+      }
+      if (storedCount > 0) {
+        cards.push({
+          id: "inventory-stored",
+          area: "where",
+          title: <AppBilingual pick={(c) => c.inventory.overview.storedCard} />,
+          value: (
+            <AppBilingual
+              pick={(c) => (storedCount === 1 ? c.inventory.overview.storedValue : c.inventory.overview.storedValuePlural).replace("{count}", String(storedCount))}
+            />
+          ),
+          href: "/dashboard/storage",
+        });
+      }
+      return cards;
+    },
   },
 ];

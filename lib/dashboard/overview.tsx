@@ -14,6 +14,12 @@ import type { ActionItem, DashboardModule, OverviewCard } from "./modules";
  *
  * RUN B (T011) — wired into the live `src/app/dashboard/page.tsx`, replacing the `FoundationOverview`
  * placeholder RUN A left in place.
+ *
+ * RUN B RECONCILIATION (Feature 005) — now `async`/returns `Promise<OverviewComposition>`: a
+ * module's `overviewCards`/`actionItems` may themselves be async (see `lib/dashboard/modules.ts`'s
+ * `DashboardModule` doc comment for why). Every existing call site that constructs modules with only
+ * SYNCHRONOUS `overviewCards`/`actionItems` (or none at all) is unaffected in behavior — `await`ing an
+ * already-resolved value is a no-op — but every caller must now `await composeOverview(...)`.
  */
 export type OverviewComposition = {
   account: readonly OverviewCard[];
@@ -91,7 +97,7 @@ function buildIntrinsicActionItems(hasAcceptedCurrentAgreements: boolean): reado
  * `requiredCapability` is granted for this organization. A module contributing nothing (no function
  * provided) produces nothing — never a placeholder card (FR-006).
  */
-export function composeOverview({
+export async function composeOverview({
   organization,
   registry,
   hasAcceptedCurrentAgreements,
@@ -99,7 +105,7 @@ export function composeOverview({
   organization: OrganizationMembership;
   registry: readonly DashboardModule[];
   hasAcceptedCurrentAgreements: boolean;
-}): OverviewComposition {
+}): Promise<OverviewComposition> {
   const context = { organization };
   const granted = (capability: DashboardModule["requiredCapability"]): boolean => {
     switch (capability) {
@@ -117,10 +123,19 @@ export function composeOverview({
   const where: OverviewCard[] = [];
   const needsAction: ActionItem[] = [...buildIntrinsicActionItems(hasAcceptedCurrentAgreements)];
 
-  for (const dashboardModule of registry) {
-    if (!granted(dashboardModule.requiredCapability)) continue;
+  // Granted modules are resolved CONCURRENTLY (`Promise.all`), not one-at-a-time — a slow module's
+  // bounded query never blocks another's, and this stays a plain per-call `Promise.all` with no
+  // shared/module-scope state (the same purity `tests/dashboard/tenant-isolation.test.ts` proves).
+  const grantedModules = registry.filter((dashboardModule) => granted(dashboardModule.requiredCapability));
+  const perModuleResults = await Promise.all(
+    grantedModules.map(async (dashboardModule) => ({
+      cards: (await dashboardModule.overviewCards?.(context)) ?? [],
+      actions: (await dashboardModule.actionItems?.(context)) ?? [],
+    }))
+  );
 
-    const cards = dashboardModule.overviewCards?.(context) ?? [];
+  for (let i = 0; i < grantedModules.length; i += 1) {
+    const { cards, actions } = perModuleResults[i]!;
     for (const card of cards) {
       if (card.area === "bought") bought.push(card);
       else if (card.area === "owe") owe.push(card);
@@ -129,7 +144,6 @@ export function composeOverview({
       // declaring one is a contract misuse, silently dropped rather than crashing the overview.
     }
 
-    const actions = dashboardModule.actionItems?.(context) ?? [];
     for (const action of actions) {
       if (action.requiredCapability && !granted(action.requiredCapability)) continue;
       needsAction.push(action);

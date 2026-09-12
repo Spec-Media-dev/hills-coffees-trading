@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 
 import { cleanup, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { KybStatusScreen } from "@/components/account/kyb-status-screen";
 import { buildDashboardNavGroups } from "@/components/dashboard/sidebar";
@@ -11,10 +11,18 @@ import { DASHBOARD_MODULES } from "@/lib/dashboard/registry";
 import type { KybApplicationSummary } from "@/lib/kyb/status-types";
 import type { DashboardModule } from "@/lib/dashboard/modules";
 import type { OrganizationMembership } from "@/lib/auth/types";
+import { createFakeSupabaseClient } from "@/tests/inventory/fake-supabase";
 
 const source = (path: string) => readFileSync(path, "utf8");
 
 afterEach(cleanup);
+
+// RUN B RECONCILIATION (Feature 005) — see `tests/dashboard/registry.test.tsx`'s header comment:
+// `DASHBOARD_MODULES` now includes the "inventory" module's genuinely async `overviewCards`, so any
+// call feeding the real registry through `composeOverview` needs `@/lib/supabase/server` mocked.
+vi.mock("@/lib/supabase/server", () => ({
+  createClient: vi.fn(async () => createFakeSupabaseClient({})),
+}));
 
 function application(overrides: Partial<KybApplicationSummary>): KybApplicationSummary {
   return {
@@ -186,8 +194,8 @@ describe("Feature 004 T021 — empty overview state, and eligible member receive
     canSell: false,
   };
 
-  it("an approved organization with no registered business-module contributions sees an honest empty overview — never a fake business dashboard", () => {
-    const overview = composeOverview({ organization: approvedOrg, registry: DASHBOARD_MODULES, hasAcceptedCurrentAgreements: true });
+  it("an approved organization with zero real inventory/allocation rows sees an honest empty overview — never a fake business dashboard", async () => {
+    const overview = await composeOverview({ organization: approvedOrg, registry: DASHBOARD_MODULES, hasAcceptedCurrentAgreements: true });
     expect(overview.account.length).toBeGreaterThan(0);
     expect(overview.bought).toEqual([]);
     expect(overview.owe).toEqual([]);
@@ -205,8 +213,8 @@ describe("Feature 004 T021 — empty overview state, and eligible member receive
     expect(composeIndex).toBeGreaterThan(agreementGuardIndex);
   });
 
-  it("an eligible organization's nav/overview never renders any ineligible-state vocabulary (PENDING_KYB/UNDER_REVIEW/SUSPENDED/REJECTED wording)", () => {
-    const overview = composeOverview({ organization: approvedOrg, registry: DASHBOARD_MODULES, hasAcceptedCurrentAgreements: true });
+  it("an eligible organization's nav/overview never renders any ineligible-state vocabulary (PENDING_KYB/UNDER_REVIEW/SUSPENDED/REJECTED wording)", async () => {
+    const overview = await composeOverview({ organization: approvedOrg, registry: DASHBOARD_MODULES, hasAcceptedCurrentAgreements: true });
     const allText = JSON.stringify(overview);
     expect(allText).not.toMatch(/pending|under review|suspended|rejected/i);
   });

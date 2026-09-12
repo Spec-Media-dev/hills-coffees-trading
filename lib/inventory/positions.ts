@@ -88,6 +88,65 @@ export async function getInventoryPositions({
 }
 
 /**
+ * Feature 005 RUN B (T008) — single-position lookup, org-scoped exactly like `getInventoryPositions`
+ * above. Returns `null` for BOTH "no such position" and "exists but belongs to another organization"
+ * — the same explicit `.eq("owner_organization_id", organizationId)` filter makes both cases
+ * indistinguishable at this layer, which is exactly what the caller (the detail page) needs to avoid
+ * leaking cross-tenant existence: it must call `notFound()` for `null` with no further branching.
+ */
+export async function getInventoryPositionById({
+  organizationId,
+  positionId,
+}: {
+  organizationId: string;
+  positionId: string;
+}): Promise<InventoryPosition | null> {
+  const supabase = await createClient();
+
+  const { data: row } = await supabase
+    .from("inventory_positions")
+    .select("id, lot_id, owner_organization_id, warehouse_id, warehouse_location_id, available_quantity_kg, reserved_quantity_kg, created_at, updated_at")
+    .eq("id", positionId)
+    .eq("owner_organization_id", organizationId)
+    .maybeSingle();
+
+  if (!row) return null;
+
+  const [lotDetailByLotId, warehouseContextByCompositeKey] = await Promise.all([
+    getLotDetailByLotId(supabase, [row.lot_id]),
+    getWarehouseContext(supabase, [row.warehouse_id], row.warehouse_location_id ? [row.warehouse_location_id] : []),
+  ]);
+
+  return {
+    id: row.id,
+    lotId: row.lot_id,
+    ownerOrganizationId: row.owner_organization_id,
+    warehouseId: row.warehouse_id,
+    warehouseLocationId: row.warehouse_location_id,
+    availableQuantityKg: Number(row.available_quantity_kg),
+    reservedQuantityKg: Number(row.reserved_quantity_kg),
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    lot: lotDetailByLotId.get(row.lot_id) ?? null,
+    warehouse: warehouseContextByCompositeKey.get(warehouseKey(row.warehouse_id, row.warehouse_location_id)) ?? null,
+  };
+}
+
+/**
+ * Feature 005 RUN B (T015) — a bounded COUNT-only read for the dashboard overview's "what did I buy"
+ * contribution. `{ count: "exact", head: true }` issues a single Postgres count aggregate with no row
+ * data returned — never a full scan of the organization's positions merely to size a summary card.
+ */
+export async function getInventoryPositionsCount({ organizationId }: { organizationId: string }): Promise<number> {
+  const supabase = await createClient();
+  const { count } = await supabase
+    .from("inventory_positions")
+    .select("id", { count: "exact", head: true })
+    .eq("owner_organization_id", organizationId);
+  return count ?? 0;
+}
+
+/**
  * Attempts the lot → coffee join through the ONLY approved member-readable paths. Under current RLS
  * this map will be empty for an ordinary member (DB-OPEN-05) — that is expected and handled by the
  * caller via `lot: null`, not treated as an error. If DB-OPEN-05 is ever resolved, this same code

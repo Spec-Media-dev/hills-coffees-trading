@@ -83,7 +83,13 @@ export default async function DashboardPage() {
   // (`identity.organization`, never `organizations[0]`) and the real agreement truth already
   // resolved above. No shared cache: this is a plain function call over already-resolved,
   // request-scoped values (SEC-003, FR-012).
-  const overview = composeOverview({
+  //
+  // RUN B RECONCILIATION (Feature 005) — now `await`ed: `composeOverview` resolves every granted
+  // module's `overviewCards`/`actionItems` (the "inventory" module's own bounded `lib/inventory/*`
+  // count reads included) through this SAME call — no second, page-specific merge step exists
+  // anymore. See `lib/dashboard/modules.ts`/`lib/dashboard/overview.tsx` for why this stayed safe to
+  // do (small, additive contract extension; no ambient state; no shared cache).
+  const overview = await composeOverview({
     organization: identity.organization,
     registry: DASHBOARD_MODULES,
     hasAcceptedCurrentAgreements: identity.hasAcceptedCurrentAgreements,

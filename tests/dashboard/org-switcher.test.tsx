@@ -82,13 +82,15 @@ describe("Feature 004 T010 — explicit acting-organization threading, no ambien
     ],
   };
 
-  it("two interleaved calls with different organizations never bleed into each other's result", () => {
+  it("two interleaved calls with different organizations never bleed into each other's result", async () => {
     // Simulates two concurrent requests: calls interleaved, not sequential-then-sequential, so any
     // shared/module-scope mutable state would show up as cross-contamination here.
-    const resultA1 = composeOverview({ organization: orgA, registry: [testModule], hasAcceptedCurrentAgreements: true });
-    const resultB1 = composeOverview({ organization: orgB, registry: [testModule], hasAcceptedCurrentAgreements: true });
-    const resultA2 = composeOverview({ organization: orgA, registry: [testModule], hasAcceptedCurrentAgreements: true });
-    const resultB2 = composeOverview({ organization: orgB, registry: [testModule], hasAcceptedCurrentAgreements: true });
+    const [resultA1, resultB1, resultA2, resultB2] = await Promise.all([
+      composeOverview({ organization: orgA, registry: [testModule], hasAcceptedCurrentAgreements: true }),
+      composeOverview({ organization: orgB, registry: [testModule], hasAcceptedCurrentAgreements: true }),
+      composeOverview({ organization: orgA, registry: [testModule], hasAcceptedCurrentAgreements: true }),
+      composeOverview({ organization: orgB, registry: [testModule], hasAcceptedCurrentAgreements: true }),
+    ]);
 
     expect(resultA1.bought[0]!.value).toBe("Organization A");
     expect(resultB1.bought[0]!.value).toBe("Organization B");
