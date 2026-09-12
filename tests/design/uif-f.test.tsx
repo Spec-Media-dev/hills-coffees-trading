@@ -207,10 +207,16 @@ describe("Phase 5.5 UIF-036 — member shell applied at /dashboard", () => {
     // business routes (T007–T012), registered with Feature 004's own module contract
     // (`lib/dashboard/registry.tsx`) — this is exactly the kind of real module this test's own
     // original comment anticipated arriving later ("no inventory... module past it" describes `kyb`,
-    // not a permanent ban on any feature ever adding one). No OTHER business area (marketplace,
-    // orders, payments, delivery, disputes) has a directory here yet.
-    expect(dirs.sort()).toEqual(["inventory", "kyb", "onboarding", "settings", "storage"]);
-    for (const stillUnbuilt of ["marketplace", "orders", "payments", "delivery", "disputes", "listings"]) {
+    // not a permanent ban on any feature ever adding one).
+    //
+    // Feature 006 RUN A (T007) adds `dashboard/coffee/` — but ONLY the private marketplace route
+    // GUARD (identity → membership → an honest "not yet built" placeholder). It carries no listing
+    // read, no `lib/listings/browse` import, and is not registered with 004's module contract yet
+    // (that is Phase 6's job, T020) — see `tests/listings/guard.test.ts` for the guard-order proof.
+    // No OTHER business area (orders, payments, delivery, disputes) has a directory here yet, and
+    // `dashboard/listings`/`dashboard/sales` (006's OWN later phases) do not exist yet either.
+    expect(dirs.sort()).toEqual(["coffee", "inventory", "kyb", "onboarding", "settings", "storage"]);
+    for (const stillUnbuilt of ["orders", "payments", "delivery", "disputes", "listings", "sales"]) {
       expect(dirs).not.toContain(stillUnbuilt);
     }
 

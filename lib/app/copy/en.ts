@@ -554,4 +554,20 @@ export const en = {
       },
     },
 
+    /**
+     * Feature 006 RUN A (T007) — the private marketplace route guard's own placeholder. This is
+     * NOT the browse/search experience (Phase 3, not yet built) — it exists so `/dashboard/coffee`
+     * resolves as a real, guarded route an authorized member can already reach, with an honest
+     * "not yet built" state rather than a fabricated listing grid. Mirrors the same discipline
+     * `foundationOverview` above already established for `/dashboard` itself.
+     */
+    marketplace: {
+      title: "Marketplace",
+      breadcrumb: "Marketplace",
+      comingSoon: {
+        title: "The marketplace is being prepared",
+        description: "Browsing and listing eligible coffee will appear here once this area is built. Your access is already confirmed.",
+      },
+    },
+
 } as const;

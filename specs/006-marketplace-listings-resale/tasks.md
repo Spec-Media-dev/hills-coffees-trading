@@ -3,7 +3,9 @@
 **Input**: [spec.md](./spec.md), [plan.md](./plan.md), `docs/architecture/DATABASE-CAPABILITY-MAP.md`,
 `.specify/memory/constitution.md` (v2.0.0), SRS §8 (MKT-01..MKT-07), AC-01/AC-02.
 
-**Status**: all tasks unchecked — implementation NOT started.
+**Status**: T001–T008 (Phase 1 + Phase 2) implemented and verified — RUN A. Phases 3–9 (T009–T032)
+NOT started. See `IMPLEMENTATION-HANDOFF.md` for full evidence, honest gaps and what Phase 3+ must
+know before building on this.
 **Prerequisite**: 001, 003, 004, 005 implemented.
 
 ## Task format
@@ -20,65 +22,121 @@
 
 ## Phase 1 — Listing domain layer
 
-- [ ] T001 Create `lib/listings/types.ts` — DTOs for browse listing, managed listing, fill state and
+- [x] T001 Create `lib/listings/types.ts` — DTOs for browse listing, managed listing, fill state and
   eligibility result (eligible quantity **or** a named refusal reason).
   - Req: FR-002, FR-011 | Depends: —
   - Verify: remaining-quantity fields map to stored columns; no derived-tally field exists
   - Codex: GPT-5.6 Sol — Low · Claude: Sonnet — Low
   - Why: mechanical typing against a known schema.
+  - **Done (RUN A)**: `tests/listings/types.test.ts` (9 tests) — status/seller-type vocabulary
+    matches the live `coffee_offers_status_allowed`/`coffee_offers_seller_type_check` CHECK
+    constraints exactly; `@ts-expect-error` compile-time proofs that `BuyerBrowseListing`/
+    `BuyerListingDetail` reject every seller-private field.
 
-- [ ] T002 Implement `lib/listings/browse.ts` — buyer-facing reads relying on the database's
+- [x] T002 Implement `lib/listings/browse.ts` — buyer-facing reads relying on the database's
   published-only policy, with filtering/pagination.
   - Req: FR-001, FR-002, FR-004 | Depends: T001
   - Verify: the module applies no client-side status filter that could mask a policy failure; a non-published row is never returned even when explicitly requested by id
   - Codex: GPT-5.6 Sol — High · Claude: Opus — High
   - Why: this is the read path that AC-01 depends on; masking rather than relying on RLS would create a false sense of safety.
+  - **Done (RUN A)**: `tests/listings/browse.test.ts` (11 tests, live fixtures) — a real authorized
+    member reads a genuine PARTIALLY_FILLED listing's exact stored numbers; the same fixture's
+    SOLD_OUT sibling is genuinely unreadable by exact id (a real, honestly-documented
+    schema-vs-spec finding, see `IMPLEMENTATION-HANDOFF.md` §1); a pending/under-review member
+    reaches zero listing data; source-level proof of no client-side status/visibility filter.
 
-- [ ] T003 [P] Implement `lib/listings/manage.ts` — seller-facing reads for their own organization
+- [x] T003 [P] Implement `lib/listings/manage.ts` — seller-facing reads for their own organization
   across all states, with status history.
   - Req: FR-012 | Depends: T001
   - Verify: returns own-org rows only; a cross-org id request returns nothing
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — High
   - Why: the "all states" path must be provably org-scoped since it can return non-public rows.
+  - **Done (RUN A)**: `tests/listings/manage.test.ts` (8 tests) — live cross-org denial (real RLS)
+    proves "a cross-org id request returns nothing"; explicit `.eq("seller_organization_id",
+    organizationId)` scoping (source-verified, exactly 2 call sites) proves "returns own-org rows
+    only" structurally. **Reconciliation (2026-09-12)**: this is T003's literal, complete Verify
+    criterion — a genuine seller's own positive multi-state live read is a stronger, separate claim
+    this task does not require, and remains honestly unproven (no signable-in seller of a real
+    `coffee_offers` row exists under current fixtures — see `IMPLEMENTATION-HANDOFF.md` §1/§6/§10).
+    T003 evidence confirmed SUFFICIENT for its written requirement.
 
-- [ ] T004 Implement `lib/listings/eligibility.ts` — composes 005's inventory facts into the SRS §8.1
+- [x] T004 Implement `lib/listings/eligibility.ts` — composes 005's inventory facts into the SRS §8.1
   listing rule, returning eligible quantity or a specific named refusal.
   - Req: FR-006, FR-007, PS3 | Depends: T001, 005's read layer
   - Verify: each refusal reason is specific (not owned / not Hills-sourced / reserved / insufficient), naming the available quantity where relevant
   - Codex: GPT-5.6 Sol — High · Claude: Opus — High
   - Why: encodes the MVP resale-eligibility rule; a permissive bug here allows listing stock the platform does not control.
+  - **Done (RUN A)**: `tests/listings/eligibility.test.ts` (9 tests) — `SELLER_NOT_CAPABLE`,
+    `POSITION_NOT_OWNED`, `CUSTODY_NOT_ELIGIBLE`, `NOT_HILLS_SOURCED` proven LIVE; `eligible: true`/
+    `RESERVED_QUANTITY`/`INSUFFICIENT_QUANTITY` proven with a fake client (documented why — the
+    settled-order ceiling, `IMPLEMENTATION-HANDOFF.md` §1).
+  - **T004/T022/DB-BLOCK-07 reconciliation (2026-09-12)**: T004's own Verify line names exactly four
+    refusal categories (not owned / not Hills-sourced / reserved / insufficient) — all four are
+    implemented and proven. Delivery-reserved refusal (spec.md PS3 acceptance scenario 5, SRS
+    DEL-01) is a SEPARATE acceptance path this task's Verify line does not name; it is explicitly
+    assigned to **T022** ("…and delivery-reserved quantities are all refused…", Depends: T014) —
+    downstream, in Phase 7. `docs/architecture/DATABASE-CAPABILITY-MAP.md`'s own DB-BLOCK-07 row
+    lists its "Blocks" as **009 (delivery), 005/006 (availability truth)** — not a 006/T004
+    completion blocker — and its own governing rule is "mark the blocked step explicitly… and stop
+    at the boundary," exactly what T004 does. **Conclusion: T004 is legitimately complete on its own
+    written terms. T022 is BLOCKED** until an approved database change gives Feature 009 (or an
+    earlier feature) a real delivery-reservation fact — no local `deliveryHold` boolean or fake
+    warehouse state was invented to work around this. `eligibility.ts`'s own header names the gap
+    explicitly; nothing in T004 claims delivery-reservation enforcement.
 
-- [ ] T005 [P] Implement `lib/listings/fills.ts` — remaining/partial/sold-out projection from stored
+- [x] T005 [P] Implement `lib/listings/fills.ts` — remaining/partial/sold-out projection from stored
   `quantity_kg`, `reserved_quantity_kg`, `filled_quantity_kg`.
   - Req: FR-011, PS5 | Depends: T001
   - Verify: `grep -n "reduce(\|+=" lib/listings/fills.ts` shows no accumulation over rows; all figures come from columns
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — High
   - Why: the temptation to tally fills in the app is exactly what would drift from the database.
+  - **Done (RUN A)**: `tests/listings/fills.test.ts` (8 tests) — pure-function proofs against the
+    two live fixtures' exact numbers, the negative-remainder integrity path (never
+    `Math.max(0,…)`), and source-level proof of no order-row tally.
 
-- [ ] T006 [P] Create `lib/listings/validation.ts` — Zod schemas for listing create/edit (title,
+- [x] T006 [P] Create `lib/listings/validation.ts` — Zod schemas for listing create/edit (title,
   quantity, price per kg, currency, warehouse/location, coffee/lot references).
   - Req: FR-016 | Depends: T001
   - Verify: schema rejects non-positive quantity/price and unknown currency
   - Codex: GPT-5.6 Sol — Low · Claude: Sonnet — Low
   - Why: mechanical schema.
+  - **Done (RUN A)**: `tests/listings/validation.test.ts` (13 tests) — every CHECK-constraint-derived
+    rule, plus a compile-time proof `ListingEditInput` cannot carry a provenance field.
 
 ---
 
 ## Phase 2 — Marketplace access control
 
-- [ ] T007 [PS1] Implement the marketplace route guard: every route under `/dashboard/coffee`
+- [x] T007 [PS1] Implement the marketplace route guard: every route under `/dashboard/coffee`
   verifies `is_authorized_member()` and organization status server-side before any data read.
   - Req: FR-001, SEC-001, SC-001 | Depends: T002
   - Verify: anonymous, pending-KYB and suspended fixtures each receive zero listing data; the check runs before the query, not after
   - Codex: GPT-5.6 Sol — High · Claude: Opus — High
   - Why: this is the AC-01 release-blocking boundary for the private marketplace.
+  - **Done (RUN A)**: identity → membership guard, reusing Feature 003/004's architecture verbatim
+    (`StateScreen`/`KybStatusScreen`); `page.tsx` renders an honest "not yet built" placeholder past
+    the guard (no listing read exists yet — that is Phase 3).
+  - **Reconciliation (2026-09-12)**: the guard was MOVED from `src/app/dashboard/coffee/page.tsx` to
+    `src/app/dashboard/coffee/layout.tsx` so it is INHERITED by every current and future route under
+    `/dashboard/coffee/*` (including Phase 3's `/dashboard/coffee/[offerId]`) rather than something
+    each page must remember to repeat — `dashboard/layout.tsx` (the parent) deliberately does NOT
+    block `{children}` for a not-yet-authorized org (RUN B/T016–T022's own documented design, for
+    `/dashboard/kyb/`), so relying on it alone would have let a future page bypass authorization by
+    omission. Proven in `tests/listings/guard.test.tsx` (17 tests): source-position proofs against
+    `layout.tsx`, confirmation `page.tsx` no longer duplicates the guard, AND a direct-invocation
+    functional proof that a representative nested child (standing in for any future page) never
+    renders for anonymous/unattached/pending-KYB/suspended identities and DOES render for an
+    authorized member — proving the inheritance mechanism structurally, not just for today's page.
 
-- [ ] T008 [PS1] Add non-indexable metadata and confirm zero marketplace data is reachable from any
+- [x] T008 [PS1] Add non-indexable metadata and confirm zero marketplace data is reachable from any
   public surface (coordinating with 002's sitemap/robots).
   - Req: FR-003, FR-014, SC-006 | Depends: T007
   - Verify: `/dashboard/coffee` is non-indexable; 002's sitemap contains no listing route; no public module imports `lib/listings/*`
   - Codex: GPT-5.6 Sol — Low · Claude: Sonnet — Medium
   - Why: small change, but it enforces a cross-feature invariant worth a second look.
+  - **Done (RUN A)**: no new code needed — `/dashboard/coffee` inherits `dashboard/layout.tsx`'s
+    existing `robots: { index: false, follow: false }`, and `/dashboard` is already excluded from
+    `sitemap.ts`/`robots.ts`. Proven in `tests/listings/boundary.test.ts` (11 tests).
 
 ---
 
@@ -105,11 +163,22 @@
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — Medium
   - Why: focused presentational component with explicit inputs.
 
-- [ ] T012 [PS4] Render `SOLD_OUT` and `SUSPENDED` listing detail states with no purchase action.
+- [ ] T012 [PS4] [**KNOWN BLOCKER — recorded 2026-09-12, RUN A closure**] Render `SOLD_OUT` and
+  `SUSPENDED` listing detail states with no purchase action.
   - Req: FR-008, FR-017, PS4 | Depends: T010
   - Verify: reaching either state directly by URL renders the state and offers no action
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — Medium
   - Why: state coverage with a clear expected outcome.
+  - **KNOWN BLOCKER**: `coffee_offers`' live `member_read_published_offers` RLS policy requires
+    `(quantity_kg - filled_quantity_kg - reserved_quantity_kg) > 0`, which makes a genuine `SOLD_OUT`
+    row (remaining = 0) **unreadable by a buyer even by direct id** — empirically proven in
+    `tests/listings/browse.test.ts` (T002, RUN A). `getBrowseListingById` will return `null` for a
+    real SOLD_OUT offer, so this task's "reaching SOLD_OUT directly by URL renders the state" cannot
+    be satisfied via `lib/listings/browse.ts` as currently policied — it will render as if the
+    listing does not exist. Resolve via a product decision (loosen the RLS predicate, or accept
+    SOLD_OUT as seller-only-visible) BEFORE implementing this task — see
+    `IMPLEMENTATION-HANDOFF.md` §1/§10. Do not work around it with a client-side fetch-then-hide or
+    a second read path.
 
 ---
 
@@ -191,12 +260,22 @@
   - Codex: GPT-5.6 Sol — High · Claude: Opus — High
   - Why: release-blocking acceptance criterion.
 
-- [ ] T022 [P] Write `tests/listings/eligibility.test.ts`: `can_sell=false`, non-Hills-sourced,
-  over-available and delivery-reserved quantities are all refused, including by direct action call.
+- [ ] T022 [P] [**BLOCKED — DB-BLOCK-07, recorded 2026-09-12**] Write `tests/listings/eligibility.test.ts`:
+  `can_sell=false`, non-Hills-sourced, over-available and delivery-reserved quantities are all
+  refused, including by direct action call.
   - Req: FR-005, FR-006, SEC-005, SC-002 | Depends: T014
   - Verify: `npm test -- listings/eligibility` passes for all four refusal paths
   - Codex: GPT-5.6 Sol — High · Claude: Opus — High
   - Why: enforces the MVP chain-of-custody rule that keeps external stock out of the marketplace.
+  - **BLOCKED**: the "delivery-reserved quantities are refused" path cannot be implemented or tested
+    until `docs/architecture/DATABASE-CAPABILITY-MAP.md`'s DB-BLOCK-07 is resolved (no
+    delivery-reservation function/fact exists anywhere in the approved schema; "Blocks: 009
+    (delivery), 005/006 (availability truth)"). Do NOT invent a `deliveryHold` boolean or fake
+    warehouse state to unblock this — wait for an approved database change (owned by Feature 009 or
+    an earlier feature that formally adds the capability). NOTE: RUN A's T001–T008 closure already
+    created `tests/listings/eligibility.test.ts` covering T004's four in-scope refusal paths — this
+    task EXTENDS that existing file with the delivery-reserved case once unblocked, it does not
+    create a new one.
 
 - [ ] T023 [P] Write `tests/listings/transitions.test.ts`: permitted transitions succeed and record
   history; forbidden transitions are refused by the database trigger.

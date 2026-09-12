@@ -206,7 +206,7 @@ async function getWarehouseContext(
   if (warehouseIds.length === 0) return result;
 
   const [{ data: warehouseRows }, { data: locationRows }] = await Promise.all([
-    supabase.from("warehouses").select("id, code, name, city, country_code").in("id", warehouseIds),
+    supabase.from("warehouses").select("id, code, name, city, country_code, is_active").in("id", warehouseIds),
     warehouseLocationIds.length > 0
       ? supabase.from("warehouse_locations").select("id, warehouse_id, code, name").in("id", warehouseLocationIds)
       : Promise.resolve({ data: [] as { id: string; warehouse_id: string; code: string; name: string }[] }),
@@ -222,6 +222,7 @@ async function getWarehouseContext(
       name: warehouseRow.name,
       city: warehouseRow.city,
       countryCode: warehouseRow.country_code,
+      isActive: warehouseRow.is_active,
       locationId: null,
       locationCode: null,
       locationName: null,
@@ -236,6 +237,7 @@ async function getWarehouseContext(
       name: warehouseRow.name,
       city: warehouseRow.city,
       countryCode: warehouseRow.country_code,
+      isActive: warehouseRow.is_active,
       locationId: locationRow.id,
       locationCode: locationRow.code,
       locationName: locationRow.name,

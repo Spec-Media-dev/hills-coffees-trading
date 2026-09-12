@@ -90,6 +90,16 @@ export type InventoryWarehouseContext = {
   name: string;
   city: string | null;
   countryCode: string | null;
+  /**
+   * Feature 006 RUN A extension — `warehouses.is_active`, a raw authoritative pass-through (no
+   * business rule). This is the ONLY warehouse-level fact the approved schema currently represents
+   * that is adjacent to "custody eligibility" (there is still no separate HOLD/VARIANCE/QUARANTINE or
+   * "Hills-approved custody" flag — see `docs/architecture/DATABASE-CAPABILITY-MAP.md`). Feature 006's
+   * `lib/listings/eligibility.ts` reads this field to compose ITS OWN business rule
+   * ("custody-eligible" = position exists in a currently-active warehouse); this file only exposes
+   * the column verbatim.
+   */
+  isActive: boolean;
   locationId: string | null;
   locationCode: string | null;
   locationName: string | null;

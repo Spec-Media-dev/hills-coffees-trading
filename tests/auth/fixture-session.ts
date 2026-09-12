@@ -148,6 +148,42 @@ export const INVENTORY_FIXTURES = {
   },
 } as const;
 
+/**
+ * Feature 006 RUN A fixture IDs — literals mirroring `scripts/seed-test-fixtures.ts`'s own
+ * `LISTING_FIXTURE_IDS`/`seedListingFixtures`, following the SAME established pattern as
+ * `INVENTORY_FIXTURES` above: this file never imports the privileged seed script, it only
+ * duplicates the constants it already produced so tests can reference them by name.
+ *
+ * Cross-references into `INVENTORY_FIXTURES`:
+ * - `INVENTORY_FIXTURES.orgA` (buyer-only, `canSell=false`) — proves `SELLER_NOT_CAPABLE`.
+ * - `INVENTORY_FIXTURES.orgB` (buyer-and-seller, `canSell=true`) — the acting org for every
+ *   other eligibility path below; owns `positionOrgBOnLotA`/`positionOrgBInactiveWarehouse`.
+ * - `INVENTORY_FIXTURES.orgB.positionId` (on `INVENTORY_FIXTURES.lotB`, active warehouse, no
+ *   purchase provenance) can also stand in for a POSITION_NOT_OWNED check from Org A's session.
+ */
+export const LISTING_FIXTURES = {
+  /** A warehouse seeded with `is_active=false` — the ONLY custody-adjacent fact available. */
+  warehouseInactive: "06000000-0000-4000-8000-000000000001",
+  /** Org B's own inventory position on Feature 005's `lotA` — no Hills-source provenance. */
+  positionOrgBOnLotA: "06000000-0000-4000-8000-000000000002",
+  /** Org B's own inventory position, but its warehouse is `warehouseInactive`. */
+  positionOrgBInactiveWarehouse: "06000000-0000-4000-8000-000000000003",
+  /** A dedicated lot (never touched by Feature 005's own `offerA`/`offerB` fixtures). */
+  lotC: "06000000-0000-4000-8000-000000000009",
+  /** Hills-org-owned inventory position on `lotC`, backing both offers below. */
+  hillsPositionC: "06000000-0000-4000-8000-00000000000a",
+  /** PARTIALLY_FILLED, is_visible=true — buyer-readable per `member_read_published_offers`. */
+  offerPublished: "06000000-0000-4000-8000-000000000006",
+  /**
+   * SOLD_OUT (remaining = quantity - reserved - filled = 0). Per the LIVE `member_read_published_offers`
+   * predicate (`(quantity_kg - filled_quantity_kg - reserved_quantity_kg) > 0`), this row is
+   * UNREADABLE by any buyer/member session even by exact id — a genuine schema-vs-spec gap
+   * documented in `lib/listings/browse.ts`'s header comment. Tests use this id to PROVE that gap
+   * empirically (a direct id lookup must return null), not to assert buyer-readability.
+   */
+  offerSoldOut: "06000000-0000-4000-8000-000000000007",
+} as const;
+
 function loadTestEnvironment(): void {
   let contents: string;
   try {

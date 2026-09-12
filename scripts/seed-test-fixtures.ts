@@ -1541,6 +1541,191 @@ async function verifyInventoryAppendOnlyGuard(admin: SupabaseClient): Promise<vo
 }
 
 // ---------------------------------------------------------------------------
+// Feature 006 RUN A (T001–T008) — marketplace/listing fixtures
+// ---------------------------------------------------------------------------
+
+/**
+ * EXTENDS the existing fixture architecture — reuses Feature 005's `hillsOrg`/`warehouse`/`lotA`/
+ * `lotB`/`hillsPositionA`/`hillsPositionB`/`positionA`(Org A)/`positionB`(Org B) fixtures rather than
+ * re-creating parallel ones, and the SAME identity fixtures (`buyerOnly` = Org A, canSell=false;
+ * `buyerAndSeller` = Org B, canSell=true).
+ *
+ * Fixed ids in their own `06000000-...` range (Feature 006), never colliding with 001/003/005's
+ * ranges.
+ */
+const LISTING_FIXTURE_IDS = {
+  warehouseInactive: "06000000-0000-4000-8000-000000000001",
+  positionOrgBOnLotA: "06000000-0000-4000-8000-000000000002",
+  positionOrgBInactiveWarehouse: "06000000-0000-4000-8000-000000000003",
+  offerPublished: "06000000-0000-4000-8000-000000000006",
+  offerSoldOut: "06000000-0000-4000-8000-000000000007",
+  /**
+   * A DEDICATED lot (never Feature 005's `lotA`/`lotB`) — `coffee_offers` carries a partial UNIQUE
+   * index, `uq_active_offer_per_lot_owner` (`(lot_id, seller_organization_id) WHERE deleted_at IS
+   * NULL AND status NOT IN ('ARCHIVED','REJECTED','SOLD_OUT')`), confirmed empirically (an earlier
+   * version of this fixture tried to reuse `lotA` and collided with Feature 005's own `offerA`, which
+   * already occupies that lot+owner's one allowed "active" slot). `offerPublished`
+   * (PARTIALLY_FILLED, inside the partial index) and `offerSoldOut` (SOLD_OUT, exempt from it) can
+   * still coexist on this SAME new lot without colliding with each other.
+   */
+  lotC: "06000000-0000-4000-8000-000000000009",
+  hillsPositionC: "06000000-0000-4000-8000-00000000000a",
+} as const;
+
+async function seedListingFixtures(admin: SupabaseClient): Promise<void> {
+  console.log("\nSeeding 006-marketplace-listings-resale Phase 1/2 fixtures…\n");
+
+  const buyerAndSellerUserId = await findAuthUserIdByEmail(admin, FIXTURES[1]!.email);
+  if (!buyerAndSellerUserId) throw new SafeFixtureError("001 identity fixtures are missing; run npm run test:seed first.");
+
+  const upsert = async (table: string, row: Record<string, unknown>): Promise<void> => {
+    const { error } = await admin.from(table).upsert(row, { onConflict: "id" });
+    if (error) throw new SafeFixtureError(`${table} upsert failed (Feature 006): ${error.message}`);
+  };
+
+  /** Same insert-if-absent discipline as Feature 005's ownership events — these rows must never be
+   * re-`UPDATE`d by a repeated seed run, since some carry a status the trigger would legally but
+   * non-idempotently re-transition (`trg_listing_status_history` fires on every real status change). */
+  const insertIfAbsent = async (table: string, row: Record<string, unknown> & { id: string }): Promise<boolean> => {
+    const { data: existing, error: selectError } = await admin.from(table).select("id").eq("id", row.id).maybeSingle();
+    if (selectError) throw new SafeFixtureError(`${table} existence check failed (Feature 006): ${selectError.message}`);
+    if (existing) return false;
+
+    const { error: insertError } = await admin.from(table).insert(row);
+    if (insertError) throw new SafeFixtureError(`${table} insert failed (Feature 006): ${insertError.message}`);
+    return true;
+  };
+
+  // A second warehouse, deliberately INACTIVE — the only authoritative custody-adjacent fact
+  // `lib/listings/eligibility.ts` checks (`CUSTODY_NOT_ELIGIBLE`).
+  await upsert("warehouses", {
+    id: LISTING_FIXTURE_IDS.warehouseInactive,
+    owner_organization_id: INVENTORY_FIXTURE_IDS.hillsOrg,
+    code: "F006-WH-INACTIVE",
+    name: "Feature 006 Fixture — Inactive Warehouse",
+    is_active: false,
+  });
+
+  // Org B owns a position on lot A too, but has NEVER purchased lot A through a settled order —
+  // proves `NOT_HILLS_SOURCED` without touching Org B's genuine lot-B provenance below.
+  await upsert("inventory_positions", {
+    id: LISTING_FIXTURE_IDS.positionOrgBOnLotA,
+    lot_id: INVENTORY_FIXTURE_IDS.lotA,
+    owner_organization_id: ORGANIZATION_IDS.buyerAndSeller,
+    warehouse_id: INVENTORY_FIXTURE_IDS.warehouse,
+    available_quantity_kg: 200,
+    reserved_quantity_kg: 0,
+  });
+
+  // Org B owns a position on lot B inside the INACTIVE warehouse — proves `CUSTODY_NOT_ELIGIBLE`.
+  await upsert("inventory_positions", {
+    id: LISTING_FIXTURE_IDS.positionOrgBInactiveWarehouse,
+    lot_id: INVENTORY_FIXTURE_IDS.lotB,
+    owner_organization_id: ORGANIZATION_IDS.buyerAndSeller,
+    warehouse_id: LISTING_FIXTURE_IDS.warehouseInactive,
+    available_quantity_kg: 50,
+    reserved_quantity_kg: 0,
+  });
+
+  // A dedicated new lot (never Feature 005's `lotA`/`lotB` — see `LISTING_FIXTURE_IDS.lotC`'s own
+  // comment for why), with hillsOrg's own backing position (required by `validate_offer_transition`
+  // before it will accept a `seller_type = 'HILLS'` listing, exactly as Feature 005's `hillsPositionA`/
+  // `hillsPositionB` already established for `lotA`/`lotB`).
+  await upsert("coffee_lots", {
+    id: LISTING_FIXTURE_IDS.lotC,
+    coffee_id: INVENTORY_FIXTURE_COFFEE_ID,
+    lot_code: "F006-LOT-C",
+    total_quantity_kg: 1000,
+    status: "AVAILABLE",
+    source_organization_id: INVENTORY_FIXTURE_IDS.hillsOrg,
+  });
+  await upsert("inventory_positions", {
+    id: LISTING_FIXTURE_IDS.hillsPositionC,
+    lot_id: LISTING_FIXTURE_IDS.lotC,
+    owner_organization_id: INVENTORY_FIXTURE_IDS.hillsOrg,
+    warehouse_id: INVENTORY_FIXTURE_IDS.warehouse,
+    available_quantity_kg: 1000,
+    reserved_quantity_kg: 0,
+  });
+
+  // A real PUBLISHED (well, PARTIALLY_FILLED) HILLS listing — T002's buyer-browse positive-read
+  // fixture, and a genuine partial-fill fixture for `lib/listings/fills.ts`'s live proof (quantity
+  // 100, reserved 15.5, filled 24.5 → remaining 60, deliberately non-round to detect accidental
+  // arithmetic drift).
+  const createdPublished = await insertIfAbsent("coffee_offers", {
+    id: LISTING_FIXTURE_IDS.offerPublished,
+    coffee_id: INVENTORY_FIXTURE_COFFEE_ID,
+    lot_id: LISTING_FIXTURE_IDS.lotC,
+    seller_organization_id: INVENTORY_FIXTURE_IDS.hillsOrg,
+    seller_type: "HILLS",
+    warehouse_id: INVENTORY_FIXTURE_IDS.warehouse,
+    title: "Feature 006 Fixture — Published Listing",
+    quantity_kg: 100,
+    reserved_quantity_kg: 15.5,
+    filled_quantity_kg: 24.5,
+    price_per_kg: 12.75,
+    currency: "USD",
+    status: "PARTIALLY_FILLED",
+    created_by: buyerAndSellerUserId,
+  });
+
+  // A real SOLD_OUT HILLS listing, on the SAME dedicated lot (SOLD_OUT is exempt from
+  // `uq_active_offer_per_lot_owner`'s partial index, so this coexists with `offerPublished` above
+  // without colliding) — empirically proves the `member_read_published_offers` policy's
+  // `(remaining) > 0` clause makes SOLD_OUT unreadable by a buyer even by direct id
+  // (`lib/listings/browse.ts`'s own documented schema-vs-spec finding).
+  await insertIfAbsent("coffee_offers", {
+    id: LISTING_FIXTURE_IDS.offerSoldOut,
+    coffee_id: INVENTORY_FIXTURE_COFFEE_ID,
+    lot_id: LISTING_FIXTURE_IDS.lotC,
+    seller_organization_id: INVENTORY_FIXTURE_IDS.hillsOrg,
+    seller_type: "HILLS",
+    warehouse_id: INVENTORY_FIXTURE_IDS.warehouse,
+    title: "Feature 006 Fixture — Sold Out Listing",
+    quantity_kg: 50,
+    reserved_quantity_kg: 0,
+    filled_quantity_kg: 50,
+    price_per_kg: 10,
+    currency: "USD",
+    status: "SOLD_OUT",
+    created_by: buyerAndSellerUserId,
+  });
+
+  console.log(
+    `  seeded 1 inactive warehouse, 2 extra Org B positions, 1 dedicated lot+position, ` +
+      `${createdPublished ? "1 published listing (new)" : "published listing (reused)"}, 1 sold-out listing.`
+  );
+}
+
+/**
+ * Deletes exactly the mutable rows `seedListingFixtures()` creates. `coffee_offers` rows are NOT
+ * append-only in general, but this teardown still does not attempt to reset their status backward
+ * (no product reason to) — it simply deletes them, which cascades to their own
+ * `listing_status_history`/`offer_documents`/`offer_sensory_notes`/`offer_tags` rows
+ * (`ON DELETE CASCADE`, confirmed against the live schema report), so nothing is orphaned or
+ * separately retained the way Feature 005's append-only ledger events are.
+ */
+async function teardownListingFixtures(admin: SupabaseClient): Promise<void> {
+  console.log("\nTearing down 006-marketplace-listings-resale Phase 1/2 fixtures…\n");
+
+  const deleteByIds = async (table: string, ids: readonly string[]): Promise<void> => {
+    const { error } = await admin.from(table).delete().in("id", ids);
+    if (error) throw new SafeFixtureError(`${table} delete failed (Feature 006): ${error.message}`);
+  };
+
+  await deleteByIds("coffee_offers", [LISTING_FIXTURE_IDS.offerPublished, LISTING_FIXTURE_IDS.offerSoldOut]);
+  await deleteByIds("inventory_positions", [
+    LISTING_FIXTURE_IDS.positionOrgBOnLotA,
+    LISTING_FIXTURE_IDS.positionOrgBInactiveWarehouse,
+    LISTING_FIXTURE_IDS.hillsPositionC,
+  ]);
+  await deleteByIds("coffee_lots", [LISTING_FIXTURE_IDS.lotC]);
+  await deleteByIds("warehouses", [LISTING_FIXTURE_IDS.warehouseInactive]);
+
+  console.log("  removed 2 listings (cascading their own status history), 3 positions, 1 lot, 1 warehouse.");
+}
+
+// ---------------------------------------------------------------------------
 // Supabase admin access
 // ---------------------------------------------------------------------------
 
@@ -1978,7 +2163,10 @@ async function main(): Promise<void> {
   }
 
   if (isTeardown) {
-    // Feature 005 Phase 5 FIRST: its rows reference the 001/003 identity fixtures
+    // Feature 006 FIRST: its positions reference Feature 005's `lotA`/`lotB` (retained permanently by
+    // Feature 005's own teardown, so no ordering conflict there), but torn down first regardless to
+    // keep the same "newest feature torn down first" discipline every other extension here follows.
+    // Feature 005 Phase 5 NEXT: its rows reference the 001/003 identity fixtures
     // (`buyerOnly`/`buyerAndSeller`/`underReview` organizations), so it must be
     // torn down before any of those are removed, or its remaining FKs would block their deletion.
     // Catalogue next: it is the leaf of the REMAINING dependency order and never references an
@@ -1986,6 +2174,7 @@ async function main(): Promise<void> {
     // `file_assets` rows hold a (non-cascading) foreign key to the 001 `buyerOnly`/`buyerAndSeller`
     // organizations — those must be removed before `teardown()` can delete those organizations, or
     // the delete fails with a foreign-key violation.
+    await teardownListingFixtures(admin);
     await teardownInventoryFixtures(admin);
     await teardownCatalogue(admin);
     await teardownPhase89(admin);
@@ -1998,10 +2187,12 @@ async function main(): Promise<void> {
   await seed(admin, password);
   await seedCatalogue(admin);
   await seedPhase89(admin, password);
-  // Feature 005 Phase 5 LAST: depends on the 001 identity fixtures (buyerOnly/buyerAndSeller) and
+  // Feature 005 Phase 5: depends on the 001 identity fixtures (buyerOnly/buyerAndSeller) and
   // Phase 8/9's `underReview` organization. Its dedicated DRAFT coffee is intentionally independent
   // of Feature 002's catalogue fixtures, so no public catalogue row is coupled to this lifecycle.
   await seedInventoryFixtures(admin);
+  // Feature 006 LAST: depends on Feature 005's hillsOrg/warehouse/lots/positions/offerB.
+  await seedListingFixtures(admin);
 }
 
 main().catch((error: unknown) => {

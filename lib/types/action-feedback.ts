@@ -44,6 +44,20 @@ export const ACTION_FEEDBACK = {
   ORGANIZATION_CONTACT_SAVED: "organization_contact_saved",
   ORGANIZATION_CONTACT_SAVE_FAILED: "organization_contact_save_failed",
   ACTING_ORGANIZATION_SWITCH_FAILED: "acting_organization_switch_failed",
+
+  /**
+   * Feature 006 RUN A — prepared now (no Server Action uses them yet; Phase 4 will) so the
+   * marketplace/listing mutations that arrive later reuse this SAME contract rather than inventing a
+   * second one. `LISTING_INELIGIBLE` deliberately carries no reason text of its own — the specific
+   * `EligibilityRefusalReason` (`lib/listings/types.ts`) is a separate, richer, typed result a future
+   * action surfaces alongside this code, not encoded into the code string itself.
+   */
+  LISTING_NOT_FOUND: "listing_not_found",
+  LISTING_NOT_ACCESSIBLE: "listing_not_accessible",
+  SELLER_NOT_CAPABLE: "seller_not_capable",
+  LISTING_INELIGIBLE: "listing_ineligible",
+  LISTING_TRANSITION_REFUSED: "listing_transition_refused",
+  LISTING_SAVE_FAILED: "listing_save_failed",
 } as const;
 
 export type ActionFeedbackCode = (typeof ACTION_FEEDBACK)[keyof typeof ACTION_FEEDBACK];

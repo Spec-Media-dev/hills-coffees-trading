@@ -470,4 +470,13 @@ export const ar: DeepPartial<AppCopy> = {
       },
     },
 
+    marketplace: {
+      title: "السوق",
+      breadcrumb: "السوق",
+      comingSoon: {
+        title: "السوق قيد الإعداد",
+        description: "سيظهر هنا تصفح وإدراج القهوة المؤهلة بمجرد إنشاء هذا القسم. وصولك مؤكد بالفعل.",
+      },
+    },
+
 };
