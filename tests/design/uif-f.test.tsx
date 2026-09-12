@@ -6,12 +6,14 @@ import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
 
 import { AppShell } from "@/components/app/app-shell";
-import { buildMemberNavGroups } from "@/components/app/member-navigation";
 import { DetailPage } from "@/components/app/detail-page";
 import { ModulePage } from "@/components/app/module-page";
 import { Sidebar } from "@/components/app/sidebar";
+import { buildDashboardNavGroups } from "@/components/dashboard/sidebar";
 import { LocaleProvider } from "@/components/locale/locale-provider";
 import { ThemeProvider } from "@/components/theme/theme-provider";
+import type { OrganizationMembership } from "@/lib/auth/types";
+import type { DashboardModule } from "@/lib/dashboard/modules";
 
 const root = process.cwd();
 const source = (...segments: string[]) => readFileSync(path.join(root, ...segments), "utf8");
@@ -155,10 +157,9 @@ describe("Phase 5.5 UIF-036 — member shell applied at /dashboard", () => {
     expect(touchedGuardLine).toBe(false);
   });
 
-  it("does not implement real capability resolution — canSell is hardcoded false with an ownership comment", () => {
+  it("Feature 004 T004 — implements real capability resolution: the acting organization's own canBuy/canSell drives navigation, never a hardcoded value", () => {
     const layout = source("src/app/dashboard/layout.tsx");
-    expect(layout).toContain("buildMemberNavGroups({ canSell: false })");
-    expect(layout).not.toContain("identity.organization.canSell");
+    expect(layout).toContain("buildDashboardNavGroups({ modules: DASHBOARD_MODULES, organization: identity.organization })");
     expect(layout).toMatch(/Feature 004/);
   });
 
@@ -250,32 +251,61 @@ describe("Phase 5.5 UIF-037 — buyer module layout patterns", () => {
   });
 });
 
-describe("Phase 5.5 UIF-038 — seller additive UI architecture", () => {
-  it("the buyer baseline (canSell=false) matches the live /dashboard sidebar exactly", () => {
-    const groups = buildMemberNavGroups({ canSell: false });
+describe("Phase 5.5 / Feature 004 T005 — seller additive UI architecture, now real", () => {
+  const buyerOnly: OrganizationMembership = {
+    organizationId: "org-buyer-only",
+    displayName: "Buyer Co",
+    memberRole: "OWNER",
+    canBuy: true,
+    canSell: false,
+  };
+  const buyerAndSeller: OrganizationMembership = { ...buyerOnly, canSell: true };
+
+  const accountModule: DashboardModule = {
+    id: "account",
+    requiredCapability: "member",
+    navGroups: [
+      { key: "overview", label: "Overview", entries: [{ id: "overview", label: "Overview", href: "/dashboard", requiredCapability: "member" }] },
+      { key: "account", label: "Account", entries: [{ id: "settings", label: "Settings", href: "/dashboard/settings", requiredCapability: "member" }] },
+    ],
+  };
+  const sellingModule: DashboardModule = {
+    id: "selling",
+    requiredCapability: "sell",
+    navGroups: [
+      { key: "selling", label: "Selling", entries: [{ id: "selling-overview", label: "Selling", href: "/dashboard/selling", requiredCapability: "sell" }] },
+    ],
+  };
+
+  it("the buyer baseline (canSell=false) renders only what the organization is granted", () => {
+    const groups = buildDashboardNavGroups({ modules: [accountModule, sellingModule], organization: buyerOnly });
     expect(groups).toHaveLength(2);
     expect(groups.map((g) => g.key)).toEqual(["overview", "account"]);
   });
 
-  it("the seller-additive path (canSell=true) adds one group to the SAME shell shape", () => {
-    render(withProviders(<div>{buildMemberNavGroups({ canSell: true }).length}</div>));
-    const groups = buildMemberNavGroups({ canSell: true });
+  it("the seller-additive path (canSell=true) adds one group to the SAME shell shape — buyer entries stay, never replaced", () => {
+    const groups = buildDashboardNavGroups({ modules: [accountModule, sellingModule], organization: buyerAndSeller });
     expect(groups).toHaveLength(3);
     expect(groups.map((g) => g.key)).toEqual(["overview", "account", "selling"]);
 
     render(
-      <Sidebar
-        logoHref="/dashboard"
-        logoLabel="Home"
-        groups={groups}
-        navigationLabel="Application"
-      />,
+      withProviders(
+        <Sidebar logoHref="/dashboard" logoLabel="Home" groups={groups} navigationLabel="Application" />,
+      ),
     );
     expect(screen.getAllByText("Selling").length).toBeGreaterThan(0);
   });
 
-  it("is never enabled on the live route — dashboard/layout.tsx hardcodes canSell: false", () => {
-    expect(source("src/app/dashboard/layout.tsx")).toContain("canSell: false");
+  it("declaring requiredCapability never authorizes a route — buildDashboardNavGroups performs no redirect, no throw, no data read", () => {
+    const src = source("components/dashboard/sidebar.tsx");
+    expect(src).not.toMatch(/redirect\(|createClient|supabase|throw /i);
+    expect(src).toMatch(/PRESENTATIONAL ONLY/);
+  });
+
+  it("the LIVE route now reads the acting organization's real canBuy/canSell, not a hardcoded value", () => {
+    const layout = source("src/app/dashboard/layout.tsx");
+    expect(layout).toContain("organization: identity.organization");
+    expect(layout).not.toMatch(/buildDashboardNavGroups\([^)]*canSell:\s*false/);
   });
 
   it("creates no /seller-dashboard or /buyer-dashboard route anywhere in the app tree", () => {
@@ -287,9 +317,5 @@ describe("Phase 5.5 UIF-038 — seller additive UI architecture", () => {
     const allDirNames = walk(appDir);
     expect(allDirNames).not.toContain("seller-dashboard");
     expect(allDirNames).not.toContain("buyer-dashboard");
-  });
-
-  it("records that Feature 004 supplies the real capability", () => {
-    expect(source("components/app/member-navigation.tsx")).toMatch(/Feature 004/);
   });
 });

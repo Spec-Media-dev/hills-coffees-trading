@@ -103,6 +103,14 @@ export const ar: DeepPartial<AppCopy> = {
       groupLabel: "البيع",
       note: "يظهر فقط عندما توفّر الميزة 004 القيمة can_sell = true للمنظمة الفاعلة.",
     },
+    notifications: {
+      label: "الإشعارات",
+      unavailable: "الإشعارات غير متاحة بعد.",
+    },
+    dashboardAccount: {
+      cardTitle: "منظمتك",
+      roleLabel: "دورك",
+    },
     patternsNote: "أساس بصري فقط — لا تُقرأ أي بيانات تجارية، ولا وحدة هنا مُفعّلة وظيفيًا.",
     roleVisibilityNote:
       "ظهور عنصر التنقل ليس تفويضًا أبدًا. كل وحدة حقيقية تتحقق من دورها بشكل مستقل على الخادم عند وجودها.",

@@ -13,7 +13,9 @@ import { currentDocuments, getKybWorkspace, KYB_EDITABLE_STATUSES } from "@/lib/
 
 export const metadata: Metadata = {
   title: "KYB verification",
-  robots: { index: false, follow: false },
+  // Feature 004 T008 — noindex is declared exactly once, at `dashboard/layout.tsx`; a route-level
+  // duplicate here was redundant (same value, inherited automatically) and removed to keep the rule
+  // in one place, per the run directive's "no conflicting duplicate robots metadata" requirement.
 };
 
 /**

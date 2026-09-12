@@ -123,6 +123,25 @@ export const en = {
       groupLabel: "Selling",
       note: "Shown only when Feature 004 supplies can_sell = true for the acting organization.",
     },
+    /**
+     * Feature 004 T006 — the topbar's reserved notification entry. `unavailable` is the ONLY
+     * behaviour this entry has: no unread count, no dropdown content, no mark-read action. Real
+     * notification delivery is 012's scope (DB-BLOCK-04); this copy exists so the reserved control
+     * has an honest, localized accessible name/state rather than a silent disabled icon.
+     */
+    notifications: {
+      label: "Notifications",
+      unavailable: "Notifications aren't available yet.",
+    },
+    /**
+     * Feature 004 T003 — the overview's always-present "account" area (`lib/dashboard/overview.ts`).
+     * Composed directly from `RequestIdentity`/`OrganizationMembership`, never through the module
+     * registry — see that file's header comment.
+     */
+    dashboardAccount: {
+      cardTitle: "Your organization",
+      roleLabel: "Your role",
+    },
     patternsNote:
       "Visual foundation only — no business data is read, and no module here is functionally implemented.",
     roleVisibilityNote:

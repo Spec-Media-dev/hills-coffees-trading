@@ -2,15 +2,17 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 
 import { AppShell } from "@/components/app/app-shell";
-import { buildMemberNavGroups } from "@/components/app/member-navigation";
 import { PreAuthHeader } from "@/components/app/pre-auth-header";
 import { OnboardingExperience } from "@/components/account/onboarding-experience";
 import { OrganizationSelector } from "@/components/account/organization-selector";
 import { ResendVerificationButton } from "@/components/account/resend-verification-button";
+import { buildDashboardNavGroups } from "@/components/dashboard/sidebar";
+import { DashboardTopbarActions } from "@/components/dashboard/topbar";
 import { AppBilingual } from "@/components/locale/app-bilingual";
 import { StateScreen } from "@/components/layout/state-screen";
 import { appCopy } from "@/lib/app/copy";
 import { getRequestIdentity } from "@/lib/auth/dal";
+import { DASHBOARD_MODULES } from "@/lib/dashboard/registry";
 
 /**
  * Member Portal (`/dashboard`) — server-side authorization guard (unchanged) + application shell
@@ -36,11 +38,17 @@ import { getRequestIdentity } from "@/lib/auth/dal";
  * `AppShell` (UIF-035). Both authorization checks above this comment are untouched, line for line —
  * `tests/design/uif-f.test.tsx` diffs this exact file against the pre-block commit to prove it.
  *
- * `buildMemberNavGroups({ canSell: false })` — HARDCODED, NOT READ FROM `identity`. Feature 004 owns
- * real capability resolution (`organization.canSell`); reading it here to drive navigation would be
- * exactly the "real capability resolution implemented early" this phase forbids (run directive §5,
- * §11). The `canSell: true` branch exists and is exercised only by `tests/design/uif-f.test.tsx`
- * (UIF-038's required component-level test).
+ * ── WHAT FEATURE 004 RUN A CHANGED (T004) ───────────────────────────────────────────────────────
+ *
+ * Only the final, already-authorized `AppShell` return block below changed — every guard branch
+ * above it (including the two `git diff`-protected predicate lines) is untouched. The previously
+ * HARDCODED `buildMemberNavGroups({ canSell: false })` (`components/app/member-navigation.tsx`, now
+ * retired) is replaced with `buildDashboardNavGroups` (`components/dashboard/sidebar.tsx`), which
+ * reads the ACTING organization's real `canBuy`/`canSell` — resolved fresh every request by
+ * `getRequestIdentity()`, never cached — against the module registry (`lib/dashboard/registry.tsx`).
+ * This is exactly the real capability resolution Feature 003's own comment on this file reserved for
+ * Feature 004. Navigation visibility from this is still never the authorization boundary (SEC-002):
+ * every route a rendered entry links to independently re-verifies its own access.
  */
 
 export const metadata: Metadata = {
@@ -138,8 +146,8 @@ export default async function DashboardLayout({
   // under `/dashboard/*` from ever rendering while an organization is not yet authorized — but
   // T016 requires exactly such a route (`/dashboard/kyb/`, the real draft/upload/submit screen).
   // `{children}` now DOES render past this point, inside a shell that carries no business nav group
-  // — `AppShell`/`buildMemberNavGroups` are reached only in the final `return` below, strictly after
-  // this check, so the "no protected business modules pre-approval" property is unchanged: what
+  // — `AppShell` (with its real, capability-driven nav) is reached only in the final `return` below,
+  // strictly after this check, so the "no protected business modules pre-approval" property is unchanged: what
   // changed is which non-business content is allowed to render, not whether business content can.
   // Each page under `/dashboard/*` independently re-verifies `isAuthorizedMember` itself (the same
   // rule this file's own header comment already states) and is responsible for rendering only
@@ -158,11 +166,17 @@ export default async function DashboardLayout({
 
   return (
     <AppShell
-      navGroups={buildMemberNavGroups({ canSell: false })}
+      navGroups={buildDashboardNavGroups({ modules: DASHBOARD_MODULES, organization: identity.organization })}
       workspaceLabel={<AppBilingual pick={(c) => c.memberWorkspace} />}
       identitySubtitle={identity.organization.displayName}
       logoHref="/dashboard"
       footerNote={appCopy.roleVisibilityNote}
+      topbarActions={
+        <DashboardTopbarActions
+          displayName={identity.profile.fullName ?? identity.profile.companyName ?? "Account"}
+          organizationName={identity.organization.displayName}
+        />
+      }
     >
       {children}
     </AppShell>

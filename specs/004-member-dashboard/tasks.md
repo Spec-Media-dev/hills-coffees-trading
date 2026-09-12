@@ -3,7 +3,10 @@
 **Input**: [spec.md](./spec.md), [plan.md](./plan.md), `docs/architecture/DATABASE-CAPABILITY-MAP.md`,
 `.specify/memory/constitution.md` (v2.0.0), `docs/claude-design/` dashboard layout.
 
-**Status**: all tasks unchecked — implementation NOT started.
+**Status**: **RUN A (2026-09-12) COMPLETE — Phase 1 (T001–T003) + Phase 2 (T004–T008), 8/29 tasks.**
+Phases 3–9 (T009–T029) remain NOT STARTED. See
+[IMPLEMENTATION-HANDOFF.md](./IMPLEMENTATION-HANDOFF.md) for full evidence per task. This is NOT
+Feature 004 completion — only its module contract and shell layout.
 **Prerequisite**: 001 (guard, identity, states, tokens) and 003 (eligibility layer, acting
 organization, agreement gate) implemented.
 
@@ -21,7 +24,7 @@ organization, agreement gate) implemented.
 
 ## Phase 1 — Module contract
 
-- [ ] T001 Define the module registration contract in `lib/dashboard/modules.ts`
+- [x] T001 Define the module registration contract in `lib/dashboard/modules.ts`
   (`DashboardModule`, `NavEntry`, `OverviewCard`, `ActionItem`, `requiredCapability`), with explicit
   documentation that declaration is presentational only and never grants access.
   - Req: FR-005, SEC-002 | Depends: —
@@ -29,14 +32,14 @@ organization, agreement gate) implemented.
   - Codex: GPT-5.6 Sol — Medium · Claude: Opus — Medium
   - Why: this contract shapes how every later member feature plugs in — a poor abstraction here is expensive to unwind across 006–012.
 
-- [ ] T002 Create the static registry `lib/dashboard/registry.ts` listing implemented modules only
+- [x] T002 Create the static registry `lib/dashboard/registry.ts` listing implemented modules only
   (initially: account/status entries from 003).
   - Req: FR-005, FR-006 | Depends: T001
   - Verify: an unregistered module contributes nothing to nav or overview
   - Codex: GPT-5.6 Sol — Low · Claude: Sonnet — Low
   - Why: small, explicit list file.
 
-- [ ] T003 Implement `lib/dashboard/overview.ts` composing registered contributions into the four
+- [x] T003 Implement `lib/dashboard/overview.ts` composing registered contributions into the four
   question areas (bought / owe / where / needs action), omitting absent modules entirely.
   - Req: FR-006, PS2 | Depends: T001, T002
   - Verify: with an empty registry the composer returns only the account area; no placeholder cards
@@ -47,35 +50,35 @@ organization, agreement gate) implemented.
 
 ## Phase 2 — Shell layout
 
-- [ ] T004 Extend `src/app/dashboard/layout.tsx` (from 001) into the real shell: fixed sidebar,
+- [x] T004 Extend `src/app/dashboard/layout.tsx` (from 001) into the real shell: fixed sidebar,
   sticky topbar, breadcrumbs, content region — preserving 001's server-side guard exactly as-is.
   - Req: FR-008, SEC-001 | Depends: T001
   - Verify: 001's guard behaviour is unchanged (an anonymous request still renders the unauthorized state before any module data is fetched)
   - Codex: GPT-5.6 Sol — Medium · Claude: Opus — High
   - Why: edits the file that enforces the Member Portal security boundary — the guard must not be weakened while adding chrome.
 
-- [ ] T005 [P] Build `components/dashboard/sidebar.tsx` rendering nav groups from the registry, with
+- [x] T005 [P] Build `components/dashboard/sidebar.tsx` rendering nav groups from the registry, with
   capability-declared entries filtered by the acting organization's resolved capability.
   - Req: FR-002, FR-005 | Depends: T001, T004
   - Verify: buyer-only fixture renders no seller group; buyer+seller renders both, buyer first
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — High
   - Why: the additive-capability rule is a Constitution-locked model that must be visibly correct.
 
-- [ ] T006 [P] Build `components/dashboard/topbar.tsx` with acting-organization display, account menu,
+- [x] T006 [P] Build `components/dashboard/topbar.tsx` with acting-organization display, account menu,
   and the reserved (inert) notification entry pointing at 012/DB-BLOCK-04.
   - Req: FR-010, FR-016 | Depends: T004
   - Verify: the notification entry renders inert with no fabricated count or read behaviour
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — Medium
   - Why: normal component work with one deliberate "do not fake it" constraint.
 
-- [ ] T007 [P] Build the responsive behaviours: tablet sidebar → drawer, mobile tables → card lists
+- [x] T007 [P] Build the responsive behaviours: tablet sidebar → drawer, mobile tables → card lists
   (`components/dashboard/responsive/`).
   - Req: FR-008 | Depends: T004
   - Verify: at tablet width the sidebar collapses to a drawer; at mobile a sample table renders as cards; touch targets ≥ 44×44px
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — Medium
   - Why: shared responsive primitives every later module inherits.
 
-- [ ] T008 Add non-indexable metadata to all `/dashboard` routes (coordinating with 002's T027 so the
+- [x] T008 Add non-indexable metadata to all `/dashboard` routes (coordinating with 002's T027 so the
   rule exists exactly once).
   - Req: FR-013 | Depends: T004
   - Verify: `/dashboard` head contains non-indexable metadata; no duplicate conflicting declaration
