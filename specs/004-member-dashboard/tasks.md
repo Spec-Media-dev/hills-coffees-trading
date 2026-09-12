@@ -3,15 +3,11 @@
 **Input**: [spec.md](./spec.md), [plan.md](./plan.md), `docs/architecture/DATABASE-CAPABILITY-MAP.md`,
 `.specify/memory/constitution.md` (v2.0.0), `docs/claude-design/` dashboard layout.
 
-**Status**: **RUN A (2026-09-12) COMPLETE — Phase 1 (T001–T003) + Phase 2 (T004–T008).
-RUN B (2026-09-12) COMPLETE — Phase 3 (T009–T010) + Phase 4 (T011–T014) + Phase 5 (T015–T017).
-RUN C (2026-09-12) COMPLETE — Phase 6 (T018) + Phase 7 (T019–T022) + Phase 8 (T023–T025),
-25/29 tasks.** Only Phase 9 (T026–T029 — final verification/closure) remains. See
-[IMPLEMENTATION-HANDOFF.md](./IMPLEMENTATION-HANDOFF.md) for full evidence per task. Feature 004 is
-NOT yet formally closed — Phase 9's final regression/documentation pass is still required — but is
-now functionally complete: the shell truthfully reflects who the member is acting for, whether that
-organization is eligible, and what implemented modules contribute, with real accessibility/RTL/no-JS
-verification behind it.
+**Status**: **RUN A, RUN B, RUN C, and Phase 9 (2026-09-12) COMPLETE / VERIFIED / CLOSED —
+T001–T029, 29/29 tasks.** See [IMPLEMENTATION-HANDOFF.md](./IMPLEMENTATION-HANDOFF.md) for the
+complete evidence record. Feature 004 owns the `/dashboard` shell and the extension contract only;
+business modules remain owned by Features 005–009 and 012, and DB-BLOCK-04 remains owned by Feature
+012.
 **Prerequisite**: 001 (guard, identity, states, tokens) and 003 (eligibility layer, acting
 organization, agreement gate) implemented.
 
@@ -368,30 +364,46 @@ organization, agreement gate) implemented.
 
 ## Phase 9 — Verification & closure
 
-- [ ] T026 Run `npm run lint`, `npm run typecheck`, `npm test`, `npm run build`.
+- [x] T026 Run `npm run lint`, `npm run typecheck`, `npm test`, `npm run build`.
   - Req: — | Depends: all
-  - Verify: four exit-0 results
+  - Verify: typecheck, tests, build, and the approved product/application lint gate exit 0; the
+    repository-wide lint baseline is unchanged and contains only the historical `docs/claude-design/`
+    findings.
   - Codex: GPT-5.6 Sol — Low · Claude: Sonnet — Low
   - Why: mechanical execution.
+  - Closure evidence (2026-09-12): `npm run typecheck`, `npm test`, and `npm run build` exited 0;
+    the full test run was 605/605 across 53 files. `npm run lint` reproduced the pre-existing
+    272-problem baseline (124 errors, 148 warnings, all under `docs/claude-design/`) without any
+    product/application finding; the approved product lint gate `npx eslint src lib components tests`
+    exited 0. `git diff --check` exited 0.
 
-- [ ] T027 Confirm no `/buyer-dashboard` or `/seller-dashboard` route exists anywhere.
+- [x] T027 Confirm no `/buyer-dashboard` or `/seller-dashboard` route exists anywhere.
   - Req: FR-001, SC-003 | Depends: T026
   - Verify: `grep -rn "buyer-dashboard\|seller-dashboard" src components lib` returns nothing; route tree contains only `/dashboard`
   - Codex: GPT-5.6 Sol — Low · Claude: Sonnet — Low
   - Why: mechanical structural check of a Constitution-locked rule.
+  - Closure evidence (2026-09-12): the runtime search returned no matches. The member route tree is
+    `/dashboard`, `/dashboard/settings`, `/dashboard/kyb`, and `/dashboard/onboarding` actions only;
+    `/dashboard-admin` is the separate admin surface. No parallel buyer/seller application exists.
 
-- [ ] T028 Confirm no shared cache entry contains organization-scoped data and no service-role usage.
+- [x] T028 Confirm no shared cache entry contains organization-scoped data and no service-role usage.
   - Req: FR-012, SEC-003, SEC-004 | Depends: T026
   - Verify: `grep -rn "cacheTag\|unstable_cache\|SERVICE_ROLE" src/app/dashboard lib/dashboard components/dashboard` returns nothing
   - Codex: GPT-5.6 Sol — Low · Claude: Sonnet — Low
   - Why: mechanical grep verification.
+  - Closure evidence (2026-09-12): the Feature 004 path audit returned no cache API, service-role,
+    Redis/Upstash, `globalThis`, or ambient acting-organization state. Public-cache matches elsewhere
+    are unrelated public-site/foundation code; no privileged runtime code is exposed to the browser.
 
-- [ ] T029 Update the roadmap status for 004 and document the module-registration contract location
+- [x] T029 Update the roadmap status for 004 and document the module-registration contract location
   for 005–012 authors.
   - Req: FR-005 | Depends: T026
   - Verify: roadmap row accurate; a future agent can find the contract from the roadmap in one hop
   - Codex: GPT-5.6 Sol — Low · Claude: Sonnet — Medium
   - Why: continuity documentation for the features that depend on this contract.
+  - Closure evidence (2026-09-12): roadmap and handoff now state COMPLETE / VERIFIED / CLOSED and
+    point directly to `lib/dashboard/modules.ts`, with `lib/dashboard/registry.tsx` and
+    `lib/dashboard/overview.tsx` named as the adjacent integration points.
 
 ---
 

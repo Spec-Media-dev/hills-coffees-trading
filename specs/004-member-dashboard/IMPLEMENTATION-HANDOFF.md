@@ -1,5 +1,10 @@
 # Feature 004 — Member Dashboard — Implementation Handoff
 
+> **FINAL STATUS (2026-09-12): COMPLETE / VERIFIED / CLOSED — T001–T029, 29/29 tasks.** The
+> final Phase 9 closure evidence is recorded below. This feature closes the member shell and its
+> module-registration contract; it does not implement Features 005–012 or claim whole-platform
+> production readiness.
+
 ## RUN A (2026-09-12) — Phase 1 (Module Contract, T001–T003) + Phase 2 (Shell Layout, T004–T008)
 
 **Scope of this run**: T001–T008 only. Phase 3 (acting-organization switcher, T009–T010), Phase 4
@@ -487,8 +492,92 @@ plain Server Components.
 - Only Phase 9 (T026–T029 — final verification/closure, roadmap finalization) remains before Feature
   004 can be formally declared closed.
 
-## Exact next run
+## Exact next feature
 
-Phase 9 (T026 — run lint/typecheck/tests/build; T027 — confirm no `/buyer-dashboard`/`/seller-dashboard`
-route anywhere; T028 — confirm no shared cache/service-role usage; T029 — final roadmap/documentation
-closure) is the next and final scoped unit of work for Feature 004.
+Feature 005 — Inventory, Custody & Storage — is the next implementation feature. It must register
+its genuinely implemented contributions through `lib/dashboard/modules.ts` and
+`lib/dashboard/registry.tsx`, while independently enforcing its own server-side authorization. No
+Feature 005 work was started in the Feature 004 closure run.
+
+## FINAL CLOSURE — Phase 9 (2026-09-12)
+
+### T026 — final automated verification
+
+- `npm run typecheck`: PASS (exit 0).
+- `npm test`: PASS — **605/605 tests across 53 test files**.
+- `npm run build`: PASS (exit 0); the production route tree contains the single member application
+  under `/dashboard` plus the separate `/dashboard-admin` surface.
+- `npm run lint`: the repository-wide command reproducibly reports the pre-existing
+  `docs/claude-design/` baseline (**272 problems: 124 errors, 148 warnings**). No finding is in
+  Feature 004 product/application code. The approved product lint/no-new-regression command
+  `npx eslint src lib components tests` exits 0.
+- `git diff --check`: PASS.
+
+### T027 — one member portal
+
+The runtime search `buyer-dashboard|seller-dashboard` across `src`, `components`, and `lib`
+returns no matches. The actual member route tree is `/dashboard`, `/dashboard/settings`, and the
+existing guarded `/dashboard/kyb` route (with onboarding actions); there is no parallel buyer or
+seller application. Buyer and seller remain additive capability variants of the same portal.
+`/dashboard-admin` is a separate admin surface, not a second member portal.
+
+### T028 — private-cache and service-role audit
+
+The Feature 004 paths (`src/app/dashboard`, `lib/dashboard`, `components/dashboard`) contain no
+`unstable_cache`, `cacheTag`, `cacheLife`, `updateTag`, `SERVICE_ROLE`, `service_role`, Redis,
+Upstash, `globalThis`, or module-scope mutable acting-organization state. Acting organization is
+request-scoped and passed explicitly. Cache matches elsewhere belong to public-site/foundation
+surfaces and do not cache organization-private dashboard data. No browser-side privileged secret or
+runtime service-role usage was introduced.
+
+### Final authorization and integration audit
+
+- `requiredCapability` remains presentational only; routes must independently resolve Feature 003
+  authorization truth. `organization_can_buy()`, `organization_can_sell()`, and
+  `is_authorized_member()` were not modified.
+- Buyer-only navigation excludes seller entries; buyer+seller adds seller entries; the live
+  capability-gating test proves a fresh `can_sell` change is visible on the next request without
+  logout or stale shared cache.
+- Zero organizations remain in Feature 003 onboarding; one organization is implicit; multiple
+  organizations use explicit acting-organization selection; arbitrary non-membership ids are
+  refused; no `organizations[0]`, ambient singleton, or cross-request bleed exists.
+- `lib/dashboard/modules.ts` is the small stable contract. `lib/dashboard/registry.tsx` lists only
+  genuinely implemented routes, and `lib/dashboard/overview.tsx` composes truthful account,
+  bought, owe, where, and needs-action areas. No fake KPIs, business numbers, or speculative
+  Features 005–012 entries exist.
+- The agreement needs-action contribution remains logically correct and unit-tested but is
+  structurally unreachable in the normal live page because Feature 003's verified full-page
+  agreement gate intercepts before the composer. This is documented architectural behavior, not a
+  reason to weaken or duplicate the Feature 003 gate.
+- PENDING_KYB, UNDER_REVIEW, SUSPENDED, REJECTED, and zero-organization behavior continues to use
+  truthful Feature 003-owned states. Component/integration evidence covers SUSPENDED/REJECTED;
+  prior live browser evidence covers the other states and shell boundaries. No fake trading access
+  is exposed.
+- DB-BLOCK-04 remains Feature 012 scope. Notifications are an inert reserved control: no unread
+  number, fake data, mark-read action, or polling.
+- Existing shadcn/project primitives are reused. Field-specific validation remains inline; global
+  action/server feedback uses the existing controlled Sonner convention, with safe localized EN/AR
+  copy and no raw backend details. No extra toast provider was added.
+
+### Final UX and boundary evidence
+
+- EN/AR copy and RTL logical-CSS checks remain clean for the Feature 004 surface; no new
+  Feature-004 English-only user-facing string was introduced. The separate public `SiteHeader`
+  English-only `Account` fallback remains outside `/dashboard/*` and is pre-existing Feature
+  002/003-owned localization debt.
+- Prior real Chrome/CDP evidence remains valid because Phase 9 changed no UI/runtime code: 0 axe
+  violations, no console/page errors, keyboard focus, mobile drawer focus trap/restore, 390px no
+  overflow, light/dark, EN/AR/RTL, and accessible nav/org-switcher/notification control.
+- The real no-JS request remains valid: server-rendered nav and main content are present; only the
+  interactive org-switcher/topbar and pre-existing required error/settings islands are client-side.
+- Current source audit finds only expected words such as `placeholder` in truthful architectural
+  comments/tests and `PENDING` in state handling/comments; none is a current Feature 004 defect or
+  unverified closure blocker.
+
+### Scope and handoff
+
+- No DB schema, migration, RLS, Storage, or authorization-function changes were made.
+- Features 005–012 were not started; Feature 004 does not claim marketplace, inventory, orders,
+  payments, delivery, pricing, admin, or notifications implementation.
+- No commit or push was performed. The roadmap row now points in one hop to the module contract and
+  its registry/overview integration points.
