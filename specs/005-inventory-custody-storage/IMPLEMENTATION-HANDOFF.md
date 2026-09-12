@@ -439,3 +439,96 @@ Phase 5 (T016–T019 — the formal release-blocking isolation suite, following 
 pattern the reconciliation's DB-OPEN-12 proof already established) is the next scoped, unblocked unit
 of work, followed by Phase 6 (a11y/RTL/mobile closure, including the still-missing real browser pass)
 and Phase 7 (final closure).
+
+---
+
+## RUN C (2026-09-12) — Phase 5 closure (T016–T019) — supersedes the next-run note above
+
+**Scope completed:** T016, T017, T018 and T019 only. No Phase 3, 6, 7, Feature 006+, Feature 010
+implementation, database migration, RLS/policy alteration, Storage change, commit or push occurred.
+
+### Real fixture lifecycle and idempotency
+
+- Extended the existing `scripts/seed-test-fixtures.ts` boundary — the only repository location that
+  constructs a service-role client — rather than introducing a new fixture framework or exposing a
+  privileged client to runtime/tests.
+- The exact fixed-id inventory graph is now seeded twice successfully, then fully torn down, then
+  seeded twice again successfully. Exact-ID assertions prove the seeded graph contains 1 internal
+  organization, 1 dedicated DRAFT coffee, 2 lots, 2 invisible offers, 1 warehouse, 6 positions,
+  2 orders, 2 order items, 2 allocations and 3 ledger events, with no Hills-internal membership.
+- The teardown deletes the removable graph in FK order. It proves the remaining immutable chain is
+  exactly 3 `inventory_ownership_events`, 2 referenced lots, the dedicated DRAFT coffee and the
+  internal organization. The ledger trigger blocks deleting the events. Events also reference the
+  pre-existing Org A/B/C fixtures; the shared fixture teardown removes their memberships/KYB/admin
+  capability rows before tolerating any protected evidence FK. No retained row is an active acting
+  organization for a real user.
+- A historical Hills-internal membership residue was found by the first exact verifier and removed
+  safely by a fixed-id membership delete on every seed. The verifier now fails closed if that system
+  org ever has a membership again.
+- The dedicated coffee remains `DRAFT`; offers remain `PUBLISHED` only because their DB transition
+  trigger legally rejects a backward `PUBLISHED → DRAFT` update, but are `is_visible = false`.
+  Anonymous coffee read returns no row and anonymous offer access is denied at PostgreSQL privilege
+  level (`42501`), rather than fabricated as a misleading empty SELECT success.
+
+### T016 — real RLS and acting-organization isolation
+
+`npm test -- inventory/isolation` passes **12/12** against real authenticated sessions and live RLS:
+own and cross-org position reads, exact-id detail privacy, allocations/order context, ownership events
+as both source and destination, unrelated event denial, and counterparty redaction. A genuine
+multi-org fixture user has two differentiated positions and, in the same authenticated session, sees
+only the explicit acting-org's row on each call — no `organizations[0]` or stale-context leak.
+
+### T017 — exact quantity fidelity
+
+`npm test -- quantity-fidelity` passes **18/18**. Live non-round stored values are compared exactly
+for Org A/B positions, availability, and allocation quantities. UI presentation preserves the decimal
+value and unit without rounding. Field-targeted source scans reject quantity arithmetic, have an
+intentional forbidden-shape positive control, and assert no third derived quantity was added.
+
+### T018 — append-only ledger at the database boundary
+
+`npm test -- ledger-immutability` passes **5/5**. An authenticated member UPDATE matches zero rows
+under RLS; DELETE is privilege-denied; an unrelated member cannot alter a hidden event. The isolated
+fixture-only privileged probe then attempts an exact-id update and requires the live
+`inventory_ownership_events_is_append_only` exception from
+`trg_ownership_events_append_only`, followed by an unchanged reason read. This is not UI-only proof;
+no service-role credential is imported by runtime or Vitest.
+
+### T019 — DB-OPEN-05 degradation
+
+`npm test -- degradation` passes **6/6**. The real Org A position remains readable with both
+authoritative quantities while `coffee_lots` stays unreadable; it returns `lot: null`, list/detail
+reads remain usable, and no lot/coffee/origin/grade/process/crop/quality field is fabricated.
+DB-OPEN-05 remains OPEN. DB-OPEN-12 remains an honest unknown reservation cause, with no privileged
+runtime workaround.
+
+### Regression and security evidence
+
+- `npm run typecheck` — pass.
+- `npm test` — **60 files, 687/687 tests pass**. A first full run exposed obsolete RUN-A empty-table
+  assumptions and repeated test-client storage keys; both were corrected rather than suppressed.
+  `live-empty.test.ts` now tests a documented real empty organization, and each test-only GoTrue
+  client gets a UUID storage key. The final full run emitted no GoTrue multiple-client warning.
+- `npm run build` — pass; inventory, detail, history and storage remain dynamic routes.
+- `npx eslint src lib components tests scripts` — pass, zero findings. `npm run lint` remains a
+  pre-existing non-product baseline failure from `docs/claude-design` (124 errors, 148 warnings);
+  none is in Phase 5's changed product/test/script paths.
+- `git diff --check` — pass (only Git's existing LF→CRLF warnings, no whitespace error).
+- Static scope audits found no `SERVICE_ROLE`/`service_role` in `src`, `lib` or `components`; no
+  inventory cache APIs; no signed/public Storage URL creation; and no dynamic clock/random source in
+  inventory runtime/UI paths. No secret or `.env` file is tracked or changed by this run.
+
+### Browser evidence
+
+No authenticated real-browser run was performed. The available Windows browser automation policy
+prohibits automating authentication dialogs/fixture-password entry; this run did not bypass that
+boundary. This is explicitly a **Phase 6 gap**, not a claimed visual PASS. The real DB/RLS proof and
+component/browser-like DOM coverage above remain valid, but desktop/mobile/RTL live-browser evidence
+is still required by T020/T021.
+
+### Exact next run
+
+Do **not** begin Feature 010 implementation from this repository state. The dependency-safe next
+unit is **Phase 6 T020–T021** (responsive, accessibility, RTL and authenticated browser evidence),
+then Phase 7 T022–T025 closure. Phase 3 T013–T014 remains blocked until Feature 010's warehouse model
+is actually implemented and verified.

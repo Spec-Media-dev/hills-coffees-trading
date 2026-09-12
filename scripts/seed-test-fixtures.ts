@@ -43,6 +43,8 @@
  *                                  # T031 freshness-test control; the `suspended` fixture only
  *   --reset-complete-draft-application
  *                                  # T032 restore control; resets `completeDraft` back to DRAFT
+ *   --verify-inventory-fixtures    # read-only assertion of the exact Feature 005 fixture set
+ *   --verify-inventory-append-only # service-role test probe; must be refused by the DB trigger
  *
  * Requires `.env.local` to define NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY and
  * TEST_FIXTURE_PASSWORD. Run only against the development Supabase project — never one labelled
@@ -1004,6 +1006,541 @@ async function resetCompleteDraftApplication(admin: SupabaseClient): Promise<voi
 }
 
 // ---------------------------------------------------------------------------
+// Feature 005 Phase 5 (T016–T019) — inventory/custody/ownership fixtures
+// ---------------------------------------------------------------------------
+
+/**
+ * EXTENDS the existing fixture architecture (same script, same privileged boundary, same
+ * `npm run test:seed` / `test:seed:teardown` entry points) rather than a second framework, per the
+ * run directive. Reuses the ALREADY-APPROVED identity fixtures as the two organizations under test —
+ * `buyerOnly` (Org A) and `buyerAndSeller` (Org B) from `ORGANIZATION_IDS` above, plus Phase 8/9's
+ * `underReview` (Org C) as the unrelated third party for the ownership-ledger negative case — rather
+ * than inventing new member identities.
+ *
+ * One synthetic HILLS-internal organization is added ONLY because `coffee_offers`' own
+ * `validate_offer_transition` trigger requires a `seller_type = 'HILLS'` listing's seller to be a
+ * real `is_hills_internal = true, status = 'ACTIVE'` organization (confirmed live during the Feature
+ * 005 reconciliation's DB-OPEN-12 proof) — the same technique that proof already used, made
+ * persistent and idempotent here instead of a throwaway scratch script.
+ *
+ * Fixed ids in their own `05000000-...` range (Feature 005), never colliding with the 001/002/003
+ * ranges already in use. DISTINCTIVE, NON-ROUND quantities (T017): chosen so that no fixture value's
+ * sum or difference with another coincides with any other fixture value in this set — an agent that
+ * accidentally reintroduces `available - reserved` or `available + reserved` arithmetic produces a
+ * value that provably does not match any genuine fixture number.
+ */
+const INVENTORY_FIXTURE_IDS = {
+  hillsOrg: "05000000-0000-4000-8000-000000000001",
+  coffee: "05000000-0000-4000-8000-000000000014",
+  warehouse: "05000000-0000-4000-8000-000000000002",
+  lotA: "05000000-0000-4000-8000-000000000003",
+  lotB: "05000000-0000-4000-8000-000000000004",
+  offerA: "05000000-0000-4000-8000-000000000005",
+  offerB: "05000000-0000-4000-8000-000000000006",
+  hillsPositionA: "05000000-0000-4000-8000-000000000007",
+  hillsPositionB: "05000000-0000-4000-8000-000000000008",
+  positionA: "05000000-0000-4000-8000-000000000009",
+  positionB: "05000000-0000-4000-8000-00000000000a",
+  multiOrgPositionA: "05000000-0000-4000-8000-000000000015",
+  multiOrgPositionB: "05000000-0000-4000-8000-000000000016",
+  orderA: "05000000-0000-4000-8000-00000000000b",
+  orderB: "05000000-0000-4000-8000-00000000000c",
+  orderItemA: "05000000-0000-4000-8000-00000000000d",
+  orderItemB: "05000000-0000-4000-8000-00000000000e",
+  allocationA: "05000000-0000-4000-8000-00000000000f",
+  allocationB: "05000000-0000-4000-8000-000000000010",
+  eventAToOrgAIncoming: "05000000-0000-4000-8000-000000000011",
+  eventAToB: "05000000-0000-4000-8000-000000000012",
+  eventBToC: "05000000-0000-4000-8000-000000000013",
+} as const;
+
+/**
+ * A DEDICATED synthetic `coffees` row, deliberately NOT the catalogue's shared `coffeePublished` — an
+ * earlier version of this fixture reused that row and it broke `teardownCatalogue()`'s own delete
+ * (confirmed empirically: `coffees delete failed` once the two lots below, retained as append-only
+ * ledger evidence, still held a foreign key to it). Owning a private `coffees` row here decouples
+ * Feature 005's retained evidence from Feature 002's catalogue lifecycle entirely.
+ */
+const INVENTORY_FIXTURE_COFFEE_ID = INVENTORY_FIXTURE_IDS.coffee;
+
+const INVENTORY_FIXTURE_QUANTITIES = {
+  // Org A's position: an intentionally odd, non-round pair — see this section's own header comment.
+  positionAAvailable: 743.271,
+  positionAReserved: 88.654,
+  // Org B's position: a different odd, non-round pair.
+  positionBAvailable: 512.938,
+  positionBReserved: 41.276,
+  // One real user belongs to both Phase 8/9 multi-org fixtures; these rows make the acting-org
+  // proof positive on both contexts instead of confusing two single-org sessions for one user.
+  multiOrgPositionAAvailable: 91.123,
+  multiOrgPositionAReserved: 17.456,
+  multiOrgPositionBAvailable: 64.789,
+  multiOrgPositionBReserved: 9.321,
+  // Org A's storage allocation.
+  allocationAQuantity: 317.409,
+  allocationAReleased: 52.183,
+  // Org B's storage allocation.
+  allocationBQuantity: 201.517,
+  allocationBReleased: 19.842,
+} as const;
+
+async function seedInventoryFixtures(admin: SupabaseClient): Promise<void> {
+  console.log("\nSeeding 005-inventory-custody-storage Phase 5 fixtures…\n");
+
+  const buyerOnlyUserId = await findAuthUserIdByEmail(admin, FIXTURES[0]!.email);
+  const buyerAndSellerUserId = await findAuthUserIdByEmail(admin, FIXTURES[1]!.email);
+  if (!buyerOnlyUserId || !buyerAndSellerUserId) {
+    throw new SafeFixtureError("001 identity fixtures are missing; run npm run test:seed first.");
+  }
+
+  const upsert = async (table: string, row: Record<string, unknown>, onConflict = "id"): Promise<void> => {
+    const { error } = await admin.from(table).upsert(row, { onConflict });
+    if (error) throw new SafeFixtureError(`${table} upsert failed (Feature 005 Phase 5): ${error.message}`);
+  };
+
+  /**
+   * `inventory_ownership_events` is append-only at the database level (`prevent_ownership_event_mutation`
+   * fires unconditionally on UPDATE, for every role) — an `upsert()`'s `ON CONFLICT DO UPDATE` path
+   * would hit that trigger and fail on any re-run once the row already exists. Insert-if-absent keeps
+   * this seed idempotent without ever attempting the disallowed update.
+   */
+  const insertIfAbsent = async (table: string, row: Record<string, unknown> & { id: string }): Promise<void> => {
+    const { data: existing, error: selectError } = await admin.from(table).select("id").eq("id", row.id).maybeSingle();
+    if (selectError) throw new SafeFixtureError(`${table} existence check failed (Feature 005 Phase 5): ${selectError.message}`);
+    if (existing) return;
+
+    const { error: insertError } = await admin.from(table).insert(row);
+    if (insertError) throw new SafeFixtureError(`${table} insert failed (Feature 005 Phase 5): ${insertError.message}`);
+  };
+
+  await upsert("organizations", {
+    id: INVENTORY_FIXTURE_IDS.hillsOrg,
+    legal_name: "Feature 005 Fixture — Hills Internal FZE",
+    display_name: "Feature 005 Fixture — Hills Internal",
+    account_type: "HILLS_INTERNAL",
+    status: "ACTIVE",
+    is_hills_internal: true,
+    can_buy: true,
+    can_sell: true,
+  });
+
+  // This is an exact synthetic system organization, never an acting organization for a real user.
+  // Clear only its fixed-id memberships on every idempotent seed so historical fixture residue
+  // cannot accidentally grant its internal capabilities to any authenticated identity.
+  const { error: hillsMembershipCleanupError } = await admin
+    .from("organization_members")
+    .delete()
+    .eq("organization_id", INVENTORY_FIXTURE_IDS.hillsOrg);
+  if (hillsMembershipCleanupError) {
+    throw new SafeFixtureError("Feature 005 Hills-internal membership cleanup failed.");
+  }
+
+  await upsert("warehouses", {
+    id: INVENTORY_FIXTURE_IDS.warehouse,
+    owner_organization_id: INVENTORY_FIXTURE_IDS.hillsOrg,
+    code: "F005-WH",
+    name: "Feature 005 Fixture Warehouse",
+    is_active: true,
+  });
+
+  // Own, dedicated coffee row — see `INVENTORY_FIXTURE_COFFEE_ID`'s own comment for why this is
+  // never the shared catalogue `coffeePublished` row. Deliberately `DRAFT`: `PUBLISHED` would make
+  // this synthetic row appear on the real public catalogue (`public_read_coffees`'s own RLS is
+  // `status = 'PUBLISHED'`), which nothing in this fixture's actual purpose requires — no Feature 005
+  // function conditions on the coffee's own status.
+  await upsert("coffees", {
+    id: INVENTORY_FIXTURE_IDS.coffee,
+    name: "Feature 005 Fixture Coffee",
+    slug: "feature-005-fixture-coffee",
+    status: "DRAFT",
+  });
+
+  await upsert("coffee_lots", {
+    id: INVENTORY_FIXTURE_IDS.lotA,
+    coffee_id: INVENTORY_FIXTURE_COFFEE_ID,
+    lot_code: "F005-LOT-A",
+    total_quantity_kg: 1000,
+    status: "AVAILABLE",
+    source_organization_id: INVENTORY_FIXTURE_IDS.hillsOrg,
+  });
+  await upsert("coffee_lots", {
+    id: INVENTORY_FIXTURE_IDS.lotB,
+    coffee_id: INVENTORY_FIXTURE_COFFEE_ID,
+    lot_code: "F005-LOT-B",
+    total_quantity_kg: 1000,
+    status: "AVAILABLE",
+    source_organization_id: INVENTORY_FIXTURE_IDS.hillsOrg,
+  });
+
+  // Hills' own backing position for each lot — required by `validate_offer_transition`'s own
+  // inventory check before it will accept a `seller_type = 'HILLS'` listing.
+  await upsert("inventory_positions", {
+    id: INVENTORY_FIXTURE_IDS.hillsPositionA,
+    lot_id: INVENTORY_FIXTURE_IDS.lotA,
+    owner_organization_id: INVENTORY_FIXTURE_IDS.hillsOrg,
+    warehouse_id: INVENTORY_FIXTURE_IDS.warehouse,
+    available_quantity_kg: 1000,
+    reserved_quantity_kg: 0,
+  });
+  await upsert("inventory_positions", {
+    id: INVENTORY_FIXTURE_IDS.hillsPositionB,
+    lot_id: INVENTORY_FIXTURE_IDS.lotB,
+    owner_organization_id: INVENTORY_FIXTURE_IDS.hillsOrg,
+    warehouse_id: INVENTORY_FIXTURE_IDS.warehouse,
+    available_quantity_kg: 1000,
+    reserved_quantity_kg: 0,
+  });
+
+  // These support only the fixture order-item chain. Keep them non-public too: their transition
+  // validator permits an existing PUBLISHED fixture to remain PUBLISHED but forbids a backwards
+  // PUBLISHED → DRAFT transition, so `is_visible: false` is the stable idempotent guard.
+  await upsert("coffee_offers", {
+    id: INVENTORY_FIXTURE_IDS.offerA,
+    coffee_id: INVENTORY_FIXTURE_COFFEE_ID,
+    lot_id: INVENTORY_FIXTURE_IDS.lotA,
+    seller_organization_id: INVENTORY_FIXTURE_IDS.hillsOrg,
+    seller_type: "HILLS",
+    warehouse_id: INVENTORY_FIXTURE_IDS.warehouse,
+    quantity_kg: 1000,
+    price_per_kg: 5,
+    status: "PUBLISHED",
+    is_visible: false,
+    created_by: buyerOnlyUserId,
+  });
+  await upsert("coffee_offers", {
+    id: INVENTORY_FIXTURE_IDS.offerB,
+    coffee_id: INVENTORY_FIXTURE_COFFEE_ID,
+    lot_id: INVENTORY_FIXTURE_IDS.lotB,
+    seller_organization_id: INVENTORY_FIXTURE_IDS.hillsOrg,
+    seller_type: "HILLS",
+    warehouse_id: INVENTORY_FIXTURE_IDS.warehouse,
+    quantity_kg: 1000,
+    price_per_kg: 5,
+    status: "PUBLISHED",
+    is_visible: false,
+    created_by: buyerAndSellerUserId,
+  });
+
+  // Org A's and Org B's OWN positions — the rows T016/T017's isolation/fidelity proofs actually read.
+  await upsert("inventory_positions", {
+    id: INVENTORY_FIXTURE_IDS.positionA,
+    lot_id: INVENTORY_FIXTURE_IDS.lotA,
+    owner_organization_id: ORGANIZATION_IDS.buyerOnly,
+    warehouse_id: INVENTORY_FIXTURE_IDS.warehouse,
+    available_quantity_kg: INVENTORY_FIXTURE_QUANTITIES.positionAAvailable,
+    reserved_quantity_kg: INVENTORY_FIXTURE_QUANTITIES.positionAReserved,
+  });
+  await upsert("inventory_positions", {
+    id: INVENTORY_FIXTURE_IDS.positionB,
+    lot_id: INVENTORY_FIXTURE_IDS.lotB,
+    owner_organization_id: ORGANIZATION_IDS.buyerAndSeller,
+    warehouse_id: INVENTORY_FIXTURE_IDS.warehouse,
+    available_quantity_kg: INVENTORY_FIXTURE_QUANTITIES.positionBAvailable,
+    reserved_quantity_kg: INVENTORY_FIXTURE_QUANTITIES.positionBReserved,
+  });
+  await upsert("inventory_positions", {
+    id: INVENTORY_FIXTURE_IDS.multiOrgPositionA,
+    lot_id: INVENTORY_FIXTURE_IDS.lotA,
+    owner_organization_id: PHASE89_ORGANIZATION_IDS.multiOrgA,
+    warehouse_id: INVENTORY_FIXTURE_IDS.warehouse,
+    available_quantity_kg: INVENTORY_FIXTURE_QUANTITIES.multiOrgPositionAAvailable,
+    reserved_quantity_kg: INVENTORY_FIXTURE_QUANTITIES.multiOrgPositionAReserved,
+  });
+  await upsert("inventory_positions", {
+    id: INVENTORY_FIXTURE_IDS.multiOrgPositionB,
+    lot_id: INVENTORY_FIXTURE_IDS.lotB,
+    owner_organization_id: PHASE89_ORGANIZATION_IDS.multiOrgB,
+    warehouse_id: INVENTORY_FIXTURE_IDS.warehouse,
+    available_quantity_kg: INVENTORY_FIXTURE_QUANTITIES.multiOrgPositionBAvailable,
+    reserved_quantity_kg: INVENTORY_FIXTURE_QUANTITIES.multiOrgPositionBReserved,
+  });
+
+  // Orders left at DRAFT deliberately — `can_view_order`/`order_items_view`/`orders_view` do not
+  // condition on order status, only org membership (confirmed live during the T010 reconciliation
+  // proof), so DRAFT avoids the multi-step status-transition trigger chain entirely.
+  await upsert("orders", {
+    id: INVENTORY_FIXTURE_IDS.orderA,
+    buyer_organization_id: ORGANIZATION_IDS.buyerOnly,
+    status: "DRAFT",
+    order_code: "F005-FIX-ORDER-A",
+    created_by: buyerOnlyUserId,
+  });
+  await upsert("orders", {
+    id: INVENTORY_FIXTURE_IDS.orderB,
+    buyer_organization_id: ORGANIZATION_IDS.buyerAndSeller,
+    status: "DRAFT",
+    order_code: "F005-FIX-ORDER-B",
+    created_by: buyerAndSellerUserId,
+  });
+
+  await upsert("order_items", {
+    id: INVENTORY_FIXTURE_IDS.orderItemA,
+    order_id: INVENTORY_FIXTURE_IDS.orderA,
+    offer_id: INVENTORY_FIXTURE_IDS.offerA,
+    lot_id: INVENTORY_FIXTURE_IDS.lotA,
+    seller_organization_id: INVENTORY_FIXTURE_IDS.hillsOrg,
+    quantity_kg: 10,
+    unit_price_per_kg: 5,
+    product_name_snapshot: "Feature 005 Fixture Coffee A",
+    lot_code_snapshot: "F005-LOT-A",
+    seller_type_snapshot: "HILLS",
+  });
+  await upsert("order_items", {
+    id: INVENTORY_FIXTURE_IDS.orderItemB,
+    order_id: INVENTORY_FIXTURE_IDS.orderB,
+    offer_id: INVENTORY_FIXTURE_IDS.offerB,
+    lot_id: INVENTORY_FIXTURE_IDS.lotB,
+    seller_organization_id: INVENTORY_FIXTURE_IDS.hillsOrg,
+    quantity_kg: 10,
+    unit_price_per_kg: 5,
+    product_name_snapshot: "Feature 005 Fixture Coffee B",
+    lot_code_snapshot: "F005-LOT-B",
+    seller_type_snapshot: "HILLS",
+  });
+
+  await upsert("storage_allocations", {
+    id: INVENTORY_FIXTURE_IDS.allocationA,
+    order_item_id: INVENTORY_FIXTURE_IDS.orderItemA,
+    owner_organization_id: ORGANIZATION_IDS.buyerOnly,
+    lot_id: INVENTORY_FIXTURE_IDS.lotA,
+    warehouse_id: INVENTORY_FIXTURE_IDS.warehouse,
+    quantity_kg: INVENTORY_FIXTURE_QUANTITIES.allocationAQuantity,
+    released_quantity_kg: INVENTORY_FIXTURE_QUANTITIES.allocationAReleased,
+    status: "STORED",
+  });
+  await upsert("storage_allocations", {
+    id: INVENTORY_FIXTURE_IDS.allocationB,
+    order_item_id: INVENTORY_FIXTURE_IDS.orderItemB,
+    owner_organization_id: ORGANIZATION_IDS.buyerAndSeller,
+    lot_id: INVENTORY_FIXTURE_IDS.lotB,
+    warehouse_id: INVENTORY_FIXTURE_IDS.warehouse,
+    quantity_kg: INVENTORY_FIXTURE_QUANTITIES.allocationBQuantity,
+    released_quantity_kg: INVENTORY_FIXTURE_QUANTITIES.allocationBReleased,
+    status: "STORED",
+  });
+
+  // Ownership ledger: three events proving BOTH directions for Org A, plus one event between Org B
+  // and the unrelated Org C (`underReview`) that Org A must never see.
+  await insertIfAbsent("inventory_ownership_events", {
+    id: INVENTORY_FIXTURE_IDS.eventAToOrgAIncoming,
+    lot_id: INVENTORY_FIXTURE_IDS.lotA,
+    from_organization_id: INVENTORY_FIXTURE_IDS.hillsOrg,
+    to_organization_id: ORGANIZATION_IDS.buyerOnly,
+    quantity_kg: 100,
+    event_type: "INITIAL_ALLOCATION",
+    reason: "Feature 005 fixture — initial allocation to Org A",
+  });
+  await insertIfAbsent("inventory_ownership_events", {
+    id: INVENTORY_FIXTURE_IDS.eventAToB,
+    lot_id: INVENTORY_FIXTURE_IDS.lotA,
+    from_organization_id: ORGANIZATION_IDS.buyerOnly,
+    to_organization_id: ORGANIZATION_IDS.buyerAndSeller,
+    quantity_kg: 50,
+    event_type: "RESALE",
+    reason: "Feature 005 fixture — Org A resells to Org B",
+  });
+  await insertIfAbsent("inventory_ownership_events", {
+    id: INVENTORY_FIXTURE_IDS.eventBToC,
+    lot_id: INVENTORY_FIXTURE_IDS.lotB,
+    from_organization_id: ORGANIZATION_IDS.buyerAndSeller,
+    to_organization_id: PHASE89_ORGANIZATION_IDS.underReview,
+    quantity_kg: 25,
+    event_type: "RESALE",
+    reason: "Feature 005 fixture — Org B resells to Org C (unrelated to Org A)",
+  });
+
+  console.log(
+    `  seeded 1 hills-internal org, 1 warehouse, 2 lots, 2 offers, 6 positions, 2 orders, ` +
+      `2 order items, 2 storage allocations, 3 ownership events.`
+  );
+}
+
+/**
+ * Deletes exactly the rows `seedInventoryFixtures()` creates, in foreign-key-safe order. The
+ * `inventory_ownership_events` rows are append-only at the database level
+ * (`prevent_ownership_event_mutation`, `trg_ownership_events_append_only` — BEFORE UPDATE OR DELETE).
+ * The trigger body is an unconditional `raise exception`, with no role check of any kind — so it
+ * fires for EVERY role, including this script's own service-role connection (which does hold a raw
+ * DELETE grant on this table; the trigger, not the grant, is what actually blocks the delete). This
+ * teardown does NOT attempt to delete them — they are documented, intentionally-retained synthetic
+ * ledger evidence, the same "retained synthetic audit principal" precedent
+ * `deleteOrganizationsRetainingAuditEvidence` already established for other append-only/audit-backed
+ * rows in this script.
+ *
+ * Rows those retained events reference by foreign key, directly or transitively, must ALSO be
+ * retained, or their own delete would fail with a foreign-key violation (confirmed empirically:
+ * earlier versions of this function attempted to delete `coffee_lots` and then the shared catalogue
+ * `coffees` row, and each failed with exactly that error before this function's dependency chain was
+ * corrected):
+ *   - `INVENTORY_FIXTURE_IDS.lotA`/`lotB` (`inventory_ownership_events.lot_id`) — both events'
+ *     `lot_id` points here.
+ *   - `INVENTORY_FIXTURE_IDS.coffee` (`coffee_lots.coffee_id`) — the dedicated, non-catalogue coffee
+ *     row `lotA`/`lotB` themselves reference.
+ *   - `INVENTORY_FIXTURE_IDS.hillsOrg` (`inventory_ownership_events.from_organization_id`/
+ *     `to_organization_id`, and `coffee_lots.source_organization_id`) — the synthetic HILLS-internal
+ *     organization.
+ * The retained events also point at the existing fixture organizations Org A, Org B, and Org C as
+ * their source/destination. The later 001/003 teardown removes every membership, KYB application,
+ * and platform-admin row before attempting those organization deletes; if an immutable event or
+ * audit-history FK still requires one of those organization rows, the shared teardown retains it as
+ * an inert evidence target. This function does not attempt to delete those cross-feature identities.
+ *
+ * The Feature 005-owned retained chain is inert: no active membership, no capability granted to any real user, no longer even
+ * referenced by any position/offer/order row once the rest of this teardown completes, and (the
+ * coffee row) never visible on the public catalogue (`status = 'DRAFT'`) — only an inert foreign-key
+ * target for the retained ledger evidence.
+ */
+async function teardownInventoryFixtures(admin: SupabaseClient): Promise<void> {
+  console.log("\nTearing down 005-inventory-custody-storage Phase 5 fixtures…\n");
+
+  const deleteByIds = async (table: string, ids: readonly string[]): Promise<void> => {
+    const { error } = await admin.from(table).delete().in("id", ids);
+    if (error) throw new SafeFixtureError(`${table} delete failed (Feature 005 Phase 5): ${error.message}`);
+  };
+
+  await deleteByIds("storage_allocations", [INVENTORY_FIXTURE_IDS.allocationA, INVENTORY_FIXTURE_IDS.allocationB]);
+  await deleteByIds("order_items", [INVENTORY_FIXTURE_IDS.orderItemA, INVENTORY_FIXTURE_IDS.orderItemB]);
+  await deleteByIds("orders", [INVENTORY_FIXTURE_IDS.orderA, INVENTORY_FIXTURE_IDS.orderB]);
+  await deleteByIds("inventory_positions", [
+    INVENTORY_FIXTURE_IDS.positionA,
+    INVENTORY_FIXTURE_IDS.positionB,
+    INVENTORY_FIXTURE_IDS.multiOrgPositionA,
+    INVENTORY_FIXTURE_IDS.multiOrgPositionB,
+    INVENTORY_FIXTURE_IDS.hillsPositionA,
+    INVENTORY_FIXTURE_IDS.hillsPositionB,
+  ]);
+  await deleteByIds("coffee_offers", [INVENTORY_FIXTURE_IDS.offerA, INVENTORY_FIXTURE_IDS.offerB]);
+  await deleteByIds("warehouses", [INVENTORY_FIXTURE_IDS.warehouse]);
+
+  console.log(
+    "  removed 2 storage allocations, 2 order items, 2 orders, 6 positions, 2 offers, 1 warehouse.\n" +
+      "  RETAINED (documented, not a failure): 3 inventory_ownership_events rows, the 2 coffee_lots " +
+      "rows they reference, their dedicated DRAFT coffee, and the 'Feature 005 Fixture — Hills Internal' " +
+      "organization — the ledger " +
+      "is append-only at the database level (the BEFORE DELETE/UPDATE trigger raises unconditionally " +
+      "for every role), and the lots/organization those events reference cannot be removed without " +
+      "violating that same foreign-key constraint. None carries any active membership or capability " +
+      "beyond being an inert foreign-key target for this synthetic evidence."
+  );
+}
+
+/**
+ * Read-only, exact-id proof used by the Phase 5 fixture lifecycle audit. It never infers fixture
+ * health from labels or broad searches: every count is over the documented fixed IDs. The seed path
+ * checks the entire usable fixture graph; the post-teardown path checks both the removable rows and
+ * the deliberately immutable evidence chain.
+ */
+async function verifyInventoryFixtures(admin: SupabaseClient, state: "seeded" | "torn-down"): Promise<void> {
+  const ids = {
+    organization: [INVENTORY_FIXTURE_IDS.hillsOrg],
+    coffee: [INVENTORY_FIXTURE_IDS.coffee],
+    warehouse: [INVENTORY_FIXTURE_IDS.warehouse],
+    lots: [INVENTORY_FIXTURE_IDS.lotA, INVENTORY_FIXTURE_IDS.lotB],
+    offers: [INVENTORY_FIXTURE_IDS.offerA, INVENTORY_FIXTURE_IDS.offerB],
+    positions: [
+      INVENTORY_FIXTURE_IDS.hillsPositionA,
+      INVENTORY_FIXTURE_IDS.hillsPositionB,
+      INVENTORY_FIXTURE_IDS.positionA,
+      INVENTORY_FIXTURE_IDS.positionB,
+      INVENTORY_FIXTURE_IDS.multiOrgPositionA,
+      INVENTORY_FIXTURE_IDS.multiOrgPositionB,
+    ],
+    orders: [INVENTORY_FIXTURE_IDS.orderA, INVENTORY_FIXTURE_IDS.orderB],
+    items: [INVENTORY_FIXTURE_IDS.orderItemA, INVENTORY_FIXTURE_IDS.orderItemB],
+    allocations: [INVENTORY_FIXTURE_IDS.allocationA, INVENTORY_FIXTURE_IDS.allocationB],
+    events: [
+      INVENTORY_FIXTURE_IDS.eventAToOrgAIncoming,
+      INVENTORY_FIXTURE_IDS.eventAToB,
+      INVENTORY_FIXTURE_IDS.eventBToC,
+    ],
+  } as const;
+
+  const countExactIds = async (table: string, rowIds: readonly string[], expectedCount: number): Promise<void> => {
+    const { count, error } = await admin.from(table).select("id", { count: "exact", head: true }).in("id", rowIds);
+    if (error || count !== expectedCount) {
+      throw new SafeFixtureError(`Feature 005 ${state} fixture verification failed for ${table}.`);
+    }
+  };
+
+  const seeded = state === "seeded";
+  await countExactIds("organizations", ids.organization, 1);
+  await countExactIds("coffees", ids.coffee, 1);
+  await countExactIds("coffee_lots", ids.lots, 2);
+  await countExactIds("inventory_ownership_events", ids.events, 3);
+  await countExactIds("warehouses", ids.warehouse, seeded ? 1 : 0);
+  await countExactIds("coffee_offers", ids.offers, seeded ? 2 : 0);
+  await countExactIds("inventory_positions", ids.positions, seeded ? 6 : 0);
+  await countExactIds("orders", ids.orders, seeded ? 2 : 0);
+  await countExactIds("order_items", ids.items, seeded ? 2 : 0);
+  await countExactIds("storage_allocations", ids.allocations, seeded ? 2 : 0);
+
+  const { data: organization, error: organizationError } = await admin
+    .from("organizations")
+    .select("id, is_hills_internal, can_buy, can_sell")
+    .eq("id", INVENTORY_FIXTURE_IDS.hillsOrg)
+    .maybeSingle();
+  if (
+    organizationError ||
+    !organization ||
+    organization.is_hills_internal !== true ||
+    organization.can_buy !== true ||
+    organization.can_sell !== true
+  ) {
+    throw new SafeFixtureError("Feature 005 Hills-internal organization verification failed.");
+  }
+
+  const { data: coffee, error: coffeeError } = await admin
+    .from("coffees")
+    .select("id, status")
+    .eq("id", INVENTORY_FIXTURE_IDS.coffee)
+    .maybeSingle();
+  if (coffeeError || coffee?.status !== "DRAFT") {
+    throw new SafeFixtureError("Feature 005 dedicated coffee visibility verification failed.");
+  }
+
+  // This organization deliberately has internal capabilities for its system role, but it is not a
+  // real user's acting organization: it must never have an active membership in either state.
+  const { count: hillsMembershipCount, error: hillsMembershipError } = await admin
+    .from("organization_members")
+    .select("user_id", { count: "exact", head: true })
+    .eq("organization_id", INVENTORY_FIXTURE_IDS.hillsOrg);
+  if (hillsMembershipError || hillsMembershipCount !== 0) {
+    throw new SafeFixtureError("Feature 005 Hills-internal membership safety verification failed.");
+  }
+
+  console.log(`  verified Feature 005 ${state} fixture state using exact fixed IDs.`);
+}
+
+/**
+ * Safely proves the privileged path reaches the database's append-only guard. The UPDATE is
+ * intentionally rejected by the BEFORE trigger, so the statement rolls back before any audit row
+ * can be emitted and the ledger value remains unchanged. This remains in the fixture script — never
+ * in application runtime or a test process that can see the service-role credential.
+ */
+async function verifyInventoryAppendOnlyGuard(admin: SupabaseClient): Promise<void> {
+  const expectedReason = "Feature 005 fixture — initial allocation to Org A";
+  const { error } = await admin
+    .from("inventory_ownership_events")
+    .update({ reason: "forbidden Feature 005 append-only probe" })
+    .eq("id", INVENTORY_FIXTURE_IDS.eventAToOrgAIncoming);
+
+  if (!error || !error.message.includes("inventory_ownership_events_is_append_only")) {
+    throw new SafeFixtureError("Feature 005 ownership ledger append-only guard did not refuse a privileged update.");
+  }
+
+  const { data, error: readError } = await admin
+    .from("inventory_ownership_events")
+    .select("reason")
+    .eq("id", INVENTORY_FIXTURE_IDS.eventAToOrgAIncoming)
+    .maybeSingle();
+  if (readError || data?.reason !== expectedReason) {
+    throw new SafeFixtureError("Feature 005 ownership ledger append-only probe changed evidence.");
+  }
+
+  console.log("  verified Feature 005 ownership ledger append-only guard through a refused privileged update.");
+}
+
+// ---------------------------------------------------------------------------
 // Supabase admin access
 // ---------------------------------------------------------------------------
 
@@ -1218,7 +1755,7 @@ async function setBuyerAndSellerCanSell(
 
 /**
  * Deletes each given organization individually, tolerating a foreign-key violation (Postgres
- * `23503`) as an INTENTIONALLY RETAINED synthetic audit principal rather than letting it abort the
+ * `23503`) as an INTENTIONALLY RETAINED synthetic evidence target rather than letting it abort the
  * whole teardown run. This is the concrete case the run directive names: "if foreign keys require
  * retained synthetic audit principals: block/disable them safely, document exactly why they remain,
  * do not fabricate complete deletion." A live test's `agreement_acceptances` insert (Phase 6/7's own
@@ -1228,8 +1765,10 @@ async function setBuyerAndSellerCanSell(
  * foreign key is exactly what then blocks that organization's own deletion. Retained organizations
  * are still safe: they carry no live capability beyond being a foreign-key target (their
  * `organization_members`/`kyb_applications`/`platform_admins` rows are deleted by the caller before
- * this runs), so nothing "accidentally usable" survives — only an inert row an evidence record still
- * points at.
+ * this runs), so nothing "accidentally usable" survives — only an inert row a protected evidence
+ * record (or an immutable Feature 005 ownership event) still points at. The function deliberately
+ * does not claim every `23503` is audit history: callers must document the concrete FK when adding a
+ * new immutable reference.
  */
 async function deleteOrganizationsRetainingAuditEvidence(
   admin: SupabaseClient,
@@ -1391,7 +1930,23 @@ async function main(): Promise<void> {
     argument.startsWith(suspendedStatusArgumentPrefix)
   );
   const isResetCompleteDraft = process.argv.includes("--reset-complete-draft-application");
+  const isVerifyInventoryFixtures = process.argv.includes("--verify-inventory-fixtures");
+  const isVerifyInventoryAppendOnly = process.argv.includes("--verify-inventory-append-only");
   const admin = createAdminClient();
+
+  if (isVerifyInventoryFixtures && isVerifyInventoryAppendOnly) {
+    throw new SafeFixtureError("Choose only one Feature 005 inventory verification operation.");
+  }
+
+  if (isVerifyInventoryFixtures) {
+    await verifyInventoryFixtures(admin, "seeded");
+    return;
+  }
+
+  if (isVerifyInventoryAppendOnly) {
+    await verifyInventoryAppendOnlyGuard(admin);
+    return;
+  }
 
   if (capabilityArgument) {
     const value = capabilityArgument.slice(capabilityArgumentPrefix.length);
@@ -1423,14 +1978,19 @@ async function main(): Promise<void> {
   }
 
   if (isTeardown) {
-    // Catalogue first: it is the leaf of the dependency order and never references an identity row.
-    // Phase 8/9 BEFORE 001's own teardown: `CROSS_ORG_ISOLATION_DOCUMENT_IDS`'s `file_assets` rows
-    // hold a (non-cascading) foreign key to the 001 `buyerOnly`/`buyerAndSeller` organizations —
-    // those must be removed before `teardown()` can delete those organizations, or the delete fails
-    // with a foreign-key violation.
+    // Feature 005 Phase 5 FIRST: its rows reference the 001/003 identity fixtures
+    // (`buyerOnly`/`buyerAndSeller`/`underReview` organizations), so it must be
+    // torn down before any of those are removed, or its remaining FKs would block their deletion.
+    // Catalogue next: it is the leaf of the REMAINING dependency order and never references an
+    // identity row. Phase 8/9 BEFORE 001's own teardown: `CROSS_ORG_ISOLATION_DOCUMENT_IDS`'s
+    // `file_assets` rows hold a (non-cascading) foreign key to the 001 `buyerOnly`/`buyerAndSeller`
+    // organizations — those must be removed before `teardown()` can delete those organizations, or
+    // the delete fails with a foreign-key violation.
+    await teardownInventoryFixtures(admin);
     await teardownCatalogue(admin);
     await teardownPhase89(admin);
     await teardown(admin);
+    await verifyInventoryFixtures(admin, "torn-down");
     return;
   }
 
@@ -1438,6 +1998,10 @@ async function main(): Promise<void> {
   await seed(admin, password);
   await seedCatalogue(admin);
   await seedPhase89(admin, password);
+  // Feature 005 Phase 5 LAST: depends on the 001 identity fixtures (buyerOnly/buyerAndSeller) and
+  // Phase 8/9's `underReview` organization. Its dedicated DRAFT coffee is intentionally independent
+  // of Feature 002's catalogue fixtures, so no public catalogue row is coupled to this lifecycle.
+  await seedInventoryFixtures(admin);
 }
 
 main().catch((error: unknown) => {

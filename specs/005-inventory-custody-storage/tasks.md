@@ -3,13 +3,13 @@
 **Input**: [spec.md](./spec.md), [plan.md](./plan.md), `docs/architecture/DATABASE-CAPABILITY-MAP.md`,
 `.specify/memory/constitution.md` (v2.0.0), SRS §7 (LOT-01..LOT-04, DEL-01).
 
-**Status**: **RUN B (2026-09-12) COMPLETE — Phase 1 (T001–T006, RECONCILED) + Phase 2 (T007–T012) +
-Phase 4 (T015), 13/25 tasks.** Phase 3 (T013–T014, custody trust/variance — depends on 010's
-warehouse model, not yet built), Phase 5 (T016–T019, formal release-blocking isolation suite),
-Phase 6 (T020–T021, formal a11y/RTL/mobile closure) and Phase 7 (T022–T025, final closure) remain
-NOT STARTED. See [IMPLEMENTATION-HANDOFF.md](./IMPLEMENTATION-HANDOFF.md) for full evidence,
-including the Phase 1 reconciliation (owned-quantity semantics, DB-OPEN-12) and RUN B's UI/module
-registration decisions — read before starting Phase 3/5.
+**Status**: **RUN C (2026-09-12) COMPLETE — Phase 1 (T001–T006, RECONCILED) + Phase 2 (T007–T012) +
+Phase 4 (T015) + Phase 5 (T016–T019), 17/26 tasks.** Phase 3 (T013–T014, custody trust/variance —
+depends on 010's warehouse model, not yet built), Phase 6 (T020–T021, formal a11y/RTL/mobile
+closure) and Phase 7 (T022–T025, final closure) remain NOT STARTED. See
+[IMPLEMENTATION-HANDOFF.md](./IMPLEMENTATION-HANDOFF.md) for the full real-RLS, fixture-lifecycle,
+immutability, fidelity and DB-OPEN-05 evidence. Do not start Feature 010 implementation from this
+feature's handoff.
 **Prerequisite**: 001, 003, 004 implemented. This feature ships **zero mutations**.
 
 ## Task format
@@ -314,33 +314,46 @@ registration decisions — read before starting Phase 3/5.
 
 ## Phase 5 — Automated tests
 
-- [ ] T016 [P] Write `tests/inventory/isolation.test.ts`: org A cannot read org B's positions,
+- [x] T016 [P] Write `tests/inventory/isolation.test.ts`: org A cannot read org B's positions,
   allocations or ownership events.
   - Req: SEC-002, SC-002 | Depends: T002, T003, T004
   - Verify: `npm test -- inventory/isolation` passes; every cross-org read returns empty
   - Codex: GPT-5.6 Sol — High · Claude: Opus — High
   - Why: the release-blocking tenant-isolation guarantee for commercial data.
+  - **CLOSURE (2026-09-12)**: 12 live-RLS tests pass against differentiated fixed-id rows. Org A/B
+    own/cross reads, detail not-found privacy, allocation/order context, source/destination ledger
+    visibility, unrelated-event denial, counterparty redaction, and one real multi-org user's two
+    explicit acting contexts are all covered.
 
-- [ ] T017 [P] Write `tests/inventory/quantity-fidelity.test.ts`: displayed quantities equal database
+- [x] T017 [P] Write `tests/inventory/quantity-fidelity.test.ts`: displayed quantities equal database
   columns exactly; no recomputation.
   - Req: FR-002, SC-001 | Depends: T002, T005
   - Verify: `npm test -- quantity-fidelity` passes; the test fails if arithmetic is introduced into the read layer
   - Codex: GPT-5.6 Sol — High · Claude: Sonnet — High
   - Why: this test is the durable guard against re-deriving the inventory invariant.
+  - **CLOSURE (2026-09-12)**: 18 tests pass. Distinct non-round live position/allocation values are
+    compared verbatim through real RLS reads, UI formatting is checked separately, and structural
+    anti-arithmetic tests include an intentional failing-shape control.
 
-- [ ] T018 [P] Write `tests/inventory/ledger-immutability.test.ts`: an attempted update/delete on
+- [x] T018 [P] Write `tests/inventory/ledger-immutability.test.ts`: an attempted update/delete on
   `inventory_ownership_events` is refused by the database.
   - Req: FR-005, SC-003 | Depends: T004
   - Verify: `npm test -- ledger-immutability` passes with the database raising on mutation
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — High
   - Why: proves the append-only guarantee at the real boundary rather than trusting the UI.
+  - **CLOSURE (2026-09-12)**: 5 tests pass. Member UPDATE is RLS-filtered to zero rows, member DELETE
+    is privilege-denied, and an isolated exact-id service-role fixture probe reaches
+    `trg_ownership_events_append_only` and is refused without altering the event.
 
-- [ ] T019 Write `tests/inventory/degradation.test.ts`: with lot detail unreadable (DB-OPEN-05
+- [x] T019 Write `tests/inventory/degradation.test.ts`: with lot detail unreadable (DB-OPEN-05
   condition), position pages still render with an explicit unavailability note.
   - Req: FR-011 | Depends: T002, T008
   - Verify: `npm test -- degradation` passes; no fabricated lot values appear
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — Medium
   - Why: focused test of a documented degradation path.
+  - **CLOSURE (2026-09-12)**: 6 tests pass. A real member gets the authoritative position with
+    `lot: null`, no lot/coffee/quality value is fabricated, the list remains usable, and the dedicated
+    DRAFT coffee plus invisible fixture offers are unavailable to anonymous access.
 
 ---
 

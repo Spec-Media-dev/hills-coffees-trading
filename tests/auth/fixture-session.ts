@@ -1,6 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { randomUUID } from "node:crypto";
 
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
@@ -11,8 +12,6 @@ const REQUIRED_TEST_ENV = [
 ] as const;
 
 type RequiredTestEnv = (typeof REQUIRED_TEST_ENV)[number];
-
-let sessionClientSequence = 0;
 
 export const FOUNDATION_FIXTURES = {
   buyerOnly: {
@@ -81,6 +80,74 @@ export const PHASE89_FIXTURES = {
   },
 } as const;
 
+/**
+ * Feature 005 Phase 5 (T016–T019) — inventory/custody/ownership fixtures, created by
+ * `scripts/seed-test-fixtures.ts`'s `seedInventoryFixtures()`. Ids mirror that script's own
+ * `INVENTORY_FIXTURE_IDS`/`INVENTORY_FIXTURE_QUANTITIES` constants exactly (same precedent as
+ * `FOUNDATION_FIXTURES`/`PHASE89_FIXTURES` above — kept as separate literals here, so this file never
+ * needs to import the privileged script). `orgA`/`orgB` reuse the `buyer-only`/`buyer-and-seller`
+ * identities (`FOUNDATION_FIXTURES`); `orgC` reuses `under-review` (`PHASE89_FIXTURES`) as the
+ * unrelated third party for the ownership-ledger negative test.
+ */
+export const INVENTORY_FIXTURES = {
+  orgA: {
+    organizationId: "f0000000-0000-4000-8000-000000000001",
+    email: "buyer-only+foundation-test@example.com",
+    positionId: "05000000-0000-4000-8000-000000000009",
+    allocationId: "05000000-0000-4000-8000-00000000000f",
+    orderId: "05000000-0000-4000-8000-00000000000b",
+    orderCode: "F005-FIX-ORDER-A",
+  },
+  orgB: {
+    organizationId: "f0000000-0000-4000-8000-000000000002",
+    email: "buyer-and-seller+foundation-test@example.com",
+    positionId: "05000000-0000-4000-8000-00000000000a",
+    allocationId: "05000000-0000-4000-8000-000000000010",
+    orderId: "05000000-0000-4000-8000-00000000000c",
+    orderCode: "F005-FIX-ORDER-B",
+  },
+  orgC: {
+    organizationId: "f0000000-0000-4000-8000-000000000063",
+    email: "under-review+foundation-test@example.com",
+  },
+  multiOrg: {
+    email: "multi-org+foundation-test@example.com",
+    organizationAId: "f0000000-0000-4000-8000-000000000067",
+    organizationBId: "f0000000-0000-4000-8000-000000000068",
+    positionAId: "05000000-0000-4000-8000-000000000015",
+    positionBId: "05000000-0000-4000-8000-000000000016",
+  },
+  lotA: "05000000-0000-4000-8000-000000000003",
+  lotB: "05000000-0000-4000-8000-000000000004",
+  coffeeId: "05000000-0000-4000-8000-000000000014",
+  offerIds: ["05000000-0000-4000-8000-000000000005", "05000000-0000-4000-8000-000000000006"],
+  warehouse: "05000000-0000-4000-8000-000000000002",
+  /** The three seeded `inventory_ownership_events` rows — see the seed script's own header comment. */
+  events: {
+    /** from=hillsOrg, to=orgA — proves "Org A as destination" visibility. */
+    hillsToOrgA: "05000000-0000-4000-8000-000000000011",
+    /** from=orgA, to=orgB — proves "Org A as source" AND "Org B as destination" simultaneously. */
+    orgAToOrgB: "05000000-0000-4000-8000-000000000012",
+    /** from=orgB, to=orgC (Phase 89 `underReview`) — unrelated to Org A; must be invisible to it. */
+    orgBToOrgC: "05000000-0000-4000-8000-000000000013",
+  },
+  /** Distinctive, non-round quantities — see the seed script's own `INVENTORY_FIXTURE_QUANTITIES`. */
+  quantities: {
+    positionAAvailable: 743.271,
+    positionAReserved: 88.654,
+    positionBAvailable: 512.938,
+    positionBReserved: 41.276,
+    allocationAQuantity: 317.409,
+    allocationAReleased: 52.183,
+    allocationBQuantity: 201.517,
+    allocationBReleased: 19.842,
+    multiOrgPositionAAvailable: 91.123,
+    multiOrgPositionAReserved: 17.456,
+    multiOrgPositionBAvailable: 64.789,
+    multiOrgPositionBReserved: 9.321,
+  },
+} as const;
+
 function loadTestEnvironment(): void {
   let contents: string;
   try {
@@ -129,7 +196,10 @@ function newSessionClient(): SupabaseClient {
         autoRefreshToken: false,
         detectSessionInUrl: false,
         persistSession: false,
-        storageKey: `foundation-test-${process.pid}-${++sessionClientSequence}`,
+        // Vitest isolates modules per file, so a module-local increment can repeat between parallel
+        // files even inside the same jsdom browser context. A process-scoped UUID keeps deliberately
+        // independent real-session clients isolated without changing application auth behavior.
+        storageKey: `foundation-test-${process.pid}-${randomUUID()}`,
       },
     }
   );
@@ -182,6 +252,15 @@ export function setSuspendedOrganizationStatus(status: "ACTIVE" | "SUSPENDED"): 
 /** T032 restore control — resets `completeDraft`'s application back to `DRAFT` after a test transitions it. */
 export function resetCompleteDraftApplication(): void {
   runFixtureScript(["--reset-complete-draft-application"]);
+}
+
+/**
+ * Feature 005 T018's isolated privileged fixture probe. It proves that a write which bypasses RLS
+ * still reaches (and is refused by) the ownership ledger's database trigger; no privileged
+ * credential is available to the Vitest process or application runtime.
+ */
+export function verifyInventoryAppendOnlyGuard(): void {
+  runFixtureScript(["--verify-inventory-append-only"]);
 }
 
 function runFixtureScript(args: readonly string[]): void {

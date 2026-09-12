@@ -2,21 +2,30 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 
 import { render, screen } from "@testing-library/react";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { describe, expect, it, vi } from "vitest";
 
 import { createFakeSupabaseClient } from "./fake-supabase";
+import { INVENTORY_FIXTURES, signInAsFixture } from "@/tests/auth/fixture-session";
 
-const fakeClientState = vi.hoisted(() => ({ client: null as ReturnType<typeof createFakeSupabaseClient> | null }));
+const fakeClientState = vi.hoisted(() => ({ client: null as ReturnType<typeof createFakeSupabaseClient> | SupabaseClient | null }));
 
 vi.mock("@/lib/supabase/server", () => ({
   createClient: vi.fn(async () => {
-    if (!fakeClientState.client) throw new Error("test has no fake client installed");
+    if (!fakeClientState.client) throw new Error("test has no fake/live client installed");
     return fakeClientState.client;
   }),
 }));
 
 function withFakeTables(tables: Record<string, readonly unknown[]>) {
   fakeClientState.client = createFakeSupabaseClient(tables);
+}
+
+/** Swaps in a REAL, authenticated fixture-session client (never service-role). */
+async function withLiveClient<T>(client: SupabaseClient, run: () => Promise<T>): Promise<T> {
+  fakeClientState.client = client;
+  vi.resetModules();
+  return run();
 }
 
 /**
@@ -137,6 +146,21 @@ describe("RUN B — AvailabilityBreakdown component (T009): presentation only, n
     );
     expect(screen.getByText("200 kg")).toBeTruthy();
     expect(screen.getByText("40 kg")).toBeTruthy();
+  });
+
+  it("Feature 005 Phase 5 (T017) — renders REAL, live-seeded quantities verbatim: real DB row → read layer → component, end to end", async () => {
+    const client = await signInAsFixture(INVENTORY_FIXTURES.orgA.email);
+    const [breakdown] = await withLiveClient(client, async () => {
+      const { getAvailabilityBreakdown } = await import("@/lib/inventory/availability");
+      return getAvailabilityBreakdown({
+        organizationId: INVENTORY_FIXTURES.orgA.organizationId,
+        positionIds: [INVENTORY_FIXTURES.orgA.positionId],
+      });
+    });
+    const { AvailabilityBreakdown } = await import("@/components/inventory/availability-breakdown");
+    render(<AvailabilityBreakdown breakdown={breakdown!} />);
+    expect(screen.getByText(`${INVENTORY_FIXTURES.quantities.positionAAvailable} kg`)).toBeTruthy();
+    expect(screen.getByText(`${INVENTORY_FIXTURES.quantities.positionAReserved} kg`)).toBeTruthy();
   });
 
   it("an unknown reservation cause renders the honest unavailable copy, never a fabricated reason", async () => {
@@ -268,5 +292,43 @@ describe("RUN B — server-component / no-mutation / no-cache / no-service-role 
     };
     walk(root);
     expect(offenders).toEqual([]);
+  });
+});
+
+/**
+ * Feature 005 Phase 5 (T019) — UI/component-level DB-OPEN-05 degradation proof against a REAL,
+ * live-seeded position whose lot is genuinely unreadable. The read-layer half of this proof lives in
+ * `tests/inventory/degradation.test.ts`; this half proves the rendered branch a real member would
+ * actually see mirrors that data exactly.
+ */
+describe("RUN B / Phase 5 — DB-OPEN-05 degradation rendered honestly for a real position", () => {
+  it("a real degraded position renders the localized 'Lot detail unavailable' notice, never a fabricated lot panel", async () => {
+    const client = await signInAsFixture(INVENTORY_FIXTURES.orgA.email);
+    const position = await withLiveClient(client, async () => {
+      const { getInventoryPositionById } = await import("@/lib/inventory/positions");
+      return getInventoryPositionById({
+        organizationId: INVENTORY_FIXTURES.orgA.organizationId,
+        positionId: INVENTORY_FIXTURES.orgA.positionId,
+      });
+    });
+    expect(position!.lot).toBeNull();
+
+    const { AppBilingual } = await import("@/components/locale/app-bilingual");
+    render(
+      position!.lot ? (
+        <div>lot detail (should not render)</div>
+      ) : (
+        <div>
+          <p>
+            <AppBilingual pick={(c) => c.inventory.detail.lotUnavailable.title} />
+          </p>
+          <p>
+            <AppBilingual pick={(c) => c.inventory.detail.lotUnavailable.description} />
+          </p>
+        </div>
+      )
+    );
+    expect(screen.getByText("Lot detail unavailable")).toBeTruthy();
+    expect(screen.queryByText(/lot detail \(should not render\)/)).toBeNull();
   });
 });
