@@ -3,7 +3,12 @@
 **Input**: [spec.md](./spec.md), [plan.md](./plan.md), `docs/architecture/DATABASE-CAPABILITY-MAP.md`,
 `.specify/memory/constitution.md` (v2.0.0), SRS §7 (LOT-01..LOT-04, DEL-01).
 
-**Status**: all tasks unchecked — implementation NOT started.
+**Status**: **RUN A (2026-09-12) COMPLETE — Phase 1 (T001–T006), 6/25 tasks.** Phases 2–7
+(T007–T025 — UI pages, module registration, variance surfacing, formal isolation tests, a11y/RTL,
+closure) remain NOT STARTED. See
+[IMPLEMENTATION-HANDOFF.md](./IMPLEMENTATION-HANDOFF.md) for full evidence, including a materially
+important schema-vs-plan finding on `inventory_positions`' quantity columns and the
+`inventory_reservation_items` RLS chain — read before building Phase 2.
 **Prerequisite**: 001, 003, 004 implemented. This feature ships **zero mutations**.
 
 ## Task format
@@ -20,50 +25,133 @@
 
 ## Phase 1 — Inventory domain read layer
 
-- [ ] T001 Create `lib/inventory/types.ts` — DTO types for positions, allocations, ownership events
+- [x] T001 Create `lib/inventory/types.ts` — DTO types for positions, allocations, ownership events
   and availability breakdown (owned / reserved / available, with cause labels).
   - Req: FR-001, FR-002 | Depends: —
   - Verify: no DTO field is derived arithmetic; each maps to a database column
   - Codex: GPT-5.6 Sol — Low · Claude: Sonnet — Low
   - Why: mechanical typing against a known schema.
+  - **CLOSURE (2026-09-12)**: `inventory_positions` has ONLY TWO quantity columns
+    (`available_quantity_kg`, `reserved_quantity_kg`) — confirmed exhaustively against the live
+    `database-schema-report.json`; there is NO `owned_quantity_kg` column, and no view exists
+    (`views: []`). No function returns a distinct "owned" figure either. Both raw columns are exposed
+    verbatim, under names mirroring the database's own columns; no third "owned"/"truly free" figure
+    is synthesized, and no arithmetic combines them. Full reasoning, with the corrected live-function
+    evidence below, is in `lib/inventory/types.ts`'s own header comment.
+  - **RECONCILIATION (2026-09-12)**: an earlier pass of this closure note cited the static
+    `supabase/trading_schema.sql` file and concluded `reserved_quantity_kg` "is written by no
+    function." **That was wrong and is retracted.** Re-tracing the LIVE function bodies
+    (`docs/database/database-schema-report.json`'s `functions[].definition` — the canonical
+    authority) proves `reserved_quantity_kg` IS actively written: `checkout_order` increments it when
+    a reservation is created (after validating
+    `(available_quantity_kg - reserved_quantity_kg) < quantity_kg` — the database's own proof that
+    `available_quantity_kg` is the position's TOTAL/gross owned quantity), `expire_order_hold`
+    decrements it on hold expiry, and `admin_review_payment` debits both columns together on the
+    seller's position at settlement while crediting the buyer's `available_quantity_kg` on a
+    new/existing position. "Every live position reads `reservedQuantityKg: 0` today" remains true only
+    as a DATA fact (the table has zero rows before Features 007/008 create real orders) — it does NOT
+    mean no function writes the column. No DTO/code change was required (the two raw columns were
+    already exposed verbatim in RUN A); only this note and `lib/inventory/types.ts`'s header comment
+    needed correcting to cite the verified live evidence instead of the stale static-file citations.
 
-- [ ] T002 Implement `lib/inventory/positions.ts` — paginated, org-scoped reads of
+- [x] T002 Implement `lib/inventory/positions.ts` — paginated, org-scoped reads of
   `inventory_positions` joined to lot/coffee/warehouse context, degrading honestly when lot detail is
   unreadable (DB-OPEN-05).
   - Req: FR-001, FR-002, FR-011, SEC-001 | Depends: T001
   - Verify: quantities are passed through unmodified; with lot detail unreadable the function still returns position rows
   - Codex: GPT-5.6 Sol — High · Claude: Opus — Medium
   - Why: the pass-through-not-recompute discipline plus graceful degradation around a known policy defect needs careful judgment.
+  - **CLOSURE (2026-09-12)**: DB-OPEN-05 reconfirmed LIVE and OPEN — `coffee_lots`'
+    `member_read_trade_lots` policy predicate (`co.lot_id = co.id`, a self-comparison inside
+    `coffee_offers`, never satisfying the actual lot being looked up) read directly from the live
+    schema report; still recorded open in `docs/architecture/DATABASE-CAPABILITY-MAP.md`. Bounded via
+    `.range()` (page size capped 1–100, default 25), deterministic `order by created_at desc, id
+    desc`. Acting-organization scoping is explicit (`.eq("owner_organization_id", organizationId)`)
+    on top of RLS, since `is_org_member()` alone would span every organization a multi-org caller
+    belongs to. Warehouse context deliberately excludes `address` (not required by spec.md, kept
+    conservative despite the column being publicly readable). Proven with a fake-client unit test
+    (exact quantity/lot-null/lot-resolved/pagination assertions) and a live test against the real
+    (currently empty) table (no error, honest empty page, cross-org id also empty).
 
-- [ ] T003 [P] Implement `lib/inventory/allocations.ts` — org-scoped `storage_allocations` reads with
+- [x] T003 [P] Implement `lib/inventory/allocations.ts` — org-scoped `storage_allocations` reads with
   approved status labels and released-vs-allocated quantities.
   - Req: FR-001, FR-006 | Depends: T001
   - Verify: all three states render their exact approved labels; released quantity is distinct from allocated
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — Medium
   - Why: focused read module over an explicit vocabulary.
+  - **CLOSURE (2026-09-12)**: `status`'s CHECK constraint (`STORED`/`RELEASED`/`DELIVERED`) confirmed
+    directly against the live schema report and passed through verbatim — no renaming, no invented
+    fourth value. `quantityKg`/`releasedQuantityKg` proven independent with a genuine PARTIAL-release
+    fixture (quantity 60, released 25) — not merely two fields that happen to be equal.
 
-- [ ] T004 [P] Implement `lib/inventory/ownership.ts` — chronological, read-only projection of
+- [x] T004 [P] Implement `lib/inventory/ownership.ts` — chronological, read-only projection of
   `inventory_ownership_events` where the org is source or destination, with counterparty redaction
   where not permitted.
   - Req: FR-001, FR-005, SEC-005 | Depends: T001
   - Verify: events for both directions are returned; a counterparty the member may not see is redacted rather than omitted
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — High
   - Why: redaction-vs-omission is a subtle privacy decision that affects what members can infer.
+  - **CLOSURE (2026-09-12)**: RLS confirmed exactly as planned (`is_platform_admin() OR
+    is_org_member(to_organization_id) OR is_org_member(from_organization_id)`). Redaction resolved
+    correctly: `organizations`' own RLS (`organizations_member_select`) only ever lets a member read
+    their OWN org's row, so a genuine counterparty's `display_name` is unreadable by direct query —
+    proven with a fixture where the acting org's own name resolves but the counterparty's is
+    `redacted: true` with `organizationId` still present (never dropped). No update/delete/reorder
+    helper exists anywhere in this file — the module exports only reads.
 
-- [ ] T005 Implement `lib/inventory/availability.ts` — labels reserved quantity with its cause using
+- [x] T005 Implement `lib/inventory/availability.ts` — labels reserved quantity with its cause using
   only readable sources (`inventory_reservation_items` via `can_view_order`, `orders.hold_expires_at`);
   contains **no** arithmetic re-deriving availability.
   - Req: FR-002, FR-007, PS4 | Depends: T002
   - Verify: `grep -nE "[-+*/]\s*(available|reserved)_quantity" lib/inventory/availability.ts` returns nothing; reservation cause resolves without querying `inventory_reservations`
   - Codex: GPT-5.6 Sol — High · Claude: Opus — High
   - Why: this is where a well-meaning agent would most likely reintroduce a client-side inventory calculation — exactly what LOT-02 forbids.
+  - **CLOSURE (2026-09-12)**: the exact structural audit grep returns nothing. `inventory_reservations`
+    is never queried through a privileged path — confirmed by source inspection (no `SERVICE_ROLE`
+    anywhere in the file) — it IS read, but only through the caller's own ordinary session, exactly as
+    documented in the file's own header.
+  - **RECONCILIATION (2026-09-12) — CONFIRMED LIVE, TRACKED AS DB-OPEN-12**: the original closure note
+    above (this same date) framed the RLS-chain concern as "theoretical, not live-provable." It has
+    since been proven, empirically, live. Synthetic rows (a warehouse, coffee_lot, coffee_offer,
+    inventory_position, order, inventory_reservation, inventory_reservation_item) were seeded through
+    the approved service-role setup/teardown pattern (setup and teardown only — never as the reading
+    identity), then read back through THREE real, non-privileged, authenticated fixture sessions
+    (`signInWithPassword`): the order's buyer, the offer's seller, and an unrelated cross-org member.
+    Result: the buyer correctly read the parent `orders` row (`hold_expires_at` visible — proving
+    `can_view_order`/`orders_view` work exactly as designed) but got ZERO rows from
+    `inventory_reservation_items` for the matching reservation and zero from `inventory_reservations`
+    (expected, admin-only) — despite a service-role sanity read confirming the row genuinely existed.
+    The seller and unrelated-org sessions got zero rows everywhere, as the negative control requires.
+    All synthetic rows were deleted immediately after. **Conclusion: `inventory_reservation_items` is
+    confirmed unreadable for every non-admin member today**, tracked as `DB-OPEN-12` in
+    `docs/architecture/DATABASE-CAPABILITY-MAP.md` — a distinct capability gap from DB-OPEN-05, though
+    structurally similar (a plain, non-`SECURITY DEFINER` subquery against an admin-only table). Per
+    the approved degradation contract, this does NOT block T005: the authoritative `reservedQuantityKg`
+    remains visible (read directly off `inventory_positions`, which members CAN read), and the
+    reservation *cause* (order id/code/`hold_expires_at`) honestly and permanently degrades to
+    `{ kind: "unknown" }` for every member today — never fabricated, never worked around with a
+    privileged read. T005's task wording above ("labels reserved quantity with its cause using...
+    `inventory_reservation_items` via `can_view_order`") is corrected by this note: the code still
+    *attempts* that approved chain exactly as written (forward-compatible if the policy is ever fixed),
+    but the cause it can actually deliver today is `unknown` in every real case, not merely a rare
+    edge case. **T005 remains COMPLETE** against the corrected, honest contract (truthful degradation,
+    not silent omission and not a fabricated cause) — it would NOT be complete against a stronger,
+    uncorrected reading of the original wording that implied causes are usually resolvable today.
 
-- [ ] T006 Expose the eligibility inputs 006 needs (owned, unreserved, Hills-custody quantity per
+- [x] T006 Expose the eligibility inputs 006 needs (owned, unreserved, Hills-custody quantity per
   position/lot) without encoding 006's listing rules.
   - Req: FR-010 | Depends: T002, T005
   - Verify: the exported shape contains quantities and custody facts only — no `isEligibleToList` decision
   - Codex: GPT-5.6 Sol — Medium · Claude: Opus — Medium
   - Why: drawing the boundary between "facts" and "rules" correctly keeps 006 from being duplicated here.
+  - **CLOSURE (2026-09-12)**: `getInventoryEligibilityFacts` (`lib/inventory/availability.ts`) exports
+    `positionId`/`lotId`/`ownerOrganizationId`/`warehouseId`/`availableQuantityKg`/`reservedQuantityKg`
+    only. No `isEligibleToList`/`canList`/`listingAllowed`/`canResell` symbol is declared anywhere in
+    `lib/inventory/*` (proven by test, checking actual declarations, not mere mentions in doc
+    comments explaining the deliberate omission). A "Hills-approved custody" boolean was deliberately
+    NOT included — the approved schema has no direct representation of it (only
+    `warehouses.is_active`, a narrower fact); documented in `types.ts` rather than approximated via an
+    assumed join.
 
 ---
 
