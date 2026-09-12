@@ -85,11 +85,11 @@ export function TableCardList<Row>({
           <li key={getRowKey(row)}>
             <Card>
               <CardContent className="flex flex-col gap-2">
-                <div className="font-semibold text-foreground">{primaryColumn!.render(row)}</div>
+                <div className="min-w-0 wrap-break-word font-semibold text-foreground">{primaryColumn!.render(row)}</div>
                 {secondaryColumns.map((column) => (
-                  <div key={column.key} className="flex items-baseline justify-between gap-3 text-[length:var(--text-small)]">
+                  <div key={column.key} className="flex items-start justify-between gap-3 text-[length:var(--text-small)]">
                     <span className="shrink-0 text-muted-foreground">{column.header}</span>
-                    <span className="min-w-0 truncate text-foreground">{column.render(row)}</span>
+                    <span className="min-w-0 flex-1 wrap-break-word text-end text-foreground">{column.render(row)}</span>
                   </div>
                 ))}
               </CardContent>

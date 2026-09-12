@@ -68,4 +68,21 @@ describe("Feature 004 T007 — TableCardList responsive primitive", () => {
     const src = readFileSync("components/dashboard/responsive/table-card-list.tsx", "utf8");
     expect(src).not.toMatch(/getRequestIdentity|createClient|supabase|href=["']\/dashboard/i);
   });
+
+  it("keeps long mobile-card values available to wrap instead of truncating them", () => {
+    render(
+      <TableCardList
+        columns={columns}
+        rows={[{ id: "long", reference: "LOT-REFERENCE-WITH-A-VERY-LONG-UNBROKEN-VALUE", status: "مخزون في مستودع هيلز", note: "A very long value that must remain available to assistive technology and visual wrapping." }]}
+        getRowKey={(r) => r.id}
+        caption="Fixture rows"
+      />,
+    );
+
+    const src = readFileSync("components/dashboard/responsive/table-card-list.tsx", "utf8");
+    expect(src).toMatch(/wrap-break-word/);
+    expect(src).not.toMatch(/\btruncate\b/);
+    expect(screen.getAllByText("LOT-REFERENCE-WITH-A-VERY-LONG-UNBROKEN-VALUE").length).toBeGreaterThanOrEqual(2);
+    expect(screen.getAllByText("مخزون في مستودع هيلز").length).toBeGreaterThanOrEqual(2);
+  });
 });

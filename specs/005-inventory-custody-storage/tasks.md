@@ -3,10 +3,10 @@
 **Input**: [spec.md](./spec.md), [plan.md](./plan.md), `docs/architecture/DATABASE-CAPABILITY-MAP.md`,
 `.specify/memory/constitution.md` (v2.0.0), SRS §7 (LOT-01..LOT-04, DEL-01).
 
-**Status**: **RUN C (2026-09-12) COMPLETE — Phase 1 (T001–T006, RECONCILED) + Phase 2 (T007–T012) +
-Phase 4 (T015) + Phase 5 (T016–T019), 17/26 tasks.** Phase 3 (T013–T014, custody trust/variance —
-depends on 010's warehouse model, not yet built), Phase 6 (T020–T021, formal a11y/RTL/mobile
-closure) and Phase 7 (T022–T025, final closure) remain NOT STARTED. See
+**Status**: **RUN D (2026-09-12) COMPLETE — Phase 1 (T001–T006, RECONCILED) + Phase 2 (T007–T012) +
+Phase 4 (T015) + Phase 5 (T016–T019) + Phase 6 (T020–T021), 19/25 tasks.** Phase 3 (T013–T014,
+custody trust/variance — depends on 010's warehouse model, not yet built) and Phase 7 (T022–T025,
+final closure) remain NOT STARTED. See
 [IMPLEMENTATION-HANDOFF.md](./IMPLEMENTATION-HANDOFF.md) for the full real-RLS, fixture-lifecycle,
 immutability, fidelity and DB-OPEN-05 evidence. Do not start Feature 010 implementation from this
 feature's handoff.
@@ -359,19 +359,28 @@ feature's handoff.
 
 ## Phase 6 — Accessibility, responsive, RTL
 
-- [ ] T020 Responsive pass: inventory/storage/ledger tables collapse to card lists at mobile using
+- [x] T020 Responsive pass: inventory/storage/ledger tables collapse to card lists at mobile using
   004's shared helper.
   - Req: FR-014 | Depends: Phase 2
   - Verify: at mobile width no horizontal table scroll is required; touch targets ≥ 44×44px
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — Medium
   - Why: reuses an existing helper across several tables.
+  - **CLOSURE (2026-09-12, RUN D)**: authenticated real Chrome covered inventory, position detail,
+    storage and ledger at 390×844 in AR/RTL Light and Dark. Every route measured `scrollWidth =
+    clientWidth = 390`; data tables collapsed to card lists; the real position action measured 44px
+    high. Long values wrap in the shared card helper rather than truncating.
 
-- [ ] T021 Accessibility + RTL pass: table semantics, status badges as dot + label, keyboard
+- [x] T021 Accessibility + RTL pass: table semantics, status badges as dot + label, keyboard
   traversal, logical CSS properties, externalised copy.
   - Req: FR-003, FR-014 | Depends: Phase 2
   - Verify: automated a11y check clean; `grep -rn "text-left\|text-right\|[^-]pl-\|[^-]pr-" src/app/dashboard/inventory src/app/dashboard/storage components/inventory` returns nothing
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — Medium
   - Why: broad but mechanical.
+  - **CLOSURE (2026-09-12, RUN D)**: real authenticated Chrome + axe was clean on all four routes
+    at EN/LTR 1440px Light/Dark and AR/RTL 390px Light/Dark, with no console/page/request failures.
+    The real mobile position action is keyboard-focusable and has its real detail route. The logical
+    CSS grep returned zero matches. Dark AR contrast was corrected in the shared shell using existing
+    foreground tokens: language code 1.31:1 → 13.09:1; breadcrumb 2.45:1 → 9.23:1 composited.
 
 ---
 

@@ -112,7 +112,7 @@ export default async function InventoryListPage({
       render: (row) => (
         <Link
           href={`/dashboard/inventory/${row.id}`}
-          className="inline-flex min-h-9 items-center rounded-[var(--radius-sm)] text-[length:var(--text-small)] font-medium text-foreground underline underline-offset-4 hover:no-underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus-ring)]"
+          className="inline-flex min-h-11 min-w-11 items-center rounded-[var(--radius-sm)] px-1 text-[length:var(--text-small)] font-medium text-foreground underline underline-offset-4 hover:no-underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus-ring)]"
         >
           <AppBilingual pick={(c) => c.inventory.list.viewDetails} />
         </Link>

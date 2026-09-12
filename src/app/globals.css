@@ -611,6 +611,16 @@
 :root:not([lang="ar"]) .hc-lang-ar { display: none; }
 [lang="ar"] .hc-lang-en { display: none; }
 
+/* App-shell breadcrumbs sit on the dark application page surface. The shell foreground token is
+ * AA-safe there; links retain hierarchy through a slightly reduced opacity and return to full
+ * contrast for hover/focus. This is shared shell treatment, not a Feature-005 override. */
+.dark [data-slot="breadcrumb"] a {
+  color: var(--sidebar-foreground) !important;
+  opacity: 0.82;
+}
+.dark [data-slot="breadcrumb"] a:hover,
+.dark [data-slot="breadcrumb"] a:focus-visible { opacity: 1; }
+
 [data-directional-icon="true"] { transition: transform var(--dur-fast) var(--ease-standard); }
 [dir="rtl"] [data-directional-icon="true"] { transform: scaleX(-1); }
 

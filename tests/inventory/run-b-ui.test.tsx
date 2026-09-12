@@ -231,6 +231,23 @@ describe("RUN B — StorageStatusBadge (T010): exact closed vocabulary, dot + te
       unmount();
     }
   });
+
+  it("communicates status with both an aria-hidden dot and localized text", async () => {
+    const { StorageStatusBadge } = await import("@/components/inventory/storage-status-badge");
+    render(<StorageStatusBadge status="STORED" />);
+    const badge = document.querySelector('[data-slot="storage-status-badge"]');
+    expect(badge?.querySelector('[aria-hidden="true"]')).toBeTruthy();
+    expect(badge?.textContent).toContain("Stored");
+  });
+});
+
+describe("Feature 005 Phase 6 — inventory list action touch target", () => {
+  it("gives the position-detail link the documented 44px target without changing route or authorization behavior", () => {
+    const source = readFileSync("src/app/dashboard/inventory/page.tsx", "utf8");
+    expect(source).toMatch(/min-h-11/);
+    expect(source).toMatch(/min-w-11/);
+    expect(source).toMatch(/href=\{`\/dashboard\/inventory\/\$\{row\.id\}`\}/);
+  });
 });
 
 describe("RUN B — server-component / no-mutation / no-cache / no-service-role audit", () => {

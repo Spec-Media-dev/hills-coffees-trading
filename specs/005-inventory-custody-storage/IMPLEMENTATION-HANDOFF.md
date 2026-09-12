@@ -1,5 +1,50 @@
 # Feature 005 — Inventory, Custody & Storage — Implementation Handoff
 
+## RUN D (2026-09-12) — Phase 6 (T020–T021) COMPLETE
+
+**Approved scope:** responsive/accessibility closure only. No database, RLS, migration, Storage,
+mutation, authorization, Feature 010, Phase 3 or Phase 7 work was started.
+
+### Production fixes and evidence
+
+- `components/locale/language-switcher.tsx` now selects the existing Hills semantic foreground token
+  from the actual rendered theme: `--foreground` in Light and `--sidebar-foreground` in Dark. This
+  fixes the real `.hc-language-switcher > span[dir="ltr"]` Dark/RTL contrast failure from **1.31:1**
+  (`#173c32` on `#192420`) to **13.09:1** (`#eee8dc` on `#192420`).
+- `src/app/globals.css` applies the existing `--sidebar-foreground` token to shared dark-shell
+  breadcrumb links, preserving hierarchy with `opacity: .82` and returning to full opacity for
+  hover/focus. Its prior Arabic Dark value was **2.45:1**; the composited link is now `#c8c5ba` on
+  `#1a2420`, **9.23:1**. No Feature-005-specific colour override or new token was introduced.
+- The mobile card helper wraps long secondary values and the real inventory position action is at
+  least 44×44px. Focused unit tests cover both conditions.
+- Real authenticated headless Chrome checked `/dashboard/inventory/`, its real position detail,
+  `/dashboard/storage/`, and `/dashboard/inventory/history/` at EN/LTR 1440px Light/Dark and
+  AR/RTL 390px Light/Dark. Every route: axe `violations: []`, no console/page/request errors,
+  `scrollWidth === clientWidth`, correct theme/locale/direction, desktop tables or mobile cards as
+  appropriate. Reduced-motion tokens all measured `1ms`; the mobile position action was keyboard
+  focusable with its real route.
+- Exact T021 logical-direction grep passed with zero `text-left`, `text-right`, non-negative `pl-`,
+  or `pr-` matches under the specified inventory/storage/component paths.
+
+### Validation note — pre-commit authentication reconciliation
+
+The initial full sequential suite had **30 fixture-login failures** across eight files. This was
+reproduced and isolated without changing application code: the helper had 80
+`signInWithPassword` call sites, each making a fresh grant. A controlled, non-secret probe returned
+32 successful grants followed by HTTP 429 `over_request_rate_limit` on grant 33. The exact fixed-id
+fixture verifier passed, a direct buyer password grant returned HTTP 200 with a session, the prior
+failing file passed alone (18/18), and a representative prior-failure group passed together (33/33).
+
+`tests/auth/fixture-session.ts` now retains one AAL1 password-grant session per fixture in the
+sequential test-worker process, while returning a fresh client with a unique storage key for every
+test caller. If an intentional local sign-out invalidates the cached refresh token, it discards only
+that fixture's cache and performs one genuine replacement grant; there is no service role, fake
+identity, bypass, timeout increase, or production auth change. The final full suite is **60 files /
+690 tests PASS**. `npm run typecheck`, production-path lint (`npx eslint src lib components tests
+scripts`), `git diff --check`, focused Phase-6 tests (30/30), inventory tests (80/80),
+dashboard/Feature-004 shell regression (77/77), and `npm run build` passed. Phase 7's separate
+full-suite closure task (T022) remains unchecked.
+
 ## RECONCILIATION (2026-09-12) — read this before the RUN A narrative below
 
 Before Phase 1 was considered closed, the two material findings RUN A reported below were

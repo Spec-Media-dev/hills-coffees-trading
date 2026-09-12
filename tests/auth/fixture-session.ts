@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { randomUUID } from "node:crypto";
 
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { createClient, type Session, type SupabaseClient } from "@supabase/supabase-js";
 
 const REQUIRED_TEST_ENV = [
   "NEXT_PUBLIC_SUPABASE_URL",
@@ -205,6 +205,57 @@ function newSessionClient(): SupabaseClient {
   );
 }
 
+/**
+ * A password grant is intentionally shared only inside this Node test worker.
+ * Each caller still receives a fresh, isolated Supabase client below, so a test
+ * cannot leak local storage or sign-out state into another test. Caching the
+ * immutable AAL1 token prevents the 80 real fixture call sites from exceeding
+ * GoTrue's password-grant rate limit during a single full-suite process.
+ *
+ * `process` rather than a module variable is deliberate: Vitest isolates test
+ * modules by file, while the sequential file worker itself remains the same
+ * process. Nothing under application runtime imports this test-only helper.
+ */
+type FixtureProcess = NodeJS.Process & {
+  __hillsFixtureSessions?: Map<string, Promise<Session>>;
+};
+
+function fixtureSessionCache(): Map<string, Promise<Session>> {
+  const testProcess = process as FixtureProcess;
+  return (testProcess.__hillsFixtureSessions ??= new Map<string, Promise<Session>>());
+}
+
+async function passwordGrantForFixture(email: string): Promise<Session> {
+  const cache = fixtureSessionCache();
+  let pending = cache.get(email);
+
+  if (!pending) {
+    pending = (async () => {
+      const client = newSessionClient();
+      const { data, error } = await client.auth.signInWithPassword({
+        email,
+        password: requireTestEnvironment("TEST_FIXTURE_PASSWORD"),
+      });
+
+      if (error || !data.user || !data.session) {
+        throw new Error(`Unable to authenticate documented fixture ${email}; run npm run test:seed.`);
+      }
+
+      return data.session;
+    })();
+    cache.set(email, pending);
+  }
+
+  try {
+    return await pending;
+  } catch (error) {
+    // A transient rejected grant must never be cached; a later test gets a
+    // genuine retry rather than inheriting the same failure.
+    cache.delete(email);
+    throw error;
+  }
+}
+
 export function createAnonymousFixtureClient(): SupabaseClient {
   return newSessionClient();
 }
@@ -222,16 +273,26 @@ export async function signInAsFixture(
   email: string
 ): Promise<SupabaseClient> {
   const client = newSessionClient();
-  const { data, error } = await client.auth.signInWithPassword({
-    email,
-    password: requireTestEnvironment("TEST_FIXTURE_PASSWORD"),
+  let session = await passwordGrantForFixture(email);
+  let { error } = await client.auth.setSession({
+    access_token: session.access_token,
+    refresh_token: session.refresh_token,
   });
 
-  if (error || !data.user || !data.session) {
-    throw new Error(
-      `Unable to authenticate documented fixture ${email}; run npm run test:seed.`
-    );
+  if (error) {
+    // A test can intentionally sign out its otherwise isolated client. If that
+    // invalidates the cached refresh token, obtain exactly one new real grant
+    // and replace only this fixture's cache. This is a test-only recovery, not
+    // an authentication bypass or a retry loop.
+    fixtureSessionCache().delete(email);
+    session = await passwordGrantForFixture(email);
+    ({ error } = await client.auth.setSession({
+      access_token: session.access_token,
+      refresh_token: session.refresh_token,
+    }));
   }
+
+  if (error) throw new Error(`Unable to restore documented fixture ${email} session.`);
 
   return client;
 }
