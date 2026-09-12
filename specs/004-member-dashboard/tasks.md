@@ -3,10 +3,13 @@
 **Input**: [spec.md](./spec.md), [plan.md](./plan.md), `docs/architecture/DATABASE-CAPABILITY-MAP.md`,
 `.specify/memory/constitution.md` (v2.0.0), `docs/claude-design/` dashboard layout.
 
-**Status**: **RUN A (2026-09-12) COMPLETE — Phase 1 (T001–T003) + Phase 2 (T004–T008), 8/29 tasks.**
-Phases 3–9 (T009–T029) remain NOT STARTED. See
-[IMPLEMENTATION-HANDOFF.md](./IMPLEMENTATION-HANDOFF.md) for full evidence per task. This is NOT
-Feature 004 completion — only its module contract and shell layout.
+**Status**: **RUN A (2026-09-12) COMPLETE — Phase 1 (T001–T003) + Phase 2 (T004–T008).
+RUN B (2026-09-12) COMPLETE — Phase 3 (T009–T010) + Phase 4 (T011–T014) + Phase 5 (T015–T017),
+17/29 tasks.** Phases 6–9 (T018–T029 — account-area entries, formal test/closure phases) remain NOT
+STARTED. See [IMPLEMENTATION-HANDOFF.md](./IMPLEMENTATION-HANDOFF.md) for full evidence per task.
+This is NOT Feature 004 completion — the shell now truthfully reflects who the member is acting for,
+whether that organization is eligible, and what implemented modules contribute, but no business
+module (005–009, 012) exists yet.
 **Prerequisite**: 001 (guard, identity, states, tokens) and 003 (eligibility layer, acting
 organization, agreement gate) implemented.
 
@@ -89,74 +92,137 @@ organization, agreement gate) implemented.
 
 ## Phase 3 — Acting organization
 
-- [ ] T009 [PS4] Build `components/dashboard/org-switcher.tsx` consuming 003's acting-organization
+- [x] T009 [PS4] Build `components/dashboard/org-switcher.tsx` consuming 003's acting-organization
   resolution; implicit when one membership, explicit selector when more.
   - Req: FR-010, PS4 | Depends: T006
   - Verify: single-membership fixture sees a display with no selector; two-membership fixture can switch and the portal reflects the new organization on the next request
   - Codex: GPT-5.6 Sol — Medium · Claude: Opus — Medium
   - Why: acting-context errors cause a member to act for the wrong organization — a correctness/authorization hazard.
+  - **CLOSURE (2026-09-12)**: reuses `setActingOrganization` (`lib/auth/eligibility.ts`) — the SAME
+    mechanism `OrganizationSelector` and `settings/acting-organization-switcher.tsx` already call, no
+    second implementation. Passed as a PROP from the Server Component `dashboard/layout.tsx` into the
+    Client Component switcher (a real production build failure — `next/headers` pulled into the
+    client bundle via a direct import — was hit and fixed this way). One org → plain text, no
+    selector; >1 → a real shadcn `Select`. Live-verified via real Chrome/CDP: the multi-org fixture
+    renders the switcher (`aria-label="Switch acting organization"`, current org named) after
+    resolving the forced `OrganizationSelector` choice; the single-org buyer-only fixture shows no
+    combobox at all. 0 axe violations across EN/AR × light/dark × desktop/mobile.
 
-- [ ] T010 Pass the acting organization explicitly to every module render path (no ambient global).
+- [x] T010 Pass the acting organization explicitly to every module render path (no ambient global).
   - Req: FR-010, SEC-003 | Depends: T009, T003
   - Verify: `grep -rn "globalThis\|module-scope let" lib/dashboard components/dashboard` shows no ambient acting-org state; two concurrent requests with different orgs do not interfere
   - Codex: GPT-5.6 Sol — High · Claude: Opus — High
   - Why: ambient request state is a classic cross-tenant bleed vector in server-rendered apps.
+  - **CLOSURE (2026-09-12)**: the grep returns nothing; `composeOverview`/`buildDashboardNavGroups`
+    both take `organization`/`registry` as explicit parameters (already true since RUN A). Added an
+    interleaved two-organization test (`tests/dashboard/org-switcher.test.tsx`) proving no
+    cross-contamination between calls for different organizations, and a source check confirming
+    `DashboardModuleContext` is documented as "never read from an ambient global or module-scope
+    variable."
 
 ---
 
 ## Phase 4 — Overview page
 
-- [ ] T011 [PS2] Implement `src/app/dashboard/page.tsx` rendering the composed overview (four areas +
+- [x] T011 [PS2] Implement `src/app/dashboard/page.tsx` rendering the composed overview (four areas +
   account/status area).
   - Req: FR-006, PS2 | Depends: T003, T004
   - Verify: renders server-side with JavaScript disabled; absent modules produce no placeholder
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — Medium
   - Why: composition page over an existing contract.
+  - **CLOSURE (2026-09-12)**: `dashboard/page.tsx`'s final (fully-eligible) branch now calls
+    `composeOverview({ organization: identity.organization, registry: DASHBOARD_MODULES,
+    hasAcceptedCurrentAgreements: identity.hasAcceptedCurrentAgreements })`, replacing the
+    `FoundationOverview` placeholder. Every guard branch above it (unauthorized, not-yet-authorized,
+    agreement-not-accepted) is untouched — Server Component throughout, no `"use client"` added to
+    the page itself. Live-verified with 0 axe violations across EN/AR × light/dark.
 
-- [ ] T012 [P] [PS2] Build `components/dashboard/overview-card.tsx` and figure formatting helpers
+- [x] T012 [P] [PS2] Build `components/dashboard/overview-card.tsx` and figure formatting helpers
   (unit + currency, tabular figures, monospace reference codes).
   - Req: FR-007, SC-004 | Depends: T004
   - Verify: `USD 4.80 / kg`, `320 bags · 60kg` and `HC-2026-0418` render per the design system
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — Medium
   - Why: formatting rules are explicit in the design system; mostly mechanical.
+  - **CLOSURE (2026-09-12)**: `lib/dashboard/format.ts` (`formatMoney`, `formatQuantity`) plus
+    `components/dashboard/overview-card.tsx` (`OverviewCardSection`, `ReferenceCode`). Exactly the
+    three cited design-system examples render as specified — proven directly, not merely inspected.
+    Also fixed a pre-existing localization gap in the account-menu display-name fallback
+    ("Account" → resolved via `tApp.dashboardAccount.fallbackName`, client-side, so it renders in the
+    viewer's real locale rather than always English).
 
-- [ ] T013 [PS3] Build the "needs your action" area from 003's contributions (unaccepted agreement,
+- [x] T013 [PS3] Build the "needs your action" area from 003's contributions (unaccepted agreement,
   expiring KYB document) with specific labels and direct hrefs.
   - Req: FR-011, PS3 | Depends: T003, T011
   - Verify: a seeded unaccepted agreement renders a named item linking to the acceptance step; no generic "action required" copy exists
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — High
   - Why: the design system's "name what is missing" rule requires content judgment, not just wiring.
+  - **CLOSURE (2026-09-12) — HONEST ARCHITECTURAL LIMITATION**: `composeOverview` computes a real,
+    specific, tested action item ("Accept the current membership agreements" → `/dashboard/`) when
+    `hasAcceptedCurrentAgreements` is false. On the LIVE page, this can never actually be visible: the
+    existing, already-verified Feature 003 agreement gate in `dashboard/page.tsx` intercepts that
+    exact condition with a full-page `AgreementList` BEFORE this composer ever runs — restructuring
+    that gate into an inline item was judged out of this run's scope (changing already-verified
+    Feature 003 UX, not merely adding to it). The equivalent KYB-remediation condition is similarly
+    unreachable, one guard earlier (`!identity.isAuthorizedMember`). Both are documented in
+    `lib/dashboard/overview.tsx`'s own header comment, not hidden. `components/dashboard/action-list.tsx`
+    is the real, generic renderer any future module's action items will also use.
 
-- [ ] T014 [PS2] Implement honest empty states for each overview area (explains what would appear,
+- [x] T014 [PS2] Implement honest empty states for each overview area (explains what would appear,
   never a zero-filled fake dashboard).
   - Req: FR-006, PS2 | Depends: T011
   - Verify: with no data, each area explains itself; no fabricated zero metrics are shown
   - Codex: GPT-5.6 Sol — Low · Claude: Sonnet — Medium
   - Why: small, but the "no fake numbers" rule is an explicit design-system mandate.
+  - **CLOSURE (2026-09-12)**: `dashboardOverview.{bought,owe,where,needsAction}.empty` copy (EN+AR),
+    rendered by `OverviewCardSection`/`ActionList` only when the area is genuinely empty. No
+    `0 orders`/`$0`/`0 bags` anywhere; `tests/dashboard/registry.test.tsx` asserts this with a regex
+    scan of the actual rendered card text.
 
 ---
 
 ## Phase 5 — Ineligible-member states
 
-- [ ] T015 [PS5] Render distinct shell states for `PENDING_KYB`, `UNDER_REVIEW`, `SUSPENDED`,
+- [x] T015 [PS5] Render distinct shell states for `PENDING_KYB`, `UNDER_REVIEW`, `SUSPENDED`,
   `REJECTED` organizations, reusing 001's state components and 003's reasons.
   - Req: FR-009, SC-005, PS5 | Depends: T004
   - Verify: each of the four fixtures renders its own screen with the approved vocabulary label and correct next step
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — High
   - Why: denial-state clarity is where members are most likely to be confused or misled.
+  - **CLOSURE (2026-09-12) — REUSED, NOT REBUILT**: Feature 003's `KybStatusScreen` (T019–T021)
+    already provides exactly this — a distinct branch per status with the approved vocabulary, safe
+    reason (REJECTED's `rejectionReason`, never a reviewer identity), and the correct next step, with
+    no trading CTA anywhere. `tests/dashboard/states.test.tsx` proves all four are genuinely distinct
+    (no shared heading text) and none renders a `button`/`link` beyond its own legitimate remediation
+    action. No second KYB status engine was built.
 
-- [ ] T016 [PS5] Ensure no trading module is reachable for ineligible organizations — by navigation or
+- [x] T016 [PS5] Ensure no trading module is reachable for ineligible organizations — by navigation or
   direct URL.
   - Req: FR-003, SC-001, PS5 | Depends: T015, T005
   - Verify: with a suspended fixture, direct navigation to every registered module route is refused server-side
   - Codex: GPT-5.6 Sol — High · Claude: Opus — High
   - Why: this is the portal-level expression of the platform's non-negotiable authorization rule.
+  - **CLOSURE (2026-09-12) — NO LIVE ROUTE EXISTS TO DENY YET**: Features 005–009 have no real
+    trading-module route (honestly documented, not fabricated). Proven instead with a controlled
+    fixture module (`tests/dashboard/states.test.tsx`): nav hiding and a route's own authorization
+    check are computed independently from the same `organization.canSell` fact — hiding nav proves
+    nothing about the route, and a fixture "route guard" correctly denies regardless of nav state.
+    Reconfirmed `dashboard/layout.tsx` still never renders the business `AppShell` for a
+    not-yet-authorized organization (position-based source check: `AppShell` appears strictly after
+    the `!identity.isAuthorizedMember` branch). Documented in `lib/dashboard/modules.ts` itself: "The
+    registry must never become a hidden authorization system" — future module routes (005–009/012)
+    MUST independently call `getRequestIdentity()`/the eligibility layer; this contract will not do
+    it for them.
 
-- [ ] T017 Route a zero-organization member to 003's onboarding state rather than rendering a shell.
+- [x] T017 Route a zero-organization member to 003's onboarding state rather than rendering a shell.
   - Req: FR-009, Edge Cases | Depends: T004, T015
   - Verify: the no-organization fixture never sees an empty dashboard chrome
   - Codex: GPT-5.6 Sol — Low · Claude: Sonnet — Low
   - Why: simple redirect/branch with a clear expected outcome.
+  - **CLOSURE (2026-09-12) — ALREADY IMPLEMENTED, RECONFIRMED**: `dashboard/layout.tsx`'s
+    `identity.organization === null` branch already renders `OnboardingExperience` inline, never
+    `AppShell` (Feature 003, unchanged this run). `tests/dashboard/states.test.tsx` adds a
+    Feature-004-owned regression proof (position-based source check) alongside the pre-existing
+    Feature 003 coverage.
 
 ---
 

@@ -110,6 +110,29 @@ export const ar: DeepPartial<AppCopy> = {
     dashboardAccount: {
       cardTitle: "منظمتك",
       roleLabel: "دورك",
+      fallbackName: "الحساب",
+    },
+    dashboardOrgSwitcher: {
+      label: "تبديل المنظمة الفاعلة",
+    },
+    dashboardOverview: {
+      bought: {
+        title: "ما اشتريته",
+        empty: "ستظهر مشترياتك المكتملة هنا بعد تقديم طلب.",
+      },
+      owe: {
+        title: "ما تدين به",
+        empty: "سيظهر أي رصيد مستحق هنا بعد إصدار فاتورة لطلب.",
+      },
+      where: {
+        title: "أين هو",
+        empty: "ستظهر حالة التسليم والحيازة هنا عند وجود قهوة في الطريق أو التخزين.",
+      },
+      needsAction: {
+        title: "يتطلب إجراءً منك",
+        empty: "لا يوجد ما يستدعي انتباهك الآن.",
+        acceptAgreements: "قبول اتفاقيات العضوية الحالية",
+      },
     },
     patternsNote: "أساس بصري فقط — لا تُقرأ أي بيانات تجارية، ولا وحدة هنا مُفعّلة وظيفيًا.",
     roleVisibilityNote:

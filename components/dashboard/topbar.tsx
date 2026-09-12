@@ -36,11 +36,17 @@ export function DashboardAccountMenu({
   displayName,
   organizationName,
 }: {
-  displayName: string;
+  /**
+   * Raw `fullName`/`companyName`, or `null` when neither is set — the "Account" fallback is
+   * resolved HERE, client-side via `tApp`, not pre-baked server-side, so it renders in the
+   * viewer's actual locale (RUN B fix — see `dashboardAccount.fallbackName`'s doc comment).
+   */
+  displayName: string | null;
   organizationName: string | null;
 }) {
   const { t, tApp } = useLocale();
   const [logoutDialogOpen, setLogoutDialogOpen] = useState(false);
+  const resolvedName = displayName ?? tApp.dashboardAccount.fallbackName;
 
   return (
     <>
@@ -49,11 +55,11 @@ export function DashboardAccountMenu({
           aria-label={t.account.menuLabel}
           className="grid size-11 shrink-0 place-items-center rounded-full transition-[box-shadow] duration-[var(--dur-fast)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus-ring)]"
         >
-          <UserAvatar displayName={displayName} />
+          <UserAvatar displayName={resolvedName} />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" sideOffset={8}>
           <div className="flex flex-col gap-0.5 px-2 py-1.5">
-            <span className="truncate text-sm font-semibold text-foreground">{displayName}</span>
+            <span className="truncate text-sm font-semibold text-foreground">{resolvedName}</span>
             {organizationName ? <span className="truncate text-xs text-muted-foreground">{organizationName}</span> : null}
           </div>
           <DropdownMenuSeparator />
@@ -108,7 +114,7 @@ export function DashboardTopbarActions({
   displayName,
   organizationName,
 }: {
-  displayName: string;
+  displayName: string | null;
   organizationName: string | null;
 }) {
   return (

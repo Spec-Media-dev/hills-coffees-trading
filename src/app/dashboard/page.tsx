@@ -1,12 +1,15 @@
 import { PageHeader } from "@/components/app/page-header";
-import { FoundationOverview } from "@/components/app/foundation-overview";
 import { AgreementList } from "@/components/account/agreements/agreement-list";
 import { KybStatusScreen } from "@/components/account/kyb-status-screen";
+import { ActionList } from "@/components/dashboard/action-list";
+import { OverviewCardSection } from "@/components/dashboard/overview-card";
 import { AppBilingual } from "@/components/locale/app-bilingual";
 import { StateScreen } from "@/components/layout/state-screen";
 import { getOrganizationAgreementAcceptances } from "@/lib/agreements/acceptance-status";
 import { getRequestIdentity } from "@/lib/auth/dal";
 import { getEligibility } from "@/lib/auth/eligibility";
+import { composeOverview } from "@/lib/dashboard/overview";
+import { DASHBOARD_MODULES } from "@/lib/dashboard/registry";
 import { listKybDocumentReviews } from "@/lib/kyb/review-items";
 import { currentDocuments, getKybWorkspace } from "@/lib/kyb/status";
 
@@ -34,6 +37,12 @@ import { currentDocuments, getKybWorkspace } from "@/lib/kyb/status";
  * not yet authorized gets the real, state-aware KYB status hub (`KybStatusScreen`, T019–T022)
  * instead. `dashboard/layout.tsx`'s own guard already prevents this branch from ever reaching the
  * business `AppShell`/nav; this split only changes what non-business content renders for that case.
+ *
+ * FEATURE 004 RUN B (T011) — only the final, fully-eligible branch below changed: the
+ * `FoundationOverview` placeholder is replaced with the real `composeOverview` output. Every guard
+ * branch above it (unauthorized/unattached, not-yet-authorized-member, agreement-not-accepted) is
+ * untouched — those are still Feature 003's full-page states, reached and returned from BEFORE this
+ * composer ever runs, exactly as before.
  */
 export default async function DashboardPage() {
   const identity = await getRequestIdentity();
@@ -70,6 +79,16 @@ export default async function DashboardPage() {
     );
   }
 
+  // Feature 004 T011 — composed fresh, this request, from the ACTING organization
+  // (`identity.organization`, never `organizations[0]`) and the real agreement truth already
+  // resolved above. No shared cache: this is a plain function call over already-resolved,
+  // request-scoped values (SEC-003, FR-012).
+  const overview = composeOverview({
+    organization: identity.organization,
+    registry: DASHBOARD_MODULES,
+    hasAcceptedCurrentAgreements: identity.hasAcceptedCurrentAgreements,
+  });
+
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
@@ -77,7 +96,35 @@ export default async function DashboardPage() {
         description={<AppBilingual pick={(c) => c.modulesArriveLater} />}
         trail={[{ label: <AppBilingual pick={(c) => c.overview} /> }]}
       />
-      <FoundationOverview surface="member" />
+
+      <OverviewCardSection
+        title={<AppBilingual pick={(c) => c.dashboardAccount.cardTitle} />}
+        cards={overview.account}
+      />
+
+      <ActionList
+        title={<AppBilingual pick={(c) => c.dashboardOverview.needsAction.title} />}
+        items={overview.needsAction}
+        emptyMessage={<AppBilingual pick={(c) => c.dashboardOverview.needsAction.empty} />}
+      />
+
+      <div className="grid gap-6 lg:grid-cols-3">
+        <OverviewCardSection
+          title={<AppBilingual pick={(c) => c.dashboardOverview.bought.title} />}
+          cards={overview.bought}
+          emptyMessage={<AppBilingual pick={(c) => c.dashboardOverview.bought.empty} />}
+        />
+        <OverviewCardSection
+          title={<AppBilingual pick={(c) => c.dashboardOverview.owe.title} />}
+          cards={overview.owe}
+          emptyMessage={<AppBilingual pick={(c) => c.dashboardOverview.owe.empty} />}
+        />
+        <OverviewCardSection
+          title={<AppBilingual pick={(c) => c.dashboardOverview.where.title} />}
+          cards={overview.where}
+          emptyMessage={<AppBilingual pick={(c) => c.dashboardOverview.where.empty} />}
+        />
+      </div>
     </div>
   );
 }

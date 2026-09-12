@@ -30,9 +30,15 @@ describe("Phase 5.5 UIF-H — protected overview convergence", () => {
     expect(component).not.toMatch(/\b(?:AED|USD|EUR)\b|\$\d|\d+\s+(?:orders|shipments)/i)
   })
 
-  it("mounts the same honest visual foundation on both existing protected routes", () => {
-    expect(source("src", "app", "dashboard", "page.tsx")).toContain('<FoundationOverview surface="member" />')
+  it("Operations (010's future scope, untouched) still mounts the honest visual foundation", () => {
     expect(source("src", "app", "dashboard-admin", "page.tsx")).toContain('<FoundationOverview surface="admin" />')
+  })
+
+  it("Feature 004 RUN B — the Member Portal now mounts its own real, composed overview instead of the foundation placeholder", () => {
+    const page = source("src", "app", "dashboard", "page.tsx")
+    expect(page).not.toContain("<FoundationOverview")
+    expect(page).toContain("composeOverview")
+    expect(page).toContain("OverviewCardSection")
   })
 
   it("uses theme-derived surfaces, contrast-safe gold variants and logical sizing", () => {

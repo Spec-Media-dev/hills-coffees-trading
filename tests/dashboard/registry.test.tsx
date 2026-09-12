@@ -77,7 +77,7 @@ describe("T002 — static registry lists implemented modules only", () => {
 describe("T003 — overview composition contract", () => {
   it("with an empty registry, the composer returns only the account area — no placeholder cards", () => {
     const empty: readonly DashboardModule[] = [];
-    const result = composeOverview({ organization: buyerOnly, registry: empty });
+    const result = composeOverview({ organization: buyerOnly, registry: empty, hasAcceptedCurrentAgreements: true });
     expect(result.account.length).toBeGreaterThan(0);
     expect(result.bought).toEqual([]);
     expect(result.owe).toEqual([]);
@@ -86,7 +86,7 @@ describe("T003 — overview composition contract", () => {
   });
 
   it("with the real registry (no business modules yet), bought/owe/where/needsAction stay honestly empty", () => {
-    const result = composeOverview({ organization: buyerOnly, registry: DASHBOARD_MODULES });
+    const result = composeOverview({ organization: buyerOnly, registry: DASHBOARD_MODULES, hasAcceptedCurrentAgreements: true });
     expect(result.bought).toEqual([]);
     expect(result.owe).toEqual([]);
     expect(result.where).toEqual([]);
@@ -94,13 +94,13 @@ describe("T003 — overview composition contract", () => {
   });
 
   it("the account area is truthful — organization name and the caller's own role, nothing invented", () => {
-    const result = composeOverview({ organization: buyerOnly, registry: DASHBOARD_MODULES });
+    const result = composeOverview({ organization: buyerOnly, registry: DASHBOARD_MODULES, hasAcceptedCurrentAgreements: true });
     render(<div>{result.account.map((card) => <div key={card.id}>{card.value}</div>)}</div>);
     expect(screen.getByText("Test Buyer Co")).toBeTruthy();
   });
 
   it("never fabricates a currency/quantity figure when no module has contributed one", () => {
-    const result = composeOverview({ organization: buyerAndSeller, registry: DASHBOARD_MODULES });
+    const result = composeOverview({ organization: buyerAndSeller, registry: DASHBOARD_MODULES, hasAcceptedCurrentAgreements: true });
     const allCardText = [...result.bought, ...result.owe, ...result.where]
       .map((c) => `${c.title} ${c.value}`)
       .join(" ");
@@ -113,10 +113,23 @@ describe("T003 — overview composition contract", () => {
       requiredCapability: "sell",
       overviewCards: () => [{ id: "fake", area: "bought", title: "x", value: "y" }],
     };
-    const result = composeOverview({ organization: buyerOnly, registry: [sellOnlyModule] });
+    const result = composeOverview({ organization: buyerOnly, registry: [sellOnlyModule], hasAcceptedCurrentAgreements: true });
     expect(result.bought).toEqual([]);
 
-    const resultForSeller = composeOverview({ organization: buyerAndSeller, registry: [sellOnlyModule] });
+    const resultForSeller = composeOverview({ organization: buyerAndSeller, registry: [sellOnlyModule], hasAcceptedCurrentAgreements: true });
     expect(resultForSeller.bought.length).toBe(1);
+  });
+
+  it("T013/T014 — an unaccepted current agreement produces one specific, non-generic action item with a direct href", () => {
+    const accepted = composeOverview({ organization: buyerOnly, registry: DASHBOARD_MODULES, hasAcceptedCurrentAgreements: true });
+    expect(accepted.needsAction).toEqual([]);
+
+    const notAccepted = composeOverview({ organization: buyerOnly, registry: DASHBOARD_MODULES, hasAcceptedCurrentAgreements: false });
+    expect(notAccepted.needsAction.length).toBe(1);
+    const [item] = notAccepted.needsAction;
+    expect(item!.href).toBe("/dashboard/");
+    render(<div>{item!.label}</div>);
+    expect(screen.queryByText(/^Action required$/i)).toBeNull();
+    expect(screen.getByText(/agreement/i)).toBeTruthy();
   });
 });

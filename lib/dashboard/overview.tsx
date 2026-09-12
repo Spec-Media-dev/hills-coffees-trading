@@ -12,10 +12,8 @@ import type { ActionItem, DashboardModule, OverviewCard } from "./modules";
  * `.tsx`, not `.ts`: the account area's card title/label are real `<AppBilingual>` elements, the same
  * reason `lib/dashboard/registry.tsx` is `.tsx`.
  *
- * NOT WIRED TO A LIVE PAGE YET (Feature 004 RUN A is Phase 1 "module contract" + Phase 2 "shell
- * layout" only). `src/app/dashboard/page.tsx` still renders `FoundationOverview` — Phase 4 (T011)
- * replaces that with this composer's output. This file exists now, proven by its own unit tests, so
- * later modules have a stable contract to register against before Phase 4 lands.
+ * RUN B (T011) — wired into the live `src/app/dashboard/page.tsx`, replacing the `FoundationOverview`
+ * placeholder RUN A left in place.
  */
 export type OverviewComposition = {
   account: readonly OverviewCard[];
@@ -56,6 +54,34 @@ function buildAccountArea(organization: OrganizationMembership): readonly Overvi
 }
 
 /**
+ * The one intrinsic (non-module) "needs your action" item this run genuinely surfaces: the current
+ * agreement registry not yet accepted by the acting organization. Sourced directly from
+ * `identity.hasAcceptedCurrentAgreements` (Feature 003, resolved fresh every request) — never
+ * re-derived from `agreement_acceptances` here, which would duplicate Feature 003's own logic.
+ *
+ * HONEST LIMITATION (recorded, not hidden): on the LIVE `/dashboard` page, this condition can never
+ * actually coexist with reaching `composeOverview` at all — `src/app/dashboard/page.tsx`'s existing,
+ * already-verified agreement gate intercepts `hasAcceptedCurrentAgreements === false` with a
+ * full-page `AgreementList` BEFORE this composer is ever called. This function exists and is proven
+ * correct at the unit level (RUN B directive's own test requirement) as forward-compatible
+ * infrastructure — restructuring that full-page gate into an inline action item was judged out of
+ * this run's scope (it would change already-verified Feature 003 UX/behaviour, not merely add to it).
+ * A KYB-remediation equivalent is NOT added here for the same structural reason, one step earlier:
+ * `!identity.isAuthorizedMember` intercepts before this composer runs at all, for every KYB state
+ * that would otherwise need remediation.
+ */
+function buildIntrinsicActionItems(hasAcceptedCurrentAgreements: boolean): readonly ActionItem[] {
+  if (hasAcceptedCurrentAgreements) return [];
+  return [
+    {
+      id: "accept-current-agreements",
+      label: <AppBilingual pick={(c) => c.dashboardOverview.needsAction.acceptAgreements} />,
+      href: "/dashboard/",
+    },
+  ];
+}
+
+/**
  * Composes the four module-contributed areas plus the account area. `registry` is the caller's
  * explicit `DashboardModule[]` (normally `DASHBOARD_MODULES` from `lib/dashboard/registry.tsx`) —
  * never imported implicitly, so a test can pass a controlled, empty, or fixture registry.
@@ -68,9 +94,11 @@ function buildAccountArea(organization: OrganizationMembership): readonly Overvi
 export function composeOverview({
   organization,
   registry,
+  hasAcceptedCurrentAgreements,
 }: {
   organization: OrganizationMembership;
   registry: readonly DashboardModule[];
+  hasAcceptedCurrentAgreements: boolean;
 }): OverviewComposition {
   const context = { organization };
   const granted = (capability: DashboardModule["requiredCapability"]): boolean => {
@@ -87,7 +115,7 @@ export function composeOverview({
   const bought: OverviewCard[] = [];
   const owe: OverviewCard[] = [];
   const where: OverviewCard[] = [];
-  const needsAction: ActionItem[] = [];
+  const needsAction: ActionItem[] = [...buildIntrinsicActionItems(hasAcceptedCurrentAgreements)];
 
   for (const dashboardModule of registry) {
     if (!granted(dashboardModule.requiredCapability)) continue;

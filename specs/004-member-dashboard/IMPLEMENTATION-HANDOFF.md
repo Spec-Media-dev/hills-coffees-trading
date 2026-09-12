@@ -173,9 +173,168 @@ child doesn't declare its own).
   did not fix (out of scope; flagging for whoever eventually addresses it).
 - Phases 3, 4, 5, 6, 8, and formal Phase 7/9 remain entirely unstarted, as directed.
 
+## RUN B (2026-09-12) — Phase 3 (Acting Organization, T009–T010) + Phase 4 (Overview Page, T011–T014) + Phase 5 (Ineligible Member States, T015–T017)
+
+**Scope of this run**: T009–T017 only. Phase 6 (account-area entries, T018) and Phases 7–9
+(T019–T029) remain **NOT started**. No database work — no migration, no new table/function/query
+surface. `organization_can_buy`/`organization_can_sell`/`is_authorized_member` untouched (confirmed:
+no migration files created or modified this run).
+
+### T009 — Acting-organization switcher (`components/dashboard/org-switcher.tsx`)
+
+A compact `OrgSwitcher`, rendered in `AppShell`'s `identitySubtitle` slot so the acting organization
+is visible on every `/dashboard` page, not only Settings. One organization → plain text, no selector
+(never `organizations[0]` — found by id instead, and the zero-organization case returns `null` rather
+than reading index 0 either). More than one → a real shadcn `Select` (`SelectValue` given an explicit
+`(value) => label` render function, since Base UI's Select otherwise displays the raw value string,
+not a human label — this was caught and fixed via the real browser pass, not merely inspected).
+
+**Real production build failure hit and fixed**: the switcher initially imported `setActingOrganization`
+directly from `lib/auth/eligibility.ts` — but that file's other exports transitively import
+`lib/supabase/server.ts` (`next/headers`), which cannot be bundled into client code. `next build`
+failed with exactly this trace. Fixed by having `dashboard/layout.tsx` (a Server Component) import
+`setActingOrganization` itself and pass it down as a `switchOrganization` prop — the standard,
+supported way a Client Component invokes a Server Action without importing its module graph. No
+second acting-organization mechanism was created; `setActingOrganization` itself is byte-for-byte the
+same function `OrganizationSelector` and `settings/acting-organization-switcher.tsx` already call.
+
+**Live-verified** (real Chrome/CDP): the multi-org fixture, after resolving the forced
+`OrganizationSelector` choice (a fresh sign-in with 2 memberships and no acting-org cookie yet lands
+there first — expected, unchanged Feature 003 behaviour), shows the switcher with
+`aria-label="Switch acting organization"` and the current organization's name. The single-org
+buyer-only fixture shows no `[role="combobox"]` at all.
+
+### T010 — Explicit acting-organization threading
+
+Already true by construction since RUN A (`composeOverview`/`buildDashboardNavGroups` take
+`organization` as an explicit parameter, never read ambiently). This run added:
+- An interleaved two-organization test (`tests/dashboard/org-switcher.test.tsx`) — four calls
+  alternating between two organizations, proving no cross-contamination (the strongest proof
+  available for pure, synchronous, no-I/O functions; true OS-level thread concurrency does not apply
+  here, and the directive's "concurrent requests" concern is about ambient/shared state, not
+  literal parallelism, which these functions structurally cannot have).
+- A grep-based regression (`globalThis`, top-level mutable `let`/`var`) across every `lib/dashboard`/
+  `components/dashboard` file — clean.
+
+### T011 — Live overview page (`src/app/dashboard/page.tsx`)
+
+The final, fully-eligible branch now calls `composeOverview` and renders `OverviewCardSection` (per
+area) + `ActionList` (needs-action), replacing `FoundationOverview`. Every guard branch above it
+(unauthorized/unattached, not-yet-authorized-member via `KybStatusScreen`, agreement-not-accepted via
+`AgreementList`) is completely untouched — reached and returned from exactly as before RUN B.
+`tests/design/uif-h.test.tsx` was updated to reflect this (its old assertion that `/dashboard` and
+`/dashboard-admin` both mount `FoundationOverview` is now stale for `/dashboard` — `/dashboard-admin`
+is unchanged, Feature 010's future scope).
+
+### T012 — Overview cards + formatting (`components/dashboard/overview-card.tsx`, `lib/dashboard/format.ts`)
+
+`formatMoney(4.8, "USD", "kg")` → `"USD 4.80 / kg"`; `formatQuantity(320, "bags", 60, "kg")` →
+`"320 bags · 60kg"`; `ReferenceCode` renders monospace tabular figures — all three proven by direct
+test assertion, not merely inspected. Deliberately narrow (two functions, one component) — not a
+financial formatting framework.
+
+**Fixed the pre-existing "Account" fallback localization gap** the RUN A handoff flagged: the
+account-menu display name now passes the raw, nullable `fullName`/`companyName` down and resolves the
+"Account" fallback CLIENT-SIDE inside `DashboardAccountMenu` via `tApp.dashboardAccount.fallbackName`
+— so it renders in the viewer's actual locale, an improvement over the narrower, still-unfixed
+English-only pattern `components/public/site-header.tsx` uses (deliberately not touched — outside
+Feature 004's path, Feature 002/003's scope).
+
+### T013 — "Needs your action" (`components/dashboard/action-list.tsx`, `lib/dashboard/overview.tsx`)
+
+`composeOverview` computes one real, specific, tested action item — "Accept the current membership
+agreements" → `/dashboard/` — when `hasAcceptedCurrentAgreements` is false. **Honestly documented
+architectural limitation**: on the LIVE page this can never actually render, because Feature 003's
+existing agreement gate (T025, already verified/closed) intercepts that exact condition with a
+full-page `AgreementList` BEFORE `composeOverview` is ever called. The equivalent KYB-remediation
+condition is unreachable one guard earlier, for the same structural reason
+(`!identity.isAuthorizedMember`). Restructuring either full-page gate into an inline item was judged
+out of RUN B's scope — it would change already-verified Feature 003 UX/behaviour, not merely extend
+Feature 004's own new surface. This is recorded in `lib/dashboard/overview.tsx`'s own header comment,
+not hidden, and directly unit-tested (`tests/dashboard/registry.test.tsx`) so the logic is proven
+correct even though it cannot currently surface live.
+
+### T014 — Honest empty states
+
+`dashboardOverview.{bought,owe,where,needsAction}.empty` (EN+AR) render only when an area is
+genuinely empty, explaining what will appear there — never a fabricated `0`/`$0`. Verified by
+rendering the composed cards and regex-scanning for currency/quantity patterns.
+
+### T015 — Ineligible-member states — REUSED, NOT REBUILT
+
+Feature 003's `KybStatusScreen` (T019–T021) already provides a distinct branch per
+`kyb_applications.status`, including the implicit "no application" (PENDING_KYB) state, with the
+approved vocabulary, a safe reason where available (REJECTED's `rejectionReason`, never a reviewer
+identity), and no trading CTA anywhere. `tests/dashboard/states.test.tsx` proves this — including that
+all four states produce genuinely distinct heading text — rather than building a second engine.
+
+### T016 — Direct-access security
+
+Features 005–009 have no real trading-module route yet — inventing one merely to "deny" it would
+have been exactly the "fake production route to satisfy a test" the run directive forbids. Proven
+instead with a controlled fixture module: nav visibility (`buildDashboardNavGroups`) and a route's own
+authorization decision are computed independently from the same `organization.canSell` fact, and a
+fixture "route guard" function correctly denies an ineligible organization regardless of whether its
+nav entry was hidden. Reconfirmed (position-based source check) that `dashboard/layout.tsx` still
+never reaches `<AppShell` for a not-yet-authorized organization. `lib/dashboard/modules.ts` itself
+states the rule any real future module route (005–009/012) must follow: the registry must never
+become a hidden authorization system.
+
+### T017 — Zero-organization user
+
+Already implemented by Feature 003 (`dashboard/layout.tsx`'s `identity.organization === null` branch
+→ `OnboardingExperience`, never `AppShell`) — unchanged this run. Added a Feature-004-owned regression
+test (`tests/dashboard/states.test.tsx`) confirming the property holds, alongside the pre-existing
+Feature 003 coverage.
+
+### Real browser pass — the RUN A gap is now closed
+
+`tests/browser/feature004-runb.browser.mjs`, on the same CDP harness (isolated production server,
+never the developer's own dev server). Verified: buyer-only fixture at EN light desktop, EN dark
+desktop, AR light mobile (confirmed `dir="rtl"`), AR dark mobile — 0 axe violations in every pass, no
+horizontal overflow, no selector shown for the single-membership fixture. Multi-org fixture: 0 axe
+violations, and the switcher renders with the correct accessible name and current-organization text.
+Pending-kyb fixture: 0 axe violations, and no dashboard shell chrome (no `[role="combobox"]`) leaks
+through for the not-yet-authorized state. Zero console errors, zero page errors, across every pass.
+SUSPENDED/REJECTED specifically were verified via component-level rendering of the real
+`KybStatusScreen` with fixture data (`tests/dashboard/states.test.tsx`), not independently re-driven
+through a live toggled-fixture browser session this run — the existing Feature 003 fixture-toggle
+mechanism for those two statuses was not exercised again here to avoid mutating shared fixture state
+without need, given the component-level evidence was already strong.
+
+### Regression run this run
+
+- Focused: all of `tests/dashboard/*` (5 files, 43 tests: 5 new/updated this run — `org-switcher`,
+  `states`, plus updates to `registry`), `tests/design/uif-f.test.tsx`, `tests/design/uif-h.test.tsx`
+  (1 assertion retargeted for the new live overview), and the full `tests/auth/*` suite (eligibility,
+  acting-organization, isolation, MFA/session, admin-auth boundary) — all passing, no regressions.
+- `npm run typecheck` — clean.
+- `npm test` — **592/592 passing, 51 files** (up from RUN A's 572/49).
+- `npm run build` — clean (after fixing the client/server boundary issue above).
+- `npm run lint` — 272 problems, all under the historical `docs/claude-design/` baseline; zero new
+  findings in Feature 004 code.
+- `git diff --check` — clean.
+- Mechanical greps (T010/T016/T027/T028-equivalent): `globalThis|module-scope let`,
+  `cacheTag|unstable_cache|SERVICE_ROLE`, `buyer-dashboard|seller-dashboard`, and the RTL
+  `text-left|text-right|[^-]pl-|[^-]pr-` scan across `src/app/dashboard`/`components/dashboard` all
+  return nothing. `git diff --stat` against `src/app/dashboard-admin`/`src/app/admin` is empty — the
+  Admin/Member boundary was not touched.
+
+## Honest gaps (not blockers to closing T009–T017, but real and undone)
+
+- The "needs your action" agreement item is real and tested but structurally unreachable on the live
+  page (see T013 above) — this is a known, documented limitation, not a defect, but a future run
+  should decide deliberately whether to restructure the full-page agreement gate into an inline
+  experience, rather than this remaining accidental.
+- SUSPENDED/REJECTED were not independently re-verified through a live, toggled-fixture browser
+  session this run (component-level `KybStatusScreen` rendering was used instead — see above).
+- Phase 6 (account-area entries, T018) and formal Phases 7–9 (T019–T029) remain entirely unstarted.
+- `components/public/site-header.tsx`'s own "Account" fallback remains English-only/unlocalized —
+  still out of Feature 004's path, not fixed this run either.
+
 ## Exact next run
 
-Phase 3 (T009 — `components/dashboard/org-switcher.tsx` consuming 003's acting-organization
-resolution; T010 — thread the acting organization explicitly through every module render path with no
-ambient global) is the next scoped unit of work, followed by Phase 4 (wiring `composeOverview` into
-`src/app/dashboard/page.tsx`, replacing `FoundationOverview`).
+Phase 6 (T018 — add account-area navigation entries: profile, organization, agreements, KYB status,
+pointing at Feature 003's existing screens; register them as this feature's registry entries) is the
+next scoped unit of work, followed by Phase 7 (formal automated test suite, T019–T022) and Phase 8
+(accessibility/RTL/no-JS closure, T023–T025).

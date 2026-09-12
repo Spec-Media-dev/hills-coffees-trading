@@ -6,12 +6,14 @@ import { PreAuthHeader } from "@/components/app/pre-auth-header";
 import { OnboardingExperience } from "@/components/account/onboarding-experience";
 import { OrganizationSelector } from "@/components/account/organization-selector";
 import { ResendVerificationButton } from "@/components/account/resend-verification-button";
+import { OrgSwitcher } from "@/components/dashboard/org-switcher";
 import { buildDashboardNavGroups } from "@/components/dashboard/sidebar";
 import { DashboardTopbarActions } from "@/components/dashboard/topbar";
 import { AppBilingual } from "@/components/locale/app-bilingual";
 import { StateScreen } from "@/components/layout/state-screen";
 import { appCopy } from "@/lib/app/copy";
 import { getRequestIdentity } from "@/lib/auth/dal";
+import { setActingOrganization } from "@/lib/auth/eligibility";
 import { DASHBOARD_MODULES } from "@/lib/dashboard/registry";
 
 /**
@@ -168,12 +170,18 @@ export default async function DashboardLayout({
     <AppShell
       navGroups={buildDashboardNavGroups({ modules: DASHBOARD_MODULES, organization: identity.organization })}
       workspaceLabel={<AppBilingual pick={(c) => c.memberWorkspace} />}
-      identitySubtitle={identity.organization.displayName}
+      identitySubtitle={
+        <OrgSwitcher
+          organizations={identity.organizations}
+          currentOrganizationId={identity.organization.organizationId}
+          switchOrganization={setActingOrganization}
+        />
+      }
       logoHref="/dashboard"
       footerNote={appCopy.roleVisibilityNote}
       topbarActions={
         <DashboardTopbarActions
-          displayName={identity.profile.fullName ?? identity.profile.companyName ?? "Account"}
+          displayName={identity.profile.fullName ?? identity.profile.companyName ?? null}
           organizationName={identity.organization.displayName}
         />
       }

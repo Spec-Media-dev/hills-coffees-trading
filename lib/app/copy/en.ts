@@ -141,6 +141,42 @@ export const en = {
     dashboardAccount: {
       cardTitle: "Your organization",
       roleLabel: "Your role",
+      /**
+       * Feature 004 T012 (RUN B) — the account-menu display-name fallback for a profile with no
+       * `fullName`/`companyName` set. Resolved CLIENT-SIDE via `useLocale().tApp` inside
+       * `DashboardAccountMenu`, not pre-resolved server-side, so it renders in the viewer's actual
+       * locale rather than always English (the earlier, narrower pattern
+       * `components/public/site-header.tsx` already used and this run deliberately does not touch).
+       */
+      fallbackName: "Account",
+    },
+    /** Feature 004 T009 — the compact acting-organization switcher rendered in the topbar. */
+    dashboardOrgSwitcher: {
+      label: "Switch acting organization",
+    },
+    /**
+     * Feature 004 T011–T014 — the live member overview page's section titles and honest empty
+     * states. Every area explains what WOULD appear there once relevant activity exists — never a
+     * fabricated zero (`0 orders`, `$0`) for a module that has not been implemented yet.
+     */
+    dashboardOverview: {
+      bought: {
+        title: "What you've bought",
+        empty: "Your completed purchases will appear here once you place an order.",
+      },
+      owe: {
+        title: "What you owe",
+        empty: "Any outstanding balance will appear here once an order is invoiced.",
+      },
+      where: {
+        title: "Where it is",
+        empty: "Delivery and custody status will appear here once you have coffee in transit or storage.",
+      },
+      needsAction: {
+        title: "Needs your action",
+        empty: "Nothing needs your attention right now.",
+        acceptAgreements: "Accept the current membership agreements",
+      },
     },
     patternsNote:
       "Visual foundation only — no business data is read, and no module here is functionally implemented.",
