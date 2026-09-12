@@ -22,6 +22,18 @@ import type { DashboardModule } from "./modules";
  * contributes no `overviewCards`/`actionItems` — its own identity/status summary is composed
  * directly from `RequestIdentity` by `lib/dashboard/overview.ts`'s `account` area, not through this
  * module system, so there is nothing here to duplicate 003's own logic with.
+ *
+ * FEATURE 004 T018 — "Profile" and "Organization" are the Settings entry below (with a
+ * `description` making that explicit, reusing the already-reviewed `settingsPage.description`
+ * copy — no new string invented). "Agreements" and "KYB Status" get NO separate nav entry: neither
+ * has a route an already-authorized member can actually reach today. `/dashboard/kyb/` redirects an
+ * authorized member straight back to `/dashboard/` (`src/app/dashboard/kyb/page.tsx`'s own guard),
+ * and there is no standalone "view your accepted agreements" page — both only ever appear as
+ * full-page GATES an ineligible/not-yet-accepted caller sees on the way IN, never as a destination an
+ * already-eligible member can navigate BACK to. Registering a nav entry for either would be exactly
+ * the "invent a route merely because the task names a conceptual destination" the run directive
+ * forbids. This is a genuine, honestly-documented product gap for a future run to decide on
+ * deliberately (e.g. a read-only agreement-history view), not something to route around here.
  */
 export const DASHBOARD_MODULES: readonly DashboardModule[] = [
   {
@@ -50,6 +62,7 @@ export const DASHBOARD_MODULES: readonly DashboardModule[] = [
             label: <AppBilingual pick={(c) => c.settings} />,
             href: "/dashboard/settings",
             icon: <Icon name="settings" className="size-[18px]" />,
+            description: <AppBilingual pick={(c) => c.settingsPage.description} />,
             requiredCapability: "member",
           },
         ],

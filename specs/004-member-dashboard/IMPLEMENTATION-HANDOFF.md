@@ -332,9 +332,163 @@ without need, given the component-level evidence was already strong.
 - `components/public/site-header.tsx`'s own "Account" fallback remains English-only/unlocalized —
   still out of Feature 004's path, not fixed this run either.
 
+## RUN C (2026-09-12) — Phase 6 (Account Area Entry, T018) + Phase 7 (Automated Tests, T019–T022) + Phase 8 (Accessibility/RTL/No-JS, T023–T025)
+
+**Scope of this run**: T018–T025 only. Phase 9 (final closure, T026–T029) is **NOT started** — this
+run does not mark Feature 004 closed. No database work — no migration, no new table/function/query
+surface. `organization_can_buy`/`organization_can_sell`/`is_authorized_member` untouched this run
+(confirmed: no migration files created or modified). The applied MFA migration was not touched.
+
+### T018 — Account-area navigation registration
+
+The route tree was inspected first (`src/app/dashboard/**`) rather than assuming the four conceptual
+destinations the task names each need their own route. Finding: only TWO real, reachable routes exist
+for an already-authorized member — `/dashboard` (Overview) and `/dashboard/settings` (Profile +
+organization contact + team + acting-org switcher, all on ONE page). `/dashboard/kyb/` redirects an
+authorized member straight back to `/dashboard/` (its own existing guard); there is no standalone
+"view your accepted agreements" page. So "Profile" and "Organization" truthfully collapse into the
+already-registered Settings entry (now carrying a `description` — `settingsPage.description`, an
+existing, already-reviewed copy key, not a new one) and "Agreements"/"KYB Status" get NO nav entry at
+all — inventing either would have been exactly the "invent a route merely because the task names a
+conceptual destination" the run directive forbids. This is a genuine, honestly-documented product gap
+(`lib/dashboard/registry.tsx`'s own header comment records it) for a future run to decide on
+deliberately, not something worked around here.
+
+### T019 — Capability gating tests (`tests/dashboard/capability-gating.test.ts`)
+
+A dedicated file proving: buyer-only renders no seller group; buyer+seller renders both, seller
+additive; and — the strongest evidence in this run — REAL freshness, using the exact same
+`setBuyerAndSellerCanSell` live-fixture toggle Feature 003's own `tests/auth/request-identity.test.ts`
+already established for this exact fixture (canonical state recovered first, restored in a `finally`,
+identical discipline). `organization_can_sell` is flipped false→true on the real `buyerAndSeller`
+fixture through the SAME signed-in Supabase client, with no sign-out and no new session — the very
+next `buildDashboardNavGroups` call reflects the change. Direct-access proof level stays at "controlled
+fixture module + route-guard stand-in" — Features 005–009 still have no real route to deny, and no
+fake one was invented to manufacture a stronger-looking proof.
+
+### T020 — Registry tests (`tests/dashboard/registry.test.ts`)
+
+Extended RUN A's 11 tests to 15: registered navigation renders in the correct group in deterministic
+order; duplicate group keys across two modules merge into ONE header with both modules' entries
+present in registration order (the chosen, now-documented contract — not silently dropped, not two
+headers); the nav builder and composer both produce deep-equal output across repeated calls with
+identical inputs (determinism); and a direct reconfirmation that the registry cannot execute a
+capability declaration (no `eval`/`new Function` anywhere in the builder).
+
+### T021 — State tests (`tests/dashboard/states.test.tsx`)
+
+Extended RUN B's 10 tests to 13, adding the two states the run directive names explicitly that RUN B
+had not yet covered: the "empty overview" state (an approved organization with zero registered
+business-module contributions — the honest, everyday case today) and an explicit confirmation that an
+ELIGIBLE organization's composed overview never contains PENDING/UNDER_REVIEW/SUSPENDED/REJECTED
+vocabulary, plus a source-position check that `dashboard/page.tsx` only calls `composeOverview`
+strictly after every ineligible-state guard has already returned.
+
+### T022 — Tenant isolation / concurrency (`tests/dashboard/tenant-isolation.test.ts`)
+
+The security-sensitive proof the run directive flags as NO-GO on failure. Signs in as the REAL
+`multiOrg` fixture ONCE, fetches BOTH real organizations' `display_name`/`member_role`/
+`organization_can_buy`/`organization_can_sell` via a single `Promise.all` (8 concurrent live Supabase
+calls — the same `Promise.all`-of-independent-queries pattern `tests/auth/isolation.test.ts` already
+established), builds two real `OrganizationMembership` objects from the results, then feeds them into
+`composeOverview`/`buildDashboardNavGroups` genuinely INTERLEAVED via `Promise.all` (never
+sequential-then-sequential) — asserting neither organization's result ever contains the other's
+id/display name. Documented reasoning for why this is the correct, strongest available proof (not a
+weaker substitute): these functions are pure, synchronous, and take their only organization input as
+an explicit parameter with no shared state anywhere in their call graph — literal OS-thread
+concurrency cannot apply to them at all, so the meaningful failure mode a test could actually catch is
+accidental shared/ambient state, which real concurrently-fetched data run through an interleaved call
+pattern directly exercises. The `globalThis`/module-scope-mutable grep remains as a second,
+independent, corroborating check — not the sole proof, per the run directive's explicit instruction
+not to settle for that alone.
+
+### Org-switch-failure feedback audit — conclusion: no code change needed
+
+Audited carefully, as directed. The only way `setActingOrganization` can fail to switch is an
+organization id that is not in the caller's CURRENT, freshly-resolved membership list. Two ways this
+can happen:
+1. **Malicious/tampered input** — a raw client-supplied id for an organization the caller never
+   belonged to. Already, correctly, silently refused (no cookie written), matching Feature 003's own
+   documented, deliberate design for the other two call sites of this same function.
+2. **A genuine, legitimate race** — a membership revoked between the switcher rendering and the click
+   (e.g. an admin removes the member from that org a moment later). This is real but does not leave
+   the user misled: the redirect lands them back on the same page, which still accurately shows their
+   real, unchanged acting organization — nothing was silently "switched" to a wrong context, and
+   nothing false is displayed.
+
+Because the only failure mode is safely and silently refused, and the "genuine race" case still
+resolves to an accurate, non-misleading state, this satisfies the run directive's own stated exception
+("If the only invalid case is malicious/direct tampering and the server safely refuses it, do not
+manufacture unnecessary UI complexity"). No Sonner wiring was added; `setActingOrganization`'s
+always-redirects contract (shared by three call sites) was not changed. `dashboardAccount`'s existing
+`actingOrganizationSwitchFailed` copy key remains reserved/unused, consistent with this conclusion —
+not a defect, a deliberate non-change.
+
+### T023 — Accessibility pass (real Chrome/CDP, `tests/browser/feature004-runc.browser.mjs`)
+
+0 axe violations on `/dashboard/` and `/dashboard/settings/` (buyer-only fixture), re-confirmed after
+this run's registry `description` addition. Landmarks: exactly one labelled `nav`, one `header`, one
+`main`. Active nav state exposed via `aria-current="page"`. Keyboard: 25 sequential Tab presses land
+on a real focusable element with a visible focus outline — no trap encountered. Mobile drawer (390px):
+opens with focus genuinely moved inside `[role="dialog"]` (confirmed via `dialog.contains(document.
+activeElement)`, not inferred), Escape closes it and focus verifiably returns to a labelled trigger,
+and no horizontal overflow remains afterward.
+
+### T024 — EN/AR/RTL/externalised copy
+
+The exact grep (broadened to also include `ml-`/`mr-`) returns nothing across `src/app/dashboard`,
+`components/dashboard`, `lib/dashboard`. **The "Account" fallback localization debt is now fully
+eliminated from Feature 004's own surface** (RUN B already fixed the dashboard account-menu's
+fallback). This run specifically audited the ONE remaining instance the RUN B handoff flagged —
+`components/public/site-header.tsx` — and confirmed it is genuinely OUTSIDE Feature 004's surface:
+`SiteHeader` renders only on the public marketing site via `PublicShell`, never inside `/dashboard/*`
+(which uses `AppShell`/`Topbar` instead). Left deliberately untouched — Feature 002/003's ownership,
+per the run directive's own conditional wording ("if it is in the Feature 004/member portal surface").
+
+### T025 — No-JS / client-island audit
+
+**Real no-JS browser request**, not source inference: signed in normally (with JS), then
+re-requested `/dashboard/` with `Emulation.setScriptExecutionDisabled` genuinely set via CDP. Result:
+a real `<nav>` and `<main>` present in the raw HTML, page body non-empty (342 characters of real
+text), and the localized "Overview"/"نظرة عامة" label itself present in the unhydrated markup.
+`grep -rln "use client" components/dashboard src/app/dashboard` lists exactly: `org-switcher.tsx` (the
+interactive `Select`), `topbar.tsx` (dropdown/dialog state), `src/app/dashboard/error.tsx` (a required
+Next.js convention — error boundaries must be Client Components, unrelated to this feature's own
+choices), and the two pre-existing Feature 003 settings forms (`organization-contact-form.tsx`,
+`profile-settings-form.tsx` — untouched this run, Feature 003's own scope). No Feature 004 component
+was made client-side without a genuine interaction reason; `sidebar.tsx` (a pure function, not even a
+component), `overview-card.tsx`, `action-list.tsx`, and `responsive/table-card-list.tsx` all remain
+plain Server Components.
+
+### Regression run this run
+
+- Focused: `tests/dashboard/*` (7 files, 51 tests — 13 new/added this run across
+  `capability-gating.test.ts` [new], `tenant-isolation.test.ts` [new], `registry.test.ts` [+4],
+  `states.test.tsx` [+3]).
+- `npm run typecheck` — clean.
+- `npm test` — **605/605 passing, 53 files** (up from RUN B's 592/51).
+- `npm run build` — clean.
+- `npm run lint` — 272 problems, all under the historical `docs/claude-design/` baseline; zero new
+  findings in Feature 004 code.
+- `git diff --check` — clean.
+- `git diff --stat` against `src/app/dashboard-admin`/`src/app/admin` — empty; the Admin/Member
+  boundary was not touched.
+- Mechanical greps (RTL, shared-cache/service-role, buyer/seller-dashboard, ambient state) — all
+  return nothing, reconfirmed after this run's additions.
+
+## Honest gaps (not blockers to closing T018–T025, but real and undone)
+
+- The "needs your action" agreement item (RUN B) remains real, tested, but structurally unreachable on
+  the live page — unchanged this run, a deliberate scope decision, not newly discovered.
+- SUSPENDED/REJECTED remain verified via component-level `KybStatusScreen` rendering, not an
+  independently re-driven live, toggled-fixture browser session (same conclusion as RUN B — the
+  component-level evidence plus this run's real-browser pass on other fixtures was judged sufficient;
+  toggling those specific shared fixtures again was not necessary to add further confidence).
+- Only Phase 9 (T026–T029 — final verification/closure, roadmap finalization) remains before Feature
+  004 can be formally declared closed.
+
 ## Exact next run
 
-Phase 6 (T018 — add account-area navigation entries: profile, organization, agreements, KYB status,
-pointing at Feature 003's existing screens; register them as this feature's registry entries) is the
-next scoped unit of work, followed by Phase 7 (formal automated test suite, T019–T022) and Phase 8
-(accessibility/RTL/no-JS closure, T023–T025).
+Phase 9 (T026 — run lint/typecheck/tests/build; T027 — confirm no `/buyer-dashboard`/`/seller-dashboard`
+route anywhere; T028 — confirm no shared cache/service-role usage; T029 — final roadmap/documentation
+closure) is the next and final scoped unit of work for Feature 004.

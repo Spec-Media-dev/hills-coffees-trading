@@ -6,6 +6,8 @@ import { afterEach, describe, expect, it } from "vitest";
 import { KybStatusScreen } from "@/components/account/kyb-status-screen";
 import { buildDashboardNavGroups } from "@/components/dashboard/sidebar";
 import { LocaleProvider } from "@/components/locale/locale-provider";
+import { composeOverview } from "@/lib/dashboard/overview";
+import { DASHBOARD_MODULES } from "@/lib/dashboard/registry";
 import type { KybApplicationSummary } from "@/lib/kyb/status-types";
 import type { DashboardModule } from "@/lib/dashboard/modules";
 import type { OrganizationMembership } from "@/lib/auth/types";
@@ -166,5 +168,46 @@ describe("Feature 004 T017 — zero-organization member stays in onboarding, nev
     expect(nullOrgIndex).toBeGreaterThan(-1);
     expect(onboardingIndex).toBeGreaterThan(nullOrgIndex);
     expect(onboardingIndex).toBeLessThan(appShellIndex);
+  });
+});
+
+/**
+ * Feature 004 T021 — the remaining two required states this run's directive names explicitly:
+ * "empty overview" (an approved organization with no business-module contributions yet — the
+ * everyday case today) and confirmation that an ELIGIBLE approved organization actually receives the
+ * real composed dashboard rather than any ineligible-state screen.
+ */
+describe("Feature 004 T021 — empty overview state, and eligible member receives the real dashboard", () => {
+  const approvedOrg: OrganizationMembership = {
+    organizationId: "org-approved",
+    displayName: "Approved Trading Co",
+    memberRole: "OWNER",
+    canBuy: true,
+    canSell: false,
+  };
+
+  it("an approved organization with no registered business-module contributions sees an honest empty overview — never a fake business dashboard", () => {
+    const overview = composeOverview({ organization: approvedOrg, registry: DASHBOARD_MODULES, hasAcceptedCurrentAgreements: true });
+    expect(overview.account.length).toBeGreaterThan(0);
+    expect(overview.bought).toEqual([]);
+    expect(overview.owe).toEqual([]);
+    expect(overview.where).toEqual([]);
+    expect(overview.needsAction).toEqual([]);
+  });
+
+  it("dashboard/page.tsx's fully-eligible branch (past every ineligible-state guard) is the one that calls composeOverview — reconfirmed by source position", () => {
+    const page = source("src/app/dashboard/page.tsx");
+    const authorizedGuardIndex = page.indexOf("if (!identity.isAuthorizedMember)");
+    const agreementGuardIndex = page.indexOf('eligibility.nextAction === "accept-agreements"');
+    const composeIndex = page.indexOf("composeOverview(");
+    expect(authorizedGuardIndex).toBeGreaterThan(-1);
+    expect(agreementGuardIndex).toBeGreaterThan(authorizedGuardIndex);
+    expect(composeIndex).toBeGreaterThan(agreementGuardIndex);
+  });
+
+  it("an eligible organization's nav/overview never renders any ineligible-state vocabulary (PENDING_KYB/UNDER_REVIEW/SUSPENDED/REJECTED wording)", () => {
+    const overview = composeOverview({ organization: approvedOrg, registry: DASHBOARD_MODULES, hasAcceptedCurrentAgreements: true });
+    const allText = JSON.stringify(overview);
+    expect(allText).not.toMatch(/pending|under review|suspended|rejected/i);
   });
 });

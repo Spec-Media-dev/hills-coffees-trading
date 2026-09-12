@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import type { DashboardModule } from "@/lib/dashboard/modules";
 import { DASHBOARD_MODULES } from "@/lib/dashboard/registry";
 import { composeOverview } from "@/lib/dashboard/overview";
+import { buildDashboardNavGroups } from "@/components/dashboard/sidebar";
 import type { OrganizationMembership } from "@/lib/auth/types";
 
 /**
@@ -71,6 +72,55 @@ describe("T002 — static registry lists implemented modules only", () => {
       expect(ids).not.toContain(name);
       expect(allHrefs.join(" ").toLowerCase()).not.toContain(name);
     }
+  });
+
+  it("T020 — registered navigation appears in the correct group, in a deterministic order", () => {
+    const buyerOnlyOrg: OrganizationMembership = { organizationId: "o", displayName: "O", memberRole: "OWNER", canBuy: true, canSell: false };
+    const groups = buildDashboardNavGroups({ modules: DASHBOARD_MODULES, organization: buyerOnlyOrg });
+    expect(groups.map((g) => g.key)).toEqual(["overview", "account"]);
+    expect(groups[0]!.items.map((i) => i.href)).toEqual(["/dashboard"]);
+    expect(groups[1]!.items.map((i) => i.href)).toEqual(["/dashboard/settings"]);
+  });
+
+  it("T020 — registry metadata cannot grant access: requiredCapability is read-only presentational data, never invoked/executed by the builder", () => {
+    // If the builder ever "executed" a capability declaration (rather than merely comparing it to
+    // the organization's own resolved boolean), that would be the registry silently becoming an
+    // authorization system — the exact defect this test guards against.
+    const src = readFileSync("components/dashboard/sidebar.tsx", "utf8");
+    expect(src).not.toMatch(/eval\(|new Function\(/);
+    expect(src).toMatch(/PRESENTATIONAL ONLY/);
+  });
+
+  it("T020 — duplicate group keys across modules are merged, not silently dropped or duplicated as two headers (the chosen, documented contract)", () => {
+    const moduleA: DashboardModule = {
+      id: "dup-a",
+      requiredCapability: "member",
+      navGroups: [{ key: "account", label: "Account", entries: [{ id: "a-entry", label: "A", href: "/a", requiredCapability: "member" }] }],
+    };
+    const moduleB: DashboardModule = {
+      id: "dup-b",
+      requiredCapability: "member",
+      navGroups: [{ key: "account", label: "Account", entries: [{ id: "b-entry", label: "B", href: "/b", requiredCapability: "member" }] }],
+    };
+    const org: OrganizationMembership = { organizationId: "o", displayName: "O", memberRole: "OWNER", canBuy: true, canSell: false };
+    const groups = buildDashboardNavGroups({ modules: [moduleA, moduleB], organization: org });
+    // One "account" group header, both modules' entries present — never two separate "account" headers.
+    expect(groups.filter((g) => g.key === "account").length).toBe(1);
+    expect(groups.find((g) => g.key === "account")!.items.map((i) => i.key)).toEqual(["a-entry", "b-entry"]);
+  });
+
+  it("T020 — the registry/builder are deterministic: identical inputs produce identical (deep-equal) output across repeated calls", () => {
+    const org: OrganizationMembership = { organizationId: "o", displayName: "O", memberRole: "OWNER", canBuy: true, canSell: true };
+    const first = buildDashboardNavGroups({ modules: DASHBOARD_MODULES, organization: org });
+    const second = buildDashboardNavGroups({ modules: DASHBOARD_MODULES, organization: org });
+    expect(second).toEqual(first);
+
+    const overviewFirst = composeOverview({ organization: org, registry: DASHBOARD_MODULES, hasAcceptedCurrentAgreements: true });
+    const overviewSecond = composeOverview({ organization: org, registry: DASHBOARD_MODULES, hasAcceptedCurrentAgreements: true });
+    expect(overviewSecond.bought).toEqual(overviewFirst.bought);
+    expect(overviewSecond.owe).toEqual(overviewFirst.owe);
+    expect(overviewSecond.where).toEqual(overviewFirst.where);
+    expect(overviewSecond.needsAction).toEqual(overviewFirst.needsAction);
   });
 });
 

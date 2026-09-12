@@ -4,12 +4,14 @@
 `.specify/memory/constitution.md` (v2.0.0), `docs/claude-design/` dashboard layout.
 
 **Status**: **RUN A (2026-09-12) COMPLETE — Phase 1 (T001–T003) + Phase 2 (T004–T008).
-RUN B (2026-09-12) COMPLETE — Phase 3 (T009–T010) + Phase 4 (T011–T014) + Phase 5 (T015–T017),
-17/29 tasks.** Phases 6–9 (T018–T029 — account-area entries, formal test/closure phases) remain NOT
-STARTED. See [IMPLEMENTATION-HANDOFF.md](./IMPLEMENTATION-HANDOFF.md) for full evidence per task.
-This is NOT Feature 004 completion — the shell now truthfully reflects who the member is acting for,
-whether that organization is eligible, and what implemented modules contribute, but no business
-module (005–009, 012) exists yet.
+RUN B (2026-09-12) COMPLETE — Phase 3 (T009–T010) + Phase 4 (T011–T014) + Phase 5 (T015–T017).
+RUN C (2026-09-12) COMPLETE — Phase 6 (T018) + Phase 7 (T019–T022) + Phase 8 (T023–T025),
+25/29 tasks.** Only Phase 9 (T026–T029 — final verification/closure) remains. See
+[IMPLEMENTATION-HANDOFF.md](./IMPLEMENTATION-HANDOFF.md) for full evidence per task. Feature 004 is
+NOT yet formally closed — Phase 9's final regression/documentation pass is still required — but is
+now functionally complete: the shell truthfully reflects who the member is acting for, whether that
+organization is eligible, and what implemented modules contribute, with real accessibility/RTL/no-JS
+verification behind it.
 **Prerequisite**: 001 (guard, identity, states, tokens) and 003 (eligibility layer, acting
 organization, agreement gate) implemented.
 
@@ -228,68 +230,139 @@ organization, agreement gate) implemented.
 
 ## Phase 6 — Account area entry
 
-- [ ] T018 [P] Add account-area navigation entries (profile, organization, agreements, KYB status)
+- [x] T018 [P] Add account-area navigation entries (profile, organization, agreements, KYB status)
   pointing at 003's screens; register them as this feature's initial registry entries.
   - Req: FR-005 | Depends: T002, T005
   - Verify: all four entries resolve to 003 routes; none duplicate 003's logic
   - Codex: GPT-5.6 Sol — Low · Claude: Sonnet — Low
   - Why: straightforward registration and linking.
+  - **CLOSURE (2026-09-12) — TRUTHFUL COLLAPSE, NOT FOUR ROUTES**: the route tree was inspected first
+    (`src/app/dashboard/**`). "Profile" and "Organization" both genuinely live on the ONE existing
+    `/dashboard/settings` route (already registered since RUN A) — the Settings entry now carries a
+    `description` making that explicit (`settingsPage.description`, an already-reviewed, existing copy
+    key — no new string invented). "Agreements" and "KYB Status" get NO nav entry: neither has a
+    route an already-authorized member can actually reach — `/dashboard/kyb/` redirects an authorized
+    member straight back to `/dashboard/`, and no standalone agreement-history view exists. Both only
+    ever appear as full-page GATES on the way in, never as a destination to navigate back to.
+    Inventing a route for either would have been exactly the "invent a route merely because the task
+    names a conceptual destination" the run directive forbids — documented as a genuine, honest
+    product gap in `lib/dashboard/registry.tsx`'s own header comment for a future run to decide on
+    deliberately.
 
 ---
 
 ## Phase 7 — Automated tests
 
-- [ ] T019 [P] Write `tests/dashboard/capability-gating.test.ts`: buyer-only sees no seller nav and is
+- [x] T019 [P] Write `tests/dashboard/capability-gating.test.ts`: buyer-only sees no seller nav and is
   refused at a seller route; buyer+seller sees both; revocation reflected on the next request.
   - Req: FR-002, FR-003, SC-001, SC-002 | Depends: T005, T016
   - Verify: `npm test -- capability-gating` passes
   - Codex: GPT-5.6 Sol — High · Claude: Opus — High
   - Why: the primary automated proof of the Buyer/Seller additive model and the nav-is-not-authorization rule.
+  - **CLOSURE (2026-09-12)**: 4/4 passing. Freshness is proven with REAL data — the same
+    `setBuyerAndSellerCanSell` live-fixture toggle Feature 003's own `request-identity.test.ts`
+    established (no mock, no second mechanism): `organization_can_sell` is flipped false→true on the
+    real `buyerAndSeller` fixture via the SAME signed-in client, with no sign-out, and the very next
+    `buildDashboardNavGroups` call reflects it — canonical state recovered first and restored in a
+    `finally`, per that file's own established discipline. Direct-access proof level: controlled
+    fixture module + a "route guard" stand-in (no real 005–009 route exists to deny yet — honestly
+    documented, not fabricated).
 
-- [ ] T020 [P] Write `tests/dashboard/registry.test.ts`: unregistered modules contribute nothing;
+- [x] T020 [P] Write `tests/dashboard/registry.test.ts`: unregistered modules contribute nothing;
   registered entries appear in the right group/area.
   - Req: FR-005, FR-006 | Depends: T002, T003
   - Verify: `npm test -- registry` passes
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — Low
   - Why: focused unit test over a small contract.
+  - **CLOSURE (2026-09-12)**: 15/15 passing (11 from RUN A + 4 new). Added: duplicate group-key
+    handling (two modules contributing to the SAME group key are merged into one header, entries from
+    both present, in registration order — the chosen, now-documented contract); determinism (identical
+    inputs → deep-equal output across repeated calls, for both the nav builder and the composer);
+    registry-metadata-cannot-grant-access (no `eval`/`new Function`, and the file's own
+    "PRESENTATIONAL ONLY" documentation reconfirmed present).
 
-- [ ] T021 [P] Write `tests/dashboard/states.test.tsx`: the four ineligible states plus empty overview
+- [x] T021 [P] Write `tests/dashboard/states.test.tsx`: the four ineligible states plus empty overview
   render correctly.
   - Req: SC-005, FR-009 | Depends: T014, T015
   - Verify: `npm test -- states` passes
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — Low
   - Why: render assertions over defined fixtures.
+  - **CLOSURE (2026-09-12)**: 13/13 passing (10 from RUN B + 3 new). Added the "empty overview" state
+    (an approved organization with zero business-module contributions — the everyday case today,
+    honest empty result, no fake dashboard content) and an explicit reconfirmation that an eligible
+    organization's composed overview never contains any ineligible-state vocabulary
+    (PENDING/UNDER_REVIEW/SUSPENDED/REJECTED), plus a source-position check that `dashboard/page.tsx`
+    only calls `composeOverview` strictly after every ineligible-state guard.
 
-- [ ] T022 Write `tests/dashboard/tenant-isolation.test.ts`: concurrent requests for different acting
+- [x] T022 Write `tests/dashboard/tenant-isolation.test.ts`: concurrent requests for different acting
   organizations never observe each other's data.
   - Req: SEC-003, SEC-005, FR-010 | Depends: T010
   - Verify: `npm test -- tenant-isolation` passes under concurrent execution
   - Codex: GPT-5.6 Sol — High · Claude: Opus — High
   - Why: concurrency-shaped cross-tenant test; failure modes here are subtle and severe.
+  - **CLOSURE (2026-09-12) — REAL DATA, GENUINELY INTERLEAVED**: signs in as the real `multiOrg`
+    fixture ONCE, then fetches BOTH real organizations' `display_name`/`member_role`/
+    `organization_can_buy`/`organization_can_sell` via one `Promise.all` (8 concurrent real Supabase
+    calls), and feeds the two real `OrganizationMembership` objects into `composeOverview`/
+    `buildDashboardNavGroups` interleaved via `Promise.all` (not sequential-then-sequential) — 4
+    interleaved composer calls plus 2 interleaved nav-builder calls, asserting each organization's
+    result never contains the other's id/name. This is the strongest available proof for functions
+    that are pure/synchronous/take their only input as an explicit parameter: no shared mutable state
+    exists anywhere in their call graph for literal OS-thread concurrency to expose, so real, distinct,
+    concurrently-fetched data fed through an interleaved call pattern is the genuine test of the
+    property, not merely "no obvious globals." A second, independent grep-based check (`globalThis`,
+    top-level mutable `let`/`var`) across every `lib/dashboard`/`components/dashboard` file remains as
+    corroborating evidence, not the sole proof.
 
 ---
 
 ## Phase 8 — Accessibility, RTL, no-JS
 
-- [ ] T023 Accessibility pass: sidebar/topbar landmarks, keyboard traversal, focus visibility, drawer
+- [x] T023 Accessibility pass: sidebar/topbar landmarks, keyboard traversal, focus visibility, drawer
   focus trapping, badge semantics (dot + label, never colour alone).
   - Req: FR-008, FR-009 | Depends: Phases 2–5
   - Verify: automated a11y check reports no critical violations; full keyboard traversal of nav and overview succeeds
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — High
   - Why: navigation a11y (focus trapping, landmarks) needs judgment beyond automated rules.
+  - **CLOSURE (2026-09-12) — REAL BROWSER (Chrome/CDP)**: 0 axe violations on `/dashboard/` and
+    `/dashboard/settings/` (buyer-only fixture, re-confirmed after this run's registry `description`
+    change). Landmarks: exactly one labelled `nav`, one `header`, one `main`. Active nav state exposed
+    via `aria-current="page"`. Keyboard: 25 sequential Tab presses land on a real focusable element
+    with a visible focus outline (no trap). Mobile drawer (390px): opens with focus moved inside
+    `[role="dialog"]` (a real focus trap), Escape closes it and focus returns to a labelled trigger
+    (real restoration, not merely inferred) — no horizontal overflow afterward.
 
-- [ ] T024 RTL/logical-property and externalised-copy pass across the shell and overview.
+- [x] T024 RTL/logical-property and externalised-copy pass across the shell and overview.
   - Req: FR-014 | Depends: Phases 2–5
   - Verify: `grep -rn "text-left\|text-right\|[^-]pl-\|[^-]pr-" src/app/dashboard components/dashboard` returns nothing; no inline hardcoded UI strings
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — Medium
   - Why: mechanical but broad.
+  - **CLOSURE (2026-09-12)**: the exact grep, broadened to also include `ml-`/`mr-`, returns nothing
+    across `src/app/dashboard`, `components/dashboard`, `lib/dashboard`. **The known "Account"
+    fallback localization debt is now fully eliminated from the Feature 004/member-portal surface**:
+    RUN B already fixed the dashboard account-menu's own fallback (client-side, locale-aware). This
+    run audited `components/public/site-header.tsx`'s separate, still-English-only "Account" fallback
+    and confirmed it is genuinely OUTSIDE Feature 004's surface — `SiteHeader` renders only on the
+    public marketing site (`PublicShell`), never inside `/dashboard/*`, which uses `AppShell`/`Topbar`
+    instead. Left untouched deliberately (Feature 002/003's ownership, not this feature's), per the
+    run directive's own conditional ("if it is in the Feature 004/member portal surface").
 
-- [ ] T025 Verify the shell and overview render fully with JavaScript disabled; audit `"use client"`
+- [x] T025 Verify the shell and overview render fully with JavaScript disabled; audit `"use client"`
   usage.
   - Req: FR-015, SC-007 | Depends: Phases 2–5
   - Verify: with JS disabled, nav and overview content are present; `grep -rln "use client" components/dashboard` lists only genuinely interactive components
   - Codex: GPT-5.6 Sol — High · Claude: Sonnet — High
   - Why: requires judgment about which islands truly need the client.
+  - **CLOSURE (2026-09-12) — REAL NO-JS BROWSER REQUEST**: signed in normally (with JS), then
+    re-requested `/dashboard/` with `Emulation.setScriptExecutionDisabled` genuinely set — not
+    inferred from source. Result: real `<nav>` and `<main>` content present, page body non-empty
+    (342 chars of real text), the localized "Overview"/"نظرة عامة" label itself present in the raw,
+    unhydrated HTML. `grep -rln "use client" components/dashboard src/app/dashboard` lists exactly
+    `org-switcher.tsx` (the Select), `topbar.tsx` (dropdown/dialog state), `src/app/dashboard/error.tsx`
+    (a required Next.js convention — error boundaries must be Client Components), and the two
+    pre-existing Feature 003 settings forms (untouched this run). No Feature 004 component was made
+    client-side without a genuine interaction reason; `sidebar.tsx`/`overview-card.tsx`/
+    `action-list.tsx`/`responsive/table-card-list.tsx` all stay Server Components.
 
 ---
 
