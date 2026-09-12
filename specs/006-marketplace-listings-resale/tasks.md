@@ -3,9 +3,11 @@
 **Input**: [spec.md](./spec.md), [plan.md](./plan.md), `docs/architecture/DATABASE-CAPABILITY-MAP.md`,
 `.specify/memory/constitution.md` (v2.0.0), SRS §8 (MKT-01..MKT-07), AC-01/AC-02.
 
-**Status**: T001–T008 (Phase 1 + Phase 2) implemented and verified — RUN A. Phases 3–9 (T009–T032)
-NOT started. See `IMPLEMENTATION-HANDOFF.md` for full evidence, honest gaps and what Phase 3+ must
-know before building on this.
+**Status**: T001–T011, T013–T015 implemented and verified (RUN A: T001–T008; RUN B: T009–T011,
+T013–T015). **T012 is a KNOWN BLOCKER, deliberately left `[ ]`** (see its own entry). T022 remains
+BLOCKED by DB-BLOCK-07 (untouched this run). Phases 5–9 (T016–T032) NOT started. See
+`IMPLEMENTATION-HANDOFF.md` for full evidence, honest gaps and what Phase 5+ must know before
+building on this.
 **Prerequisite**: 001, 003, 004, 005 implemented.
 
 ## Task format
@@ -142,26 +144,43 @@ know before building on this.
 
 ## Phase 3 — Marketplace browse & detail
 
-- [ ] T009 [PS2] Implement `src/app/dashboard/coffee/page.tsx` — listing browse with search/filter,
+- [x] T009 [PS2] Implement `src/app/dashboard/coffee/page.tsx` — listing browse with search/filter,
   paginated, showing quantity, price per kg with currency, and seller type.
   - Req: FR-002, FR-004, PS2 | Depends: T002, T007
   - Verify: only published/partially-filled listings render; figures carry units/currency; no shared cache is used
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — Medium
   - Why: standard list page over a guarded read layer.
+  - **Done (RUN B)**: card-grid browse over `lib/listings/browse.ts`, bounded pagination (URL
+    `?page=`), a single trimmed/bounded (`MAX_SEARCH_LENGTH`) title-search box parameterized via
+    `.ilike()` — never raw query construction. No identity check of its own (guard inherited from
+    `../layout.tsx`, T007). `tests/listings/browse-page.test.tsx` (8 tests, live): real published
+    fixture renders with exact figures; SOLD_OUT fixture never appears; search narrows correctly;
+    non-matching search shows the empty state; a pending/under-review member sees nothing.
 
-- [ ] T010 [PS2] Implement `src/app/dashboard/coffee/[offerId]/page.tsx` — listing detail with
+- [x] T010 [PS2] Implement `src/app/dashboard/coffee/[offerId]/page.tsx` — listing detail with
   quality/sensory context, remaining quantity, and the purchase entry point handing off to 007.
   - Req: FR-002, FR-010, PS2 | Depends: T002, T005, T007
   - Verify: remaining quantity comes from `fills.ts`; the purchase CTA carries no client-trusted quantity into 007
   - Codex: GPT-5.6 Sol — High · Claude: Sonnet — High
   - Why: the hand-off point where an advisory figure could wrongly become an authoritative input.
+  - **Done (RUN B)**: lot/warehouse/sensory/tags sections with honest DB-OPEN-05 degradation; the
+    purchase control is a genuinely DISABLED button (no href, no client-trusted quantity, no
+    reservation write — Feature 007 is untouched). `tests/listings/detail-page.test.tsx` (5 tests,
+    live): the real published fixture renders full detail incl. the exact `fills.ts` remaining
+    figure; the SOLD_OUT fixture (genuinely inaccessible, T012's own known blocker) triggers
+    `notFound()`.
 
-- [ ] T011 [P] [PS2] Build `components/listings/availability-bar.tsx` and `listing-card.tsx` showing
+- [x] T011 [P] [PS2] Build `components/listings/availability-bar.tsx` and `listing-card.tsx` showing
   listed / reserved / filled / remaining with units.
   - Req: FR-011, PS2 | Depends: T005
   - Verify: a partially-filled fixture renders all four figures correctly; never a negative remainder
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — Medium
   - Why: focused presentational component with explicit inputs.
+  - **Done (RUN B)**: both components, plus `listing-status-badge.tsx` (dot + text, all 9 statuses,
+    mirrors `components/inventory/storage-status-badge.tsx`'s established pattern). Presentation
+    only — no fetching, no independent quantity arithmetic (source-verified); a negative-remainder
+    projection renders a controlled integrity error, never a broken bar.
+    `tests/listings/listing-components.test.tsx` (9 tests).
 
 - [ ] T012 [PS4] [**KNOWN BLOCKER — recorded 2026-09-12, RUN A closure**] Render `SOLD_OUT` and
   `SUSPENDED` listing detail states with no purchase action.
@@ -184,27 +203,65 @@ know before building on this.
 
 ## Phase 4 — Seller listing creation
 
-- [ ] T013 [PS3] Implement `src/app/dashboard/listings/new/page.tsx` — eligible-inventory picker
+- [x] T013 [PS3] Implement `src/app/dashboard/listings/new/page.tsx` — eligible-inventory picker
   driven by `eligibility.ts`, showing why ineligible quantity cannot be listed.
   - Req: FR-006, FR-015, PS3 | Depends: T004
   - Verify: ineligible positions show a specific named reason; eligible quantity matches 005's facts
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — High
   - Why: the refusal copy must be specific and correct — the design system's "name what is missing" rule applied to eligibility.
+  - **Done (RUN B)**: re-verifies `isAuthorizedMember` AND `organization.canSell` server-side
+    (independent of nav/route visibility — Phase 6/T020 is not this run's scope); probes
+    `checkListingEligibility` at `requestedQuantityKg: 0` per position for DISPLAY only (never
+    trusted as the final check — `createListingDraft` re-verifies for real). `tests/listings/
+    create-page.test.tsx` (6 tests, live): a buyer-only org is refused before any inventory/
+    eligibility read; a seller-capable org sees the real picker with the CORRECT specific refusal
+    reason per ineligible position, genuinely `disabled` radio controls.
 
-- [ ] T014 [PS3] Implement the listing-create Server Action (`listings/new/actions.ts`) following
+- [x] T014 [PS3] Implement the listing-create Server Action (`listings/new/actions.ts`) following
   001's contract: validate → authenticate → verify `organization_can_sell()` → verify SRS §8.1
   eligibility → insert `coffee_offers` as `DRAFT`.
   - Req: FR-005, FR-006, FR-016, SEC-005, SC-002 | Depends: T004, T006
   - Verify: direct invocation with a `can_sell = false` fixture is refused; direct invocation claiming unowned/reserved/non-Hills quantity is refused
   - Codex: GPT-5.6 Sol — High · Claude: Opus — High
   - Why: the single most abusable write in this feature — it decides what enters the marketplace.
+  - **Done (RUN B)**: the 10-step sequence exactly as specified; explicit insert allowlist (no
+    spread, no client-chosen `status`/`seller_organization_id`/`created_by`/`seller_type`/
+    `source_purchase_order_item_id` — all server-derived); safe generic error mapping for any DB
+    refusal. `tests/listings/create-action.test.ts` (9 tests, live direct invocation — no UI layer
+    at all): `can_sell=false`, cross-org position, custody-ineligible, not-Hills-sourced ALL
+    refused; forged extra fields (org id/created_by/status) change nothing.
+  - **NEW confirmed gap found while implementing this task** (not anticipated by RUN A): `coffee_id`
+    is `NOT NULL` on `coffee_offers`, but the ONLY table mapping `lot_id -> coffee_id`
+    (`coffee_lots`) has the SAME broken, self-referential member-read policy DB-OPEN-05 already
+    documents for reads — no member session can ever read it, for creation OR display. Handled with
+    a best-effort, RLS-respecting recovery (never a service-role read, never a guess) via the
+    position's own originating listing; honestly refused with a NEW code
+    (`LISTING_COFFEE_CONTEXT_UNAVAILABLE`) when unavailable — proven in `tests/listings/
+    create-action-eligible.test.ts` (4 tests, module mocks — the `eligible: true` happy path is
+    unreachable live for the same settled-order reason `eligibility.test.ts` already documents; see
+    `IMPLEMENTATION-HANDOFF.md` §0/§11).
 
-- [ ] T015 [PS3] Implement submit-for-review (`DRAFT → PENDING_REVIEW`) via a permitted write the
+- [x] T015 [PS3] Implement submit-for-review (`DRAFT → PENDING_REVIEW`) via a permitted write the
   `validate_offer_transition` trigger accepts.
   - Req: FR-009, PS3 | Depends: T014
   - Verify: successful submit records a `listing_status_history` row written by the database; a forbidden transition is refused by the trigger and surfaced as a safe error
   - Codex: GPT-5.6 Sol — High · Claude: Sonnet — High
   - Why: transition legality is owned by the database; the action must cooperate with it, not pre-empt it.
+  - **Done (RUN B)**: no parallel state machine — `.eq("status","DRAFT")` is this action's OWN
+    defence in depth, never a substitute for the trigger; `.select().maybeSingle()` after the update
+    detects a silent zero-row match (cross-org, wrong status, non-creator org member) rather than
+    reporting a false success. `tests/listings/submit-action.test.ts` (7 tests, live): buyer-only
+    refused; cross-org (Hills) offer refused; wrong-status offer refused; nonexistent id refused
+    identically (no existence leak); no compliance-approval ability exists in this action at all
+    (source-verified).
+  - **HONEST, PARTIAL VERIFICATION GAP**: the "successful submit records a `listing_status_history`
+    row" half of this task's own Verify line is NOT provable live in RUN B — it requires a REAL,
+    own-org `DRAFT` listing, and none can exist (the same settled-order root cause blocking T014's
+    happy path, PLUS `hillsOrg` has no signable-in member even for a HILLS-seller DRAFT). The
+    successful-transition RESULT SHAPE is proven via a fake client
+    (`tests/listings/submit-action-success.test.ts`, 2 tests); the trigger's own
+    `listing_status_history` write is NOT re-verified end-to-end here. Recorded as an open
+    verification gap for a future run once a genuinely submittable listing exists.
 
 ---
 

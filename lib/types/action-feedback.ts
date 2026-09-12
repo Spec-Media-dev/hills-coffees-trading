@@ -58,6 +58,18 @@ export const ACTION_FEEDBACK = {
   LISTING_INELIGIBLE: "listing_ineligible",
   LISTING_TRANSITION_REFUSED: "listing_transition_refused",
   LISTING_SAVE_FAILED: "listing_save_failed",
+  /**
+   * Feature 006 RUN B (T014) — a NEW, confirmed gap found while implementing listing creation, not
+   * anticipated by RUN A: `coffee_offers.coffee_id` is NOT NULL, but the only way to resolve it for a
+   * given `lot_id` is `coffee_lots.coffee_id`, and `coffee_lots`' member-read policy
+   * (`member_read_trade_lots`) has the SAME broken, self-referential predicate DB-OPEN-05 already
+   * documents for reads (`co.lot_id = co.id`, never satisfiable) — so a member session can NEVER read
+   * `coffee_lots` today, for creation OR display. `createListingDraft` makes one best-effort,
+   * RLS-respecting attempt to recover it from the position's own originating listing
+   * (`source_purchase_order_item_id` → `order_items.offer_id` → that `coffee_offers.coffee_id`) and
+   * returns this code, never a guessed/fabricated value, when that attempt also comes back empty.
+   */
+  LISTING_COFFEE_CONTEXT_UNAVAILABLE: "listing_coffee_context_unavailable",
 } as const;
 
 export type ActionFeedbackCode = (typeof ACTION_FEEDBACK)[keyof typeof ACTION_FEEDBACK];

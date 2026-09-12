@@ -35,6 +35,33 @@ export type ListingCurrency = (typeof LISTING_CURRENCIES)[number];
 
 const uuid = (fieldLabel: string) => z.uuid({ error: `Choose a valid ${fieldLabel}.` });
 
+/**
+ * Feature 006 RUN B (T013/T014) — the FORM-FACING schema the seller's create page actually collects.
+ * Deliberately narrower than `ListingCreateInput` below: it carries `positionId` (which inventory
+ * position the seller picked) instead of `coffeeId`/`lotId`/`warehouseId`/`warehouseLocationId`
+ * directly — those provenance fields are NEVER client-supplied (the run directive's own explicit
+ * rule); the Server Action re-reads them server-side from the position itself via
+ * `getInventoryPositionById`, so this schema does not even offer a field for the client to submit
+ * them in. `zodResolver`-compatible (React Hook Form), matching `KybDraftInput`'s established pattern.
+ */
+export const ListingCreateFormInput = z.object({
+  positionId: uuid("inventory position"),
+  // Deliberately NOT `.transform()`-ed to `string | null` here (unlike `ListingCreateInput` below) —
+  // the transform's INPUT/OUTPUT type split does not play well with `useForm`'s single generic; the
+  // component itself already treats an empty string as "omit the field" when building `FormData`.
+  title: z.string().trim().max(200, "Keep the title under 200 characters.").optional(),
+  quantityKg: z.coerce
+    .number({ error: "Enter a quantity." })
+    .positive("Quantity must be greater than zero.")
+    .finite("Enter a valid quantity."),
+  pricePerKg: z.coerce
+    .number({ error: "Enter a price per kg." })
+    .positive("Price per kg must be greater than zero.")
+    .finite("Enter a valid price."),
+  currency: z.enum(LISTING_CURRENCIES, { error: "Choose a supported currency." }),
+});
+export type ListingCreateFormInput = z.infer<typeof ListingCreateFormInput>;
+
 export const ListingCreateInput = z.object({
   title: z
     .string()

@@ -209,14 +209,16 @@ describe("Phase 5.5 UIF-036 — member shell applied at /dashboard", () => {
     // original comment anticipated arriving later ("no inventory... module past it" describes `kyb`,
     // not a permanent ban on any feature ever adding one).
     //
-    // Feature 006 RUN A (T007) adds `dashboard/coffee/` — but ONLY the private marketplace route
-    // GUARD (identity → membership → an honest "not yet built" placeholder). It carries no listing
-    // read, no `lib/listings/browse` import, and is not registered with 004's module contract yet
-    // (that is Phase 6's job, T020) — see `tests/listings/guard.test.ts` for the guard-order proof.
-    // No OTHER business area (orders, payments, delivery, disputes) has a directory here yet, and
-    // `dashboard/listings`/`dashboard/sales` (006's OWN later phases) do not exist yet either.
-    expect(dirs.sort()).toEqual(["coffee", "inventory", "kyb", "onboarding", "settings", "storage"]);
-    for (const stillUnbuilt of ["orders", "payments", "delivery", "disputes", "listings", "sales"]) {
+    // Feature 006 RUN A (T007) added `dashboard/coffee/` — the private marketplace route guard
+    // (identity → membership), registered with Feature 004's module contract only in Phase 6
+    // (T020, not yet done). RUN B (T009/T010/T013) adds the real browse/detail pages under
+    // `coffee/` AND a new `dashboard/listings/` directory for the seller create/submit flow
+    // (`listings/new/page.tsx` + its own Server Actions) — both genuinely-live business routes now,
+    // registered with 004's module contract only in the same still-future Phase 6. No OTHER business
+    // area (orders, payments, delivery, disputes, `dashboard/sales` — 006's own later Phase 5) has a
+    // directory here yet.
+    expect(dirs.sort()).toEqual(["coffee", "inventory", "kyb", "listings", "onboarding", "settings", "storage"]);
+    for (const stillUnbuilt of ["orders", "payments", "delivery", "disputes", "sales"]) {
       expect(dirs).not.toContain(stillUnbuilt);
     }
 

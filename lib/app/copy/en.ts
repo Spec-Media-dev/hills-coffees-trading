@@ -554,19 +554,159 @@ export const en = {
       },
     },
 
-    /**
-     * Feature 006 RUN A (T007) — the private marketplace route guard's own placeholder. This is
-     * NOT the browse/search experience (Phase 3, not yet built) — it exists so `/dashboard/coffee`
-     * resolves as a real, guarded route an authorized member can already reach, with an honest
-     * "not yet built" state rather than a fabricated listing grid. Mirrors the same discipline
-     * `foundationOverview` above already established for `/dashboard` itself.
-     */
+    /** Feature 006 RUN B (T009/T010) — the private marketplace browse/detail experience. */
     marketplace: {
       title: "Marketplace",
       breadcrumb: "Marketplace",
-      comingSoon: {
-        title: "The marketplace is being prepared",
-        description: "Browsing and listing eligible coffee will appear here once this area is built. Your access is already confirmed.",
+      browse: {
+        description: "Coffee available to authorized members right now.",
+        searchLabel: "Search listings",
+        searchPlaceholder: "Search by title",
+        caption: "Marketplace listings",
+        resultsNote: "Showing {count} listing",
+        resultsNotePlural: "Showing {count} listings",
+        empty: {
+          title: "No listings match your search",
+          description: "Try a different search, or check back soon — new listings appear here as they go live.",
+        },
+        emptyNoSearch: {
+          title: "No listings are live yet",
+          description: "Published listings from Hills Coffee and verified sellers will appear here.",
+        },
+        pagination: {
+          previous: "Previous",
+          next: "Next",
+          pageLabel: "Page {page}",
+        },
+      },
+      card: {
+        sellerLabel: "Seller",
+        sellerType: {
+          HILLS: "Hills Coffee",
+          MEMBER_SELLER: "Verified seller",
+        },
+        priceUnit: "/ kg",
+        viewDetails: "View listing",
+      },
+      detail: {
+        breadcrumb: "Marketplace",
+        backAction: "Back to marketplace",
+        notFound: {
+          title: "Listing not available",
+          description: "This listing does not exist, or is not currently available to you.",
+        },
+        lotHeading: "Lot",
+        coffeeLabel: "Coffee",
+        lotCodeLabel: "Lot code",
+        cropYearLabel: "Crop year",
+        qualityGradeLabel: "Quality grade",
+        lotUnavailable: {
+          title: "Detailed lot information is currently unavailable",
+          description: "This listing is genuine — its underlying lot detail cannot be shown under current access rules.",
+        },
+        warehouseHeading: "Storage",
+        warehouseUnavailable: "Storage detail unavailable.",
+        sensoryHeading: "Sensory notes",
+        sensory: {
+          aroma: "Aroma",
+          flavor: "Flavor",
+          acidity: "Acidity",
+          body: "Body",
+          finish: "Finish",
+          notes: "Notes",
+        },
+        tagsHeading: "Tags",
+        availabilityHeading: "Availability",
+        advisoryNote: "Availability shown here is advisory. The final quantity is confirmed at checkout.",
+        purchase: {
+          heading: "Purchase",
+          comingSoon: "Purchasing isn't available yet",
+          comingSoonDescription: "Ordering from the marketplace is coming in a future update.",
+        },
+      },
+      status: {
+        DRAFT: "Draft",
+        PENDING_REVIEW: "Pending review",
+        APPROVED: "Approved",
+        REJECTED: "Rejected",
+        PUBLISHED: "Published",
+        PARTIALLY_FILLED: "Partially filled",
+        SUSPENDED: "Suspended",
+        SOLD_OUT: "Sold out",
+        ARCHIVED: "Archived",
+      },
+      availability: {
+        listedLabel: "Listed",
+        reservedLabel: "Reserved",
+        filledLabel: "Filled",
+        remainingLabel: "Remaining",
+        integrityError: {
+          title: "Data integrity issue",
+          description: "This listing's quantities do not add up correctly. Contact Hills Coffee support.",
+        },
+      },
+    },
+
+    /** Feature 006 RUN B (T013–T015) — the seller listing-creation flow. */
+    listings: {
+      new: {
+        title: "Create listing",
+        breadcrumb: "New listing",
+        description: "Turn your eligible, Hills-sourced inventory into a marketplace listing.",
+        capabilityRequired: {
+          title: "Selling isn't enabled for your organization",
+          description: "Contact Hills Coffee to enable selling before creating a listing.",
+        },
+        picker: {
+          heading: "Choose eligible inventory",
+          description: "Only positions your organization can currently list are shown.",
+          empty: {
+            title: "No eligible inventory",
+            description: "Purchase coffee through Hills Coffee to build eligible, sellable inventory.",
+          },
+          lotUnavailable: "Lot detail unavailable",
+          warehouseUnavailable: "Storage detail unavailable",
+          availableLabel: "Available",
+          reservedLabel: "Reserved",
+          eligibleLabel: "Eligible to list",
+          ineligibleBadge: "Not eligible",
+        },
+        refusal: {
+          SELLER_NOT_CAPABLE: "Your organization is not currently approved to sell.",
+          POSITION_NOT_OWNED: "This position is not available to your organization.",
+          NOT_HILLS_SOURCED: "This inventory wasn't acquired through a Hills-mediated purchase, so it can't be listed yet.",
+          CUSTODY_NOT_ELIGIBLE: "This inventory's storage location is not currently active.",
+          RESERVED_QUANTITY: "There is no unreserved quantity available to list.",
+          INSUFFICIENT_QUANTITY: "Only {amount} kg is currently eligible to list.",
+        },
+        form: {
+          positionLabel: "Inventory position",
+          positionRequired: "Choose an eligible inventory position.",
+          titleLabel: "Title (optional)",
+          titleHint: "How buyers will see this listing.",
+          quantityLabel: "Quantity (kg)",
+          priceLabel: "Price per kg",
+          currencyLabel: "Currency",
+          currencyFixedNote: "USD is currently the only supported currency.",
+          submit: "Save draft",
+          saving: "Saving…",
+        },
+        toast: {
+          created: "Draft listing saved.",
+          createFailed: "The listing could not be saved. Please try again.",
+          contextUnavailable: "This inventory's coffee details can't be confirmed right now, so the listing can't be created yet.",
+        },
+        confirmation: {
+          title: "Draft saved",
+          description: "Your listing is saved as a draft. Submit it for compliance review when you're ready.",
+          submitForReview: "Submit for review",
+          submitting: "Submitting…",
+          createAnother: "Create another listing",
+        },
+        submitToast: {
+          submitted: "Listing submitted for review.",
+          submitFailed: "The listing could not be submitted. Please try again.",
+        },
       },
     },
 

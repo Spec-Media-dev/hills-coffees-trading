@@ -85,8 +85,9 @@ describe("T007 reconciliation — page.tsx no longer duplicates the guard (lives
     expect(page).not.toMatch(/isAuthorizedMember/);
   });
 
-  it("page.tsx still imports no listing data module — RUN A renders only the honest placeholder", () => {
-    expect(page).not.toMatch(/lib\/listings/);
+  it("RUN B (T009) — page.tsx now legitimately reads listing data, but ONLY through the read layer (never a raw table query), and still performs no identity check of its own", () => {
+    expect(page).toMatch(/from ["']@\/lib\/listings\/browse["']/);
+    expect(page).not.toMatch(/\.from\(\s*["']coffee_offers["']\s*\)/);
   });
 });
 

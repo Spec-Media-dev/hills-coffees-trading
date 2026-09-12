@@ -1,13 +1,15 @@
-# Feature 006 — Marketplace, Seller Listings & Resale — RUN A Handoff
+# Feature 006 — Marketplace, Seller Listings & Resale — Implementation Handoff
 
-**Scope delivered**: Phase 1 (Listing domain layer, T001–T006) + Phase 2 (Marketplace access
-control, T007–T008) ONLY.
-**Status**: T001–T008 implemented and verified. **Feature 006 is NOT complete** — Phases 3–9
-(T009–T032) are untouched and out of scope for this run.
+**Scope delivered**: RUN A — Phase 1 (Listing domain layer, T001–T006) + Phase 2 (Marketplace access
+control, T007–T008). RUN B — Phase 3 (Marketplace browse & detail, T009–T011) + Phase 4 (Seller
+listing creation, T013–T015). See §11 for the full RUN B account.
+**Status**: T001–T011, T013–T015 implemented and verified. **T012 is a KNOWN BLOCKER, deliberately
+left `[ ]`** (§11.5). T022 remains BLOCKED by DB-BLOCK-07 (untouched this run). **Feature 006 is NOT
+complete** — Phases 5–9 (T016–T032) are untouched and out of scope for both runs so far.
 
 This document records the live-schema preflight evidence, the DTO/read/eligibility contracts as
 actually built, every honest gap found (worked around nowhere), the test evidence, and the
-regression results, so Phase 3+ can build on this foundation without re-deriving any of it.
+regression results, so Phase 5+ can build on this foundation without re-deriving any of it.
 
 ## 0. RECONCILIATION (2026-09-12, before commit)
 
@@ -379,3 +381,234 @@ test's own comment to explain T007's guard-only scope — not by loosening the a
    unproven live for the same settled-order reason.
 5. DB-BLOCK-07 (delivery reservation) remains a real, unenforced gap in eligibility — do not assume
    it is covered.
+
+---
+
+## 11. RUN B (Phase 3 + Phase 4) — T009–T011, T013–T015
+
+### 11.1 What was built
+
+| File | Purpose |
+|---|---|
+| `src/app/dashboard/coffee/page.tsx` | T009 — marketplace browse: card grid over `lib/listings/browse.ts`, bounded pagination (`?page=`), a single trimmed/bounded title-search box. No identity check of its own — inherits `../layout.tsx`'s guard (T007). |
+| `src/app/dashboard/coffee/[offerId]/page.tsx` | T010 — listing detail: lot/warehouse/sensory/tags sections with honest DB-OPEN-05 degradation, `AvailabilityBar`, a genuinely disabled purchase control. `notFound()` for anything RLS won't return. |
+| `components/listings/listing-card.tsx` | T011 — the browse card (adapted from the project's design-reference card concept to the actual approved schema — no fabricated photo/grade/origin). |
+| `components/listings/availability-bar.tsx` | T011 — listed/reserved/filled/remaining, from `lib/listings/fills.ts`'s `FillProjection` only; negative-remainder renders a controlled error. |
+| `components/listings/listing-status-badge.tsx` | T011 — dot + text status badge for all 9 `ListingStatus` values, mirrors `components/inventory/storage-status-badge.tsx`. |
+| `src/app/dashboard/listings/new/page.tsx` | T013 — seller listing-creation page: re-verifies `isAuthorizedMember` + `organization.canSell` server-side; composes the eligible-inventory picker via `getInventoryPositions` + `checkListingEligibility` (probed at `requestedQuantityKg: 0`, display only). |
+| `src/app/dashboard/listings/new/listing-create-form.tsx` | T013 — the picker + create form (React Hook Form + Zod), and the post-create confirmation/submit-for-review view. |
+| `src/app/dashboard/listings/new/actions.ts` | T014/T015 — `createListingDraft` and `submitListingForReview` Server Actions. |
+| `lib/listings/validation.ts` (extended) | Added `ListingCreateFormInput` — the form-facing schema (`positionId` instead of raw `coffeeId`/`lotId`/`warehouseId`). |
+| `lib/types/action-feedback.ts` (extended) | Added `LISTING_COFFEE_CONTEXT_UNAVAILABLE` — see §11.4. |
+| `lib/app/copy/en.ts` / `ar.ts` (extended) | Full `marketplace.browse`/`marketplace.card`/`marketplace.detail`/`marketplace.status`/`marketplace.availability` and `listings.new.*` trees — EN/AR from day one. |
+| `tests/design/uif-f.test.tsx` (updated) | The closed `/dashboard/*` directory-list assertion now includes `listings` (genuinely live in RUN B). |
+
+### 11.2 T009 — browse UX and buyer DTO boundary (reconfirmed)
+
+Card grid (`grid-cols-1 sm:grid-cols-2 xl:grid-cols-3`), each card built from `BuyerBrowseListing` +
+a `FillProjection` computed ONCE per listing at the page level and passed down (never recomputed
+independently in `ListingCard`/`AvailabilityBar`). Search is a single GET form (`role="search"`,
+`method="get"`), trimmed and bounded to 200 chars before being handed to
+`getBrowseListings({ titleSearch })`'s own parameterized `.ilike()` — no raw query construction.
+Empty state is genuinely honest (`emptyNoSearch` vs `empty` copy depending on whether a search term
+was given), never implies an error. The buyer field boundary itself was NOT re-litigated here — T002
+already enforces it; this page only ever renders `BuyerBrowseListing`'s own fields.
+
+### 11.3 T010 — detail UX, DB-OPEN-05, and the Feature 007 handoff
+
+Lot section: attempts `listing.lot`; when `null` (DB-OPEN-05), shows the localized
+"Detailed lot information is currently unavailable" panel — never blank fields, never an inferred
+value. Sensory notes/tags sections render only when genuinely present (never a fabricated "no notes"
+placeholder where the field is simply absent). The purchase control is a real `<Button disabled
+aria-disabled="true">` — no `href`, no client-side quantity capture, no write to
+`reserved_quantity_kg`, no import of anything checkout/reservation-shaped (source-verified). Copy
+explicitly states purchasing "isn't available yet" and availability is advisory
+(`marketplace.detail.advisoryNote`).
+
+### 11.4 T013/T014 — seller capability gate, eligible picker, and the NEW coffee_id gap
+
+`page.tsx` re-verifies, server-side and independent of any future nav entry (Phase 6/T020 is not this
+run's scope): `identity.isAuthorizedMember`, then `identity.organization.canSell` — a buyer-only
+organization is refused with `StateScreen kind="forbidden"` (a specific
+`listings.new.capabilityRequired` copy override) before any inventory or eligibility read happens at
+all. For each of the acting organization's own positions, `checkListingEligibility` is probed at
+`requestedQuantityKg: 0` (low enough that `INSUFFICIENT_QUANTITY` can never spuriously fire) purely
+to populate the picker's eligible/ineligible display — `createListingDraft` re-verifies for real,
+against the ACTUAL requested quantity, server-side, and never trusts this probe's result.
+
+**A NEW, confirmed gap found while implementing `createListingDraft`** (not anticipated by RUN A's
+own DB-OPEN-05 characterization, which scoped it to display degradation only): `coffee_offers.
+coffee_id` is `NOT NULL`, and the only table that maps `lot_id -> coffee_id` (`coffee_lots`) has the
+identical broken, self-referential `member_read_trade_lots` policy DB-OPEN-05 already documents — a
+member session can **never** read `coffee_lots`, for a WRITE (resolving `coffee_id` to insert) any
+more than for a read. `validate_offer_transition` is `SECURITY DEFINER` and can itself validate
+`coffee_lots.coffee_id = new.coffee_id` internally, but it only VALIDATES a caller-supplied value —
+it never derives/fills one in. No RPC exists to derive `coffee_id` from `lot_id` either.
+
+**Handling (no invented workaround)**: `createListingDraft` makes ONE best-effort, RLS-respecting
+attempt to recover `coffee_id` from the position's OWN originating purchase — the already-verified
+`sourcePurchaseOrderItemId` → `order_items.offer_id` → that ORIGINAL `coffee_offers` row's
+`coffee_id` (readable only if that original listing happens to still be buyer/owner-readable under
+ordinary RLS), with a `lot_id` cross-check so a mismatched value is never trusted. When this cannot
+be resolved (confirmed to be the common case, since no member session can ever read `coffee_lots`
+directly), the action refuses honestly with the new `ACTION_FEEDBACK.LISTING_COFFEE_CONTEXT_
+UNAVAILABLE` code — never a guess, never a service-role read, never a fabricated value. This is a
+genuine open question for whoever eventually resolves DB-OPEN-05 (or designs a `create_listing`-style
+SECURITY DEFINER RPC) — recorded here, not silently worked around.
+
+Every other server-derived field is enforced the same way: `seller_organization_id` from the
+resolved identity, `created_by` from the resolved user id, `seller_type` hardcoded to
+`"MEMBER_SELLER"` (a real signed-in session can never legitimately act as `hillsOrg` — Feature 005's
+own fixture architecture keeps it deliberately unsignable-in-as), `source_purchase_order_item_id`
+from the eligibility result, and `status` OMITTED from the insert entirely (relying on the column's
+own `DRAFT` default — there is no field anywhere in the request shape a client could use to select a
+status, not even indirectly). The insert itself lists every field explicitly; there is no spread of
+`formData`/`parsed.data` anywhere near it (source-verified).
+
+**Direct-invocation security (T014's own required proof)** — every refusal path was called directly,
+with no UI/form layer at all, exactly as required: `can_sell=false`, cross-org position, custody-
+ineligible, not-Hills-sourced, and forged extra fields (`sellerOrganizationId`/`createdBy`/`status`
+stuffed into the FormData) all refused, the forged-fields case producing the IDENTICAL refusal to the
+non-forged one (proving those fields are simply never read). All safe-error mapping is generic
+(`LISTING_SAVE_FAILED` for any DB-level refusal — ownership/custody/quantity/transition/the
+`uq_active_offer_per_lot_owner` unique invariant/anything else) — never a raw Postgres message,
+constraint name, or trigger name.
+
+### 11.5 T012 — confirmed unchanged, left `[ ]`
+
+No change from RUN A's own finding (§1): `member_read_published_offers`'s `remaining > 0` clause
+makes a genuine `SOLD_OUT` row unreadable by a buyer even by direct id. `T010`'s detail page therefore
+renders `notFound()` for the SOLD_OUT fixture — proven live in `tests/listings/detail-page.test.tsx`
+— which is the HONEST behavior given the current RLS, not a fix. **T012 remains unchecked, explicitly
+flagged `[KNOWN BLOCKER]` in `tasks.md`.** No RLS was weakened, no service role was used, no
+RLS-bypass RPC was built, no private row was fetched through the seller/admin path to fake the buyer
+experience. This needs an authoritative product/database decision (loosen the predicate, or accept
+SOLD_OUT as seller-only-visible) before it can ever be closed.
+
+### 11.6 T015 — DB-owned transition, and the status-history verification gap
+
+`submitListingForReview` implements no parallel state machine — `validate_offer_transition`'s trigger
+is the sole legality authority; the action's own `.eq("status","DRAFT")` is defence in depth, never a
+substitute. `.select(...).maybeSingle()` after the `.update()` is required to detect a silent
+zero-row match (cross-org, wrong status, or a non-creator org member — `offers_owner_or_admin`'s own
+`WITH CHECK` additionally requires `created_by = auth.uid()`, confirmed during this run) rather than
+reporting a false success.
+
+**Proven live**: buyer-only refusal, cross-org refusal (a real Hills-owned fixture offer), wrong
+current status refusal (the same fixture, genuinely not `DRAFT`), a nonexistent id refusing
+identically (no existence leak), and source-level proof that only `PENDING_REVIEW` is ever written
+and no `listing_status_history` row is ever manually inserted.
+
+**Honestly NOT provable live in this run**: the "successful submit records a `listing_status_history`
+row written by the database" half of T015's own Verify line. This requires a REAL, own-org `DRAFT`
+`coffee_offers` row — none exists or can be created live, for the SAME settled-order root cause
+already established (§0/§11.4), PLUS `hillsOrg` has no signable-in member even for a would-be
+HILLS-seller DRAFT (Feature 005's own deliberate fixture design). The successful-transition RESULT
+SHAPE is proven with a fake client (`tests/listings/submit-action-success.test.ts`); the trigger's own
+history write is NOT re-verified end-to-end. This is an honest, open verification gap for a future
+run, once Features 007/008 (or a deliberate fixture decision) produce a genuinely submittable
+listing.
+
+### 11.7 Design system, i18n, RTL, theme, responsive, accessibility
+
+Every new screen/component reuses existing primitives exclusively: `PageHeader`, `EmptyState`,
+`Button`, `Input`, `Field`/`FieldGroup`/`FormActionBar`, `RadioGroup`/`RadioGroupItem`, `Badge`,
+`Separator`, `Progress`, the `AppBilingual`/`useLocale().tApp` i18n conventions, and the same
+`--status-*`/`hc-*` design tokens `components/inventory/*` already established — no hand-built
+button/input/select/dialog/alert/card, no arbitrary visual system. Every user-facing string added
+this run (browse, detail, picker, refusal reasons, form labels, confirmation/toast copy) has a
+reviewed EN and AR translation from the start — no hardcoded English in components, no hardcoded
+Arabic in logic. Layout uses logical spacing (`ps-`/`pe-`/`ms-`/`me-`, `dir="ltr"` scoped only to
+genuinely-LTR numeric/currency figures, matching `components/inventory/*`'s own established
+convention) — no `text-left`/`text-right`/unscoped `pl-`/`pr-` introduced. Colors are semantic tokens
+only (`text-foreground`/`text-muted-foreground`/`text-destructive`/`--status-*`) — no raw one-theme
+color. The browse grid collapses to a single column below `sm:`; the picker's radio cards stack
+naturally; no fixed desktop-width assumption was introduced. Status/refusal state is communicated by
+dot + text together, never color alone. Native `<button>`/`<a>` semantics are used throughout (a real
+disabled `<button>` for the purchase placeholder, a real `<Link>` for card navigation) — no
+`dangerouslySetInnerHTML`, no raw HTML anywhere in seller-entered content (title renders through
+ordinary React text interpolation only).
+
+### 11.8 Sonner / inline error convention
+
+Field-specific errors (`positionId`/`quantityKg`/`pricePerKg`) render inline via `Field`'s own
+`error` prop (React Hook Form + `zodResolver`, same client-side-UX-only pattern
+`components/account/kyb-draft-form.tsx` established — the Server Action re-validates with the
+identical schema). Global action results (create success/failure, submit success/failure) use the
+existing single `useActionToast`/Sonner convention — no second `Toaster`, no duplicate
+inline-plus-toast for the same field error, no toast fired during ordinary server rendering.
+
+### 11.9 Cache / service-role audit (RUN B files)
+
+No `unstable_cache`/`"use cache"`/`cacheTag`/`cacheLife`/`updateTag`/module-global map anywhere in
+the new pages, components, or actions (source-verified). No service-role reference in any RUN B
+runtime file — every read/write in `actions.ts` runs through the request-scoped, RLS-respecting
+`createClient()`. After a successful mutation, `revalidatePath("/dashboard/listings/new")` only — the
+existing Next.js route-refresh mechanism, never a second caching layer.
+
+### 11.10 DB-BLOCK-07 / T022 — untouched, remains blocked
+
+Not touched this run, per the directive. `eligibility.ts`'s own delivery-reservation gap is
+unchanged; `T022` (Phase 7) remains flagged `[BLOCKED]` in `tasks.md`, waiting on an approved database
+change.
+
+### 11.11 Test evidence (RUN B)
+
+`tests/listings/` grew from 83 (post-RUN-A-reconciliation) to **154 tests, 17 files, all passing**:
+`browse-page.test.tsx` (8), `detail-page.test.tsx` (5), `listing-components.test.tsx` (9),
+`create-page.test.tsx` (6), `create-action.test.ts` (9, live direct invocation),
+`create-action-eligible.test.ts` (4, module mocks — the happy path + the new coffee-context-
+unavailable refusal), `submit-action.test.ts` (7, live), `submit-action-success.test.ts` (2, module
+mock). `guard.test.tsx` gained one reconciled assertion (T009 legitimately imports
+`lib/listings/browse` now — a stale RUN A "imports nothing" assertion was updated, not deleted).
+
+### 11.12 Regression evidence (RUN B)
+
+- `npm run typecheck` — clean.
+- Full `npm test` — **823/823 passing, 76 files** (up from 773 pre-RUN-B; net +50, zero
+  regressions after two genuine, unrelated pre-existing-test fixes below).
+- `npm run build` — clean; `/dashboard/coffee/[offerId]` and `/dashboard/listings/new` both register
+  as dynamic routes.
+- `npm run lint` — 272 problems reported, **all pre-existing in untouched `docs/claude-design/
+  ui_kits/*.jsx`**, confirmed by a scoped re-lint of every RUN B file returning zero issues. One
+  genuine lint issue THIS run introduced (`react-hooks/set-state-in-effect` in
+  `listing-create-form.tsx`, calling `setState` inside a `useEffect`) was found and fixed by deriving
+  the confirmation state during render instead (the documented React pattern for "adjust state when
+  an upstream value changes"), not inside an effect.
+- `git diff --check` — clean (only pre-existing LF/CRLF warnings).
+
+**Two genuine, unrelated pre-existing tests needed updating** (both caused by this run's OWN new
+files, not regressions in unrelated code):
+1. `tests/design/uif-f.test.tsx`'s closed `/dashboard/*` directory-list assertion needed `listings`
+   added (`dashboard/listings/new` is now genuinely live) — fixed the same honest way the RUN A
+   reconciliation's `coffee` addition was handled.
+2. `tests/design/hills-tokens.test.tsx` (untouched) asserts no file under `src`/`components` contains
+   the literal string `docs/claude-design` (keeping that directory a pure design reference, never a
+   runtime dependency). `listing-card.tsx`'s own header comment originally spelled out that literal
+   path to explain its design lineage — the SOURCE comment was rephrased to describe the same
+   provenance without the literal substring; no behavior changed, and the test itself needed no edit.
+
+### 11.13 Files changed (RUN B, cumulative with RUN A's own list in §2)
+
+New: `components/listings/{listing-card,availability-bar,listing-status-badge}.tsx`,
+`src/app/dashboard/coffee/[offerId]/page.tsx`, `src/app/dashboard/listings/new/{page,actions,
+listing-create-form}.tsx`, `tests/listings/{browse-page,detail-page,listing-components,create-page,
+create-action,create-action-eligible,submit-action,submit-action-success}.test.{ts,tsx}`.
+Modified: `src/app/dashboard/coffee/page.tsx` (T009 real implementation, replacing the RUN A
+placeholder), `lib/listings/validation.ts` (+`ListingCreateFormInput`), `lib/types/action-feedback.ts`
+(+`LISTING_COFFEE_CONTEXT_UNAVAILABLE`), `lib/app/copy/{en,ar}.ts` (full marketplace/listings.new
+trees), `tests/listings/guard.test.tsx` (its now-stale RUN A "page.tsx imports nothing" assertion
+reconciled to "page.tsx imports the read layer, never a raw table query" — §11.11), `tests/design/
+uif-f.test.tsx` (§11.12, item 1).
+
+### 11.14 Honest remaining blockers (cumulative)
+
+1. T012 — SOLD_OUT/RLS gap (§11.5), unresolved, requires a product/database decision.
+2. T014's `coffee_id` resolution — a NEW, confirmed DB-OPEN-05 write-side escalation (§11.4), only
+   partially mitigated (best-effort recovery, honest refusal otherwise); no member session can
+   directly resolve `lot_id -> coffee_id` at all today.
+3. T015's status-history live proof — cannot be closed until a genuinely submittable listing exists
+   (§11.6).
+4. T022/DB-BLOCK-07 — delivery reservation, untouched, still blocked.
+5. DB-OPEN-05 (display) — unchanged, still open.
+6. No HOLD/VARIANCE/QUARANTINE model exists; none was invented.
