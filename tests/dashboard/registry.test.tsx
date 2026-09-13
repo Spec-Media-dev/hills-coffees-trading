@@ -77,10 +77,10 @@ describe("T001 — module registration contract", () => {
 });
 
 describe("T002 — static registry lists implemented modules only", () => {
-  it("registers exactly the genuinely-live account/overview + settings + inventory/storage destinations", () => {
-    // Feature 005 RUN B — "inventory" is now a genuinely-live module (real routes exist under
-    // `/dashboard/inventory` and `/dashboard/storage`), so it is expected here alongside "account".
-    expect(DASHBOARD_MODULES.map((m) => m.id)).toEqual(["account", "inventory"]);
+  it("registers exactly the genuinely-live account/overview + settings + inventory/storage + marketplace destinations", () => {
+    // Feature 005 RUN B — "inventory" is now a genuinely-live module. Feature 006 RUN C (T020) adds
+    // "marketplace" (coffee browse always; listings/sales additive for sell-capable organizations).
+    expect(DASHBOARD_MODULES.map((m) => m.id)).toEqual(["account", "inventory", "marketplace"]);
     const account = DASHBOARD_MODULES[0]!;
     const accountHrefs = (account.navGroups ?? []).flatMap((g) => g.entries.map((e) => e.href));
     expect(accountHrefs.sort()).toEqual(["/dashboard", "/dashboard/settings"]);
@@ -90,10 +90,16 @@ describe("T002 — static registry lists implemented modules only", () => {
     expect(inventoryHrefs.sort()).toEqual(["/dashboard/inventory", "/dashboard/storage"]);
     // History is deliberately NOT a top-level nav entry (discoverable from the inventory list page).
     expect(inventoryHrefs).not.toContain("/dashboard/inventory/history");
+
+    const marketplace = DASHBOARD_MODULES[2]!;
+    const marketplaceHrefs = (marketplace.navGroups ?? []).flatMap((g) => g.entries.map((e) => e.href));
+    expect(marketplaceHrefs.sort()).toEqual(["/dashboard/coffee", "/dashboard/listings", "/dashboard/sales"]);
   });
 
   it("contains no placeholder module or nav entry for a business area that still has none of its own routes", () => {
-    const forbidden = ["marketplace", "orders", "payments", "delivery", "disputes", "listings"];
+    // "marketplace"/"listings" are now genuinely live (Feature 006 RUN C, T020) — removed from the
+    // forbidden list; the still-unbuilt business areas remain forbidden.
+    const forbidden = ["orders", "payments", "delivery", "disputes"];
     const ids = DASHBOARD_MODULES.map((m) => m.id);
     const allHrefs = DASHBOARD_MODULES.flatMap((m) => (m.navGroups ?? []).flatMap((g) => g.entries.map((e) => e.href)));
     for (const name of forbidden) {
@@ -105,16 +111,26 @@ describe("T002 — static registry lists implemented modules only", () => {
   it("T020 — registered navigation appears in the correct group, in a deterministic order", () => {
     const buyerOnlyOrg: OrganizationMembership = { organizationId: "o", displayName: "O", memberRole: "OWNER", canBuy: true, canSell: false };
     const groups = buildDashboardNavGroups({ modules: DASHBOARD_MODULES, organization: buyerOnlyOrg });
-    expect(groups.map((g) => g.key)).toEqual(["overview", "account", "trading"]);
+    expect(groups.map((g) => g.key)).toEqual(["overview", "account", "trading", "marketplace"]);
     expect(groups[0]!.items.map((i) => i.href)).toEqual(["/dashboard"]);
     expect(groups[1]!.items.map((i) => i.href)).toEqual(["/dashboard/settings"]);
     expect(groups[2]!.items.map((i) => i.href).sort()).toEqual(["/dashboard/inventory", "/dashboard/storage"]);
+    // A buyer-only organization sees ONLY the marketplace browse entry — listings/sales are
+    // entry-level `requiredCapability: "sell"` and stay hidden (T020's own additive-capability rule).
+    expect(groups[3]!.items.map((i) => i.href)).toEqual(["/dashboard/coffee"]);
   });
 
-  it("a buyer-incapable organization (canBuy: false) sees no inventory/storage nav entry", () => {
+  it("a buyer-incapable organization (canBuy: false) sees no inventory/storage/marketplace nav entry", () => {
     const noBuyOrg: OrganizationMembership = { organizationId: "o", displayName: "O", memberRole: "OWNER", canBuy: false, canSell: false };
     const groups = buildDashboardNavGroups({ modules: DASHBOARD_MODULES, organization: noBuyOrg });
     expect(groups.map((g) => g.key)).toEqual(["overview", "account"]);
+  });
+
+  it("T020 — a seller-capable organization sees ALL THREE marketplace entries (coffee, listings, sales) — the additive-capability model", () => {
+    const sellerOrg: OrganizationMembership = { organizationId: "o", displayName: "O", memberRole: "OWNER", canBuy: true, canSell: true };
+    const groups = buildDashboardNavGroups({ modules: DASHBOARD_MODULES, organization: sellerOrg });
+    const marketplaceGroup = groups.find((g) => g.key === "marketplace")!;
+    expect(marketplaceGroup.items.map((i) => i.href).sort()).toEqual(["/dashboard/coffee", "/dashboard/listings", "/dashboard/sales"]);
   });
 
   it("T020 — registry metadata cannot grant access: requiredCapability is read-only presentational data, never invoked/executed by the builder", () => {

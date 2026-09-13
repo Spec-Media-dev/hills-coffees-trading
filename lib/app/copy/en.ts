@@ -708,6 +708,98 @@ export const en = {
           submitFailed: "The listing could not be submitted. Please try again.",
         },
       },
+
+      /** Feature 006 RUN C (T016) — the seller's own listings, across all approved states. */
+      manage: {
+        title: "My listings",
+        description: "Every listing your organization has created, in any state.",
+        caption: "Your listings",
+        createAction: "Create listing",
+        viewDetails: "View listing",
+        capabilityRequired: {
+          title: "Selling isn't enabled for your organization",
+          description: "Contact Hills Coffee to enable selling before managing listings.",
+        },
+        empty: {
+          title: "No listings yet",
+          description: "Create your first listing from your eligible, Hills-sourced inventory.",
+        },
+        columns: {
+          listing: "Listing",
+          status: "Status",
+          quantity: "Quantity",
+          price: "Price",
+          updated: "Updated",
+          actions: "Actions",
+        },
+        pagination: {
+          previous: "Previous",
+          next: "Next",
+          pageLabel: "Page {page}",
+        },
+        overview: {
+          listingsCard: "My listings",
+          listingsValue: "{count} listing",
+          listingsValuePlural: "{count} listings",
+        },
+      },
+
+      /** Feature 006 RUN C (T017) — seller listing detail, edit, withdraw, and REJECTED remediation. */
+      detail: {
+        title: "Listing",
+        editHeading: "Edit listing",
+        notEditable: "This listing can't be edited in its current state.",
+        historyHeading: "Status history",
+        historyEmpty: "No status changes recorded yet.",
+        rejected: {
+          title: "This listing was rejected",
+          genericReason: "Compliance did not approve this listing. Move it back to draft to review and resubmit it.",
+        },
+        form: {
+          titleLabel: "Title",
+          quantityLabel: "Quantity (kg)",
+          priceLabel: "Price per kg",
+          save: "Save changes",
+          saving: "Saving…",
+          saved: "Listing updated.",
+          saveFailed: "The listing could not be updated. Please try again.",
+        },
+        withdraw: {
+          action: "Withdraw listing",
+          withdrawing: "Withdrawing…",
+          success: "Listing withdrawn.",
+          failed: "The listing could not be withdrawn.",
+        },
+        remediation: {
+          action: "Move to draft",
+          moving: "Moving…",
+          success: "Listing moved back to draft.",
+          failed: "The listing could not be moved to draft.",
+        },
+      },
+
+      /** Feature 006 RUN C (T019) — seller sales reconciliation (read-only; no Feature 008 settlement logic here). */
+      sales: {
+        title: "Sales",
+        description: "Your listings' sales outcomes, reconciled to the underlying order records.",
+        caption: "Your sales",
+        empty: {
+          title: "No sales yet",
+          description: "Sales appear here once a buyer's order against one of your listings settles.",
+        },
+        columns: {
+          listing: "Listing",
+          quantity: "Quantity",
+          unitPrice: "Unit price",
+          total: "Total",
+          outcome: "Order status",
+        },
+        pagination: {
+          previous: "Previous",
+          next: "Next",
+          pageLabel: "Page {page}",
+        },
+      },
     },
 
 } as const;

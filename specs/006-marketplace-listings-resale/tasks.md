@@ -3,11 +3,16 @@
 **Input**: [spec.md](./spec.md), [plan.md](./plan.md), `docs/architecture/DATABASE-CAPABILITY-MAP.md`,
 `.specify/memory/constitution.md` (v2.0.0), SRS §8 (MKT-01..MKT-07), AC-01/AC-02.
 
-**Status**: T001–T011, T013–T015 implemented and verified (RUN A: T001–T008; RUN B: T009–T011,
-T013–T015). **T012 is a KNOWN BLOCKER, deliberately left `[ ]`** (see its own entry). T022 remains
-BLOCKED by DB-BLOCK-07 (untouched this run). Phases 5–9 (T016–T032) NOT started. See
-`IMPLEMENTATION-HANDOFF.md` for full evidence, honest gaps and what Phase 5+ must know before
-building on this.
+**Status**: T001–T011, T013–T014, T016–T017, T019–T021, T025–T026 implemented and verified (RUN A:
+T001–T008; RUN B: T009–T011, T013–T014; RUN C: T016–T017, T019–T021, T025–T026). **T012 is a KNOWN
+BLOCKER**, **T015/T023 are BLOCKED LIVE PROOF** (implementation complete, own-org successful-
+transition + `listing_status_history` write not provable live under the current settled-order
+ceiling — reconciled 2026-09-13, see T015's own entry), **T018/T024 are DEFERRED** (Feature 007/008
+dependencies), **T022 is BLOCKED — DB-BLOCK-07 / delivery authority** (requires Feature 009 or an
+equivalent authoritative delivery-reservation representation; Feature 007 alone does not satisfy
+T022's delivery-reserved acceptance requirement) — all deliberately left `[ ]` (see each entry).
+Phases 8–9 (T027–T032) NOT started. See `IMPLEMENTATION-HANDOFF.md` for full evidence, honest gaps
+and what the next feature must know before building on this. **20/32 tasks complete.**
 **Prerequisite**: 001, 003, 004, 005 implemented.
 
 ## Task format
@@ -241,7 +246,7 @@ building on this.
     unreachable live for the same settled-order reason `eligibility.test.ts` already documents; see
     `IMPLEMENTATION-HANDOFF.md` §0/§11).
 
-- [x] T015 [PS3] Implement submit-for-review (`DRAFT → PENDING_REVIEW`) via a permitted write the
+- [ ] T015 [PS3] [**BLOCKED LIVE PROOF, recorded 2026-09-13**] Implement submit-for-review (`DRAFT → PENDING_REVIEW`) via a permitted write the
   `validate_offer_transition` trigger accepts.
   - Req: FR-009, PS3 | Depends: T014
   - Verify: successful submit records a `listing_status_history` row written by the database; a forbidden transition is refused by the trigger and surfaced as a safe error
@@ -263,23 +268,58 @@ building on this.
     `listing_status_history` write is NOT re-verified end-to-end here. Recorded as an open
     verification gap for a future run once a genuinely submittable listing exists.
 
+  - **RECONCILED (2026-09-13)**: T015's own literal Verify line requires BOTH the successful
+    own-org `DRAFT -> PENDING_REVIEW` write AND its database-written `listing_status_history` row
+    to be proven live, in addition to the forbidden-transition refusal. Only the forbidden-refusal
+    half is proven live (above); the successful-transition half remains fake-client-only (result
+    shape, not the DB's own history write). Per the same "no convenience-based checkboxing"
+    standard applied to T023, T015 is corrected from `[x]` to `[ ]` `[BLOCKED LIVE PROOF]` -- the
+    implementation itself is unchanged and correct; only the acceptance status was overstated.
+    Closes alongside T023 once a genuinely submittable/transitionable own-org listing exists.
+
 ---
 
 ## Phase 5 — Seller listing management & lifecycle
 
-- [ ] T016 [PS4] Implement `src/app/dashboard/listings/page.tsx` — the seller's listings across all
+- [x] T016 [PS4] Implement `src/app/dashboard/listings/page.tsx` — the seller's listings across all
   states with approved labels and status history.
   - Req: FR-008, FR-012, PS4 | Depends: T003
   - Verify: all nine approved statuses render their exact labels; only own-org listings appear
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — Medium
   - Why: list page with a closed vocabulary to honour.
+  - **Done (RUN C)**: reads exclusively through `lib/listings/manage.ts` (no raw `coffee_offers`
+    query); re-verifies `isAuthorizedMember` + `organization.canSell` server-side, independent of nav
+    visibility. `tests/listings/manage-page.test.tsx` (4 tests, live): buyer-only refused; the real
+    seller-capable fixture sees the HONEST empty state (no fabricated row — no MEMBER_SELLER listing
+    can exist live, the same settled-order root cause established since RUN B) plus a create-listing
+    action. Row rendering (status badge, quantity/price) is not re-proven with fabricated data — it
+    already has dedicated coverage in T011's `listing-components.test.tsx` and Feature 004's own
+    `TableCardList` tests.
 
-- [ ] T017 [PS4] Implement `src/app/dashboard/listings/[offerId]/page.tsx` + actions — edit while
+- [x] T017 [PS4] Implement `src/app/dashboard/listings/[offerId]/page.tsx` + actions — edit while
   permitted, withdraw where the trigger allows, and display the compliance reason for `REJECTED`.
   - Req: FR-008, FR-009, PS4 | Depends: T003, T015
   - Verify: editing a published listing does not retroactively change any existing order's price snapshot; rejection reason renders with a remediation route
   - Codex: GPT-5.6 Sol — High · Claude: Opus — Medium
   - Why: the edit/price-snapshot interaction is a subtle commercial-integrity issue worth careful reasoning.
+  - **Done (RUN C)**: `actions.ts` (`updateListing`/`withdrawListing`/`moveListingToDraft`) — explicit
+    update allowlist (`title`/`quantity_kg`/`price_per_kg` only; provenance/`status`/`created_by`/
+    `seller_organization_id` never client-influenced); no parallel state machine — every transition
+    target is a hardcoded literal and `validate_offer_transition` remains sole authority; a
+    `REJECTED` listing shows its recorded reason (or an honest generic message if absent) plus the
+    ONE trigger-permitted remediation transition (`REJECTED → DRAFT`).
+  - **PRICE-SNAPSHOT INTEGRITY**: PROVEN as a structural schema guarantee, not re-derived at runtime
+    — `order_items.unit_price_per_kg` is written ONCE, at order-item creation
+    (`validate_order_item_offer`'s trigger), and no code path in this repository ever writes to it
+    again; `updateListing` touches only `coffee_offers`. Feature 007 (order creation) is not
+    implemented in this run — this documents the existing schema boundary honestly, it is not a claim
+    about 007's own future behavior.
+  - Tests: `tests/listings/manage-detail-page.test.tsx` (8 tests, module mocks — no genuine own-org
+    row exists live for the same reason as T016) proves editable-status gating, withdraw-button
+    gating (disabled for `PENDING_REVIEW`, matching the trigger's own state machine), REJECTED
+    reason/remediation rendering (including the honest-generic-message fallback), and cross-org
+    `notFound()`. `tests/listings/transitions.test.ts` (below, T023) proves every FORBIDDEN
+    transition path for these SAME actions live.
 
 - [ ] T018 [PS5] Render fill progression on seller listings (reserved excluded, partial fill, sold
   out) from `fills.ts`.
@@ -287,35 +327,57 @@ building on this.
   - Verify: reserving via 007 reduces actionable quantity; settling via 008 increases filled quantity and flips state
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — High
   - Why: correctness here is how sellers detect double-selling problems.
+  - **[DEFERRED — 007/008]**: requires real reservation effects from Feature 007 and settlement/fill
+    effects from Feature 008, neither implemented. Not started this run, per explicit instruction.
 
-- [ ] T019 [PS6] Implement `src/app/dashboard/sales/page.tsx` — seller sales outcomes reconciling to
+- [x] T019 [PS6] Implement `src/app/dashboard/sales/page.tsx` — seller sales outcomes reconciling to
   underlying order items with unit and currency.
   - Req: PS6, FR-003 (units) | Depends: T005, T003
   - Verify: totals reconcile to `order_items`/ownership events for the seller's organization only
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — High
   - Why: a reconciliation view where a wrong join could show another organization's figures.
+  - **Done (RUN C)**: new `lib/listings/sales.ts` — reads `order_items` (which already carries its
+    OWN point-in-time snapshot: quantity/unit price/currency/product+lot names, confirmed live —
+    DB-OPEN-05 does not affect this view at all, no `coffee_lots` join needed), scoped by
+    `seller_organization_id`; joins `orders` ONLY for safe fields (`order_code`/`status`/date) —
+    `buyer_organization_id` is never selected (source-verified). No `reduce()`/tally fabricating a
+    total beyond the per-row authoritative figures. `tests/listings/sales-page.test.tsx` (4 tests,
+    live): buyer-only refused; the real seller-capable fixture sees the HONEST empty state — no
+    settled order exists for any organization in the live database today, so this is the true current
+    state, not a fabricated placeholder.
 
 ---
 
 ## Phase 6 — Module registration
 
-- [ ] T020 Register buyer nav (`coffee`) always and seller nav (`listings`, `sales`) only for
+- [x] T020 Register buyer nav (`coffee`) always and seller nav (`listings`, `sales`) only for
   `can_sell` organizations, plus overview cards, with 004's contract.
   - Req: FR-014, FR-015 | Depends: T009, T016, T019
   - Verify: buyer-only fixture sees no seller entries and is refused at seller routes; buyer+seller sees both
   - Codex: GPT-5.6 Sol — Medium · Claude: Opus — Medium
   - Why: the additive-capability model is Constitution-locked and must be exactly right at the registration boundary.
+  - **Done (RUN C)**: a new `marketplace` module in `lib/dashboard/registry.tsx` — `coffee` entry at
+    `requiredCapability: "buy"` (every authorized member), `listings`/`sales` entries at
+    `requiredCapability: "sell"` (additive, Constitution Principle VI — no separate seller
+    application). One bounded `getManagedListingsCount` overview card, seller-only, never a fabricated
+    zero. Declaration remains presentational only — T016/T017/T019's own server-side guards are what
+    actually refuse a buyer-only organization at the route, independent of what nav ever rendered.
+    `tests/dashboard/registry.test.tsx` (reconciled + extended, 20 tests): exact module/nav-group/href
+    shape, buyer-only sees ONLY `coffee`, a seller-capable org sees all three entries.
 
 ---
 
 ## Phase 7 — Automated tests
 
-- [ ] T021 [P] Write `tests/listings/access-control.test.ts` (AC-01): anonymous, non-member,
+- [x] T021 [P] Write `tests/listings/access-control.test.ts` (AC-01): anonymous, non-member,
   pending-KYB and suspended fixtures reach zero listing data; approved member succeeds.
   - Req: SEC-001, SC-001 | Depends: T007
   - Verify: `npm test -- listings/access-control` passes for all five cases
   - Codex: GPT-5.6 Sol — High · Claude: Opus — High
   - Why: release-blocking acceptance criterion.
+  - **Done (RUN C)**: all 5 cases proven live against the real `lib/listings/browse.ts` read layer
+    (anonymous, unattached, pending-KYB, suspended — each zero private data; approved active member —
+    proceeds normally), never a hidden-UI assertion, never service-role as the test's own path.
 
 - [ ] T022 [P] [**BLOCKED — DB-BLOCK-07, recorded 2026-09-12**] Write `tests/listings/eligibility.test.ts`:
   `can_sell=false`, non-Hills-sourced, over-available and delivery-reserved quantities are all
@@ -334,33 +396,64 @@ building on this.
     task EXTENDS that existing file with the delivery-reserved case once unblocked, it does not
     create a new one.
 
-- [ ] T023 [P] Write `tests/listings/transitions.test.ts`: permitted transitions succeed and record
-  history; forbidden transitions are refused by the database trigger.
+- [ ] T023 [P] [**BLOCKED LIVE PROOF — recorded 2026-09-13**] Write `tests/listings/transitions.test.ts`:
+  permitted transitions succeed and record history; forbidden transitions are refused by the
+  database trigger.
   - Req: FR-009 | Depends: T015, T017
   - Verify: `npm test -- listings/transitions` passes
   - Codex: GPT-5.6 Sol — High · Claude: Sonnet — High
   - Why: state-machine conformance against database-owned rules.
+  - **[BLOCKED LIVE PROOF]**: the file exists (8 tests, all passing) and proves EVERY forbidden
+    transition path live, for all three actions (`submitListingForReview`/`withdrawListing`/
+    `moveListingToDraft`): buyer-only refused before any attempt; a real seller-capable session
+    cannot transition a cross-org (Hills) offer; a genuinely SOLD_OUT source status is refused
+    regardless of ownership (no ARCHIVED target in `validate_offer_transition`'s state machine). The
+    task's OWN Verify line also requires "permitted transitions succeed and record history" — this
+    HALF is NOT provable live: it needs a real, own-org, non-Hills `coffee_offers` row in a
+    transitionable status, and none can exist (no MEMBER_SELLER row can ever be inserted without a
+    genuinely settled order — unconditional even on INSERT — and no settled order can be
+    constructed by privileged fixture tooling; the only rows that DO exist are HILLS-owned, and
+    `hillsOrg` has no signable-in member). No fixture was fabricated and the trigger was not
+    weakened to manufacture a passing test. The successful-transition RESULT SHAPE is separately
+    proven with fake clients in `create-action-eligible.test.ts`/`submit-action-success.test.ts` —
+    explicitly NOT a claim that the database's `listing_status_history` write was re-verified
+    end-to-end. **T023 is left `[ ]`** — its literal task verification cannot be fully met this run.
 
-- [ ] T024 [P] Write `tests/listings/fills.test.ts`: reserved excluded from actionable quantity;
-  partial fill and sold-out derive from stored columns; expiry restores quantity exactly once.
+- [ ] T024 [P] [**DEFERRED — 007/008**] Write `tests/listings/fills.test.ts`: reserved excluded from
+  actionable quantity; partial fill and sold-out derive from stored columns; expiry restores
+  quantity exactly once.
   - Req: FR-011, PS5, SC-003 | Depends: T005, T018
   - Verify: `npm test -- listings/fills` passes
   - Codex: GPT-5.6 Sol — High · Claude: Opus — High
   - Why: "restores exactly once" is a classic double-restore bug with direct commercial consequences.
+  - **[DEFERRED]**: depends on T018 (fill progression), itself deferred to Features 007/008's real
+    reservation/expiry/fill integration. Not started this run.
 
-- [ ] T025 [P] Write `tests/listings/isolation.test.ts`: seller A never sees seller B's non-published
+- [x] T025 [P] Write `tests/listings/isolation.test.ts`: seller A never sees seller B's non-published
   listings, documents or status history.
   - Req: FR-012, SEC-002 | Depends: T003
   - Verify: `npm test -- listings/isolation` passes
   - Codex: GPT-5.6 Sol — High · Claude: Sonnet — High
   - Why: cross-tenant guarantee on commercially sensitive drafts.
+  - **Done (RUN C)**: 4 tests, live — an unrelated org gets nothing back for another organization's
+    non-published listing (by direct id and in its own list), status history, AND `offer_documents`
+    (queried directly against the live table — no `lib/listings/*` wrapper reads it yet). Documents
+    the honest nuance that `offer_documents_owner_or_admin` genuinely permits the OWNING org's OWN
+    members (distinct from RUN A's separately-recorded "no buyer/non-owner member can ever read
+    documents" gap) — either way, an UNRELATED organization gets zero rows, which is the isolation
+    property under test.
 
-- [ ] T026 Write `tests/listings/public-exposure.test.ts`: no public route, sitemap or structured
+- [x] T026 Write `tests/listings/public-exposure.test.ts`: no public route, sitemap or structured
   data contains listing data.
   - Req: FR-003, SC-006 | Depends: T008
   - Verify: `npm test -- listings/public-exposure` passes
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — Medium
   - Why: cross-feature invariant check with a clear assertion.
+  - **Done (RUN C)**: 9 tests — extends T008's `boundary.test.ts` coverage to the RUN C additions
+    (`lib/listings/sales.ts`, `dashboard/listings/*`, `dashboard/sales/*`): no public import, no
+    public `route.ts` mentions `coffee_offers`/`order_items`/`listing_status_history`, non-indexable
+    metadata inherited, no sitemap/robots entry, no shared cache or service-role in any RUN C file,
+    public catalogue (Feature 002) confirmed distinct and untouched.
 
 ---
 

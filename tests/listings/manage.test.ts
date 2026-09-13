@@ -168,12 +168,13 @@ describe("T003 — no ambiguous 'includePrivate' switch (source-level proof)", (
  *      unproven live (see `IMPLEMENTATION-HANDOFF.md` §10).
  */
 describe("T003 — 'own-org rows only' is structurally guaranteed by explicit query scoping (source-level proof)", () => {
-  it("getManagedListings/getManagedListingById/getListingStatusHistory each scope by the caller's own organizationId", async () => {
+  it("getManagedListings/getManagedListingById/getManagedListingsCount each scope by the caller's own organizationId", async () => {
     const { readFileSync } = await import("node:fs");
     const source = readFileSync("lib/listings/manage.ts", "utf8");
     expect(source).toMatch(/\.eq\(\s*["']seller_organization_id["']\s*,\s*organizationId\s*\)/g);
-    // Exactly two call sites scope coffee_offers this way (list + by-id) — status history relies on
-    // RLS alone (`offer_history_view`), documented in this file's own header as a deliberate choice.
-    expect(source.match(/\.eq\(\s*["']seller_organization_id["']\s*,\s*organizationId\s*\)/g)?.length).toBe(2);
+    // Exactly three call sites scope coffee_offers this way (list + by-id + Feature 006 RUN C's
+    // T020 overview count) — status history relies on RLS alone (`offer_history_view`), documented
+    // in this file's own header as a deliberate choice.
+    expect(source.match(/\.eq\(\s*["']seller_organization_id["']\s*,\s*organizationId\s*\)/g)?.length).toBe(3);
   });
 });

@@ -74,6 +74,17 @@ export async function getManagedListings({
 }
 
 /**
+ * Feature 006 RUN C (T020) — a bounded COUNT-only read for the dashboard overview's "my listings"
+ * contribution. Mirrors `lib/inventory/positions.ts#getInventoryPositionsCount`'s exact pattern
+ * (`{ count: "exact", head: true }` — no row data, no full scan).
+ */
+export async function getManagedListingsCount({ organizationId }: { organizationId: string }): Promise<number> {
+  const supabase = await createClient();
+  const { count } = await supabase.from("coffee_offers").select("id", { count: "exact", head: true }).eq("seller_organization_id", organizationId);
+  return count ?? 0;
+}
+
+/**
  * Single-listing lookup, org-scoped exactly like `lib/inventory/positions.ts#getInventoryPositionById`
  * — a nonexistent id and a cross-org id return the IDENTICAL `null`, so a caller cannot distinguish
  * "not yours" from "does not exist."

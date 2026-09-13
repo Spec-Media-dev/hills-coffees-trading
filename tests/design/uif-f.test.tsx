@@ -209,16 +209,16 @@ describe("Phase 5.5 UIF-036 — member shell applied at /dashboard", () => {
     // original comment anticipated arriving later ("no inventory... module past it" describes `kyb`,
     // not a permanent ban on any feature ever adding one).
     //
-    // Feature 006 RUN A (T007) added `dashboard/coffee/` — the private marketplace route guard
-    // (identity → membership), registered with Feature 004's module contract only in Phase 6
-    // (T020, not yet done). RUN B (T009/T010/T013) adds the real browse/detail pages under
-    // `coffee/` AND a new `dashboard/listings/` directory for the seller create/submit flow
-    // (`listings/new/page.tsx` + its own Server Actions) — both genuinely-live business routes now,
-    // registered with 004's module contract only in the same still-future Phase 6. No OTHER business
-    // area (orders, payments, delivery, disputes, `dashboard/sales` — 006's own later Phase 5) has a
-    // directory here yet.
-    expect(dirs.sort()).toEqual(["coffee", "inventory", "kyb", "listings", "onboarding", "settings", "storage"]);
-    for (const stillUnbuilt of ["orders", "payments", "delivery", "disputes", "sales"]) {
+    // Feature 006 RUN A (T007) added `dashboard/coffee/` — the private marketplace route guard.
+    // RUN B (T009/T010/T013) added the real browse/detail pages under `coffee/` AND
+    // `dashboard/listings/new/` for the seller create/submit flow. RUN C (T016/T017/T019/T020) adds
+    // the seller's own listings list + detail/edit/withdraw pages under the SAME `dashboard/listings/`
+    // directory, a NEW `dashboard/sales/` directory for seller sales reconciliation, and registers
+    // all of it (coffee/listings/sales) with Feature 004's module contract
+    // (`lib/dashboard/registry.tsx`) — genuinely-live business routes now. No OTHER business area
+    // (orders, payments, delivery, disputes) has a directory here yet.
+    expect(dirs.sort()).toEqual(["coffee", "inventory", "kyb", "listings", "onboarding", "sales", "settings", "storage"]);
+    for (const stillUnbuilt of ["orders", "payments", "delivery", "disputes"]) {
       expect(dirs).not.toContain(stillUnbuilt);
     }
 

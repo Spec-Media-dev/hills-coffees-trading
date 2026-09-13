@@ -2,6 +2,7 @@ import { AppBilingual } from "@/components/locale/app-bilingual";
 import { Icon } from "@/components/ui/icon";
 import { getStoredAllocationsCount } from "@/lib/inventory/allocations";
 import { getInventoryPositionsCount } from "@/lib/inventory/positions";
+import { getManagedListingsCount } from "@/lib/listings/manage";
 
 import type { DashboardModule, OverviewCard } from "./modules";
 
@@ -152,6 +153,84 @@ export const DASHBOARD_MODULES: readonly DashboardModule[] = [
           href: "/dashboard/storage",
         });
       }
+      return cards;
+    },
+  },
+  /**
+   * Feature 006 RUN C (T020) — the marketplace module. `coffee` (browse) is `requiredCapability:
+   * "buy"` at the ENTRY level — every authorized member (buyer or seller; selling is additive on top
+   * of buying, Constitution Principle VI, `lib/dashboard/modules.ts`'s own doc comment) sees it.
+   * `listings`/`sales` are `requiredCapability: "sell"` at the entry level, so a buyer-only
+   * organization never sees them in nav — but per this file's own established rule, that hiding is
+   * PRESENTATIONAL ONLY: `src/app/dashboard/listings/page.tsx`,
+   * `src/app/dashboard/listings/[offerId]/page.tsx` and `src/app/dashboard/sales/page.tsx` each
+   * independently re-verify `organization.canSell` server-side (T016/T017/T019's own guards) — a
+   * buyer-only organization reaching any of those URLs directly is refused there regardless of what
+   * this registry ever rendered.
+   *
+   * The module's own top-level `requiredCapability` is `"buy"` (not `"sell"`) because the `coffee`
+   * entry must render for buyer-only organizations too — an entry-level capability narrower than the
+   * module's own would otherwise never be reached (`buildDashboardNavGroups` skips the WHOLE module
+   * first if the module-level capability is not granted).
+   */
+  {
+    id: "marketplace",
+    requiredCapability: "buy",
+    navGroups: [
+      {
+        key: "marketplace",
+        label: <AppBilingual pick={(c) => c.marketplace.title} />,
+        entries: [
+          {
+            id: "coffee",
+            label: <AppBilingual pick={(c) => c.marketplace.title} />,
+            href: "/dashboard/coffee",
+            icon: <Icon name="tag" className="size-[18px]" />,
+            requiredCapability: "buy",
+          },
+          {
+            id: "listings",
+            label: <AppBilingual pick={(c) => c.listings.manage.title} />,
+            href: "/dashboard/listings",
+            icon: <Icon name="clipboard-list" className="size-[18px]" />,
+            requiredCapability: "sell",
+          },
+          {
+            id: "sales",
+            label: <AppBilingual pick={(c) => c.listings.sales.title} />,
+            href: "/dashboard/sales",
+            icon: <Icon name="wallet" className="size-[18px]" />,
+            requiredCapability: "sell",
+          },
+        ],
+      },
+    ],
+    overviewCards: async ({ organization }) => {
+      // Seller-only contribution — a buyer-only organization contributes nothing here (never a
+      // fabricated "0 listings" card), mirroring the inventory module's own zero-count discipline.
+      if (!organization.canSell) return [];
+
+      const listingsCount = await getManagedListingsCount({ organizationId: organization.organizationId });
+      if (listingsCount === 0) return [];
+
+      const cards: OverviewCard[] = [
+        {
+          id: "marketplace-listings",
+          area: "where",
+          title: <AppBilingual pick={(c) => c.listings.manage.overview.listingsCard} />,
+          value: (
+            <AppBilingual
+              pick={(c) =>
+                (listingsCount === 1 ? c.listings.manage.overview.listingsValue : c.listings.manage.overview.listingsValuePlural).replace(
+                  "{count}",
+                  String(listingsCount)
+                )
+              }
+            />
+          ),
+          href: "/dashboard/listings",
+        },
+      ];
       return cards;
     },
   },

@@ -622,6 +622,95 @@ export const ar: DeepPartial<AppCopy> = {
           submitFailed: "تعذَّر إرسال القائمة. يرجى المحاولة مرة أخرى.",
         },
       },
+
+      manage: {
+        title: "قوائمي",
+        description: "كل قائمة أنشأتها منظمتك، في أي حالة كانت.",
+        caption: "قوائمك",
+        createAction: "إنشاء قائمة",
+        viewDetails: "عرض القائمة",
+        capabilityRequired: {
+          title: "البيع غير مفعَّل لمنظمتك",
+          description: "تواصل مع هيلز كوفي لتفعيل البيع قبل إدارة القوائم.",
+        },
+        empty: {
+          title: "لا توجد قوائم بعد",
+          description: "أنشئ أول قائمة لك من مخزونك المؤهل والمصدر من هيلز.",
+        },
+        columns: {
+          listing: "القائمة",
+          status: "الحالة",
+          quantity: "الكمية",
+          price: "السعر",
+          updated: "آخر تحديث",
+          actions: "الإجراءات",
+        },
+        pagination: {
+          previous: "السابق",
+          next: "التالي",
+          pageLabel: "صفحة {page}",
+        },
+        overview: {
+          listingsCard: "قوائمي",
+          listingsValue: "{count} قائمة",
+          listingsValuePlural: "{count} قوائم",
+        },
+      },
+
+      detail: {
+        title: "القائمة",
+        editHeading: "تعديل القائمة",
+        notEditable: "لا يمكن تعديل هذه القائمة في حالتها الحالية.",
+        historyHeading: "سجل الحالة",
+        historyEmpty: "لا توجد تغييرات في الحالة مسجَّلة بعد.",
+        rejected: {
+          title: "تم رفض هذه القائمة",
+          genericReason: "لم يوافق الامتثال على هذه القائمة. أعدها إلى المسودة لمراجعتها وإعادة إرسالها.",
+        },
+        form: {
+          titleLabel: "العنوان",
+          quantityLabel: "الكمية (كجم)",
+          priceLabel: "السعر لكل كجم",
+          save: "حفظ التغييرات",
+          saving: "جارٍ الحفظ…",
+          saved: "تم تحديث القائمة.",
+          saveFailed: "تعذَّر تحديث القائمة. يرجى المحاولة مرة أخرى.",
+        },
+        withdraw: {
+          action: "سحب القائمة",
+          withdrawing: "جارٍ السحب…",
+          success: "تم سحب القائمة.",
+          failed: "تعذَّر سحب القائمة.",
+        },
+        remediation: {
+          action: "إعادة إلى المسودة",
+          moving: "جارٍ النقل…",
+          success: "تمت إعادة القائمة إلى المسودة.",
+          failed: "تعذَّر إعادة القائمة إلى المسودة.",
+        },
+      },
+
+      sales: {
+        title: "المبيعات",
+        description: "نتائج مبيعات قوائمك، مطابَقة مع سجلات الطلبات الأساسية.",
+        caption: "مبيعاتك",
+        empty: {
+          title: "لا توجد مبيعات بعد",
+          description: "ستظهر المبيعات هنا بمجرد تسوية طلب مشترٍ مقابل إحدى قوائمك.",
+        },
+        columns: {
+          listing: "القائمة",
+          quantity: "الكمية",
+          unitPrice: "سعر الوحدة",
+          total: "الإجمالي",
+          outcome: "حالة الطلب",
+        },
+        pagination: {
+          previous: "السابق",
+          next: "التالي",
+          pageLabel: "صفحة {page}",
+        },
+      },
     },
 
 };
