@@ -51,7 +51,7 @@ const DEFAULT_PAGE_SIZE = 25;
 const MAX_PAGE_SIZE = 100;
 
 const ORDER_SELECT =
-  "id, order_code, buyer_organization_id, status, currency, hold_started_at, hold_expires_at, confirmed_at, paid_at, completed_at, created_by, created_at, updated_at, correlation_id";
+  "id, order_code, buyer_organization_id, status, currency, hold_started_at, hold_expires_at, confirmed_at, paid_at, completed_at, created_by, created_at, updated_at, correlation_id, idempotency_key";
 
 const ORDER_ITEM_SELECT =
   "id, order_id, offer_id, lot_id, seller_organization_id, quantity_kg, unit_price_per_kg, product_name_snapshot, origin_name_snapshot, variant_name_snapshot, lot_code_snapshot, seller_type_snapshot, currency, created_at";
@@ -84,6 +84,7 @@ type OrderRow = {
   created_at: string;
   updated_at: string;
   correlation_id: string | null;
+  idempotency_key: string | null;
 };
 
 function mapOrderRow(row: OrderRow): OrderSummary {
@@ -102,6 +103,7 @@ function mapOrderRow(row: OrderRow): OrderSummary {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     correlationId: row.correlation_id,
+    idempotencyKey: row.idempotency_key,
   };
 }
 

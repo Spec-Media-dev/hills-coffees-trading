@@ -85,6 +85,26 @@ export type OrderSummary = {
   createdAt: string;
   updatedAt: string;
   correlationId: string | null;
+  /**
+   * `orders.idempotency_key` — SERVER-generated once per checkout intent by
+   * `lib/orders/checkout.ts` (never client-supplied, never rendered). `null` until the first
+   * checkout attempt.
+   */
+  idempotencyKey: string | null;
+};
+
+/**
+ * Feature 007 RUN B (T008) — the VERBATIM shape of `checkout_order()`'s own `jsonb` return value
+ * (read live from the function body): the application never derives any of these itself.
+ */
+export type CheckoutResult = {
+  orderId: string;
+  proformaId: string | null;
+  reservationId: string | null;
+  buyerTotal: number | null;
+  holdExpiresAt: string | null;
+  correlationId: string | null;
+  idempotentRetry: boolean;
 };
 
 /** One `order_items` row — carries its OWN point-in-time snapshot (never re-derived from `coffee_offers`/`coffee_lots`). */

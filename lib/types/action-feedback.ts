@@ -90,6 +90,13 @@ export const ACTION_FEEDBACK = {
   SHIPMENT_NOT_EDITABLE: "shipment_not_editable",
   SHIPMENT_ITEM_QUANTITY_INVALID: "shipment_item_quantity_invalid",
   SHIPMENT_SAVE_FAILED: "shipment_save_failed",
+  /**
+   * Feature 007 RUN B (T008) — `lib/orders/checkout.ts`'s own pre-checkout readiness refusal
+   * (no items, or no READY/RESERVED shipment whose planned quantities cover the order). Returned
+   * BEFORE the one-way `DRAFT -> CONFIRMED` transition is attempted, so a not-yet-ready draft is
+   * never stranded in `CONFIRMED`; `checkout_order()` re-validates all of this itself regardless.
+   */
+  ORDER_CHECKOUT_NOT_READY: "order_checkout_not_ready",
 } as const;
 
 export type ActionFeedbackCode = (typeof ACTION_FEEDBACK)[keyof typeof ACTION_FEEDBACK];

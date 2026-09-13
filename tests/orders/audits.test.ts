@@ -20,34 +20,58 @@ const RUN_A_FILES = [
   "components/orders/order-status-badge.tsx",
 ];
 
+/** Feature 007 RUN B (T008–T011) — `lib/orders/checkout.ts` is the ONE sanctioned `checkout_order()` caller. */
+const RUN_B_FILES = [
+  "lib/orders/checkout.ts",
+  "src/app/dashboard/orders/[orderId]/checkout/actions.ts",
+  "src/app/dashboard/orders/[orderId]/checkout/page.tsx",
+  "components/orders/checkout-confirm-button.tsx",
+  "components/orders/hold-countdown.tsx",
+];
+
+const ALL_FILES = [...RUN_A_FILES, ...RUN_B_FILES];
+const SOLE_CHECKOUT_CALLER = "lib/orders/checkout.ts";
+
 function stripComments(source: string): string {
   return source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
 }
 
-describe("RUN A audit — no checkout_order()/expire_order_hold() call site anywhere in this run's files", () => {
-  it.each(RUN_A_FILES)("%s never calls checkout_order or expire_order_hold", async (path) => {
+describe("RUN A/B audit — checkout_order() has exactly one caller; expire_order_hold() has none", () => {
+  it.each(ALL_FILES.filter((path) => path !== SOLE_CHECKOUT_CALLER))("%s never calls checkout_order or expire_order_hold", async (path) => {
     const { readFileSync } = await import("node:fs");
     const source = stripComments(readFileSync(path, "utf8"));
     expect(source).not.toMatch(/checkout_order/);
     expect(source).not.toMatch(/expire_order_hold/);
   });
 
-  it("a repo-wide grep for checkout_order/expire_order_hold matches nothing under lib/orders or src/app/dashboard/orders (T029's own future check, verified early)", async () => {
+  it("lib/orders/checkout.ts calls checkout_order exactly once and never expire_order_hold", async () => {
+    const { readFileSync } = await import("node:fs");
+    const source = stripComments(readFileSync(SOLE_CHECKOUT_CALLER, "utf8"));
+    expect(source.match(/"checkout_order"/g)?.length).toBe(1);
+    expect(source).not.toMatch(/expire_order_hold/);
+  });
+
+  it("a repo-wide grep (untracked included, comments stripped) finds checkout_order in code only in lib/orders/checkout.ts, and expire_order_hold nowhere (T029's own future check, verified early)", async () => {
     const { execFileSync } = await import("node:child_process");
+    const { readFileSync } = await import("node:fs");
     let output = "";
     try {
-      output = execFileSync("git", ["grep", "-l", "-E", "checkout_order|expire_order_hold", "--", "lib/orders", "src/app/dashboard/orders"], { encoding: "utf8" });
+      output = execFileSync("git", ["grep", "-l", "--untracked", "-E", "checkout_order|expire_order_hold", "--", "lib", "src", "components"], { encoding: "utf8" });
     } catch (error) {
-      // `git grep` exits 1 when there are zero matches — that is the expected, passing outcome.
       const status = (error as { status?: number }).status;
       if (status !== 1) throw error;
     }
-    expect(output.trim()).toBe("");
+    const codeReferences = output
+      .trim()
+      .split(/\r?\n/)
+      .filter(Boolean)
+      .filter((file) => /checkout_order|expire_order_hold/.test(stripComments(readFileSync(file, "utf8"))));
+    expect(codeReferences).toEqual([SOLE_CHECKOUT_CALLER]);
   });
 });
 
 describe("RUN A audit — no service-role, no shared cache, anywhere in this run's own files", () => {
-  it.each(RUN_A_FILES)("%s never references a service-role key or a shared cache directive", async (path) => {
+  it.each(ALL_FILES)("%s never references a service-role key or a shared cache directive", async (path) => {
     const { readFileSync } = await import("node:fs");
     const source = stripComments(readFileSync(path, "utf8"));
     expect(source).not.toMatch(/SERVICE_ROLE/);
@@ -57,7 +81,7 @@ describe("RUN A audit — no service-role, no shared cache, anywhere in this run
 });
 
 describe("RUN A audit — no title-transfer / no warehouse-progression status anywhere in this run's own files", () => {
-  it.each(RUN_A_FILES)("%s never references inventory_ownership_events", async (path) => {
+  it.each(ALL_FILES)("%s never references inventory_ownership_events", async (path) => {
     const { readFileSync } = await import("node:fs");
     const source = stripComments(readFileSync(path, "utf8"));
     expect(source).not.toMatch(/inventory_ownership_events/);
@@ -76,7 +100,7 @@ describe("RUN A audit — no application-side financial computation", () => {
   // `lib/orders/read.ts` legitimately PASSES THROUGH `order_financials`' own column names (that is
   // its entire job, FR-010) — excluded here; the requirement is no ARITHMETIC recomputation, which
   // this same describe block's second test checks for directly in that file.
-  const filesThatMustNeverMentionFinancialColumns = RUN_A_FILES.filter((path) => path !== "lib/orders/read.ts");
+  const filesThatMustNeverMentionFinancialColumns = ALL_FILES.filter((path) => path !== "lib/orders/read.ts");
 
   it("no UI/action/write file in this run recomputes or even mentions base/shipping/vat/commission/buyer totals", async () => {
     const { readFileSync } = await import("node:fs");

@@ -45,7 +45,7 @@ async function requireBuyerCapableIdentity(): Promise<BuyerIdentity | null> {
  * a genuine success calls `redirect()` (which Next.js implements as a thrown control-flow signal,
  * never reaching the `return` below).
  */
-export async function createOrder(_prevState: ActionFeedbackResult | undefined, _formData: FormData): Promise<ActionFeedbackResult> {
+export async function createOrder(): Promise<ActionFeedbackResult> {
   const identity = await requireBuyerCapableIdentity();
   if (!identity) {
     return { ok: false, code: ACTION_FEEDBACK.BUYER_NOT_CAPABLE };

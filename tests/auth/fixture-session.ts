@@ -184,6 +184,32 @@ export const LISTING_FIXTURES = {
   offerSoldOut: "06000000-0000-4000-8000-000000000007",
 } as const;
 
+/**
+ * Feature 007 RUN B fixture IDs — literals mirroring `scripts/seed-test-fixtures.ts`'s own
+ * `CHECKOUT_FIXTURE_IDS` (same precedent as `LISTING_FIXTURES` above). `offerCheckout` is a
+ * PUBLISHED HILLS listing (50 kg, 10 USD/kg) that ONLY the transactional checkout tests touch —
+ * `checkout_order()` genuinely reserves against it, so `resetCheckoutFixtures()` restores it before
+ * each checkout test file runs.
+ */
+export const CHECKOUT_FIXTURES = {
+  lotD: "07000000-0000-4000-8000-000000000001",
+  hillsPositionD: "07000000-0000-4000-8000-000000000002",
+  offerCheckout: "07000000-0000-4000-8000-000000000003",
+  offerQuantityKg: 50,
+  offerPricePerKg: 10,
+} as const;
+
+/** TEST-ONLY privileged integrity snapshot shape (see the seed script's `inspectCheckoutOrder`). */
+export type CheckoutInspection = {
+  reservations: Array<{ id: string; status: string; expires_at: string }>;
+  reservationItems: Array<{ quantity_kg: number; offer_id: string }>;
+  proformas: Array<{ id: string; proforma_code: string; status: string }>;
+  payments: Array<{ id: string; status: string; amount: number }>;
+  ownershipEventCount: number;
+  offer: { reserved_quantity_kg: number; filled_quantity_kg: number; status: string };
+  position: { reserved_quantity_kg: number; available_quantity_kg: number };
+};
+
 function loadTestEnvironment(): void {
   let contents: string;
   try {
@@ -360,9 +386,32 @@ export function verifyInventoryAppendOnlyGuard(): void {
   runFixtureScript(["--verify-inventory-append-only"]);
 }
 
-function runFixtureScript(args: readonly string[]): void {
+/**
+ * Feature 007 RUN B — restores the dedicated checkout listing/position to their seeded state and
+ * removes every test order that referenced it (service-role, setup/teardown only — the same
+ * approved convention as every other helper above). Never called by runtime code.
+ */
+export function resetCheckoutFixtures(): void {
+  runFixtureScript(["--reset-checkout-fixtures"]);
+}
+
+/**
+ * Feature 007 RUN B — TEST-ONLY privileged read of one order's transactional integrity
+ * (reservation/proforma/payment/ownership-event counts + the offer/position reserved mirror).
+ * `inventory_reservations`/`inventory_reservation_items` are admin-only by RLS (DB-OPEN-12), so this
+ * is the repository's approved way for a release-blocking test to inspect them; no runtime member
+ * code reads those tables (plan.md architecture decision 10).
+ */
+export function inspectCheckoutOrder(orderId: string): CheckoutInspection {
+  const output = runFixtureScript([`--inspect-checkout-order=${orderId}`], { captureOutput: true });
+  const line = output.trim().split(/\r?\n/).find((candidate) => candidate.startsWith("{"));
+  if (!line) throw new Error("Checkout inspection produced no JSON snapshot.");
+  return JSON.parse(line) as CheckoutInspection;
+}
+
+function runFixtureScript(args: readonly string[], options: { captureOutput?: boolean } = {}): string {
   loadTestEnvironment();
-  execFileSync(
+  const output = execFileSync(
     process.execPath,
     [
       resolve(process.cwd(), "node_modules", "tsx", "dist", "cli.mjs"),
@@ -372,7 +421,8 @@ function runFixtureScript(args: readonly string[]): void {
     {
       cwd: process.cwd(),
       env: process.env,
-      stdio: "ignore",
+      stdio: options.captureOutput ? ["ignore", "pipe", "ignore"] : "ignore",
     }
   );
+  return options.captureOutput ? String(output) : "";
 }

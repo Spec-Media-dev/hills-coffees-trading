@@ -46,7 +46,7 @@ export function ShipmentPlanner({
     );
   }
 
-  const statusLabel = shipment.status === "DRAFT" || shipment.status === "REQUESTED" ? copy.status[shipment.status] : shipment.status;
+  const statusLabel = (copy.status as Record<string, string | undefined>)[shipment.status] ?? shipment.status;
 
   return (
     <div className="flex flex-col gap-5">

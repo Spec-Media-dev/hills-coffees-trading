@@ -27,7 +27,7 @@ export function StartOrderButton() {
       disabled={isPending}
       onClick={() => {
         startTransition(() => {
-          dispatch(new FormData());
+          dispatch();
         });
       }}
     >

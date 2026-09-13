@@ -58,7 +58,7 @@ describe("T004 — createOrder Server Action (live)", () => {
       const client = await signInAsFixture(PHASE89_FIXTURES.suspended.email);
       const result = await withLiveClient(client, async () => {
         const { createOrder } = await import("@/src/app/dashboard/orders/actions");
-        return createOrder(undefined, new FormData());
+        return createOrder();
       });
       expect(result.ok).toBe(false);
       if (!result.ok) expect(result.code).toBe(ACTION_FEEDBACK.BUYER_NOT_CAPABLE);

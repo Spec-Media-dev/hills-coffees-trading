@@ -895,8 +895,71 @@ export const en = {
           status: {
             DRAFT: "Draft",
             REQUESTED: "Requested",
+            READY: "Ready",
+            RESERVED: "Reserved",
           },
         },
+        checkoutAction: "Proceed to checkout",
+      },
+
+      /** Feature 007 RUN B (T009–T011) — checkout review, outcome (HOLD), and availability failure. */
+      checkout: {
+        title: "Review and confirm",
+        breadcrumb: "Checkout",
+        description: "Confirming reserves this quantity for you for 20 minutes while you arrange payment. Nothing is reserved until you confirm.",
+        itemsHeading: "Items",
+        shipmentHeading: "Delivery",
+        noShipment: "No delivery details on this order yet.",
+        readiness: {
+          ready: "This order is ready to confirm.",
+          notReady: "This order can't be confirmed yet.",
+          noItems: "Add at least one item before confirming.",
+          shipmentNotReady: "The warehouse hasn't confirmed delivery readiness for this order yet. Confirmation becomes available once it does.",
+          quantitiesMismatch: "The planned delivery quantities don't match the items in this order.",
+        },
+        totalsNote: "Item prices shown are the snapshots taken when each item was added. Shipping, VAT and the final buyer total are calculated by the platform when you confirm — never estimated here.",
+        advisoryNote: "Availability is re-checked at the moment you confirm. If quantity is no longer available, nothing is reserved and you'll be told.",
+        confirm: "Confirm and reserve",
+        confirming: "Confirming…",
+        alreadyCheckedOut: "This order has already been confirmed.",
+        viewOrder: "View order",
+        toast: {
+          failed: "Checkout couldn't be completed. Please try again.",
+          notReady: "This order isn't ready to confirm yet.",
+          availability: "Some of this quantity is no longer available, so nothing was reserved. Start a new order for the quantity that's still available.",
+          notEditable: "This order can no longer be confirmed from its current state.",
+        },
+        recovery: {
+          title: "Nothing was reserved",
+          description: "Availability changed before your confirmation reached the platform. Items in a confirmed order can't be edited, so start a new order with the quantity that's still available.",
+          startNewOrder: "Start a new order",
+          backToMarketplace: "Back to marketplace",
+        },
+      },
+
+      /** Feature 007 RUN B (T010) — the HOLD outcome, read entirely from the database. */
+      hold: {
+        title: "Quantity reserved",
+        description: "Your reservation is held while you arrange payment. Payment steps arrive in a later release.",
+        expiresLabel: "Reservation held until",
+        remainingLabel: "Time remaining",
+        expired: "This reservation window has ended.",
+        countdownSummary: "About {minutes} minutes remaining",
+        countdownSummaryUnderMinute: "Less than a minute remaining",
+        proformaLabel: "Proforma reference",
+        proformaPending: "Proforma reference not yet available.",
+        retryNote: "You've already confirmed this order — your existing reservation was kept.",
+      },
+
+      /** Feature 007 RUN B (T010) — `order_financials` pass-through labels. Values are never recomputed. */
+      financials: {
+        heading: "Order total",
+        pending: "Totals are calculated when you confirm the order.",
+        baseSubtotal: "Items subtotal",
+        shipping: "Shipping",
+        vat: "VAT",
+        buyerTotal: "Total to pay",
+        totalQuantity: "Total quantity",
       },
     },
 

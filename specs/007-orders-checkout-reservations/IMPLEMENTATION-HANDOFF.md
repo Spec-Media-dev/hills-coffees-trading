@@ -1,16 +1,15 @@
 # Feature 007 — Orders, Checkout & Reservations — Implementation Handoff
 
 **Scope delivered**: RUN A — Phase 1 (Order domain layer & error mapping, T001–T003), Phase 2 (Draft
-orders, T004–T006), Phase 3 (Buyer shipment planning, narrow slice, T007).
-**Status** (reconciled 2026-09-13, see §13): **T001, T002, T003, T005, T007 implemented and verified
-(5/32)**. **T004 is `[BLOCKED — DB-OPEN-13]`** — order creation and item ADD are implemented and
-live-proven, but the task's own literal scope also requires item remove/edit, which the live
-database genuinely does not permit for a buyer (no code/DB change was made to try to close this).
-**T006 is `[BLOCKED LIVE PROOF — requires real HOLD from Phase 4]`** — the implementation is correct
-and a CONFIRMED-status proof stands as supporting evidence, but the task's own literal Verify line
-names `HOLD` specifically, which cannot exist without `checkout_order()` (Phase 4). Checkout,
-hold expiry, payment/escrow, order views (Phase 6), module registration (Phase 7), and the
-release-blocking transactional tests (Phase 8) are all untouched. **Feature 007 is NOT complete.**
+orders, T004–T006), Phase 3 (Buyer shipment planning, narrow slice, T007). RUN B — Phase 4
+(Transactional checkout core, T008–T011) + T006 re-verification against a genuine `HOLD`. See §14.
+**Status** (RUN B, 2026-09-13): **T001, T002, T003, T005, T006, T007, T008, T009, T010, T011
+implemented and verified (10/32)**. **T004 stays `[BLOCKED — DB-OPEN-13]`** — order creation and
+item ADD are implemented and live-proven, but the task's own literal scope also requires item
+remove/edit, which the live database does not permit for a buyer (unchanged this run, per
+directive). Hold expiry (Phase 5), order views (Phase 6), module registration (Phase 7), the
+release-blocking transactional tests (Phase 8) and closure (Phases 9–10) are untouched.
+**Feature 007 is NOT complete.**
 
 This document records the live-schema preflight evidence (including two newly-confirmed database
 findings this run discovered empirically), the DTO/read/write contracts as actually built, every
@@ -421,3 +420,178 @@ important distinction:
 - No file under `lib/`, `src/`, or `components/` was touched in this reconciliation — confirmed via
   `git status --short` showing only the two spec/doc files above as newly modified since the RUN A
   report.
+
+---
+
+## 14. RUN B (Phase 4 — transactional checkout core) — T008–T011, T006 re-verification
+
+### 14.1 What was built
+
+| File | Purpose |
+|---|---|
+| `lib/orders/checkout.ts` | T008 — `executeCheckout(orderId)`, the ONE application caller of `checkout_order()`. |
+| `src/app/dashboard/orders/[orderId]/checkout/actions.ts` | T009 — `confirmCheckout` (thin: reads `orderId` only → `executeCheckout` once → redirect). |
+| `src/app/dashboard/orders/[orderId]/checkout/page.tsx` | T009 — review page: item quantity/kg, unit-price snapshot/currency, delivery plan, readiness notice, NO computed total. |
+| `components/orders/checkout-confirm-button.tsx` | T009/T011 — confirm control (pending/disabled/`aria-busy`), localized failure toasts, inline availability-failure recovery panel. |
+| `components/orders/hold-countdown.tsx` | T010 — countdown fed ONLY `orders.hold_expires_at`; `role="timer"` + minute-granularity polite summary. |
+| `src/app/dashboard/orders/[orderId]/page.tsx` (extended) | T010 — HOLD outcome panel (status, stored `hold_expires_at`, proforma code, buyer total) + `order_financials` pass-through section + "Proceed to checkout" entry. |
+| `lib/orders/validation.ts` / `read.ts` (extended) | `OrderSummary.idempotencyKey` (selected, never rendered) + `CheckoutResult` (verbatim RPC shape). |
+| `lib/types/action-feedback.ts` (extended) | +`ORDER_CHECKOUT_NOT_READY`. |
+| `lib/app/copy/en.ts` / `ar.ts` (extended) | `orders.checkout.*`, `orders.hold.*`, `orders.financials.*`, `detail.checkoutAction`, shipment `READY`/`RESERVED` labels — EN/AR. |
+| `scripts/seed-test-fixtures.ts` (extended) | Feature 007 checkout fixtures (`lotD`/`hillsPositionD`/`offerCheckout`), `--reset-checkout-fixtures`, `--inspect-checkout-order=<id>` (test-only privileged setup/read). |
+| `tests/auth/fixture-session.ts` (extended) | `CHECKOUT_FIXTURES`, `resetCheckoutFixtures()`, `inspectCheckoutOrder()`. |
+| `tests/orders/{checkout,checkout-action,checkout-page,audits,pages}.test.*` | RUN B tests + reconciled RUN A tests. |
+
+### 14.2 Database functions inspected (live bodies) and the EXACT checkout-ready contract
+
+`checkout_order`, `assert_order_checkout_ready`, `validate_order_transition`, `validate_shipment_
+transition`, `sync_shipment_ready`, `is_internal_transition`, `is_warehouse_operator`, plus the
+`function_grants` (`checkout_order`/`expire_order_hold` are EXECUTE-granted to `authenticated`).
+
+**Before `checkout_order()` will do anything** (`assert_order_checkout_ready`, called by the function
+and again by `validate_order_transition` on the move to `HOLD`):
+1. `orders.status = 'CONFIRMED'` (`order_must_be_confirmed_before_checkout`);
+2. `organization_can_buy(buyer org)` (`buyer_not_authorized`);
+3. ≥ 1 `order_items` row (`order_has_no_items`);
+4. an `order_shipments` row in `READY`/`RESERVED` with `ready_at IS NOT NULL`
+   (`shipment_must_be_ready_before_checkout`);
+5. per order item, planned `shipment_items` quantity over non-CANCELLED/FAILED shipments equals the
+   item quantity (`shipment_quantities_do_not_match_order`).
+
+Then, in ONE transaction (order locked `FOR UPDATE`): financial snapshot (base/shipping/VAT/
+commission/buyer total with tier + tax-rule snapshots) → proforma + items → `inventory_reservations`
++ one `inventory_reservation_items` per item (inventory reserved FIRST, listing mirrored second) →
+`payments` `PENDING` → order `HOLD`, `hold_expires_at = now() + 20 minutes`. Idempotent-retry branch:
+`HOLD`/`PAYMENT_PROOF_SUBMITTED`/`PAYMENT_UNDER_REVIEW` with an ACTIVE reservation → returns the
+existing ids/total with `idempotent_retry: true`.
+
+### 14.3 `DRAFT -> CONFIRMED` — required, implemented through the buyer's own write path
+
+(1) above is a genuine prerequisite the function does NOT perform itself. `validate_order_
+transition` (live) permits exactly `DRAFT -> CONFIRMED` for a plain buyer session (everything else
+needs `is_internal_transition()`/`is_platform_admin()`); `orders_update_buyer_or_admin` allows the
+buyer to UPDATE while `DRAFT`/`CONFIRMED`. `executeCheckout` performs the transition via an ordinary
+`.update({ status: "CONFIRMED", idempotency_key })` — ONLY after readiness checks (3)–(5) pass over
+the buyer's own readable rows, because the transition is one-way for a buyer (`CONFIRMED` →
+`HOLD`/`VOID` only, neither buyer-settable) and confirming an order the database would certainly
+refuse would strand it. The database re-validates (1)–(5) itself regardless. Live-proven: the
+order's status history reads exactly `DRAFT->CONFIRMED`, `CONFIRMED->HOLD`.
+
+### 14.4 DB-OPEN-14 handling
+
+Every `orders` UPDATE in `checkout.ts` is a plain `.update()` with no chained `.select()`; the row is
+re-read separately via `getOrderById` and the write is verified from that read (status `CONFIRMED`,
+key present) before the RPC is called. No policy was weakened; no service-role.
+
+### 14.5 `executeCheckout` security sequence (as implemented, 12 steps)
+
+validate UUID → `getRequestIdentity()` → acting org resolved server-side → `isAuthorizedMember` →
+`organization.canBuy` → org-scoped `getOrderById` (cross-org/nonexistent → `ORDER_NOT_FOUND`, RPC
+never reached) → retry short-circuit for post-checkout statuses → readiness (3)–(5) →
+server-generated idempotency key + confirm write → separate re-read → ONE `rpc("checkout_order")` →
+`mapOrderError` → verbatim `CheckoutResult`. Only input: `orderId`. No amount, price, quantity,
+seller, hold duration, key or total exists anywhere in the request shape.
+
+### 14.6 Idempotency lifecycle — and an honest note
+
+`orders.idempotency_key` is generated once per checkout intent (`randomUUID()`, server-side), the
+first time an order enters checkout, and persisted in the same write that confirms the order; a
+retry finds it set and never rotates it; a client cannot supply one (no field exists). HONEST
+CONTRACT NOTE: `checkout_order()` itself does not read `idempotency_key` — its retry safety is keyed
+on status + ACTIVE reservation. The key is therefore the server-owned, non-forgeable per-intent
+marker SEC-005 asks for; the no-duplicate guarantee is the function's own retry branch, observed
+live: a second `executeCheckout` on the HOLD order returned `idempotent_retry: true`, the same
+reservation/proforma ids and total, with the key unchanged and still exactly one reservation,
+proforma and payment.
+
+### 14.7 RPC result mapping (T008/T010)
+
+`CheckoutResult` is a key-for-key mirror of the function's `jsonb` (`order_id`, `proforma_id`,
+`reservation_id`, `buyer_total`, `hold_expires_at`, `correlation_id`, `idempotent_retry`). Nothing is
+derived, rounded or recomputed. Live: `buyer_total` equals `order_financials.buyer_total_amount` AND
+`payments.amount`; the order's `hold_expires_at` equals the RPC's.
+
+### 14.8 Checkout page/action, HOLD presentation, countdown, financial/proforma pass-through
+
+Described in §14.1. The review page shows only stored snapshots and an explicit note that shipping/
+VAT/total are calculated by the platform at confirmation (no fake total). The detail page's HOLD
+panel and financials section are pure pass-throughs. `HoldCountdown` derives only from the
+`holdExpiresAt` prop (source-verified: no `+20`, no `holdStartedAt`/`createdAt`), `role="timer"`
+(implicit `aria-live="off"`) plus a visually-hidden polite summary that changes only per minute.
+
+### 14.9 Availability failure path (T011) and DB-OPEN-13 impact on recovery
+
+Forced live: two ready orders for 30 kg each against the 50 kg checkout listing (5 kg already held)
+— the first reserves, the second is refused by the function's own `listing_inventory_changed`
+(the RPC IS exercised), mapped to `ORDER_ITEM_QUANTITY_UNAVAILABLE`, zero raw text, and ZERO partial
+artefacts for the loser (no financials/proforma/payment/reservation; mirrors read 35, never 65).
+Recovery is honestly constrained: the losing order is left `CONFIRMED` (the buyer-side confirm is a
+separate statement; the RPC's effects roll back) and — because of DB-OPEN-13 — its items cannot be
+edited or removed, nor can a buyer move it back to `DRAFT` or `VOID`. The UI therefore offers only
+routes that genuinely work ("Start a new order", "Back to marketplace") and says so. No working
+Remove/Edit control was added. T004/DB-OPEN-13 untouched.
+
+### 14.10 Feature 009 forward dependency — confirmed, and how the tests handle it honestly
+
+Requirement (4) is warehouse-owned: `validate_shipment_transition` lets a buyer reach only
+`REQUESTED`; `READY` requires `is_warehouse_operator()` (then `sync_shipment_ready` sets `ready_at`).
+A buyer-only flow cannot produce a checkout-ready order today. The tests establish the precondition
+through the repository's EXISTING `warehouse-admin` fixture identity — a real
+`platform_admins.role = 'WAREHOUSE'` session moving the shipment `REQUESTED -> READY` under ordinary
+RLS (`shipments_warehouse_manage`) + trigger authority. This is NOT service-role and NOT a manual
+flag; it is the database's own authoritative path exercised by a real operator session, used as
+TEST-ONLY precondition setup. **Live-vs-structural boundary**: (A) `checkout_order()`'s behaviour
+given an authoritative valid precondition is proven LIVE; (B) the buyer→warehouse readiness
+workflow/UI is Feature 009's to build and prove — nothing here claims it. In production today, the
+checkout page shows the honest "warehouse hasn't confirmed delivery readiness" notice and keeps
+confirmation disabled until Feature 009 exists.
+
+### 14.11 T006 re-verification
+
+A genuine `HOLD` order (produced by the normal checkout) was directly edited: `addItemToOrder`
+refuses `ORDER_NOT_EDITABLE`; a raw `order_items` insert bypassing the application is refused by the
+database itself; the order still holds one item. T006 moved to `[x]`.
+
+### 14.12 EN/AR, RTL, Light/Dark, responsive, accessibility — evidence
+
+All new strings have EN + AR from day one; logical properties only; semantic tokens only
+(`--status-review*` for the HOLD panel, `--danger*` for the recovery panel — both with text, never
+color alone); the review/detail pages reuse RUN A's own list pattern and grid utilities, collapsing
+to one column below `sm:`. **Honest limitation**: no browser/axe harness was invoked; no
+screenshot/breakpoint/theme verification was performed — structural reuse of already-verified
+primitives/tokens only. Component-level a11y proofs: labelled `role="timer"`, polite minute-only
+summary, `aria-busy` on the pending confirm, `role="alert"` recovery panel, `<Link>` (not `<a>`) for
+in-app routes, `nativeButton={false}` on the link-rendered Buttons this run added (avoids adding new
+instances of the known Base UI dev warning). T027 is NOT claimed.
+
+### 14.13 Audits (all source-verified in `tests/orders/audits.test.ts` / `checkout.test.ts`)
+
+`checkout_order`: exactly one code reference repo-wide (`lib/orders/checkout.ts`, one `.rpc(` call
+site); `expire_order_hold`: zero. No runtime service-role, no shared cache, no reservation-table
+read/write, no financial computation, no proforma/payment/ownership-event write, no per-seller
+loop, no payment/escrow/provider code (Feature 008 untouched), no title transfer (live:
+`inventory_ownership_events` count unchanged across checkout).
+
+### 14.14 Tests and regression
+
+`tests/orders/` — **156 tests, 10 files** (RUN A 111 + `checkout.test.ts` 16 live +
+`checkout-action.test.ts` 6 + `checkout-page.test.tsx` 8 + audits grew to 56 with the RUN B files
+under every existing audit). Two genuine RUN A test reconciliations: `pages.test.tsx`'s read mock
+gained `getOrderFinancials`/`getProforma` (the detail page now reads them); `createOrder` dropped its
+two unused parameters (lint hygiene; `drafts.test.ts` call updated). Full-suite/typecheck/build/lint/
+`git diff --check` results are in the final RUN B report.
+
+### 14.15 Blockers remaining / recommended RUN C
+
+1. **T004 / DB-OPEN-13** — unchanged; a buyer still cannot correct an added item, and after a failed
+   checkout the order stays `CONFIRMED` with no buyer-side way back. Needs a product/database
+   decision before Feature 007's draft UX is complete.
+2. **Feature 009 forward dependency** — a checkout-ready order requires a warehouse `READY`
+   shipment; buyer-only flows stop at `REQUESTED` today (§14.10).
+3. **DB-OPEN-14** — unchanged; the two-step write-then-read pattern now covers `orders` UPDATE too.
+4. **Lazy expiry** — nothing calls `expire_order_hold()` yet (Phase 5 is the next run); holds created
+   by tests persist until then (the `--reset-checkout-fixtures` teardown removes test orders).
+5. **Recommended RUN C**: Phase 5 (T012–T014, `lib/orders/expiry.ts#ensureHoldFresh` as the sole
+   `expire_order_hold()` caller + expired-hold presentation + the documented lazy-expiry limitation)
+   and Phase 6 (T015–T017, buyer order list/detail views + `financial-summary.tsx`/monospace code
+   discipline), consuming the HOLD/financial/proforma reads already proven here.

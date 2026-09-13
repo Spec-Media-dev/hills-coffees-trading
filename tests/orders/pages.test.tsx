@@ -23,6 +23,9 @@ vi.mock("@/lib/orders/read", () => ({
   getOrderItems: vi.fn(async () => mocks.items),
   getOrderShipments: vi.fn(async () => mocks.shipments),
   getShipmentItems: vi.fn(async () => mocks.shipmentItems),
+  // RUN B (T010): the detail page now also reads the financial snapshot + proforma (both null pre-checkout).
+  getOrderFinancials: vi.fn(async () => null),
+  getProforma: vi.fn(async () => null),
 }));
 
 afterEach(cleanup);

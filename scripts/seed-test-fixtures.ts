@@ -1726,6 +1726,169 @@ async function teardownListingFixtures(admin: SupabaseClient): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
+// Checkout fixtures — Feature 007 RUN B (T008–T011)
+// ---------------------------------------------------------------------------
+
+/**
+ * A DEDICATED HILLS listing for the transactional checkout tests. `checkout_order()` genuinely
+ * mutates `coffee_offers.reserved_quantity_kg`/`inventory_positions.reserved_quantity_kg` and
+ * creates reservation/proforma/payment rows — running that against Feature 006's `offerPublished`
+ * would break its own exact-number live assertions (100 / 15.5 / 24.5). This lot/position/offer
+ * trio exists ONLY so checkout can be exercised against real rows nothing else asserts on.
+ *
+ * `--reset-checkout-fixtures` (test-only, service-role setup/teardown — the SAME approved
+ * convention as `--set-suspended-organization-status`) deletes every order that references this
+ * offer (cascading its items, shipments, financials, proforma, payment and reservation rows) and
+ * restores the offer/position reserved quantities to zero, so the tests are deterministic across
+ * repeated runs. `--inspect-checkout-order=<id>` prints a JSON integrity snapshot (reservation,
+ * proforma, payment, ownership-event counts + the offer/position reserved mirror) — a TEST-ONLY
+ * privileged read; no runtime code reads `inventory_reservations`.
+ */
+const CHECKOUT_FIXTURE_IDS = {
+  lotD: "07000000-0000-4000-8000-000000000001",
+  hillsPositionD: "07000000-0000-4000-8000-000000000002",
+  offerCheckout: "07000000-0000-4000-8000-000000000003",
+} as const;
+
+const CHECKOUT_FIXTURE_QUANTITY_KG = 50;
+
+async function seedCheckoutFixtures(admin: SupabaseClient): Promise<void> {
+  console.log("\nSeeding 007-orders-checkout-reservations RUN B checkout fixtures…\n");
+
+  const buyerAndSellerUserId = await findAuthUserIdByEmail(admin, FIXTURES[1]!.email);
+  if (!buyerAndSellerUserId) throw new SafeFixtureError("001 identity fixtures are missing; run npm run test:seed first.");
+
+  const upsert = async (table: string, row: Record<string, unknown>): Promise<void> => {
+    const { error } = await admin.from(table).upsert(row, { onConflict: "id" });
+    if (error) throw new SafeFixtureError(`${table} upsert failed (Feature 007): ${error.message}`);
+  };
+
+  await upsert("coffee_lots", {
+    id: CHECKOUT_FIXTURE_IDS.lotD,
+    coffee_id: INVENTORY_FIXTURE_COFFEE_ID,
+    lot_code: "F007-LOT-D",
+    total_quantity_kg: 1000,
+    status: "AVAILABLE",
+    source_organization_id: INVENTORY_FIXTURE_IDS.hillsOrg,
+  });
+  await upsert("inventory_positions", {
+    id: CHECKOUT_FIXTURE_IDS.hillsPositionD,
+    lot_id: CHECKOUT_FIXTURE_IDS.lotD,
+    owner_organization_id: INVENTORY_FIXTURE_IDS.hillsOrg,
+    warehouse_id: INVENTORY_FIXTURE_IDS.warehouse,
+    available_quantity_kg: 1000,
+    reserved_quantity_kg: 0,
+  });
+
+  const { data: existing } = await admin.from("coffee_offers").select("id").eq("id", CHECKOUT_FIXTURE_IDS.offerCheckout).maybeSingle();
+  if (!existing) {
+    const { error } = await admin.from("coffee_offers").insert({
+      id: CHECKOUT_FIXTURE_IDS.offerCheckout,
+      coffee_id: INVENTORY_FIXTURE_COFFEE_ID,
+      lot_id: CHECKOUT_FIXTURE_IDS.lotD,
+      seller_organization_id: INVENTORY_FIXTURE_IDS.hillsOrg,
+      seller_type: "HILLS",
+      warehouse_id: INVENTORY_FIXTURE_IDS.warehouse,
+      title: "Feature 007 Fixture — Checkout Listing",
+      quantity_kg: CHECKOUT_FIXTURE_QUANTITY_KG,
+      reserved_quantity_kg: 0,
+      filled_quantity_kg: 0,
+      price_per_kg: 10,
+      currency: "USD",
+      status: "PUBLISHED",
+      created_by: buyerAndSellerUserId,
+    });
+    if (error) throw new SafeFixtureError(`coffee_offers insert failed (Feature 007): ${error.message}`);
+  }
+
+  console.log("  seeded 1 dedicated lot+position and 1 PUBLISHED checkout listing.");
+}
+
+/** Deletes every order that references the checkout listing, then restores its reserved mirrors to zero. */
+async function resetCheckoutFixtures(admin: SupabaseClient): Promise<void> {
+  const { data: items, error: itemsError } = await admin.from("order_items").select("order_id").eq("offer_id", CHECKOUT_FIXTURE_IDS.offerCheckout);
+  if (itemsError) throw new SafeFixtureError(`order_items lookup failed (Feature 007 reset): ${itemsError.message}`);
+  const orderIds = [...new Set((items ?? []).map((row) => row.order_id as string))];
+
+  if (orderIds.length > 0) {
+    // `proforma_invoice_items.order_item_id` has NO cascade (confirmed live) — it would block the
+    // `orders -> order_items` cascade, so the proforma items are removed explicitly first.
+    const { data: proformas, error: proformaError } = await admin.from("proforma_invoices").select("id").in("order_id", orderIds);
+    if (proformaError) throw new SafeFixtureError(`proforma_invoices lookup failed (Feature 007 reset): ${proformaError.message}`);
+    const proformaIds = (proformas ?? []).map((row) => row.id as string);
+    if (proformaIds.length > 0) {
+      const { error: itemsDeleteError } = await admin.from("proforma_invoice_items").delete().in("proforma_id", proformaIds);
+      if (itemsDeleteError) throw new SafeFixtureError(`proforma_invoice_items delete failed (Feature 007 reset): ${itemsDeleteError.message}`);
+    }
+
+    const { error } = await admin.from("orders").delete().in("id", orderIds);
+    if (error) throw new SafeFixtureError(`orders delete failed (Feature 007 reset): ${error.message}`);
+  }
+
+  const { error: offerError } = await admin
+    .from("coffee_offers")
+    .update({ reserved_quantity_kg: 0, filled_quantity_kg: 0, status: "PUBLISHED" })
+    .eq("id", CHECKOUT_FIXTURE_IDS.offerCheckout);
+  if (offerError) throw new SafeFixtureError(`coffee_offers reset failed (Feature 007 reset): ${offerError.message}`);
+
+  const { error: positionError } = await admin
+    .from("inventory_positions")
+    .update({ reserved_quantity_kg: 0, available_quantity_kg: 1000 })
+    .eq("id", CHECKOUT_FIXTURE_IDS.hillsPositionD);
+  if (positionError) throw new SafeFixtureError(`inventory_positions reset failed (Feature 007 reset): ${positionError.message}`);
+
+  console.log(JSON.stringify({ removedOrders: orderIds.length }));
+}
+
+/** TEST-ONLY privileged integrity snapshot for one order (printed as a single JSON line). */
+async function inspectCheckoutOrder(admin: SupabaseClient, orderId: string): Promise<void> {
+  const [reservations, proformas, payments, ownershipEvents, offer, position] = await Promise.all([
+    admin.from("inventory_reservations").select("id, status, expires_at").eq("order_id", orderId),
+    admin.from("proforma_invoices").select("id, proforma_code, status").eq("order_id", orderId),
+    admin.from("payments").select("id, status, amount").eq("order_id", orderId),
+    admin.from("inventory_ownership_events").select("id", { count: "exact", head: true }),
+    admin.from("coffee_offers").select("reserved_quantity_kg, filled_quantity_kg, status").eq("id", CHECKOUT_FIXTURE_IDS.offerCheckout).single(),
+    admin.from("inventory_positions").select("reserved_quantity_kg, available_quantity_kg").eq("id", CHECKOUT_FIXTURE_IDS.hillsPositionD).single(),
+  ]);
+  for (const result of [reservations, proformas, payments, ownershipEvents, offer, position]) {
+    if (result.error) throw new SafeFixtureError("Checkout inspection read failed (Feature 007).");
+  }
+
+  const reservationIds = (reservations.data ?? []).map((row) => row.id as string);
+  let reservationItems: Array<{ quantity_kg: number; offer_id: string }> = [];
+  if (reservationIds.length > 0) {
+    const { data, error } = await admin.from("inventory_reservation_items").select("quantity_kg, offer_id").in("reservation_id", reservationIds);
+    if (error) throw new SafeFixtureError("Checkout inspection read failed (Feature 007).");
+    reservationItems = (data ?? []) as Array<{ quantity_kg: number; offer_id: string }>;
+  }
+
+  console.log(
+    JSON.stringify({
+      reservations: reservations.data ?? [],
+      reservationItems,
+      proformas: proformas.data ?? [],
+      payments: payments.data ?? [],
+      ownershipEventCount: ownershipEvents.count ?? 0,
+      offer: offer.data,
+      position: position.data,
+    })
+  );
+}
+
+async function teardownCheckoutFixtures(admin: SupabaseClient): Promise<void> {
+  console.log("\nTearing down 007-orders-checkout-reservations checkout fixtures…\n");
+  await resetCheckoutFixtures(admin);
+  const deleteByIds = async (table: string, ids: readonly string[]): Promise<void> => {
+    const { error } = await admin.from(table).delete().in("id", ids);
+    if (error) throw new SafeFixtureError(`${table} delete failed (Feature 007): ${error.message}`);
+  };
+  await deleteByIds("coffee_offers", [CHECKOUT_FIXTURE_IDS.offerCheckout]);
+  await deleteByIds("inventory_positions", [CHECKOUT_FIXTURE_IDS.hillsPositionD]);
+  await deleteByIds("coffee_lots", [CHECKOUT_FIXTURE_IDS.lotD]);
+  console.log("  removed 1 checkout listing, 1 position, 1 lot.");
+}
+
+// ---------------------------------------------------------------------------
 // Supabase admin access
 // ---------------------------------------------------------------------------
 
@@ -2117,10 +2280,26 @@ async function main(): Promise<void> {
   const isResetCompleteDraft = process.argv.includes("--reset-complete-draft-application");
   const isVerifyInventoryFixtures = process.argv.includes("--verify-inventory-fixtures");
   const isVerifyInventoryAppendOnly = process.argv.includes("--verify-inventory-append-only");
+  const isResetCheckoutFixtures = process.argv.includes("--reset-checkout-fixtures");
+  const inspectCheckoutPrefix = "--inspect-checkout-order=";
+  const inspectCheckoutArgument = process.argv.find((argument) => argument.startsWith(inspectCheckoutPrefix));
   const admin = createAdminClient();
 
   if (isVerifyInventoryFixtures && isVerifyInventoryAppendOnly) {
     throw new SafeFixtureError("Choose only one Feature 005 inventory verification operation.");
+  }
+
+  if (isResetCheckoutFixtures) {
+    await seedCheckoutFixtures(admin);
+    await resetCheckoutFixtures(admin);
+    return;
+  }
+
+  if (inspectCheckoutArgument) {
+    const orderId = inspectCheckoutArgument.slice(inspectCheckoutPrefix.length);
+    if (!/^[0-9a-f-]{36}$/i.test(orderId)) throw new SafeFixtureError("--inspect-checkout-order requires a UUID.");
+    await inspectCheckoutOrder(admin, orderId);
+    return;
   }
 
   if (isVerifyInventoryFixtures) {
@@ -2174,6 +2353,7 @@ async function main(): Promise<void> {
     // `file_assets` rows hold a (non-cascading) foreign key to the 001 `buyerOnly`/`buyerAndSeller`
     // organizations — those must be removed before `teardown()` can delete those organizations, or
     // the delete fails with a foreign-key violation.
+    await teardownCheckoutFixtures(admin);
     await teardownListingFixtures(admin);
     await teardownInventoryFixtures(admin);
     await teardownCatalogue(admin);
@@ -2191,8 +2371,10 @@ async function main(): Promise<void> {
   // Phase 8/9's `underReview` organization. Its dedicated DRAFT coffee is intentionally independent
   // of Feature 002's catalogue fixtures, so no public catalogue row is coupled to this lifecycle.
   await seedInventoryFixtures(admin);
-  // Feature 006 LAST: depends on Feature 005's hillsOrg/warehouse/lots/positions/offerB.
+  // Feature 006: depends on Feature 005's hillsOrg/warehouse/lots/positions/offerB.
   await seedListingFixtures(admin);
+  // Feature 007 LAST: its own dedicated lot/position/listing for transactional checkout tests.
+  await seedCheckoutFixtures(admin);
 }
 
 main().catch((error: unknown) => {
