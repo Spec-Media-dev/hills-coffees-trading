@@ -215,10 +215,15 @@ describe("Phase 5.5 UIF-036 — member shell applied at /dashboard", () => {
     // the seller's own listings list + detail/edit/withdraw pages under the SAME `dashboard/listings/`
     // directory, a NEW `dashboard/sales/` directory for seller sales reconciliation, and registers
     // all of it (coffee/listings/sales) with Feature 004's module contract
-    // (`lib/dashboard/registry.tsx`) — genuinely-live business routes now. No OTHER business area
-    // (orders, payments, delivery, disputes) has a directory here yet.
-    expect(dirs.sort()).toEqual(["coffee", "inventory", "kyb", "listings", "onboarding", "sales", "settings", "storage"]);
-    for (const stillUnbuilt of ["orders", "payments", "delivery", "disputes"]) {
+    // (`lib/dashboard/registry.tsx`) — genuinely-live business routes now.
+    //
+    // Feature 007 RUN A (T004–T007) adds `dashboard/orders/` — draft-order construction and the
+    // buyer-owned shipment-planning slice, genuinely live (`/dashboard/orders`,
+    // `/dashboard/orders/[orderId]`). Not yet registered with Feature 004's module contract (Phase 7/
+    // T018, out of RUN A's scope) — no nav entry exists yet, but the route itself is real and guarded
+    // server-side. No OTHER business area (payments, delivery, disputes) has a directory here yet.
+    expect(dirs.sort()).toEqual(["coffee", "inventory", "kyb", "listings", "onboarding", "orders", "sales", "settings", "storage"]);
+    for (const stillUnbuilt of ["payments", "delivery", "disputes"]) {
       expect(dirs).not.toContain(stillUnbuilt);
     }
 

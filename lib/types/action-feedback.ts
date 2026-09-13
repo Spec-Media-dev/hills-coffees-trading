@@ -70,6 +70,26 @@ export const ACTION_FEEDBACK = {
    * returns this code, never a guessed/fabricated value, when that attempt also comes back empty.
    */
   LISTING_COFFEE_CONTEXT_UNAVAILABLE: "listing_coffee_context_unavailable",
+
+  /**
+   * Feature 007 RUN A — the order/draft/shipment domain's own safe result codes
+   * (`lib/orders/errors.ts` is the single place that maps a raised database exception string to one
+   * of these; no Server Action in `lib/orders/*`/`src/app/dashboard/orders/*` inspects a raw
+   * Postgres/PostgREST message itself). Reuses this SAME `ActionFeedbackResult` contract rather than
+   * inventing a second one (the run directive's own explicit rule).
+   */
+  ORDER_NOT_FOUND: "order_not_found",
+  ORDER_NOT_ACCESSIBLE: "order_not_accessible",
+  BUYER_NOT_CAPABLE: "buyer_not_capable",
+  ORDER_ITEM_NOT_AVAILABLE: "order_item_not_available",
+  ORDER_ITEM_QUANTITY_UNAVAILABLE: "order_item_quantity_unavailable",
+  ORDER_NOT_EDITABLE: "order_not_editable",
+  ORDER_TRANSITION_REFUSED: "order_transition_refused",
+  ORDER_SAVE_FAILED: "order_save_failed",
+  SHIPMENT_NOT_FOUND: "shipment_not_found",
+  SHIPMENT_NOT_EDITABLE: "shipment_not_editable",
+  SHIPMENT_ITEM_QUANTITY_INVALID: "shipment_item_quantity_invalid",
+  SHIPMENT_SAVE_FAILED: "shipment_save_failed",
 } as const;
 
 export type ActionFeedbackCode = (typeof ACTION_FEEDBACK)[keyof typeof ACTION_FEEDBACK];

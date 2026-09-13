@@ -802,4 +802,102 @@ export const en = {
       },
     },
 
+    /**
+     * Feature 007 RUN A (T001–T007) — draft-order construction and buyer-owned shipment planning
+     * only. No checkout/hold/proforma/payment copy exists yet (Phase 4+, out of RUN A scope).
+     */
+    orders: {
+      capabilityRequired: {
+        title: "Buying isn't enabled for your organization",
+        description: "Contact Hills Coffee to enable buying before starting an order.",
+      },
+      status: {
+        DRAFT: "Draft",
+        CONFIRMED: "Confirmed",
+        HOLD: "On hold",
+        PAYMENT_PROOF_SUBMITTED: "Payment proof submitted",
+        PAYMENT_UNDER_REVIEW: "Payment under review",
+        PAID: "Paid",
+        FULFILLMENT_IN_PROGRESS: "Fulfilment in progress",
+        PARTIALLY_DELIVERED: "Partially delivered",
+        COMPLETED: "Completed",
+        EXPIRED: "Expired",
+        VOID: "Void",
+        DISPUTED: "Disputed",
+      },
+      list: {
+        title: "Orders",
+        breadcrumb: "Orders",
+        description: "Every order your organization has started.",
+        caption: "Your orders",
+        createAction: "Start new order",
+        creating: "Starting…",
+        viewDetails: "View order",
+        empty: {
+          title: "No orders yet",
+          description: "Start an order from the marketplace to see it here.",
+        },
+        columns: {
+          code: "Order",
+          status: "Status",
+          updated: "Updated",
+          actions: "Actions",
+        },
+        pagination: {
+          previous: "Previous",
+          next: "Next",
+          pageLabel: "Page {page}",
+        },
+        toast: {
+          createFailed: "The order could not be started. Please try again.",
+        },
+      },
+      detail: {
+        title: "Order",
+        itemsHeading: "Items",
+        itemsEmpty: "No items added yet.",
+        itemsNote: "Items can't be removed or changed once added — start a new order if you need to make a different selection.",
+        addItem: {
+          heading: "Add an item",
+          offerIdLabel: "Listing ID",
+          offerIdHint: "Paste the listing's ID from its marketplace page.",
+          quantityLabel: "Quantity (kg)",
+          submit: "Add item",
+          adding: "Adding…",
+          added: "Item added to your order.",
+          addFailed: "That item couldn't be added. Check the listing ID and quantity and try again.",
+        },
+        advisoryNote: "Availability shown here is advisory only and can change before checkout.",
+        notEditableNote: "This order can no longer be edited.",
+        shipment: {
+          heading: "Delivery details",
+          empty: "No delivery details added yet.",
+          create: {
+            deliveryMethodLabel: "Delivery method",
+            countryCodeLabel: "Country code",
+            countryCodeHint: "2-letter country code, e.g. AE.",
+            cityLabel: "City (optional)",
+            addressLabel: "Delivery address",
+            contactNameLabel: "Contact name",
+            contactPhoneLabel: "Contact phone",
+            submit: "Save delivery details",
+            saving: "Saving…",
+            saved: "Delivery details saved.",
+            saveFailed: "Delivery details couldn't be saved. Please try again.",
+          },
+          request: {
+            action: "Request shipment",
+            requesting: "Requesting…",
+            requested: "Shipment requested.",
+            requestFailed: "The shipment couldn't be requested.",
+          },
+          statusLabel: "Shipment status",
+          status: {
+            DRAFT: "Draft",
+            REQUESTED: "Requested",
+          },
+        },
+      },
+    },
+
 } as const;

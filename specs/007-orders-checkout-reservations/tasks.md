@@ -3,7 +3,20 @@
 **Input**: [spec.md](./spec.md), [plan.md](./plan.md), `docs/architecture/DATABASE-CAPABILITY-MAP.md`,
 `.specify/memory/constitution.md` (v2.0.0), SRS §6/§8/§11 (BUY-02, MKT-03, MKT-04, TXN-01), AC-02/AC-03.
 
-**Status**: all tasks unchecked — implementation NOT started.
+**Status**: RUN A implemented, then reconciled against its own literal acceptance criteria
+(2026-09-13) — **T001, T002, T003, T005, T007 implemented and verified (5/32)**. **T004 is
+`[BLOCKED — DB-OPEN-13]`**: order creation and item ADD are implemented and live-proven, but the
+task's own literal scope also requires item remove/edit, which the live database genuinely does not
+permit for a buyer through any RLS path (see T004's own entry below). **T006 is `[BLOCKED LIVE
+PROOF — requires real HOLD from Phase 4]`**: the CONFIRMED-status proof is real and stands as
+supporting evidence, but the task's own literal Verify line names `HOLD` specifically, and `HOLD` is
+only reachable via `checkout_order()` (Phase 4, not implemented this run) — closing it by
+implementing checkout_order() early would be implementing future-run behavior to manufacture a
+passing check, which this reconciliation declines to do. Neither correction required any code or
+database change — both are honest status corrections against already-implemented, unchanged code.
+T012/T018/T022/T024 and Phases 4–10 (T008–T032) remain untouched. See `IMPLEMENTATION-HANDOFF.md`
+§13 for the full reconciliation account, including DB-OPEN-13/DB-OPEN-14 (both unchanged, no DB
+migration performed).
 **Prerequisite**: 001, 003, 004, 005, plus the currently available 006 listing capabilities:
 buyer-visible eligible listings, listing DTO/read contracts, advisory availability/fill projection,
 listing references usable by `order_items`, and the database's reservation-mirror fields. Feature
@@ -29,63 +42,179 @@ unless a concrete runtime capability is missing.
 
 ## Phase 1 — Order domain layer & error mapping
 
-- [ ] T001 Create `lib/orders/validation.ts` + order DTO types (draft, item, financial summary,
+- [x] T001 Create `lib/orders/validation.ts` + order DTO types (draft, item, financial summary,
   proforma, status history).
   - Req: FR-015, FR-018 | Depends: —
   - Verify: no DTO exposes a computed total; financial fields map 1:1 to `order_financials` columns
   - Codex: GPT-5.6 Sol — Low · Claude: Sonnet — Low
   - Why: mechanical typing/schema work.
+  - **Done (RUN A)**: five status vocabularies (`ORDER_STATUSES` 12, `PAYMENT_STATUSES` 7,
+    `PROFORMA_STATUSES` 3, `ORDER_SHIPMENT_STATUSES` 13, `ORDER_ITEM_SELLER_TYPES` 2) read directly
+    from the live `*_check`/`*_allowed` CHECK constraints (2026-09-13 preflight against
+    `database-schema-report.json`, not the older `supabase/trading_schema.sql` baseline, which was
+    found to be genuinely STALE for this domain — see the handoff §2). Every DTO
+    (`OrderSummary`/`OrderItemDTO`/`OrderFinancialsDTO`/`ProformaDTO`+items/
+    `OrderStatusHistoryEntry`/`OrderShipmentDTO`/`ShipmentItemDTO`) is a verbatim field-for-field
+    mirror of its table — zero computed totals anywhere. `AddOrderItemInput`/`CreateShipmentInput`/
+    `AddShipmentItemInput` (Zod) cover exactly RUN A's write surface; proven in
+    `tests/orders/validation.test.ts` (10 tests) that a forged `unitPricePerKg`/
+    `sellerOrganizationId`/`status`/`shippingFee`/`createdBy` field is silently stripped by Zod, never
+    carried into the parsed result.
 
-- [ ] T002 Implement `lib/orders/errors.ts` — an explicit map from the database function's raised
+- [x] T002 Implement `lib/orders/errors.ts` — an explicit map from the database function's raised
   exceptions (`order_not_found`, `forbidden`, `buyer_not_authorized`, `active_reservation_missing`,
   `reservation_expired`, availability failures) to safe, specific application errors.
   - Req: FR-015, SEC-004, SC-007 | Depends: —
   - Verify: every known raised string has a mapping; an unmapped error falls back to a generic safe message and is logged without payload
   - Codex: GPT-5.6 Sol — High · Claude: Sonnet — High
   - Why: the boundary that prevents internal database semantics leaking to buyers while keeping messages actionable.
+  - **Done (RUN A)**: every RAISE EXCEPTION string read live from `validate_order_item_offer`,
+    `validate_order_transition`, `validate_shipment_transition`, `validate_shipment_item` (all
+    RUN-A-reachable), PLUS `checkout_order`/`assert_order_checkout_ready` (Phase 4/RUN B, not called
+    this run but pre-populated so RUN B reuses this SAME table) maps to one of 9 new
+    `ACTION_FEEDBACK` codes (`ORDER_NOT_FOUND`/`ORDER_NOT_ACCESSIBLE`/`BUYER_NOT_CAPABLE`/
+    `ORDER_ITEM_NOT_AVAILABLE`/`ORDER_ITEM_QUANTITY_UNAVAILABLE`/`ORDER_NOT_EDITABLE`/
+    `ORDER_TRANSITION_REFUSED`/`ORDER_SAVE_FAILED`/`SHIPMENT_NOT_FOUND`/`SHIPMENT_NOT_EDITABLE`/
+    `SHIPMENT_ITEM_QUANTITY_INVALID`/`SHIPMENT_SAVE_FAILED`, 12 total). `tests/orders/errors.test.ts`
+    (33 tests) proves all 29 known strings map correctly, an unrecognized message falls back safely
+    and logs ONLY the SQLSTATE-shaped `code` (never the message text, never any payload), and a
+    null/undefined error never throws.
 
-- [ ] T003 Implement `lib/orders/read.ts` — `can_view_order`-scoped reads for orders, items,
+- [x] T003 Implement `lib/orders/read.ts` — `can_view_order`-scoped reads for orders, items,
   financials, proforma (+items), status history and shipment plan.
   - Req: FR-010, FR-011 | Depends: T001
   - Verify: a cross-organization order id returns nothing; financial values are passed through unmodified
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — High
   - Why: read scoping is security-relevant and the pass-through rule must hold.
+  - **Done (RUN A)**: seven read functions, all narrow explicit selects (no `select("*")`).
+    `getOrderById`/`getOrdersForOrganization` additionally scope by `buyer_organization_id` (defense
+    in depth alongside RLS, mirroring `lib/listings/manage.ts`'s own convention) — RUN A's own
+    consumers are all buyer-owned; a seller-side order read is a different, not-yet-built capability,
+    honestly absent rather than narrowed to look complete. `tests/orders/read.test.ts` (5 tests,
+    live): a real DRAFT order is readable by its own buyer org and invisible cross-org (both by id
+    and in the list), `order_financials`/`proforma_invoices` are honestly `null` (checkout has never
+    run), `order_status_history` is empty for a fresh order. Source-level proof: never queries
+    `inventory_reservations`/`inventory_reservation_items`, no shared-cache directive.
 
 ---
 
 ## Phase 2 — Draft orders
 
-- [ ] T004 [PS1] Implement `lib/orders/drafts.ts` + `src/app/dashboard/orders/actions.ts` — create a
-  `DRAFT` order and add/remove items, respecting the RLS policies and the
-  `validate_order_item_offer` trigger.
+- [ ] T004 [PS1] [**BLOCKED — DB-OPEN-13, reconciled 2026-09-13**] Implement `lib/orders/drafts.ts` +
+  `src/app/dashboard/orders/actions.ts` — create a `DRAFT` order and add/remove items, respecting the
+  RLS policies and the `validate_order_item_offer` trigger.
   - Req: FR-004, FR-005, FR-016 | Depends: T001, T002
   - Verify: `organization_can_buy = false` fixture is refused; adding a non-published listing is refused by the trigger and surfaced as a safe error
   - Codex: GPT-5.6 Sol — High · Claude: Opus — High
   - Why: the first write path into the commercial ledger; capability and trigger cooperation must be exactly right.
+  - **RECONCILED (2026-09-13)**: this task's own literal scope is "create a DRAFT order AND
+    add/remove items." Create + add are implemented and live-proven (below); **remove/edit is
+    genuinely blocked** — the live database has NO buyer-facing UPDATE or DELETE policy on
+    `order_items` (DB-OPEN-13, confirmed live), and no alternate buyer-safe mechanism exists: `orders`
+    itself also has no buyer DELETE policy, so neither "edit the item" nor "delete the whole draft
+    and start over" is possible through ordinary RLS. This was verified by direct inspection of the
+    live policy list, not assumed. No RLS bypass, no service-role, and no database change were used
+    or considered to close this — per the reconciliation directive's own instruction. **Corrected
+    from `[x]` to `[ ]` `[BLOCKED — DB-OPEN-13]`.** The implementation itself is unchanged and
+    correct for what it claims (create + add); only the acceptance status was overstated.
+  - **Implemented and live-proven (unaffected by the correction above)**: `createDraftOrder`/
+    `addOrderItem` (`tests/orders/
+    drafts.test.ts`, 10 tests). Every server/trigger-derived `order_items` column
+    (`lot_id`/`seller_organization_id`/`unit_price_per_kg`/all four snapshot fields) is OMITTED from
+    the insert entirely — `validate_order_item_offer`'s own `SECURITY DEFINER` join derives them,
+    bypassing DB-OPEN-05 for this write path (confirmed live: `product_name_snapshot`/
+    `lot_code_snapshot` non-null on the created row). A SUSPENDED-organization fixture is refused
+    `BUYER_NOT_CAPABLE` before any DB write; a SOLD_OUT listing is refused `ORDER_ITEM_NOT_AVAILABLE`
+    (the trigger's own `listing_is_not_available`, mapped safely); a cross-org/nonexistent order id
+    refuses identically (`ORDER_NOT_FOUND`, no existence leak); forged `sellerOrganizationId`/
+    `unitPricePerKg`/`status` fields never change the outcome. Live-confirmed: no reservation
+    (`coffee_offers.reserved_quantity_kg` unchanged before/after) and no title transfer
+    (`inventory_ownership_events` count unchanged).
+  - **DB-OPEN-13 (confirmed live, recorded in `docs/architecture/DATABASE-CAPABILITY-MAP.md` §9)**:
+    `order_items` has NO buyer-facing UPDATE or DELETE RLS policy at all (exactly three policies
+    exist: INSERT/SELECT/admin-ALL). A buyer can ADD an item but can never remove or edit its
+    quantity, through any path, regardless of order status. This is a genuine gap against spec 007's
+    own PS1 acceptance scenario 4 — NOT worked around with a service-role bypass or a shadow table.
+    `lib/orders/drafts.ts` exports only `addOrderItem`; there is no `removeOrderItem`/
+    `updateOrderItemQuantity`, and the draft-editor UI offers no control that could never succeed
+    (source-verified, `tests/orders/drafts.test.ts`'s own DB-OPEN-13 describe block).
+  - **DB-OPEN-14 (confirmed live, recorded in the same capability map section)**: `INSERT INTO
+    orders ... RETURNING` (a chained PostgREST `.select()`) fails RLS on `orders` specifically —
+    `orders_view`'s own SELECT policy self-references `orders` from inside `can_view_order`'s buyer
+    branch, and Postgres applies that SELECT policy to the RETURNING projection in addition to the
+    INSERT policy's `WITH CHECK`. `order_items`/`order_shipments` do NOT exhibit this (their SELECT
+    policies reference the ALREADY-existing parent `orders` row, never their own table) — empirically
+    verified, same session, in the same diagnostic pass. `createDraftOrder` performs a plain
+    `.insert()` (no chained `.select()`) then a SEPARATE `getOrderById`-shaped read — two ordinary
+    RLS-respecting round-trips, no service-role, no weakened policy.
 
-- [ ] T005 [PS1] Build the draft-order UI (`components/orders/draft-editor.tsx` + order pages)
+- [x] T005 [PS1] Build the draft-order UI (`components/orders/draft-editor.tsx` + order pages)
   showing item snapshots, quantities and advisory availability from 006.
   - Req: FR-006, FR-018, PS1 | Depends: T004
   - Verify: quantities/prices display with unit and currency; the UI passes no quantity/price into the checkout action
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — Medium
   - Why: standard UI work with one strict data-flow constraint.
+  - **Done (RUN A)**: `src/app/dashboard/orders/page.tsx` (buyer's own orders list, any status —
+    only `DRAFT` reachable this run since Phase 4 doesn't exist yet — + a "start new order" action)
+    and `src/app/dashboard/orders/[orderId]/page.tsx` (items list + `DraftEditor`'s add-item form +
+    `ShipmentPlanner`). Quantities/prices always render with unit (`kg`) and currency; the add-item
+    form asks only for the listing's own id (pasted from its marketplace page — RUN A's own file
+    scope names no marketplace-picker component, and `lib/listings/browse.ts` is untouched) and a
+    quantity; no checkout action exists yet to smuggle anything into. There is no Phase 4 checkout
+    outcome UI anywhere in this run.
+  - **T004 reconciliation checked against this task, explicitly (2026-09-13)**: re-inspected both
+    `components/orders/draft-editor.tsx` and this page for a remove/edit-quantity control that could
+    never succeed because of DB-OPEN-13 — none exists. The items list is read-only; the ONLY
+    interactive form is the add-item form, which calls a genuinely working write path. T005's own
+    Verify line (display + no quantity/price smuggled into checkout) does not require remove/edit to
+    exist, and no UI here claims a capability the write layer cannot deliver. T005 is unaffected by
+    T004's correction and remains `[x]`.
 
-- [ ] T006 [PS1] Enforce edit-only-while-`DRAFT` in both UI and action paths.
+- [ ] T006 [PS1] [**BLOCKED LIVE PROOF — requires real HOLD from Phase 4, reconciled 2026-09-13**]
+  Enforce edit-only-while-`DRAFT` in both UI and action paths.
   - Req: FR-004 | Depends: T004
   - Verify: editing an order in `HOLD` is refused server-side even when invoked directly
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — High
   - Why: a stale-tab edit after checkout would corrupt a live reservation's basis.
+  - **RECONCILED (2026-09-13)**: this task's own literal Verify line names `HOLD` specifically.
+    `HOLD` cannot be constructed without calling `checkout_order()` (Phase 4, explicitly out of RUN
+    A's scope) — and implementing `checkout_order()` early merely to close this one checkbox would be
+    implementing future-run behavior to manufacture a passing check, which this reconciliation
+    declines to do (no such implementation was added). Per the same "no convenience-based
+    checkboxing" standard applied elsewhere in this project, **T006 is corrected from `[x]` to `[ ]`
+    `[BLOCKED LIVE PROOF — requires real HOLD from Phase 4]`.**
+  - **Supporting evidence retained (implementation unchanged, still valid)**: live-proven against
+    `CONFIRMED` — the only non-DRAFT status reachable via an ordinary, RLS-permitted buyer transition
+    (`DRAFT -> CONFIRMED`, performed as TEST SETUP only, never a RUN A application action) — which
+    exercises the IDENTICAL trigger predicate HOLD would (`validate_order_item_offer`'s own check is
+    `status <> 'DRAFT'`, not status-name-specific). `tests/orders/drafts.test.ts`'s own T006 test
+    confirms `addItemToOrder` against a CONFIRMED order refuses with `ORDER_NOT_EDITABLE` and zero
+    items are created. This is genuine, real, live evidence of the same underlying guard — it is
+    recorded as supporting evidence for the literal `HOLD` case, not substituted as if it were that
+    case. UI-side: the order detail page shows the add-item form ONLY while `order.status ===
+    "DRAFT"`, an honest "this order can no longer be edited" note otherwise (proven in
+    `tests/orders/pages.test.tsx`) — this part of the guard is not in question and remains correct.
+    Closes alongside Phase 4 once a genuine `HOLD` order exists.
 
 ---
 
 ## Phase 3 — Buyer shipment planning (narrow slice)
 
-- [ ] T007 [P] Implement buyer shipment planning (`orders/[orderId]/shipment/actions.ts`):
+- [x] T007 [P] Implement buyer shipment planning (`orders/[orderId]/shipment/actions.ts`):
   `order_shipments` INSERT as `DRAFT`, UPDATE to `REQUESTED`, and `shipment_items` while `DRAFT`.
   - Req: FR-013 | Depends: T004
   - Verify: any attempt to set a state beyond `REQUESTED` is refused (RLS/trigger); `shipment_items` edits after DRAFT are refused
   - Codex: GPT-5.6 Sol — High · Claude: Sonnet — High
   - Why: the buyer/warehouse boundary must not be crossed accidentally.
+  - **Done (RUN A)**: `createShipment`/`addShipmentItem`/`requestShipment`, each re-verifying the
+    parent order's ownership before any write. `tests/orders/shipment.test.ts` (6 tests, live): a
+    DRAFT shipment is created successfully; a cross-org order id is refused `ORDER_NOT_FOUND`; a
+    quantity within the ordered amount plans successfully; a quantity EXCEEDING the ordered amount is
+    refused `SHIPMENT_ITEM_QUANTITY_INVALID` (the trigger's own `shipment_plan_exceeds_order_item`);
+    `DRAFT -> REQUESTED` succeeds, and a subsequent `addShipmentItem` attempt against the now-
+    `REQUESTED` shipment is refused `SHIPMENT_NOT_EDITABLE` (`shipment_plan_is_closed`). No status
+    beyond `DRAFT`/`REQUESTED` is ever selectable or referenced anywhere in this file (source-level
+    proof) — everything past `REQUESTED` remains Feature 009/warehouse-owned.
 
 ---
 
