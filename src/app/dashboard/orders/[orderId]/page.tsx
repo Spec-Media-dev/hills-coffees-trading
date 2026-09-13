@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/app/page-header";
 import { AppBilingual } from "@/components/locale/app-bilingual";
 import { StateScreen } from "@/components/layout/state-screen";
 import { DraftEditor } from "@/components/orders/draft-editor";
+import { DraftItemControls } from "@/components/orders/draft-item-controls";
 import { FinancialSummary } from "@/components/orders/financial-summary";
 import { HoldCountdown } from "@/components/orders/hold-countdown";
 import { OrderStatusBadge } from "@/components/orders/order-status-badge";
@@ -195,6 +196,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ or
                         {item.currency} {item.unitPricePerKg}/kg
                       </span>
                     </div>
+                    {isEditable ? <DraftItemControls orderId={order.id} orderItemId={item.id} quantityKg={item.quantityKg} /> : null}
                   </li>
                 ))}
               </ul>

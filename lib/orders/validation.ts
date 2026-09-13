@@ -235,6 +235,23 @@ export const AddOrderItemInput = z.object({
 export type AddOrderItemInput = z.infer<typeof AddOrderItemInput>;
 
 /**
+ * DB-OPEN-13 (resolved 2026-09-13) — the ONLY client-supplied fields when changing a DRAFT item. The
+ * quantity is the single buyer-owned intent field; listing, price, lot, seller and snapshots are never
+ * accepted (the database RPC's own signature is the allowlist, this schema mirrors it).
+ */
+export const UpdateOrderItemQuantityInput = z.object({
+  orderItemId: uuid("item"),
+  quantityKg: z.coerce.number({ error: "Enter a quantity." }).positive("Quantity must be greater than zero.").finite("Enter a valid quantity."),
+});
+export type UpdateOrderItemQuantityInput = z.infer<typeof UpdateOrderItemQuantityInput>;
+
+/** DB-OPEN-13 — removing a DRAFT item takes nothing but the item's id. */
+export const RemoveOrderItemInput = z.object({
+  orderItemId: uuid("item"),
+});
+export type RemoveOrderItemInput = z.infer<typeof RemoveOrderItemInput>;
+
+/**
  * T007 — buyer-owned shipment planning details. Every field here is genuine buyer-supplied
  * information (delivery method/address/contact) — NOT `shipping_fee` (server/warehouse-derived
  * later, defaults to 0, never client-set) and NOT `status` (server-derived, defaults to `DRAFT`).

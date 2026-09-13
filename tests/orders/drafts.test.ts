@@ -230,14 +230,17 @@ function stripComments(source: string): string {
   return source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
 }
 
-describe("DB-OPEN-13 — no removeOrderItem/updateOrderItemQuantity function exists (source-level proof)", () => {
-  it("drafts.ts exports only createDraftOrder and addOrderItem — no item-removal/edit function", async () => {
+describe("DB-OPEN-13 (resolved by migration 20260913100000) — item edit/removal go ONLY through the database RPCs (source-level proof)", () => {
+  it("drafts.ts exposes updateOrderItemQuantity/removeOrderItem that call update_order_item_quantity/remove_order_item with only the id (and quantity) — never a raw order_items UPDATE/DELETE", async () => {
     const { readFileSync } = await import("node:fs");
     const source = stripComments(readFileSync("lib/orders/drafts.ts", "utf8"));
     expect(source).toMatch(/export async function createDraftOrder/);
     expect(source).toMatch(/export async function addOrderItem/);
-    expect(source).not.toMatch(/export async function removeOrderItem/);
-    expect(source).not.toMatch(/export async function updateOrderItem/);
+    expect(source).toMatch(/export async function updateOrderItemQuantity/);
+    expect(source).toMatch(/export async function removeOrderItem/);
+    expect(source).toMatch(/\.rpc\("update_order_item_quantity", \{ p_order_item_id: orderItemId, p_quantity_kg: quantityKg \}\)/);
+    expect(source).toMatch(/\.rpc\("remove_order_item", \{ p_order_item_id: orderItemId \}\)/);
+    expect(source.match(/\.rpc\(/g)?.length).toBe(2);
     expect(source).not.toMatch(/from\(\s*["']order_items["']\s*\)\s*\.delete\(/);
     expect(source).not.toMatch(/from\(\s*["']order_items["']\s*\)\s*\.update\(/);
   });

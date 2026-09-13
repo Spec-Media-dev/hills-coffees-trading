@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CHECKOUT_FIXTURES, INVENTORY_FIXTURES, LISTING_FIXTURES, PHASE89_FIXTURES, resetCheckoutFixtures, setSuspendedOrganizationStatus, signInAsFixture } from "@/tests/auth/fixture-session";
 import { ACTION_FEEDBACK, type ActionFeedbackCode } from "@/lib/types/action-feedback";
 
+import { raisesOf } from "./db-baseline";
 import { buildReadyOrder, buildRequestedOrder, markShipmentReadyAsWarehouse } from "./live-helpers";
 
 /**
@@ -53,19 +54,9 @@ function stripComments(source: string): string {
 }
 
 function loadBaselineRaises(): { orderDomain: Set<string>; shipmentDomain: Set<string>; listingRevalidation: Set<string> } {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { readFileSync } = require("node:fs") as typeof import("node:fs");
-  const report = JSON.parse(JSON.parse(readFileSync("docs/database/database-schema-report.json", "utf8"))[0].database_schema_report) as { functions: Array<{ function_name: string; definition: string }> };
-  const raisesOf = (names: string[]) =>
-    new Set(
-      names.flatMap((name) => {
-        const fn = report.functions.find((candidate) => candidate.function_name === name);
-        if (!fn) throw new Error(`baseline is missing ${name}`);
-        return [...fn.definition.matchAll(/raise\s+exception\s+'([^']+)'/gi)].map((match) => match[1]!);
-      })
-    );
+  // Baseline report overlaid by Feature 007 forward migrations (tests/orders/db-baseline.ts).
   return {
-    orderDomain: raisesOf(["validate_order_item_offer", "validate_order_transition", "checkout_order", "assert_order_checkout_ready", "expire_order_hold"]),
+    orderDomain: raisesOf(["validate_order_item_offer", "validate_order_transition", "checkout_order", "assert_order_checkout_ready", "expire_order_hold", "update_order_item_quantity", "remove_order_item"]),
     shipmentDomain: raisesOf(["validate_shipment_transition", "validate_shipment_item"]),
     listingRevalidation: raisesOf(["validate_offer_transition"]),
   };
@@ -139,7 +130,9 @@ describe("T025 — completeness: the mapper covers exactly the database baseline
     for (const raised of orderDomain) expect(keys, `unmapped order-domain exception ${raised}`).toContain(raised);
     for (const key of keys) expect(orderDomain.has(key) || listingRevalidation.has(key), `map key ${key} is not raised by the baseline`).toBe(true);
     expect(new Set(keys).size).toBe(keys.length);
-    expect(orderDomain.size).toBe(18);
+    // 18 from the original order-domain triggers/functions + 3 new strings from the DB-OPEN-13 RPCs
+    // (their forbidden/draft/buy/quantity refusals reuse existing strings).
+    expect(orderDomain.size).toBe(21);
   });
 
   it("every shipment-domain RAISE string is a SHIPMENT_ERROR_MAP key and vice versa", () => {
@@ -149,11 +142,11 @@ describe("T025 — completeness: the mapper covers exactly the database baseline
     expect(shipmentDomain.size).toBe(11);
   });
 
-  it("every mapped string (all 34) resolves through the mapper to a stable ACTION_FEEDBACK code without the unmapped fallback log", async () => {
+  it("every mapped string (all 37) resolves through the mapper to a stable ACTION_FEEDBACK code without the unmapped fallback log", async () => {
     const { mapOrderError, mapShipmentError } = await mappers();
     const codes = new Set<string>(Object.values(ACTION_FEEDBACK));
     const all = [...mapKeys("ORDER_ERROR_MAP").map((key) => ["order", key] as const), ...mapKeys("SHIPMENT_ERROR_MAP").map((key) => ["shipment", key] as const)];
-    expect(all).toHaveLength(34); // 18 order-domain + 5 listing re-validation + 11 shipment-domain
+    expect(all).toHaveLength(37); // 21 order-domain + 5 listing re-validation + 11 shipment-domain
     for (const [domain, raised] of all) {
       consoleErrorSpy.mockClear();
       const code = domain === "order" ? mapOrderError({ message: raised, code: "P0001" }) : mapShipmentError({ message: raised, code: "P0001" });
@@ -208,7 +201,7 @@ describe("T025 — LIVE order-domain database exceptions map to their specific s
   );
 
   it(
-    "availability at checkout: listing_inventory_changed (another checkout took the quantity) and cannot_publish_empty_listing (reserving the final kilograms, DB-OPEN-16)",
+    "availability at checkout: listing_inventory_changed (another checkout took the quantity); reserving the final kilograms no longer raises cannot_publish_empty_listing (DB-OPEN-16 resolved)",
     async () => {
       const orgB = await signInAsFixture(INVENTORY_FIXTURES.orgB.email);
       const taken = await buildReadyOrder(withLiveClient, orgB, INVENTORY_FIXTURES.orgB.organizationId, 30);
@@ -225,9 +218,12 @@ describe("T025 — LIVE order-domain database exceptions map to their specific s
       const changed = await orgB.rpc("checkout_order", { p_order_id: tooLate });
       await expectLiveMapping(changed.error, "order", "listing_inventory_changed", ACTION_FEEDBACK.ORDER_ITEM_QUANTITY_UNAVAILABLE);
 
+      // DB-OPEN-16 resolved: the final 20 kg is reservable. `cannot_publish_empty_listing` stays mapped
+      // (string-level) for the listing paths that can still raise it.
       await confirmAsBuyer(orgB, finalKilograms);
-      const empty = await orgB.rpc("checkout_order", { p_order_id: finalKilograms });
-      await expectLiveMapping(empty.error, "order", "cannot_publish_empty_listing", ACTION_FEEDBACK.ORDER_ITEM_QUANTITY_UNAVAILABLE);
+      const finalCheckout = await orgB.rpc("checkout_order", { p_order_id: finalKilograms });
+      expect(finalCheckout.error).toBeNull();
+      expect((finalCheckout.data as { idempotent_retry: boolean }).idempotent_retry).toBe(false);
     },
     240_000
   );
@@ -277,6 +273,48 @@ describe("T025 — LIVE order-domain database exceptions map to their specific s
       } finally {
         setSuspendedOrganizationStatus("ACTIVE");
       }
+    },
+    LIVE_TIMEOUT_MS
+  );
+});
+
+describe("T025 — LIVE errors from the DB-OPEN-13 item RPCs and the expire_order_hold caller check map safely", () => {
+  beforeEach(() => {
+    resetCheckoutFixtures();
+  }, 60_000);
+
+  it(
+    "update_order_item_quantity / remove_order_item / expire_order_hold: order_item_not_found (nonexistent AND foreign), requested_quantity_not_available, order_item_quantity_below_shipment_plan, order_item_on_closed_shipment_plan, order_items_can_only_change_in_draft, order_not_found (foreign expiry)",
+    async () => {
+      const orgB = await signInAsFixture(INVENTORY_FIXTURES.orgB.email);
+      const orgA = await signInAsFixture(INVENTORY_FIXTURES.orgA.email);
+
+      const missing = await orgB.rpc("update_order_item_quantity", { p_order_item_id: NONEXISTENT_ID, p_quantity_kg: 1 });
+      await expectLiveMapping(missing.error, "order", "order_item_not_found", ACTION_FEEDBACK.ORDER_NOT_FOUND);
+
+      const draft = await draftWithShipment(orgB, INVENTORY_FIXTURES.orgB.organizationId, 3);
+      const foreign = await orgA.rpc("remove_order_item", { p_order_item_id: draft.orderItemId });
+      await expectLiveMapping(foreign.error, "order", "order_item_not_found", ACTION_FEEDBACK.ORDER_NOT_FOUND);
+
+      const zero = await orgB.rpc("update_order_item_quantity", { p_order_item_id: draft.orderItemId, p_quantity_kg: 0 });
+      await expectLiveMapping(zero.error, "order", "requested_quantity_not_available", ACTION_FEEDBACK.ORDER_ITEM_QUANTITY_UNAVAILABLE);
+
+      const { error: planError } = await orgB.from("shipment_items").insert({ shipment_id: draft.shipmentId, order_item_id: draft.orderItemId, planned_quantity_kg: 3 });
+      expect(planError).toBeNull();
+      const belowPlan = await orgB.rpc("update_order_item_quantity", { p_order_item_id: draft.orderItemId, p_quantity_kg: 2 });
+      await expectLiveMapping(belowPlan.error, "order", "order_item_quantity_below_shipment_plan", ACTION_FEEDBACK.SHIPMENT_ITEM_QUANTITY_INVALID);
+
+      const { error: requestError } = await orgB.from("order_shipments").update({ status: "REQUESTED" }).eq("id", draft.shipmentId);
+      expect(requestError).toBeNull();
+      const closedPlan = await orgB.rpc("remove_order_item", { p_order_item_id: draft.orderItemId });
+      await expectLiveMapping(closedPlan.error, "order", "order_item_on_closed_shipment_plan", ACTION_FEEDBACK.ORDER_NOT_EDITABLE);
+
+      await confirmAsBuyer(orgB, draft.orderId);
+      const notDraft = await orgB.rpc("update_order_item_quantity", { p_order_item_id: draft.orderItemId, p_quantity_kg: 3 });
+      await expectLiveMapping(notDraft.error, "order", "order_items_can_only_change_in_draft", ACTION_FEEDBACK.ORDER_NOT_EDITABLE);
+
+      const foreignExpiry = await orgA.rpc("expire_order_hold", { p_order_id: draft.orderId });
+      await expectLiveMapping(foreignExpiry.error, "order", "order_not_found", ACTION_FEEDBACK.ORDER_NOT_FOUND);
     },
     LIVE_TIMEOUT_MS
   );

@@ -60,6 +60,13 @@ const ORDER_ERROR_MAP: Record<string, ActionFeedbackCode> = {
   member_listing_requires_authorized_seller: ACTION_FEEDBACK.ORDER_ITEM_NOT_AVAILABLE,
   invalid_member_listing_purchase_source: ACTION_FEEDBACK.ORDER_ITEM_NOT_AVAILABLE,
 
+  // `update_order_item_quantity()` / `remove_order_item()` (migration 20260913100000, DB-OPEN-13).
+  // Their other raises (`forbidden`, `order_items_can_only_change_in_draft`, `buyer_not_authorized`,
+  // `requested_quantity_not_available`) are already mapped above.
+  order_item_not_found: ACTION_FEEDBACK.ORDER_NOT_FOUND,
+  order_item_on_closed_shipment_plan: ACTION_FEEDBACK.ORDER_NOT_EDITABLE,
+  order_item_quantity_below_shipment_plan: ACTION_FEEDBACK.SHIPMENT_ITEM_QUANTITY_INVALID,
+
   // `expire_order_hold()` raises nothing itself (a no-op return when no active expired reservation
   // exists) — reserved key kept absent deliberately; nothing to map.
 };

@@ -867,6 +867,17 @@ export const en = {
           added: "Item added to your order.",
           addFailed: "That item couldn't be added. Check the listing ID and quantity and try again.",
         },
+        itemEdit: {
+          quantityLabel: "Quantity (kg)",
+          save: "Update quantity",
+          saving: "Updating…",
+          saved: "Quantity updated.",
+          saveFailed: "That quantity couldn't be saved. It may exceed what's available or what's planned for delivery.",
+          remove: "Remove item",
+          removing: "Removing…",
+          removed: "Item removed from your order.",
+          removeFailed: "That item couldn't be removed. Refresh the order and try again.",
+        },
         advisoryNote: "Availability shown here is advisory only and can change before checkout.",
         notEditableNote: "This order can no longer be edited.",
         shipment: {

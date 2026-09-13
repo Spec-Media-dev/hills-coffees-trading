@@ -1949,6 +1949,36 @@ async function ageCheckoutHold(admin: SupabaseClient, orderId: string): Promise<
   console.log(JSON.stringify({ agedReservations: (data ?? []).length }));
 }
 
+/**
+ * Feature 007 DB blocker run (DB-OPEN-16 hardening) — TEST-ONLY negative probe, same precedent as
+ * `--verify-inventory-append-only`: attempts, with the most privileged table writer available (the
+ * service role, which bypasses RLS), a DIRECT `coffee_offers` UPDATE that has exactly the reservation-only
+ * shape checkout_order() produces — status/quantity/filled unchanged, reserved increased to leave zero
+ * unreserved — but WITHOUT checkout_order()'s transaction-local marker. `validate_offer_transition` must
+ * refuse it with cannot_publish_empty_listing. If it were ever accepted, the previous reserved value is
+ * restored immediately (a decrease, always permitted) and `restored: true` is reported so the test fails.
+ */
+async function probeDirectFullReservation(admin: SupabaseClient): Promise<void> {
+  const { data: before, error: readError } = await admin
+    .from("coffee_offers")
+    .select("quantity_kg, filled_quantity_kg, reserved_quantity_kg, status")
+    .eq("id", CHECKOUT_FIXTURE_IDS.offerCheckout)
+    .single();
+  if (readError || !before) throw new SafeFixtureError("Checkout listing read failed (Feature 007 probe).");
+
+  const fullReservation = Number(before.quantity_kg) - Number(before.filled_quantity_kg);
+  const { error } = await admin.from("coffee_offers").update({ reserved_quantity_kg: fullReservation }).eq("id", CHECKOUT_FIXTURE_IDS.offerCheckout);
+
+  let restored = false;
+  if (!error) {
+    const { error: restoreError } = await admin.from("coffee_offers").update({ reserved_quantity_kg: before.reserved_quantity_kg }).eq("id", CHECKOUT_FIXTURE_IDS.offerCheckout);
+    if (restoreError) throw new SafeFixtureError("Probe restore failed (Feature 007) — reset the checkout fixtures.");
+    restored = true;
+  }
+
+  console.log(JSON.stringify({ refused: error !== null, message: error?.message ?? null, restored, reservedBefore: Number(before.reserved_quantity_kg), attemptedReserved: fullReservation, status: before.status }));
+}
+
 async function teardownCheckoutFixtures(admin: SupabaseClient): Promise<void> {
   console.log("\nTearing down 007-orders-checkout-reservations checkout fixtures…\n");
   await resetCheckoutFixtures(admin);
@@ -2366,6 +2396,11 @@ async function main(): Promise<void> {
   if (isResetCheckoutFixtures) {
     await seedCheckoutFixtures(admin);
     await resetCheckoutFixtures(admin);
+    return;
+  }
+
+  if (process.argv.includes("--probe-direct-full-reservation")) {
+    await probeDirectFullReservation(admin);
     return;
   }
 

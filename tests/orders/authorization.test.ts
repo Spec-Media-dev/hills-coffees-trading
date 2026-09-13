@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 
 import {
+  FOUNDATION_FIXTURES,
   INVENTORY_FIXTURES,
   PHASE89_FIXTURES,
   ageCheckoutHold,
@@ -24,9 +25,9 @@ import { buildHoldOrder, buildReadyOrder } from "./live-helpers";
  *      refused with a result deep-equal to a nonexistent id (no existence disclosure).
  *   2. DATABASE LAYER — the same unauthorized NORMAL session calling `checkout_order()` directly (a
  *      test-only direct RPC, never service-role) is refused by the function itself, with zero effect.
- *      `expire_order_hold()` has NO caller check in the live function (it acts only on reservations
- *      whose `expires_at` has already passed); that is characterized honestly below rather than
- *      claimed as a refusal — the application boundary is what stops a cross-org caller.
+ *      Since migration 20260913100000 `expire_order_hold()` refuses too: an end-user caller must be an
+ *      active member of the buyer organization (or a platform admin), and a foreign or nonexistent id
+ *      raises the same 'order_not_found' (non-enumerating).
  *   3. RLS — `can_view_order` scoping: the owner reads its order and every commercial child row; an
  *      unrelated organization reads none of them by known id and sees none of them in a broad list.
  *
@@ -274,15 +275,14 @@ describe("T024 — another organization's order id vs a nonexistent id (live)", 
   );
 
   it(
-    "database: expire_order_hold() has no caller check — a foreign session's direct call on an UNEXPIRED hold returns nothing and changes nothing; on an ALREADY-expired hold it performs exactly the release that is due (characterization, not a refusal)",
+    "database: expire_order_hold() itself refuses a foreign session on an unexpired AND on an already-expired hold with the SAME 'order_not_found' it gives for a nonexistent id, with zero effect; the unattached and warehouse-operator sessions are refused too; the OWNER's direct call releases its stale hold exactly once",
     async () => {
       const unexpiredBefore = inspectCheckoutOrder(holdOrderId);
       const onUnexpired = await foreignClient.rpc("expire_order_hold", { p_order_id: holdOrderId });
       const onNothing = await foreignClient.rpc("expire_order_hold", { p_order_id: NONEXISTENT_ORDER_ID });
-      expect(onUnexpired.error).toBeNull();
-      expect(onUnexpired.data).toBeNull(); // void — nothing is disclosed
-      expect(onNothing.error).toBeNull();
-      expect(onNothing.data).toBeNull(); // indistinguishable from the foreign order at this layer too
+      expect(onUnexpired.error?.message).toBe("order_not_found");
+      expect(onNothing.error?.message).toBe("order_not_found");
+      expect({ code: onUnexpired.error?.code, details: onUnexpired.error?.details, hint: onUnexpired.error?.hint }).toEqual({ code: onNothing.error?.code, details: onNothing.error?.details, hint: onNothing.error?.hint });
       const unexpiredAfter = inspectCheckoutOrder(holdOrderId);
       expect(unexpiredAfter.order?.status).toBe("HOLD");
       expect(unexpiredAfter.reservations[0]!.status).toBe("ACTIVE");
@@ -291,12 +291,29 @@ describe("T024 — another organization's order id vs a nonexistent id (live)", 
       const dueOrderId = await buildHoldOrder(withLiveClient, ownerClient, INVENTORY_FIXTURES.orgB.organizationId, 1);
       ageCheckoutHold(dueOrderId);
       const dueBefore = inspectCheckoutOrder(dueOrderId);
-      const onDue = await foreignClient.rpc("expire_order_hold", { p_order_id: dueOrderId });
-      expect(onDue.error).toBeNull();
+
+      const unattached = await signInAsFixture(PHASE89_FIXTURES.noOrganization.email);
+      const warehouseOperator = await signInAsFixture(FOUNDATION_FIXTURES.warehouseAdmin.email);
+      for (const [label, session] of [["foreign org", foreignClient], ["unattached", unattached], ["warehouse operator", warehouseOperator]] as const) {
+        const refused = await session.rpc("expire_order_hold", { p_order_id: dueOrderId });
+        expect(refused.error?.message, label).toBe("order_not_found");
+      }
+      const stillHeld = inspectCheckoutOrder(dueOrderId);
+      expect(stillHeld.order?.status).toBe("HOLD");
+      expect(stillHeld.reservations[0]!.status).toBe("ACTIVE");
+      expect(Number(stillHeld.offer.reserved_quantity_kg)).toBe(Number(dueBefore.offer.reserved_quantity_kg));
+
+      const byOwner = await ownerClient.rpc("expire_order_hold", { p_order_id: dueOrderId });
+      expect(byOwner.error).toBeNull();
       const dueAfter = inspectCheckoutOrder(dueOrderId);
       expect(dueAfter.order?.status).toBe("EXPIRED");
       expect(Number(dueAfter.offer.reserved_quantity_kg)).toBe(Number(dueBefore.offer.reserved_quantity_kg) - 1);
+      expect(Number(dueAfter.position.reserved_quantity_kg)).toBe(Number(dueBefore.position.reserved_quantity_kg) - 1);
       expect(dueAfter.ownershipEventCount).toBe(dueBefore.ownershipEventCount);
+
+      const secondOwnerCall = await ownerClient.rpc("expire_order_hold", { p_order_id: dueOrderId });
+      expect(secondOwnerCall.error).toBeNull();
+      expect(Number(inspectCheckoutOrder(dueOrderId).offer.reserved_quantity_kg)).toBe(Number(dueAfter.offer.reserved_quantity_kg));
     },
     LIVE_TIMEOUT_MS
   );
@@ -379,5 +396,45 @@ describe("T024 — can_view_order / RLS scoping of the order and every commercia
       for (const row of listed) expect(row.buyer_organization_id).not.toBe(INVENTORY_FIXTURES.orgB.organizationId);
     },
     LIVE_TIMEOUT_MS
+  );
+});
+
+describe("expire_order_hold authorization — suspended buyer semantics (live)", () => {
+  it(
+    "a SUSPENDED organization's own stale hold: the application refuses before the RPC (not an authorized member), while the database lets that org's member release the already-due hold exactly once (membership, not buy capability, gates a release); a foreign session still gets order_not_found",
+    async () => {
+      const organizationId = PHASE89_FIXTURES.suspended.organizationId;
+      setSuspendedOrganizationStatus("ACTIVE");
+      try {
+        const member = await signInAsFixture(PHASE89_FIXTURES.suspended.email);
+        const holdId = await buildHoldOrder(withLiveClient, member, organizationId, 2);
+        ageCheckoutHold(holdId);
+        setSuspendedOrganizationStatus("SUSPENDED");
+        const before = inspectCheckoutOrder(holdId);
+
+        const rpcs = spyTransactionalRpcs(member);
+        expect(await appEnsureFresh(member, holdId)).toEqual({ ok: false, code: ACTION_FEEDBACK.ORDER_NOT_ACCESSIBLE });
+        expect(rpcs.expiryCalls()).toBe(0);
+        rpcs.restore();
+
+        const foreign = await foreignClient.rpc("expire_order_hold", { p_order_id: holdId });
+        expect(foreign.error?.message).toBe("order_not_found");
+        expect(inspectCheckoutOrder(holdId).reservations[0]!.status).toBe("ACTIVE");
+
+        const own = await member.rpc("expire_order_hold", { p_order_id: holdId });
+        expect(own.error).toBeNull();
+        const after = inspectCheckoutOrder(holdId);
+        expect(after.order?.status).toBe("EXPIRED");
+        expect(Number(after.offer.reserved_quantity_kg)).toBe(Number(before.offer.reserved_quantity_kg) - 2);
+        expect(Number(after.position.reserved_quantity_kg)).toBe(Number(before.position.reserved_quantity_kg) - 2);
+        expect(after.ownershipEventCount).toBe(before.ownershipEventCount);
+
+        expect((await member.rpc("expire_order_hold", { p_order_id: holdId })).error).toBeNull();
+        expect(Number(inspectCheckoutOrder(holdId).offer.reserved_quantity_kg)).toBe(Number(after.offer.reserved_quantity_kg));
+      } finally {
+        setSuspendedOrganizationStatus("ACTIVE");
+      }
+    },
+    180_000
   );
 });

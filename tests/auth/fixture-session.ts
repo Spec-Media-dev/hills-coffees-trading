@@ -432,6 +432,20 @@ export function inspectCheckoutOrder(orderId: string): CheckoutInspection {
  * Feature 007 RUN D (T022) — TEST-ONLY privileged read of the checkout listing's reserved mirror,
  * its inventory source of truth, and the ACTIVE reservation rows behind both. Never runtime code.
  */
+/** DB-OPEN-16 hardening — result of the privileged direct full-reservation probe (see the seed script). */
+export type DirectReservationProbe = { refused: boolean; message: string | null; restored: boolean; reservedBefore: number; attemptedReserved: number; status: string };
+
+/**
+ * Feature 007 DB blocker run — TEST-ONLY negative probe: a direct coffee_offers UPDATE with the
+ * reservation-only shape but without checkout_order()'s marker must be refused by the listing trigger.
+ */
+export function probeDirectFullReservation(): DirectReservationProbe {
+  const output = runFixtureScript(["--probe-direct-full-reservation"], { captureOutput: true });
+  const line = output.trim().split(/\r?\n/).find((candidate) => candidate.startsWith("{"));
+  if (!line) throw new Error("Direct reservation probe produced no JSON result.");
+  return JSON.parse(line) as DirectReservationProbe;
+}
+
 export function inspectCheckoutMirrors(): CheckoutMirrorInspection {
   const output = runFixtureScript(["--inspect-checkout-mirrors"], { captureOutput: true });
   const line = output.trim().split(/\r?\n/).find((candidate) => candidate.startsWith("{"));

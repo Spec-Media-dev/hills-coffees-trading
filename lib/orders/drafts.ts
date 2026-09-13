@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { mapOrderError } from "@/lib/orders/errors";
-import { getOrderById } from "@/lib/orders/read";
+import { getOrderById, getOrderItems } from "@/lib/orders/read";
 import type { OrderItemDTO, OrderStatus } from "@/lib/orders/validation";
 import { ACTION_FEEDBACK, type ActionFeedbackResult } from "@/lib/types/action-feedback";
 
@@ -178,4 +178,70 @@ export async function addOrderItem({
   }
 
   return { ok: true, data: mapOrderItemRow(inserted) };
+}
+
+/**
+ * DB-OPEN-13 (resolved 2026-09-13) — the buyer-side pre-check shared by item edit and removal. Re-reads
+ * the order org-scoped and confirms the item belongs to it: a cross-org order or an item of another
+ * order refuses `ORDER_NOT_FOUND` identically (no existence leak) and a non-DRAFT order refuses
+ * `ORDER_NOT_EDITABLE` — both BEFORE the RPC. Defense in depth only: the database functions re-check
+ * membership, DRAFT, buy capability and closed shipment plans themselves, under a row lock.
+ */
+async function resolveEditableItem({ organizationId, orderId, orderItemId }: { organizationId: string; orderId: string; orderItemId: string }): Promise<ActionFeedbackResult<null>> {
+  const order = await getOrderById({ organizationId, orderId });
+  if (!order) {
+    return { ok: false, code: ACTION_FEEDBACK.ORDER_NOT_FOUND };
+  }
+  const items = await getOrderItems({ orderId });
+  if (!items.some((item) => item.id === orderItemId)) {
+    return { ok: false, code: ACTION_FEEDBACK.ORDER_NOT_FOUND };
+  }
+  if (order.status !== "DRAFT") {
+    return { ok: false, code: ACTION_FEEDBACK.ORDER_NOT_EDITABLE };
+  }
+  return { ok: true, data: null };
+}
+
+/**
+ * DB-OPEN-13 — changes the quantity of one item on the caller's own DRAFT order through the database's
+ * `update_order_item_quantity(p_order_item_id, p_quantity_kg)` function. Only the id and the quantity
+ * are sent; the function writes only `quantity_kg`, and `validate_order_item_offer` still decides
+ * availability and re-derives every snapshot. Draft items reserve nothing.
+ */
+export async function updateOrderItemQuantity({
+  organizationId,
+  orderId,
+  orderItemId,
+  quantityKg,
+}: {
+  organizationId: string;
+  orderId: string;
+  orderItemId: string;
+  quantityKg: number;
+}): Promise<ActionFeedbackResult<null>> {
+  const editable = await resolveEditableItem({ organizationId, orderId, orderItemId });
+  if (!editable.ok) return editable;
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("update_order_item_quantity", { p_order_item_id: orderItemId, p_quantity_kg: quantityKg });
+  if (error) {
+    return { ok: false, code: mapOrderError(error) };
+  }
+  return { ok: true, data: null };
+}
+
+/**
+ * DB-OPEN-13 — removes one item from the caller's own DRAFT order through the database's
+ * `remove_order_item(p_order_item_id)` function (members hold no DELETE privilege on `order_items`).
+ */
+export async function removeOrderItem({ organizationId, orderId, orderItemId }: { organizationId: string; orderId: string; orderItemId: string }): Promise<ActionFeedbackResult<null>> {
+  const editable = await resolveEditableItem({ organizationId, orderId, orderItemId });
+  if (!editable.ok) return editable;
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("remove_order_item", { p_order_item_id: orderItemId });
+  if (error) {
+    return { ok: false, code: mapOrderError(error) };
+  }
+  return { ok: true, data: null };
 }

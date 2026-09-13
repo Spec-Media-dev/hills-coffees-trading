@@ -3,14 +3,14 @@
 **Input**: [spec.md](./spec.md), [plan.md](./plan.md), `docs/architecture/DATABASE-CAPABILITY-MAP.md`,
 `.specify/memory/constitution.md` (v2.0.0), SRS §6/§8/§11 (BUY-02, MKT-03, MKT-04, TXN-01), AC-02/AC-03.
 
-**Status**: RUN D complete (2026-09-13) — **T001–T003, T005–T025 implemented and verified (24/32)**.
-Phase 8 (T019–T025, the release-blocking transactional tests) is proven LIVE: genuine concurrent
-checkout (one winner, zero loser artefacts), idempotent and post-failure retry, concurrent expiry
-released exactly once, zero mirror drift, zero title events, two-layer authorization, complete safe
-error mapping. **T004 stays `[BLOCKED — DB-OPEN-13]`**. Phases 9–10 (T026–T032) remain untouched. New
-database finding **DB-OPEN-16** (the final remaining kilograms of a listing cannot be checked out —
-fails closed) is recorded and requires a database change. The scheduler decision remains OPEN (lazy
-expiry only). See `IMPLEMENTATION-HANDOFF.md` §16 for RUN D (§15 RUN C, §14 RUN B, §13 RUN A).
+**Status**: DB blocker run complete (2026-09-13) — **T001–T025 implemented and verified (25/32)**.
+Migration `20260913100000_feature_007_db_blockers.sql` (preflighted read-only, applied manually,
+live-verified) resolved **DB-OPEN-13** (buyer DRAFT item edit/remove — T004 now `[x]`), **DB-OPEN-16**
+(the final remaining kilograms of a listing can now be checked out, via a checkout-only marker) and
+**DB-OPEN-17** (`expire_order_hold()` now authorizes its caller, non-enumerating). Phase 8 (T019–T025)
+remains proven after the change. Phases 9–10 (T026–T032) remain untouched. The scheduler decision
+remains OPEN (lazy expiry only). See `IMPLEMENTATION-HANDOFF.md` §17 (§16 RUN D, §15 RUN C, §14 RUN B,
+§13 RUN A).
 **Prerequisite**: 001, 003, 004, 005, plus the currently available 006 listing capabilities:
 buyer-visible eligible listings, listing DTO/read contracts, advisory availability/fill projection,
 listing references usable by `order_items`, and the database's reservation-mirror fields. Feature
@@ -94,13 +94,34 @@ unless a concrete runtime capability is missing.
 
 ## Phase 2 — Draft orders
 
-- [ ] T004 [PS1] [**BLOCKED — DB-OPEN-13, reconciled 2026-09-13**] Implement `lib/orders/drafts.ts` +
+- [x] T004 [PS1] [~~BLOCKED — DB-OPEN-13~~ **DB-OPEN-13 RESOLVED 2026-09-13**] Implement `lib/orders/drafts.ts` +
   `src/app/dashboard/orders/actions.ts` — create a `DRAFT` order and add/remove items, respecting the
   RLS policies and the `validate_order_item_offer` trigger.
   - Req: FR-004, FR-005, FR-016 | Depends: T001, T002
   - Verify: `organization_can_buy = false` fixture is refused; adding a non-published listing is refused by the trigger and surfaced as a safe error
   - Codex: GPT-5.6 Sol — High · Claude: Opus — High
   - Why: the first write path into the commercial ledger; capability and trigger cooperation must be exactly right.
+  - **Done (DB blocker run, 2026-09-13) — literal acceptance now proven**: "create a DRAFT order and
+    add/remove items". DB-OPEN-13 was resolved by migration
+    `supabase/migrations/20260913100000_feature_007_db_blockers.sql` (read-only preflight
+    `supabase/maintenance/20260913_feature_007_db_blockers_preflight.sql` passed, migration applied
+    manually, live-verified): SECURITY DEFINER RPCs `update_order_item_quantity(uuid, numeric)` and
+    `remove_order_item(uuid)` — non-enumerating membership-scoped lookup, parent-order lock, DRAFT +
+    `organization_can_buy` + no closed shipment plan; quantity is the only writable field and
+    `validate_order_item_offer` still fires. Application: `lib/orders/drafts.ts#updateOrderItemQuantity/
+    removeOrderItem` (org-scoped order + item-membership pre-check before the RPC), Server Actions
+    `updateItemQuantity`/`removeItemFromOrder`, `components/orders/draft-item-controls.tsx` (rendered only
+    for DRAFT; EN+AR copy), error mappings for the three new database strings. Live proof
+    (`tests/orders/draft-items.test.ts`, 8 tests): owner edits quantity (price/lot/seller/snapshots
+    unchanged) and removes an item (its DRAFT plan row cascades); over-availability and below-plan
+    edits refused; closed (REQUESTED) plan refuses both; cross-org actions refuse `ORDER_NOT_FOUND`
+    before any RPC and the RPCs answer a foreign org's known id exactly like a nonexistent id; CONFIRMED
+    and HOLD refuse at both layers (HOLD reservation untouched); suspended org refused
+    (`BUYER_NOT_CAPABLE` / `buyer_not_authorized`); anon has no EXECUTE; raw REST UPDATE/DELETE and extra
+    RPC parameters change nothing; zero reservation/financial/proforma/payment/ownership artefacts. The
+    original Verify line (`organization_can_buy = false` refused; non-published listing refused by the
+    trigger) remains proven in `tests/orders/drafts.test.ts`. The historical notes below record the
+    earlier blocked state and are kept for traceability.
   - **RECONCILED (2026-09-13)**: this task's own literal scope is "create a DRAFT order AND
     add/remove items." Create + add are implemented and live-proven (below); **remove/edit is
     genuinely blocked** — the live database has NO buyer-facing UPDATE or DELETE policy on

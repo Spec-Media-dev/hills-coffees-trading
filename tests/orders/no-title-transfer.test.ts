@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { CHECKOUT_FIXTURES, INVENTORY_FIXTURES, ageCheckoutHold, inspectCheckoutOrder, resetCheckoutFixtures, signInAsFixture, type CheckoutInspection } from "@/tests/auth/fixture-session";
 
+import { loadFunctionDefinitions } from "./db-baseline";
 import { buildReadyOrder } from "./live-helpers";
 
 /**
@@ -122,11 +123,10 @@ describe("T023 — no code path in Feature 007 (application or its two database 
     }
   });
 
-  it("the database baseline's checkout_order() and expire_order_hold() bodies never touch the ownership ledger or a position's owner", async () => {
-    const { readFileSync } = await import("node:fs");
-    const report = JSON.parse(JSON.parse(readFileSync("docs/database/database-schema-report.json", "utf8"))[0].database_schema_report) as { functions: Array<{ function_name: string; definition: string }> };
-    for (const name of ["checkout_order", "expire_order_hold", "assert_order_checkout_ready"]) {
-      const body = report.functions.find((fn) => fn.function_name === name)!.definition;
+  it("the current (baseline + Feature 007 migration) bodies of checkout_order(), expire_order_hold() and the draft item RPCs never touch the ownership ledger or a position's owner", async () => {
+    const definitions = loadFunctionDefinitions();
+    for (const name of ["checkout_order", "expire_order_hold", "assert_order_checkout_ready", "update_order_item_quantity", "remove_order_item"]) {
+      const body = definitions.get(name)!;
       expect(body, name).not.toMatch(/inventory_ownership_events/);
       expect(body, name).not.toMatch(/set\s+owner_organization_id/i);
     }

@@ -5,11 +5,11 @@ orders, T004–T006), Phase 3 (Buyer shipment planning, narrow slice, T007). RUN
 (Transactional checkout core, T008–T011) + T006 re-verification against a genuine `HOLD` (§14).
 RUN C — Phase 5 (Lazy hold expiry, T012–T014), Phase 6 (Order views, T015–T017), Phase 7 (Module
 registration, T018) (§15). RUN D — Phase 8 (Release-blocking transactional tests, T019–T025) (§16).
-**Status** (RUN D, 2026-09-13): **T001–T003, T005–T025 implemented and verified (24/32)**. **T004
-stays `[BLOCKED — DB-OPEN-13]`** (unchanged). Phase 9 (states/a11y/RTL/mobile closure, T026–T027) and
-Phase 10 (verification/closure, T028–T032) are untouched. New database finding **DB-OPEN-16** (final
-remaining kilograms of a listing cannot be checked out; fails closed). The hold-expiry scheduler
-decision remains OPEN (lazy expiry only). **Feature 007 is NOT complete.**
+**Status** (DB blocker run, 2026-09-13): **T001–T025 implemented and verified (25/32)**. Migration
+`20260913100000_feature_007_db_blockers.sql` (applied manually, live-verified) resolved **DB-OPEN-13** (T004 now
+`[x]`), **DB-OPEN-16** and **DB-OPEN-17** (§17). Phase 9 (states/a11y/RTL/mobile closure, T026–T027) and Phase 10
+(verification/closure, T028–T032) are untouched. The hold-expiry scheduler decision remains OPEN (lazy expiry
+only). **Feature 007 is NOT complete.**
 
 This document records the live-schema preflight evidence (including two newly-confirmed database
 findings this run discovered empirically), the DTO/read/write contracts as actually built, every
@@ -1000,3 +1000,151 @@ diagnosed rather than rerun: the 25 + 25 control race (DB-OPEN-16), the concurre
 checkout.ts defect, §16.9), and four T025 assertions of my own that were miscounted or over-broad
 (order-domain RAISE count is 18, not 17; the log-label check and the copy check wrongly included the
 fixed label and source comments) — corrected without loosening any database or leakage invariant.
+
+---
+
+## 17. DB blocker run — DB-OPEN-13, DB-OPEN-16, DB-OPEN-17 (2026-09-13)
+
+A strictly limited run before Phases 9–10. It changed database functions through ONE forward migration,
+narrowly-related Feature 007 application code, tests and docs. No table, column, constraint, RLS policy
+or table grant was added, altered or dropped.
+
+### 17.1 Process (production-only Supabase project, product not yet live)
+
+1. Blockers proven live against the unmigrated database first (the new tests FAILED for the right
+   reasons: exact-final checkout refused `order_item_quantity_unavailable`; the item RPC missing →
+   `order_save_failed`; a foreign `expire_order_hold` call returned no error).
+2. Migration hardened before any apply (checkout-only marker, non-enumerating refusals, explicit
+   EXECUTE ACLs, abort-on-mismatch guard, guarded exact rollback).
+3. `supabase/maintenance/20260913_feature_007_db_blockers_preflight.sql` — strictly read-only (3
+   SELECT/WITH statements; statically proven) — run manually. One fix was needed (`t.tgenabled::text`
+   in two concatenations, error 42725). The per-row preflight results were not relayed to this run;
+   what IS proven is that the migration's own guard block — which repeats every critical preflight check
+   and aborts the whole transaction on any mismatch — passed, because the migration committed.
+4. `supabase/migrations/20260913100000_feature_007_db_blockers.sql` applied manually in the SQL Editor
+   ("Success. No rows returned"). The rollback was NOT run; the migration was NOT re-applied.
+5. Post-apply live verification and full regression from the final working tree (§17.6).
+
+### 17.2 DB-OPEN-13 — buyer DRAFT item edit/remove (RESOLVED, live-verified)
+
+- **Root cause**: `order_items` had no buyer UPDATE/DELETE policy, and `authenticated` holds no DELETE
+  privilege on it (nor on any table in this schema).
+- **Fix (RPC, not table policies)**: `update_order_item_quantity(uuid, numeric)` and
+  `remove_order_item(uuid)`, SECURITY DEFINER, `search_path = pg_catalog, public, auth`, EXECUTE revoked
+  from PUBLIC/anon and granted to authenticated/service_role. Chosen because destructive member writes in
+  this schema never go through raw table grants, the signature is the field allowlist (quantity only),
+  and an UPDATE policy would have left `variant_name_snapshot` forgeable (the trigger never re-derives it).
+- **Checks, in order**: quantity > 0 → item resolved ONLY through the caller's buyer-org membership
+  (nonexistent and foreign ids both `order_item_not_found`) → parent order locked `FOR UPDATE`
+  (checkout_order's lock order) → `DRAFT` → `organization_can_buy` → no non-DRAFT/non-cancelled shipment
+  plan on the item (`order_item_on_closed_shipment_plan`) → (edit) planned ≤ new quantity
+  (`order_item_quantity_below_shipment_plan`). `validate_order_item_offer` still fires on the UPDATE.
+- **Application**: `lib/orders/drafts.ts#updateOrderItemQuantity/removeOrderItem` (org-scoped order +
+  item-membership pre-check; cross-org/foreign item → `ORDER_NOT_FOUND`, non-DRAFT → `ORDER_NOT_EDITABLE`,
+  both before the RPC), Server Actions `updateItemQuantity`/`removeItemFromOrder`,
+  `components/orders/draft-item-controls.tsx` (DRAFT only; EN+AR), three new error mappings.
+- **Live proof** (`tests/orders/draft-items.test.ts`, 8/8): owner edit 3→5 kg with price/offer/lot/
+  seller/snapshots unchanged; owner removal (DRAFT plan row cascades); 999 kg refused
+  `ORDER_ITEM_QUANTITY_UNAVAILABLE`; below-plan refused; REQUESTED plan refuses edit and removal; foreign
+  org actions `ORDER_NOT_FOUND` with 0 RPC calls (also with its own draft id + the victim's item id);
+  foreign and unattached direct RPCs on a KNOWN item and a NONEXISTENT item return the identical message,
+  code, details and hint; owner's direct RPC accepted; CONFIRMED and HOLD refused at both layers (HOLD
+  reservation untouched); suspended org `BUYER_NOT_CAPABLE` / `buyer_not_authorized`; anon refused before
+  the function body; raw REST UPDATE (price/seller/snapshot/quantity) and DELETE affect zero rows; an extra
+  RPC parameter is rejected; extra form fields ignored; zero reservation/financial/proforma/payment/
+  ownership artefacts, mirrors 0.
+- **T004 → `[x]`**: literal scope "create a DRAFT order and add/remove items" is now proven; the original
+  Verify line remains proven in `drafts.test.ts`. The two tests that characterized the blocked state
+  (`drafts.test.ts` source proof, `pages.test.tsx`) now assert the resolved behaviour (RPC-only writes,
+  controls rendered for DRAFT and absent for CONFIRMED).
+
+### 17.3 DB-OPEN-16 — final remaining kilograms (RESOLVED, live-verified)
+
+- **Root cause (exact sequence)**: `checkout_order()` → for each item: lock listing `FOR UPDATE` → check
+  `quantity − filled − reserved ≥ requested` → `UPDATE inventory_positions` (+qty) → `UPDATE coffee_offers
+  SET reserved_quantity_kg = reserved_quantity_kg + qty` → BEFORE UPDATE trigger `trg_offer_transition` →
+  `validate_offer_transition` re-validates the whole row and raises `cannot_publish_empty_listing` when a
+  `PUBLISHED`/`PARTIALLY_FILLED` row has `quantity − filled − reserved ≤ 0` → whole checkout rolls back.
+  Not a `>`/`>=` bug: a publication rule applied to a reservation update.
+- **Fix**: `checkout_order()` sets the transaction-local marker `app.checkout_reservation = 'true'`
+  immediately before that one listing UPDATE and `'false'` immediately after. The trigger exempts a
+  zero-remaining result ONLY with the marker AND the reservation-only shape (status, `quantity_kg`,
+  `filled_quantity_kg` unchanged; `reserved_quantity_kg` increased). No status change (reservation ≠ fill).
+  Static proof: each replaced body differs from the baseline only by the commented blocks; only
+  `checkout_order` sets the marker; the trigger only reads it.
+- **Live proof** (`tests/orders/final-quantity.test.ts`, 6/6; a 40 kg hold leaves exactly 10 kg):
+  A 9 kg ✓ (reserved 49, 1 left); B exactly 10 kg ✓ (1 reservation, 1 ISSUED proforma, 1 PENDING payment,
+  1 financial snapshot, HOLD, listing status unchanged, reserved 50, 0 remaining); C 11 kg refused
+  `ORDER_ITEM_QUANTITY_UNAVAILABLE` at checkout and at add time, zero artefacts, mirrors 40; D two buyers
+  race behind the RPC barrier (both requests in flight together) → exactly one HOLD, loser zero artefacts
+  and CONFIRMED, reserved 50, 2 active reservations; E retry → `idempotent_retry=true`, same ids, single
+  artefacts; F expiry → reserved back to 40 exactly, second expiry changes nothing; reuse → a new 10 kg
+  order checks out (50); G listing = position = Σ ACTIVE reservation items at every step; H ownership
+  events unchanged (global and lot). Also `mirror-consistency.test.ts`: the whole 50 kg listing reserved by
+  one checkout.
+- **Hardening proof**: a service-role direct `coffee_offers` UPDATE with the exact reservation-only shape
+  (from 0 and from 40 kg reserved) is refused `cannot_publish_empty_listing` (probe restores nothing — it
+  never succeeded); `set_config` is not callable through the API by authenticated or anonymous sessions.
+  No seller fixture owns a published listing, so the service role (the strictest writer, bypassing RLS)
+  stands in for a seller.
+- **Consequence to know**: while a listing is fully reserved, other updates to it (e.g. a seller title
+  edit) are still refused by the unchanged publication rule until the hold expires or settles.
+
+### 17.4 DB-OPEN-17 — `expire_order_hold()` caller authorization (RESOLVED, live-verified)
+
+- **Decision**: organization B must NOT be able to expire organization A's hold. SRS §13.3
+  ("server-side authorization on every protected object"; "no cross-organization access to … trading
+  data") and constitution Principle VIII (database-side authorization for every sensitive action); no
+  requirement approves cross-org expiry.
+- **Fix**: an end-user caller must be an active member of the buyer organization or a platform admin;
+  a nonexistent and a foreign order both raise `order_not_found` (non-enumerating). No-user callers
+  (service role, a database job) keep the previous behaviour, so the OPEN scheduler decision is not
+  pre-empted. EXECUTE on `expire_order_hold` and `checkout_order` restated (REVOKE PUBLIC/anon; GRANT
+  authenticated, service_role). Membership — not buy capability — gates a release.
+- **Live proof** (`tests/orders/authorization.test.ts`, 11/11): foreign org on an unexpired hold and on a
+  nonexistent id → identical `order_not_found` (message/code/details/hint), hold untouched; foreign,
+  unattached and warehouse-operator sessions refused on a due hold with zero effect; the owner's direct
+  call releases exactly 1 kg on both mirrors, a second call changes nothing; anon has no EXECUTE; a
+  SUSPENDED org's own due hold: the application refuses before the RPC, the foreign session still gets
+  `order_not_found`, and the member's direct call releases exactly once. T021 concurrent expiry
+  (`expiry.test.ts`) still releases exactly once (5/5 repeated runs).
+- **Not live-proven**: the platform-admin branch — no ADMIN/SUPER_ADMIN fixture identity exists. The
+  service-role (no-user) branch is not exercised either (no approved system caller exists).
+
+### 17.5 Audits (final tree)
+
+`checkout_order` code reference: only `lib/orders/checkout.ts`; `expire_order_hold`: only
+`lib/orders/expiry.ts`. The new RPCs are called only from `lib/orders/drafts.ts`. No runtime service role,
+no shared cache, no reservation/mirror/payment/proforma/financial writes, no title transfer, no
+escrow/provider code (repo-wide audits in `audits.test.ts`). The migration touches exactly five
+functions; the rollback is guarded by the migrated fingerprints and restores the baseline bodies and the
+verified ACLs (statically proven, `db-blockers-migration.test.ts`, 17/17).
+
+### 17.6 Regression evidence (final working tree)
+
+| Check | Result |
+|---|---|
+| `draft-items.test.ts` (DB-OPEN-13) | 8/8 |
+| `final-quantity.test.ts` (DB-OPEN-16 + hardening) | 6/6; repeated 3× consecutively → 18/18 |
+| `authorization.test.ts` (T024 + DB-OPEN-17) | 11/11 |
+| `error-mapping.test.ts` (T025, incl. new RPC/expiry strings) | 13/13 |
+| `concurrency.test.ts` × 5 consecutive runs | 5/5 green (15/15) |
+| `expiry.test.ts` (incl. T021 concurrent expiry) × 5 consecutive runs | 5/5 green (75/75) |
+| `idempotency.test.ts` × 3 consecutive runs | 3/3 green (15/15) |
+| `mirror-consistency` / `no-title-transfer` / `drafts` / `pages` / `db-blockers-migration` | 2/2, 3/3, 10/10, 8/8, 17/17 |
+| `tests/orders/` (in the full run) | 275 tests, 21 files |
+| auth / inventory (005) / listings (006) / dashboard / public / design (in the full run) | 338 / 80 / 175 / 58 / 151 / 65 |
+| Full `vitest run` | **1142/1142, 104 files** (was 1107/101) |
+| `npm run typecheck` | clean |
+| `npm run build` | exit 0 (production code unchanged after the build; only tests/docs edited since) |
+| Feature 007 scoped eslint | 0 problems |
+| `git diff --check` | exit 0 |
+
+No failure occurred in any post-apply run or repeat.
+
+### 17.7 Status
+
+DB-OPEN-13 RESOLVED · DB-OPEN-16 RESOLVED · DB-OPEN-17 RESOLVED (admin branch not live-proven) ·
+DB-OPEN-14/15 unchanged (constraints, not defects) · scheduler decision OPEN · Feature 009 READY
+dependency unchanged. Task map: T001–T025 [x], T026–T032 [ ] → **25/32**. Next: Phases 9–10
+(T026–T032).

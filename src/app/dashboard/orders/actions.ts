@@ -5,8 +5,8 @@ import { redirect } from "next/navigation";
 
 import { getRequestIdentity } from "@/lib/auth/dal";
 import type { RequestIdentity } from "@/lib/auth/types";
-import { addOrderItem, createDraftOrder } from "@/lib/orders/drafts";
-import { AddOrderItemInput } from "@/lib/orders/validation";
+import { addOrderItem, createDraftOrder, removeOrderItem, updateOrderItemQuantity } from "@/lib/orders/drafts";
+import { AddOrderItemInput, RemoveOrderItemInput, UpdateOrderItemQuantityInput } from "@/lib/orders/validation";
 import { ACTION_FEEDBACK, type ActionFeedbackResult } from "@/lib/types/action-feedback";
 
 /**
@@ -86,6 +86,64 @@ export async function addItemToOrder(_prevState: ActionFeedbackResult | undefine
     offerId: parsed.data.offerId,
     quantityKg: parsed.data.quantityKg,
   });
+  if (!result.ok) return result;
+
+  revalidatePath(`/dashboard/orders/${orderId}`);
+  return { ok: true, data: undefined };
+}
+
+/**
+ * DB-OPEN-13 (resolved 2026-09-13; T004 PS1 scenario 4) — changes an item's quantity on the caller's own
+ * DRAFT order. Same six-step contract as `addItemToOrder`; `orderId`/`orderItemId` are never trusted as
+ * ownership proof (`lib/orders/drafts.ts` re-reads under the acting organization, the database
+ * function re-checks everything).
+ */
+export async function updateItemQuantity(_prevState: ActionFeedbackResult | undefined, formData: FormData): Promise<ActionFeedbackResult> {
+  const orderId = formData.get("orderId");
+  if (typeof orderId !== "string" || orderId.length === 0) {
+    return { ok: false, code: ACTION_FEEDBACK.VALIDATION_ERROR };
+  }
+
+  const parsed = UpdateOrderItemQuantityInput.safeParse({ orderItemId: formData.get("orderItemId"), quantityKg: formData.get("quantityKg") });
+  if (!parsed.success) {
+    return { ok: false, code: ACTION_FEEDBACK.VALIDATION_ERROR, fieldErrors: parsed.error.flatten().fieldErrors };
+  }
+
+  const identity = await requireBuyerCapableIdentity();
+  if (!identity) {
+    return { ok: false, code: ACTION_FEEDBACK.BUYER_NOT_CAPABLE };
+  }
+
+  const result = await updateOrderItemQuantity({
+    organizationId: identity.organization.organizationId,
+    orderId,
+    orderItemId: parsed.data.orderItemId,
+    quantityKg: parsed.data.quantityKg,
+  });
+  if (!result.ok) return result;
+
+  revalidatePath(`/dashboard/orders/${orderId}`);
+  return { ok: true, data: undefined };
+}
+
+/** DB-OPEN-13 (resolved 2026-09-13; T004) — removes an item from the caller's own DRAFT order. */
+export async function removeItemFromOrder(_prevState: ActionFeedbackResult | undefined, formData: FormData): Promise<ActionFeedbackResult> {
+  const orderId = formData.get("orderId");
+  if (typeof orderId !== "string" || orderId.length === 0) {
+    return { ok: false, code: ACTION_FEEDBACK.VALIDATION_ERROR };
+  }
+
+  const parsed = RemoveOrderItemInput.safeParse({ orderItemId: formData.get("orderItemId") });
+  if (!parsed.success) {
+    return { ok: false, code: ACTION_FEEDBACK.VALIDATION_ERROR, fieldErrors: parsed.error.flatten().fieldErrors };
+  }
+
+  const identity = await requireBuyerCapableIdentity();
+  if (!identity) {
+    return { ok: false, code: ACTION_FEEDBACK.BUYER_NOT_CAPABLE };
+  }
+
+  const result = await removeOrderItem({ organizationId: identity.organization.organizationId, orderId, orderItemId: parsed.data.orderItemId });
   if (!result.ok) return result;
 
   revalidatePath(`/dashboard/orders/${orderId}`);

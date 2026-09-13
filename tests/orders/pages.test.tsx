@@ -45,6 +45,23 @@ vi.mock("@/lib/orders/expiry", async (importOriginal) => ({
 
 afterEach(cleanup);
 
+const draftItem = {
+  id: "11111111-1111-4111-8111-111111111111",
+  orderId: "order-1",
+  offerId: "22222222-2222-4222-8222-222222222222",
+  lotId: "33333333-3333-4333-8333-333333333333",
+  sellerOrganizationId: "44444444-4444-4444-8444-444444444444",
+  quantityKg: 3,
+  unitPricePerKg: 10,
+  productNameSnapshot: "Fixture Coffee",
+  originNameSnapshot: null,
+  variantNameSnapshot: null,
+  lotCodeSnapshot: "LOT-1",
+  sellerTypeSnapshot: "HILLS",
+  currency: "USD",
+  createdAt: "2026-01-01T00:00:00.000Z",
+};
+
 const buyerIdentity = {
   kind: "authenticated" as const,
   userId: "user-1",
@@ -103,6 +120,29 @@ describe("T005/T006 — order detail page guard and notFound", () => {
     await renderDetailPage();
     expect(screen.getAllByText("HC-2026-0001").length).toBeGreaterThan(0);
     expect(screen.getByLabelText("Listing ID")).toBeTruthy();
+  });
+
+  it("a DRAFT order with an item renders that item's quantity edit and remove controls (DB-OPEN-13 resolved, T004)", async () => {
+    mocks.identity = buyerIdentity;
+    mocks.order = { id: "order-1", orderCode: "HC-2026-0003", buyerOrganizationId: "org-1", status: "DRAFT", currency: "USD", holdStartedAt: null, holdExpiresAt: null, confirmedAt: null, paidAt: null, completedAt: null, createdBy: "user-1", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z", correlationId: null };
+    mocks.items = [draftItem];
+    mocks.shipments = [];
+    mocks.shipmentItems = [];
+    await renderDetailPage();
+    expect(screen.getByRole("button", { name: "Update quantity" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Remove item" })).toBeTruthy();
+  });
+
+  it("a CONFIRMED order with an item shows NO edit/remove control (T006 — never a control that cannot succeed)", async () => {
+    mocks.identity = buyerIdentity;
+    mocks.order = { id: "order-1", orderCode: "HC-2026-0004", buyerOrganizationId: "org-1", status: "CONFIRMED", currency: "USD", holdStartedAt: null, holdExpiresAt: null, confirmedAt: "2026-01-02T00:00:00.000Z", paidAt: null, completedAt: null, createdBy: "user-1", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-02T00:00:00.000Z", correlationId: null };
+    mocks.items = [draftItem];
+    mocks.shipments = [];
+    mocks.shipmentItems = [];
+    await renderDetailPage();
+    expect(screen.queryByRole("button", { name: "Update quantity" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Remove item" })).toBeNull();
+    expect(screen.getByText("This order can no longer be edited.")).toBeTruthy();
   });
 
   it("a CONFIRMED order shows the honest not-editable note, never the add-item form (DB-OPEN-13/T006)", async () => {

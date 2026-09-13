@@ -121,32 +121,27 @@ describe("T022 — listing and inventory reserved mirrors stay in lock-step thro
   );
 });
 
-describe("DB-OPEN-16 — the FINAL remaining kilograms of a listing cannot be checked out (live characterization, open database defect)", () => {
+describe("DB-OPEN-16 (resolved, migration 20260913100000) — the WHOLE listing can be reserved by one checkout (live)", () => {
   it(
-    "a checkout that would reserve the whole 50 kg listing is refused by the listing trigger (cannot_publish_empty_listing) — fail-closed: safe mapped code, zero artefacts, zero mirror drift",
+    "a checkout reserving all 50 kg of the listing succeeds: exactly one of each artefact, listing = position = reservation rows = 50, status unchanged (reservation is not fill), zero ownership events",
     async () => {
       const orgB = await signInAsFixture(INVENTORY_FIXTURES.orgB.email);
       const whole = await buildReadyOrder(withLiveClient, orgB, INVENTORY_FIXTURES.orgB.organizationId, CHECKOUT_FIXTURES.offerQuantityKg);
+      const before = inspectCheckoutOrder(whole);
 
-      const viaApplication = await runCheckout(orgB, whole);
-      expect(viaApplication.ok).toBe(false);
-      if (!viaApplication.ok) expect(viaApplication.code).toBe(ACTION_FEEDBACK.ORDER_ITEM_QUANTITY_UNAVAILABLE);
-      expect(JSON.stringify(viaApplication)).not.toMatch(/cannot_publish_empty_listing|P0001/);
-
-      // Pin the cause at the database layer (test-only direct RPC under the owning buyer's session):
-      // `checkout_order()` raises NOTHING itself here — `validate_offer_transition` (BEFORE UPDATE on
-      // coffee_offers) refuses the reserved-mirror update because a PUBLISHED listing would have
-      // quantity − filled − reserved = 0. When the database is fixed this assertion must change.
-      const direct = await orgB.rpc("checkout_order", { p_order_id: whole });
-      expect(direct.error?.message).toBe("cannot_publish_empty_listing");
+      const result = await runCheckout(orgB, whole);
+      if (!result.ok) throw new Error(`whole-listing checkout failed: ${result.code}`);
 
       const snapshot = inspectCheckoutOrder(whole);
-      expect(snapshot.reservations).toEqual([]);
-      expect(snapshot.proformas).toEqual([]);
-      expect(snapshot.payments).toEqual([]);
-      expect(snapshot.financials).toEqual([]);
-      expect(snapshot.order?.status).toBe("CONFIRMED");
-      expectZeroDrift(inspectCheckoutMirrors(), 0, 0);
+      expect(snapshot.order?.status).toBe("HOLD");
+      expect(snapshot.reservations).toHaveLength(1);
+      expect(snapshot.reservationItems).toEqual([{ quantity_kg: CHECKOUT_FIXTURES.offerQuantityKg, offer_id: CHECKOUT_FIXTURES.offerCheckout }]);
+      expect(snapshot.proformas).toHaveLength(1);
+      expect(snapshot.payments).toHaveLength(1);
+      expect(snapshot.financials).toHaveLength(1);
+      expect(snapshot.offer.status).toBe(before.offer.status);
+      expect(snapshot.ownershipEventCount).toBe(before.ownershipEventCount);
+      expectZeroDrift(inspectCheckoutMirrors(), CHECKOUT_FIXTURES.offerQuantityKg, 1);
     },
     150_000
   );
