@@ -68,7 +68,13 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ or
   const shipment = shipments.length > 0 ? shipments[shipments.length - 1]! : null;
   const shipmentItems = shipment ? await getShipmentItems({ shipmentId: shipment.id }) : [];
 
-  const isEditable = order.status === "DRAFT";
+  const isDraft = order.status === "DRAFT";
+  // T026 (Phase 9): a DRAFT order stays literally editable in the database only while the acting
+  // organization is buy-capable (`buyer_not_authorized` otherwise, e.g. a suspended organization) —
+  // gating the item edit/remove/add controls on BOTH facts (not status alone) means a buyer never
+  // sees a control that the server would refuse; `isAuthorizedMember`/`canBuy` come fresh from
+  // `getRequestIdentity()` above, never cached, matching the same authority every action re-checks.
+  const isEditable = isDraft && identity.organization.canBuy;
   const canCheckout = order.status === "DRAFT" || order.status === "CONFIRMED";
   const isOnHold = order.status === "HOLD" && freshness.data.fresh;
   const isExpired = order.status === "EXPIRED";
@@ -210,6 +216,10 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ or
               <DraftEditor orderId={order.id} />
               <p className="text-[length:var(--text-small)] text-muted-foreground">{appCopy.orders.detail.advisoryNote}</p>
             </>
+          ) : isDraft ? (
+            <p role="status" className="text-[length:var(--text-small)] text-muted-foreground">
+              {appCopy.orders.capabilityRequired.description}
+            </p>
           ) : (
             <p className="text-[length:var(--text-small)] text-muted-foreground">{appCopy.orders.detail.notEditableNote}</p>
           )}

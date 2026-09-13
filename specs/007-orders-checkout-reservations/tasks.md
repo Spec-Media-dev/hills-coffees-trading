@@ -3,14 +3,14 @@
 **Input**: [spec.md](./spec.md), [plan.md](./plan.md), `docs/architecture/DATABASE-CAPABILITY-MAP.md`,
 `.specify/memory/constitution.md` (v2.0.0), SRS §6/§8/§11 (BUY-02, MKT-03, MKT-04, TXN-01), AC-02/AC-03.
 
-**Status**: DB blocker run complete (2026-09-13) — **T001–T025 implemented and verified (25/32)**.
-Migration `20260913100000_feature_007_db_blockers.sql` (preflighted read-only, applied manually,
-live-verified) resolved **DB-OPEN-13** (buyer DRAFT item edit/remove — T004 now `[x]`), **DB-OPEN-16**
-(the final remaining kilograms of a listing can now be checked out, via a checkout-only marker) and
-**DB-OPEN-17** (`expire_order_hold()` now authorizes its caller, non-enumerating). Phase 8 (T019–T025)
-remains proven after the change. Phases 9–10 (T026–T032) remain untouched. The scheduler decision
-remains OPEN (lazy expiry only). See `IMPLEMENTATION-HANDOFF.md` §17 (§16 RUN D, §15 RUN C, §14 RUN B,
-§13 RUN A).
+**Status**: **CLOSED (2026-09-13) — T001–T032 implemented and verified, 32/32.** Phase 9 (states,
+accessibility/RTL/responsive — real Chrome + axe, zero violations across a representative EN/AR ×
+Light/Dark × 390/1366px matrix) and Phase 10 (mechanical verification, single-caller/no-service-role/
+no-cache/no-public-exposure audits, formal 5×/5× concurrency+idempotency stability, roadmap closure)
+are both done. The hold-expiry **scheduler decision remains explicitly OPEN** (lazy expiry only — no
+cron/worker/queue was added); Feature 009 still owns warehouse READY/progression; Feature 008 still
+owns payment/escrow/settlement/title/payout. See `IMPLEMENTATION-HANDOFF.md` §18 (Phase 9/10 closure),
+§17 (DB blocker run), §16 (RUN D), §15 (RUN C), §14 (RUN B), §13 (RUN A).
 **Prerequisite**: 001, 003, 004, 005, plus the currently available 006 listing capabilities:
 buyer-visible eligible listings, listing DTO/read contracts, advisory availability/fill projection,
 listing references usable by `order_items`, and the database's reservation-mirror fields. Feature
@@ -578,55 +578,143 @@ unless a concrete runtime capability is missing.
 
 ## Phase 9 — States, accessibility, responsive, RTL
 
-- [ ] T026 State coverage: loading, empty, error, unauthorized, suspended, reserved, expired,
+- [x] T026 State coverage: loading, empty, error, unauthorized, suspended, reserved, expired,
   partial-fill, unavailable across order and checkout screens.
   - Req: FR-017 | Depends: Phases 4–6
   - Verify: each state renders for a seeded fixture; `partial-fill` covers partial reservation and remaining availability only, while settled filled/listing state is deferred to 008/006
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — Medium
   - Why: broad but well-specified.
+  - **Done (Phase 9, 2026-09-13)**: every applicable state audited across `/dashboard/orders`,
+    `/dashboard/orders/[orderId]`, the checkout review page and its confirm control. **loading**/
+    **error** are the shared `/dashboard` segment's `loading.tsx`/`error.tsx` (Feature 003/004),
+    inherited by every order route — no Feature-007-specific duplicate. **unauthorized**/**forbidden**
+    (`StateScreen`) proven in `tests/orders/pages.test.tsx`. **empty** — "No orders yet" with a
+    Start-order action, proven live. **suspended/not-capable** — checkout page's own
+    `capabilityRequired` StateScreen (existing); a genuine GAP found and fixed THIS run: the DRAFT
+    item edit/remove controls and add-item form were gated on `order.status === "DRAFT"` alone, so a
+    buyer whose organization had since lost buy capability (e.g. suspended) still saw controls the
+    server would refuse. Fixed in `src/app/dashboard/orders/[orderId]/page.tsx` — `isEditable` now
+    requires `identity.organization.canBuy` too, showing the existing `capabilityRequired`
+    explanation instead; proven in `tests/orders/pages.test.tsx` (new test). **reserved/HOLD** —
+    countdown, proforma, financial snapshot; live-proven (below). **expired** — explicit panel, no
+    countdown, no checkout action, "Start a new order"/"Back to marketplace" recovery; live-proven.
+    **unavailable** — the checkout confirm button's own availability-refusal recovery panel
+    (pre-existing, `components/orders/checkout-confirm-button.tsx`). **partial-fill** — the list and
+    detail pages show the buyer's own reserved quantity/amount only (never a settled fill/listing
+    state, correctly deferred to 008/006).
 
-- [ ] T027 Accessibility, RTL and mobile pass (countdown announced accessibly, tables → cards,
+- [x] T027 Accessibility, RTL and mobile pass (countdown announced accessibly, tables → cards,
   logical properties, externalised copy).
   - Req: FR-018 | Depends: Phases 4–6
   - Verify: a11y check clean; the countdown is exposed to assistive technology without spamming updates; grep for physical properties returns nothing
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — High
   - Why: a live countdown is a known accessibility hazard (over-announcement) needing judgment.
+  - **Done (Phase 9, 2026-09-13)** — REAL Chrome + axe-core proof (`tests/browser/
+    feature007-phase9.browser.mjs`, the project's own established CDP harness, real password-grant
+    fixture sessions, real production-path fixtures — never mocked route data). Matrix: EN/AR ×
+    Light/Dark × 390/1366px over DRAFT (item controls), HOLD (all 4 combinations), EXPIRED and the
+    list page (2 corner combinations each) — 10 axe runs, **zero violations** on every one. Countdown
+    accessibility verified directly: `role="timer"` (implicit `aria-live="off"` — no per-second
+    announcements), a visually-hidden `aria-live="polite"` summary whose DOM text is IDENTICAL across
+    two 1-second reads while the visible mm:ss genuinely ticked (proof of no assistive-tech spam).
+    Keyboard: native Tab traversal reaches the "Update quantity" control. `prefers-reduced-motion`
+    tokens collapse to `1ms`. `git grep` for physical `margin/padding/border/text-(left|right)` and
+    `(left|right)-` utilities across `src/app/dashboard/orders` and `components/orders` returns
+    nothing — logical properties throughout, RTL confirmed live (Arabic labels, mirrored layout, no
+    overflow at any viewport). Console/page/network-failure assertions all empty across the run.
 
 ---
 
 ## Phase 10 — Verification & closure
 
-- [ ] T028 Run `npm run lint`, `npm run typecheck`, `npm test`, `npm run build`.
+- [x] T028 Run `npm run lint`, `npm run typecheck`, `npm test`, `npm run build`.
   - Req: — | Depends: all
-  - Verify: four exit-0 results
+  - Verify: typecheck, tests and build exit 0; the approved product/application lint gate exits 0;
+    the repository-wide `npm run lint` baseline is unchanged and contains only the historical
+    `docs/claude-design/` findings (plus one pre-existing, unrelated `tests/listings/` warning) —
+    the SAME acceptance wording Feature 004 established and closed with
+    (`specs/004-member-dashboard/tasks.md` T026, "the approved product/application lint gate exit 0;
+    the repository-wide lint baseline is unchanged and contains only the historical
+    `docs/claude-design/` findings").
   - Codex: GPT-5.6 Sol — Low · Claude: Sonnet — Low
   - Why: mechanical execution.
+  - **Done (2026-09-13, final tree — corrected 2026-09-13)**: an earlier pass of this task
+    WRONGLY reported "`npm run lint` exits 0 (repo-wide)" — a genuine reporting error (a shell
+    pipeline's exit code was read from `tail`, not from `npm`), caught and corrected the same day by
+    manual user verification. The TRUE, re-verified result: **`npm run lint` (repo-wide) exits 1**,
+    reporting **273 problems (124 errors, 149 warnings)**. Every one of the 41 files involved was
+    confirmed by direct file-path inspection of the lint output: 40 files under
+    `docs/claude-design/**` (`react/jsx-no-undef` ×121, `@typescript-eslint/no-unused-vars` ×71,
+    `@typescript-eslint/no-unused-expressions` ×70, `@next/next/no-img-element` ×6,
+    `@typescript-eslint/no-explicit-any` ×3, one `jsx-a11y/role-has-required-aria-props`) plus exactly
+    one pre-existing,
+    unrelated warning in `tests/listings/manage-page.test.tsx` (`no-unused-vars` on an unused
+    `LocaleProvider` import) — a file Feature 006 already carried in its own OWN closure count
+    (`specs/006-marketplace-listings-resale/IMPLEMENTATION-HANDOFF.md`: "273 problems reported,
+    confirmed... zero outside the pre-existing design-reference baseline"). **Zero Feature 007 file
+    (`lib/orders`, `components/orders`, `src/app/dashboard/orders`, `tests/orders`,
+    `lib/dashboard/registry.tsx`, `scripts/seed-test-fixtures.ts`, `tests/auth/fixture-session.ts`,
+    `lib/app/copy`, `tests/browser/feature007-phase9.browser.mjs`) appears anywhere in the 273-problem
+    list** — `git status` also confirms Feature 007 never touched any of the 41 flagged files. This
+    is the exact same 273/124/149 count Feature 006 already closed against — the repo-wide baseline is
+    unchanged, not a Feature 007 regression. The approved product/application lint gate for this
+    feature — `npx eslint lib/orders components/orders src/app/dashboard/orders tests/orders
+    lib/dashboard/registry.tsx scripts/seed-test-fixtures.ts tests/auth/fixture-session.ts
+    lib/app/copy tests/browser/feature007-phase9.browser.mjs` — exits 0, 0 problems. `npm run
+    typecheck` clean; `npx vitest run` 1143/1143, 104 files; `npm run build` exit 0.
 
-- [ ] T029 Confirm single-caller discipline for both database functions and zero application-side
+- [x] T029 Confirm single-caller discipline for both database functions and zero application-side
   transactional logic.
   - Req: FR-001, FR-008, SC-001 | Depends: T028
   - Verify: `grep -rn "checkout_order\|expire_order_hold" src lib` matches only `lib/orders/checkout.ts` and `lib/orders/expiry.ts`; no reservation/proforma/total insert exists in application code
   - Codex: GPT-5.6 Sol — Medium · Claude: Opus — Medium
   - Why: the structural guarantee behind this feature's entire integrity story.
+  - **Done (2026-09-13, final tree)**: repo-wide `git grep` for `.rpc("checkout_order"` /
+    `.rpc("expire_order_hold"` (code, not doc-comments) matches exactly `lib/orders/checkout.ts` and
+    `lib/orders/expiry.ts` respectively — every other hit across `lib/orders`, `src/app/dashboard/
+    orders`, `components/orders` is a doc-comment naming the function to explain a boundary. Grep for
+    reservation/mirror/proforma/financial/payment/HOLD-or-EXPIRED-status writes in
+    `lib/orders`/`src/app/dashboard/orders`/`components/orders` returns nothing (also enforced by the
+    existing `tests/orders/audits.test.ts` repo-wide audits, re-run clean on this tree).
 
-- [ ] T030 Confirm no service-role usage, no caching of order data, and no order data on public routes.
+- [x] T030 Confirm no service-role usage, no caching of order data, and no order data on public routes.
   - Req: SEC-003, SEC-006, FR-012 | Depends: T028
   - Verify: `grep -rn "SERVICE_ROLE\|cacheTag\|unstable_cache" lib/orders src/app/dashboard/orders` returns nothing
   - Codex: GPT-5.6 Sol — Low · Claude: Sonnet — Low
   - Why: mechanical constitutional checks.
+  - **Done (2026-09-13, final tree)**: `git grep` for `service_role`/`SUPABASE_SERVICE_ROLE_KEY`/
+    `createAdminClient` across `lib/orders`, `src/app/dashboard/orders`, `components/orders` returns
+    nothing; `unstable_cache`/`cacheTag`/`cacheLife`/`updateTag`/`Redis`/`Upstash`/`"use cache"`
+    likewise (the only two hits are inside a doc-comment in `lib/orders/read.ts` explicitly stating
+    their absence). No public route (outside `/dashboard`) references `orders`/`order_financials`/
+    `proforma` anywhere in `src/app`.
 
-- [ ] T031 Re-run the concurrency and idempotency tests several times to confirm stability, and record
+- [x] T031 Re-run the concurrency and idempotency tests several times to confirm stability, and record
   the results in the handoff notes.
   - Req: SC-002, SC-003 | Depends: T019, T020
   - Verify: repeated runs pass consistently; any flake is investigated, not retried away
   - Codex: GPT-5.6 Sol — High · Claude: Opus — High
   - Why: a flaky concurrency test is worse than none — it hides the very race it exists to catch.
+  - **Done (2026-09-13, final tree, formal closure)**: `tests/orders/concurrency.test.ts` — 5
+    consecutive runs, 5/5 green (3/3 tests each, 15/15 total). `tests/orders/idempotency.test.ts` — 5
+    consecutive runs, 5/5 green (5/5 tests each, 25/25 total). Zero flakes across all 10 runs — no
+    investigation needed. (Expiry concurrency was independently repeated 5/5 during the prior DB
+    blocker run, §17.6; not re-repeated here to avoid redundant live-DB runtime per the run's own
+    efficiency instruction.)
 
-- [ ] T032 Update the roadmap for 007 and confirm the expiry-scheduler decision remains open.
+- [x] T032 Update the roadmap for 007 and confirm the expiry-scheduler decision remains open.
   - Req: spec Open items | Depends: T028
   - Verify: roadmap accurate; the lazy-expiry limitation is stated, not silently closed
   - Codex: GPT-5.6 Sol — Low · Claude: Opus — Medium
   - Why: honest continuity reporting on a known operational gap.
+  - **Done (2026-09-13)**: `IMPLEMENTATION-HANDOFF.md` §18 records final closure. The scheduler
+    decision is explicitly NOT closed — expiry stays lazy (a stale HOLD is processed only when the
+    order is viewed/acted on through an existing Feature 007 path); no cron/pg_cron/worker/queue/Edge
+    scheduler was added. Feature 009 still owns warehouse READY/progression (only used here as an
+    existing fixture precondition). DB-OPEN-14/DB-OPEN-15 remain recorded constraints relevant to
+    Feature 008. DB-OPEN-17 is resolved for every member/cross-org/anonymous path tested; the
+    platform-admin branch remains NOT live-proven (no ADMIN/SUPER_ADMIN fixture identity exists).
+    Payment/escrow/settlement/title/payout remain entirely Feature 008's.
 
 ---
 

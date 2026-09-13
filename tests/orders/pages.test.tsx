@@ -133,6 +133,19 @@ describe("T005/T006 — order detail page guard and notFound", () => {
     expect(screen.getByRole("button", { name: "Remove item" })).toBeTruthy();
   });
 
+  it("T026 (Phase 9) — a DRAFT order for a NON-buy-capable organization (e.g. suspended) renders NO add-item form and NO per-item edit/remove controls, only a safe explanation — never a control the server would refuse", async () => {
+    mocks.identity = { ...buyerIdentity, organization: { ...buyerIdentity.organization, canBuy: false } };
+    mocks.order = { id: "order-1", orderCode: "HC-2026-0005", buyerOrganizationId: "org-1", status: "DRAFT", currency: "USD", holdStartedAt: null, holdExpiresAt: null, confirmedAt: null, paidAt: null, completedAt: null, createdBy: "user-1", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z", correlationId: null };
+    mocks.items = [draftItem];
+    mocks.shipments = [];
+    mocks.shipmentItems = [];
+    await renderDetailPage();
+    expect(screen.queryByLabelText("Listing ID")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Update quantity" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Remove item" })).toBeNull();
+    expect(screen.getByText("Contact Hills Coffee to enable buying before starting an order.")).toBeTruthy();
+  });
+
   it("a CONFIRMED order with an item shows NO edit/remove control (T006 — never a control that cannot succeed)", async () => {
     mocks.identity = buyerIdentity;
     mocks.order = { id: "order-1", orderCode: "HC-2026-0004", buyerOrganizationId: "org-1", status: "CONFIRMED", currency: "USD", holdStartedAt: null, holdExpiresAt: null, confirmedAt: "2026-01-02T00:00:00.000Z", paidAt: null, completedAt: null, createdBy: "user-1", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-02T00:00:00.000Z", correlationId: null };
