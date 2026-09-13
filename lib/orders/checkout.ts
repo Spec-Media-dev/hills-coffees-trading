@@ -70,7 +70,9 @@ import { ACTION_FEEDBACK, type ActionFeedbackResult } from "@/lib/types/action-f
  * through the buyer's own UPDATE path in the same write that confirms it. It is never accepted
  * from a client (this function's only input is `orderId`; there is no field anywhere in the
  * request shape a caller could use to supply one), and it is never rotated: a retry (double
- * submit, network loss, stale tab) finds the key already set and reuses it. HONEST CONTRACT NOTE:
+ * submit, network loss, stale tab) finds the key already set and reuses it; a CONCURRENT duplicate
+ * submission cannot overwrite it either, because the key write is a compare-and-set on
+ * `idempotency_key IS NULL` (RUN D, T020). HONEST CONTRACT NOTE:
  * `checkout_order()` itself (read live) does not read `idempotency_key` — its retry safety is
  * keyed on the order's OWN status + ACTIVE reservation (`idempotent_retry: true`). The key is
  * therefore the application's per-intent correlation marker that satisfies SEC-005's
@@ -166,15 +168,26 @@ export async function executeCheckout(orderId: string): Promise<ActionFeedbackRe
     if (Object.keys(patch).length > 0) {
       // DB-OPEN-14: plain update, no RETURNING; the trigger (`validate_order_transition`) and the
       // `orders_update_buyer_or_admin` policy remain the authority on whether this is permitted.
-      const { error: updateError } = await supabase.from("orders").update(patch).eq("id", orderId).eq("buyer_organization_id", organizationId);
+      let update = supabase.from("orders").update(patch).eq("id", orderId).eq("buyer_organization_id", organizationId);
+      // COMPARE-AND-SET (RUN D, T020): the key is written only while none is persisted, so a
+      // concurrent duplicate submission of the same intent can never rotate the first submission's key.
+      if (patch.idempotency_key !== undefined) update = update.is("idempotency_key", null);
+      const { error: updateError } = await update;
       if (updateError) {
         return { ok: false, code: mapOrderError(updateError) };
       }
     }
 
-    // Separate authorized re-read (DB-OPEN-14) — confirm the write actually took effect.
+    // Separate authorized re-read (DB-OPEN-14) — confirm the intent is persisted. A concurrent
+    // duplicate submission of the SAME order (double click, second tab — proven live in
+    // `tests/orders/idempotency.test.ts`) may have confirmed it first (its server-generated key is
+    // then the persisted one, and our compare-and-set write matched nothing) or even completed the
+    // checkout already (`HOLD`): both are the same intent, so the call proceeds to `checkout_order()`,
+    // whose own row lock + retry branch returns the single existing checkout. Anything else refuses.
     const confirmed = await getOrderById({ organizationId, orderId });
-    if (!confirmed || confirmed.status !== "CONFIRMED" || confirmed.idempotencyKey !== idempotencyKey) {
+    const intentPersisted = confirmed !== null && confirmed.status === "CONFIRMED" && confirmed.idempotencyKey !== null;
+    const completedConcurrently = confirmed !== null && (CHECKOUT_RETRY_STATUSES as readonly string[]).includes(confirmed.status);
+    if (!intentPersisted && !completedConcurrently) {
       return { ok: false, code: ACTION_FEEDBACK.ORDER_TRANSITION_REFUSED };
     }
   }

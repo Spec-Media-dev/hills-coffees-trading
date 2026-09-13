@@ -1842,15 +1842,24 @@ async function resetCheckoutFixtures(admin: SupabaseClient): Promise<void> {
 
 /** TEST-ONLY privileged integrity snapshot for one order (printed as a single JSON line). */
 async function inspectCheckoutOrder(admin: SupabaseClient, orderId: string): Promise<void> {
-  const [reservations, proformas, payments, ownershipEvents, offer, position] = await Promise.all([
+  const [reservations, proformas, payments, ownershipEvents, offer, position, financials, statusHistory, lotOwnershipEvents, order, orderAudit] = await Promise.all([
     admin.from("inventory_reservations").select("id, status, expires_at").eq("order_id", orderId),
     admin.from("proforma_invoices").select("id, proforma_code, status").eq("order_id", orderId),
     admin.from("payments").select("id, status, amount").eq("order_id", orderId),
     admin.from("inventory_ownership_events").select("id", { count: "exact", head: true }),
     admin.from("coffee_offers").select("reserved_quantity_kg, filled_quantity_kg, status").eq("id", CHECKOUT_FIXTURE_IDS.offerCheckout).single(),
-    admin.from("inventory_positions").select("reserved_quantity_kg, available_quantity_kg").eq("id", CHECKOUT_FIXTURE_IDS.hillsPositionD).single(),
+    admin.from("inventory_positions").select("reserved_quantity_kg, available_quantity_kg, owner_organization_id").eq("id", CHECKOUT_FIXTURE_IDS.hillsPositionD).single(),
+    // Feature 007 RUN D (T019/T020) — the financial snapshot cardinality and the transition history.
+    admin.from("order_financials").select("order_id, buyer_total_amount, base_subtotal, calculated_at").eq("order_id", orderId),
+    admin.from("order_status_history").select("old_status, new_status, created_at").eq("order_id", orderId).order("created_at", { ascending: true }),
+    // Feature 007 RUN D (T023) — ownership/title events scoped to the dedicated checkout lot.
+    admin.from("inventory_ownership_events").select("id", { count: "exact", head: true }).eq("lot_id", CHECKOUT_FIXTURE_IDS.lotD),
+    admin.from("orders").select("status, hold_started_at, hold_expires_at, idempotency_key, correlation_id").eq("id", orderId).maybeSingle(),
+    // Feature 007 RUN D (T020) — every persisted version of the order row (`write_audit_log` records
+    // old/new jsonb on each UPDATE), so a test can prove the server-owned intent key was never rotated.
+    admin.from("audit_logs").select("new_data, created_at").eq("entity_type", "orders").eq("entity_id", orderId).order("created_at", { ascending: true }),
   ]);
-  for (const result of [reservations, proformas, payments, ownershipEvents, offer, position]) {
+  for (const result of [reservations, proformas, payments, ownershipEvents, offer, position, financials, statusHistory, lotOwnershipEvents, order, orderAudit]) {
     if (result.error) throw new SafeFixtureError("Checkout inspection read failed (Feature 007).");
   }
 
@@ -1871,6 +1880,54 @@ async function inspectCheckoutOrder(admin: SupabaseClient, orderId: string): Pro
       ownershipEventCount: ownershipEvents.count ?? 0,
       offer: offer.data,
       position: position.data,
+      financials: financials.data ?? [],
+      statusHistory: statusHistory.data ?? [],
+      lotOwnershipEventCount: lotOwnershipEvents.count ?? 0,
+      order: order.data ?? null,
+      idempotencyKeyHistory: [
+        ...new Set(
+          (orderAudit.data ?? [])
+            .map((row) => (row.new_data as { idempotency_key?: string | null } | null)?.idempotency_key ?? null)
+            .filter((key): key is string => typeof key === "string")
+        ),
+      ],
+    })
+  );
+}
+
+/**
+ * Feature 007 RUN D (T022) — TEST-ONLY privileged mirror snapshot for the dedicated checkout
+ * listing: the listing mirror (`coffee_offers.reserved_quantity_kg`), the inventory source of truth
+ * (`inventory_positions.reserved_quantity_kg`), and the authoritative reservation rows behind them
+ * (the sum of ACTIVE `inventory_reservation_items` for this offer and for this position). Read-only.
+ */
+async function inspectCheckoutMirrors(admin: SupabaseClient): Promise<void> {
+  const [offer, position, activeReservations] = await Promise.all([
+    admin.from("coffee_offers").select("quantity_kg, reserved_quantity_kg, filled_quantity_kg, status").eq("id", CHECKOUT_FIXTURE_IDS.offerCheckout).single(),
+    admin.from("inventory_positions").select("available_quantity_kg, reserved_quantity_kg").eq("id", CHECKOUT_FIXTURE_IDS.hillsPositionD).single(),
+    admin.from("inventory_reservations").select("id").eq("status", "ACTIVE"),
+  ]);
+  for (const result of [offer, position, activeReservations]) {
+    if (result.error) throw new SafeFixtureError("Checkout mirror inspection read failed (Feature 007).");
+  }
+
+  const activeIds = (activeReservations.data ?? []).map((row) => row.id as string);
+  let items: Array<{ reservation_id: string; offer_id: string; inventory_position_id: string | null; quantity_kg: number }> = [];
+  if (activeIds.length > 0) {
+    const { data, error } = await admin.from("inventory_reservation_items").select("reservation_id, offer_id, inventory_position_id, quantity_kg").in("reservation_id", activeIds);
+    if (error) throw new SafeFixtureError("Checkout mirror inspection read failed (Feature 007).");
+    items = (data ?? []) as typeof items;
+  }
+  const offerItems = items.filter((item) => item.offer_id === CHECKOUT_FIXTURE_IDS.offerCheckout);
+  const positionItems = items.filter((item) => item.inventory_position_id === CHECKOUT_FIXTURE_IDS.hillsPositionD);
+
+  console.log(
+    JSON.stringify({
+      offer: offer.data,
+      position: position.data,
+      activeReservationItemsForOfferKg: offerItems.reduce((total, item) => total + Number(item.quantity_kg), 0),
+      activeReservationItemsForPositionKg: positionItems.reduce((total, item) => total + Number(item.quantity_kg), 0),
+      activeReservationCountForOffer: new Set(offerItems.map((item) => item.reservation_id)).size,
     })
   );
 }
@@ -2309,6 +2366,11 @@ async function main(): Promise<void> {
   if (isResetCheckoutFixtures) {
     await seedCheckoutFixtures(admin);
     await resetCheckoutFixtures(admin);
+    return;
+  }
+
+  if (process.argv.includes("--inspect-checkout-mirrors")) {
+    await inspectCheckoutMirrors(admin);
     return;
   }
 

@@ -136,3 +136,62 @@ describe("RUN A audit — no client-trusted organization/status authority in the
     expect(source).toMatch(/\.insert\(\{\s*order_id:\s*orderId,\s*offer_id:\s*offerId,\s*quantity_kg:\s*quantityKg\s*\}\)/);
   });
 });
+
+/**
+ * Feature 007 RUN D (Phase 8) — repo-wide boundary audits over EVERY file (tracked + untracked) under
+ * the three Feature 007 production roots, so a newly added file cannot slip past the per-run lists above.
+ */
+describe("RUN D audit — Feature 007 production roots stay inside their transactional boundary", () => {
+  async function productionFiles(): Promise<string[]> {
+    const { execFileSync } = await import("node:child_process");
+    return execFileSync("git", ["ls-files", "--cached", "--others", "--exclude-standard", "--", "lib/orders", "src/app/dashboard/orders", "components/orders"], { encoding: "utf8" })
+      .trim()
+      .split(/\r?\n/)
+      .filter((file) => /\.(ts|tsx)$/.test(file));
+  }
+
+  it("no runtime service role, no shared cache, no cross-request module-level map anywhere in lib/orders, src/app/dashboard/orders, components/orders", async () => {
+    const { readFileSync } = await import("node:fs");
+    const files = await productionFiles();
+    expect(files.length).toBeGreaterThan(15);
+    for (const file of files) {
+      const source = stripComments(readFileSync(file, "utf8"));
+      expect(source, file).not.toMatch(/SERVICE_ROLE|service_role|createAdminClient|supabase-admin/i);
+      expect(source, file).not.toMatch(/unstable_cache|"use cache"|cacheTag|cacheLife|updateTag|\bRedis\b|\bUpstash\b/);
+      expect(source, file).not.toMatch(/^(export\s+)?(const|let|var)\s+\w+\s*=\s*new\s+(Map|WeakMap|Set)\b/m);
+    }
+  });
+
+  it("no application reservation write/release, reserved-mirror write, manual payment/proforma/financial insert, HOLD write or title transfer", async () => {
+    const { readFileSync } = await import("node:fs");
+    for (const file of await productionFiles()) {
+      const source = stripComments(readFileSync(file, "utf8"));
+      expect(source, file).not.toMatch(/inventory_reservations|inventory_reservation_items|inventory_ownership_events/);
+      expect(source, file).not.toMatch(/reserved_quantity_kg|filled_quantity_kg/);
+      expect(source, file).not.toMatch(/from\(\s*["'](payments|proforma_invoices|proforma_invoice_items|order_financials)["']\s*\)\s*\.(insert|update|upsert|delete)/);
+      expect(source, file).not.toMatch(/status:\s*["'](HOLD|EXPIRED|PAID|PAYMENT_PROOF_SUBMITTED|PAYMENT_UNDER_REVIEW)["']/);
+      expect(source, file).not.toMatch(/\.(insert|update|upsert)\(\s*\{[^}]*(hold_expires_at|hold_started_at|buyer_total_amount|correlation_id)/);
+    }
+  });
+
+  it("no escrow/payment-provider integration, payment proof, webhook, settlement or payout code — in the roots or as a dependency", async () => {
+    const { readFileSync } = await import("node:fs");
+    for (const file of await productionFiles()) {
+      const source = stripComments(readFileSync(file, "utf8"));
+      expect(source, file).not.toMatch(/stripe|tazapay|escrow\.com|webhook|settle|payout|release_funds/i);
+      expect(source, file).not.toMatch(/submit_payment_proof|payment_proofs|payment-proof|uploadProof|proofUpload/);
+    }
+    const manifest = JSON.parse(readFileSync("package.json", "utf8")) as { dependencies?: Record<string, string>; devDependencies?: Record<string, string> };
+    const dependencyNames = Object.keys({ ...manifest.dependencies, ...manifest.devDependencies });
+    for (const name of dependencyNames) expect(name).not.toMatch(/stripe|tazapay|escrow|paypal|checkout\.com|adyen/i);
+  });
+
+  it("production code never imports test or fixture utilities (the concurrency barrier, client scope and privileged inspection stay test-only)", async () => {
+    const { readFileSync } = await import("node:fs");
+    for (const file of await productionFiles()) {
+      const source = readFileSync(file, "utf8");
+      expect(source, file).not.toMatch(/from\s+["'](@\/tests\/|\.\.?\/.*tests\/|@\/scripts\/)/);
+      expect(source, file).not.toMatch(/installRpcBarrier|liveClientScope|inspectCheckoutOrder|ageCheckoutHold|resetCheckoutFixtures/);
+    }
+  });
+});

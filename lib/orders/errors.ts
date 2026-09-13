@@ -48,6 +48,18 @@ const ORDER_ERROR_MAP: Record<string, ActionFeedbackCode> = {
   seller_not_authorized: ACTION_FEEDBACK.ORDER_ITEM_NOT_AVAILABLE,
   seller_inventory_changed: ACTION_FEEDBACK.ORDER_ITEM_QUANTITY_UNAVAILABLE,
 
+  // `validate_offer_transition` (BEFORE UPDATE on coffee_offers) re-validates the WHOLE listing row on
+  // every update, including `checkout_order()`'s own reserved-mirror update. Feature 007 RUN D proved
+  // (live, 2026-09-13, T019's control race) that these reach the checkout caller: reserving a
+  // listing's FINAL remaining kilograms raises `cannot_publish_empty_listing` (DB-OPEN-16), and a
+  // listing over-committed against a shared position raises `listing_exceeds_tradable_inventory`.
+  // A listing whose owner/seller/provenance lost eligibility is refused by the same re-validation.
+  cannot_publish_empty_listing: ACTION_FEEDBACK.ORDER_ITEM_QUANTITY_UNAVAILABLE,
+  listing_exceeds_tradable_inventory: ACTION_FEEDBACK.ORDER_ITEM_QUANTITY_UNAVAILABLE,
+  hills_listing_requires_active_hills_owner: ACTION_FEEDBACK.ORDER_ITEM_NOT_AVAILABLE,
+  member_listing_requires_authorized_seller: ACTION_FEEDBACK.ORDER_ITEM_NOT_AVAILABLE,
+  invalid_member_listing_purchase_source: ACTION_FEEDBACK.ORDER_ITEM_NOT_AVAILABLE,
+
   // `expire_order_hold()` raises nothing itself (a no-op return when no active expired reservation
   // exists) — reserved key kept absent deliberately; nothing to map.
 };

@@ -207,7 +207,26 @@ export type CheckoutInspection = {
   payments: Array<{ id: string; status: string; amount: number }>;
   ownershipEventCount: number;
   offer: { reserved_quantity_kg: number; filled_quantity_kg: number; status: string };
-  position: { reserved_quantity_kg: number; available_quantity_kg: number };
+  position: { reserved_quantity_kg: number; available_quantity_kg: number; owner_organization_id: string };
+  /** RUN D — `order_financials` rows for the order (the snapshot must exist at most once). */
+  financials: Array<{ order_id: string; buyer_total_amount: number; base_subtotal: number; calculated_at: string }>;
+  /** RUN D — the order's own transition history, oldest first. */
+  statusHistory: Array<{ old_status: string | null; new_status: string; created_at: string }>;
+  /** RUN D — ownership/title events on the dedicated checkout lot only. */
+  lotOwnershipEventCount: number;
+  /** RUN D — the order row's hold/intent columns, read with privilege so no member RLS shapes it. */
+  order: { status: string; hold_started_at: string | null; hold_expires_at: string | null; idempotency_key: string | null; correlation_id: string | null } | null;
+  /** RUN D — distinct non-null `idempotency_key` values across every audited version of the order row, oldest first. */
+  idempotencyKeyHistory: string[];
+};
+
+/** TEST-ONLY privileged mirror snapshot shape (see the seed script's `inspectCheckoutMirrors`). */
+export type CheckoutMirrorInspection = {
+  offer: { quantity_kg: number; reserved_quantity_kg: number; filled_quantity_kg: number; status: string };
+  position: { available_quantity_kg: number; reserved_quantity_kg: number };
+  activeReservationItemsForOfferKg: number;
+  activeReservationItemsForPositionKg: number;
+  activeReservationCountForOffer: number;
 };
 
 function loadTestEnvironment(): void {
@@ -407,6 +426,17 @@ export function inspectCheckoutOrder(orderId: string): CheckoutInspection {
   const line = output.trim().split(/\r?\n/).find((candidate) => candidate.startsWith("{"));
   if (!line) throw new Error("Checkout inspection produced no JSON snapshot.");
   return JSON.parse(line) as CheckoutInspection;
+}
+
+/**
+ * Feature 007 RUN D (T022) — TEST-ONLY privileged read of the checkout listing's reserved mirror,
+ * its inventory source of truth, and the ACTIVE reservation rows behind both. Never runtime code.
+ */
+export function inspectCheckoutMirrors(): CheckoutMirrorInspection {
+  const output = runFixtureScript(["--inspect-checkout-mirrors"], { captureOutput: true });
+  const line = output.trim().split(/\r?\n/).find((candidate) => candidate.startsWith("{"));
+  if (!line) throw new Error("Checkout mirror inspection produced no JSON snapshot.");
+  return JSON.parse(line) as CheckoutMirrorInspection;
 }
 
 /**

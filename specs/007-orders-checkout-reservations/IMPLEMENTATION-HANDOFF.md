@@ -4,12 +4,12 @@
 orders, T004–T006), Phase 3 (Buyer shipment planning, narrow slice, T007). RUN B — Phase 4
 (Transactional checkout core, T008–T011) + T006 re-verification against a genuine `HOLD` (§14).
 RUN C — Phase 5 (Lazy hold expiry, T012–T014), Phase 6 (Order views, T015–T017), Phase 7 (Module
-registration, T018) (§15).
-**Status** (RUN C, 2026-09-13): **T001–T003, T005–T018 implemented and verified (17/32)**. **T004
-stays `[BLOCKED — DB-OPEN-13]`** (unchanged). Phase 8 (release-blocking transactional tests,
-T019–T025), Phase 9 (states/a11y/RTL/mobile closure, T026–T027) and Phase 10 (verification/closure,
-T028–T032) are untouched. The hold-expiry scheduler decision remains OPEN (lazy expiry only).
-**Feature 007 is NOT complete.**
+registration, T018) (§15). RUN D — Phase 8 (Release-blocking transactional tests, T019–T025) (§16).
+**Status** (RUN D, 2026-09-13): **T001–T003, T005–T025 implemented and verified (24/32)**. **T004
+stays `[BLOCKED — DB-OPEN-13]`** (unchanged). Phase 9 (states/a11y/RTL/mobile closure, T026–T027) and
+Phase 10 (verification/closure, T028–T032) are untouched. New database finding **DB-OPEN-16** (final
+remaining kilograms of a listing cannot be checked out; fails closed). The hold-expiry scheduler
+decision remains OPEN (lazy expiry only). **Feature 007 is NOT complete.**
 
 This document records the live-schema preflight evidence (including two newly-confirmed database
 findings this run discovered empirically), the DTO/read/write contracts as actually built, every
@@ -752,3 +752,251 @@ no-title-transfer, authorization, error mapping), using `tests/orders/live-helpe
 `inspectCheckoutOrder`/`ageCheckoutHold`; a high-reasoning model (Opus-class) per tasks.md's own
 Codex/Claude column, because T019/T021's concurrency tests must be genuinely concurrent, not
 accidentally serialised.
+
+---
+
+## 16. RUN D (Phase 8 — release-blocking transactional tests) — T019–T025
+
+Run on 2026-09-13 against the live test database. Everything below was proven through ordinary member
+sessions under RLS; privileged access was used only through the approved test-only fixture script
+(`--reset-checkout-fixtures`, `--inspect-checkout-order`, NEW `--inspect-checkout-mirrors`,
+`--age-checkout-hold`, `--set-suspended-organization-status`), never as the behaviour under test.
+
+### 16.1 What was built
+
+| File | Purpose |
+|---|---|
+| `tests/orders/concurrency.test.ts` (NEW, 3) | T019 — genuine concurrent checkout race + control race. |
+| `tests/orders/idempotency.test.ts` (NEW, 5) | T020 — sequential duplicate, concurrent double submit, post-failure retry, DB-layer dedupe honesty. |
+| `tests/orders/expiry.test.ts` (+2 → 15) | T021 — two concurrent expiry attempts (application path and database path). |
+| `tests/orders/mirror-consistency.test.ts` (NEW, 2) | T022 — zero-drift lifecycle incl. partial quantity; DB-OPEN-16 characterization. |
+| `tests/orders/no-title-transfer.test.ts` (NEW, 3) | T023 — ledger/owner unchanged across checkout, retry, refusal, expiry; source + baseline audits. |
+| `tests/orders/authorization.test.ts` (NEW, 10) | T024 — two-layer authorization, tenant isolation, `can_view_order` scoping. |
+| `tests/orders/error-mapping.test.ts` (NEW, 12) | T025 — completeness vs baseline, live errors, fallback/logging, leakage audits. |
+| `tests/orders/audits.test.ts` (+4) | Repo-wide audits over every file under the three Feature 007 production roots. |
+| `tests/orders/live-helpers.ts` (extended) | `liveClientScope()` (AsyncLocalStorage per-flow client), `installRpcBarrier()` (explicit concurrency barrier with in-flight proof), `buildRequestedOrder(…, plannedKg)`. TEST-ONLY; audited never imported by production. |
+| `scripts/seed-test-fixtures.ts`, `tests/auth/fixture-session.ts` (extended) | Inspection now also returns `financials`, `statusHistory`, `lotOwnershipEventCount`, the order's hold/intent columns and `idempotencyKeyHistory` (distinct keys across `audit_logs` versions of the row); new `inspectCheckoutMirrors()`. Read-only, test-only. |
+| `lib/orders/checkout.ts` (production fix) | §16.9. |
+| `lib/orders/errors.ts` (production fix) | §16.9. |
+| `docs/architecture/DATABASE-CAPABILITY-MAP.md` | +DB-OPEN-16. |
+
+### 16.2 T019 — double-sell protection under genuine concurrency
+
+- **Fixture**: dedicated 50 kg PUBLISHED HILLS listing (`offerCheckout`) on its own 1000 kg position;
+  reset before every test. Available = 50; each contender wants 30; 30 + 30 > 50, 30 ≤ 50.
+- **Parallelism guarantee**: both `executeCheckout` flows start in the same synchronous turn
+  (`Promise.allSettled`), each inside `liveClientScope().run(client, …)`; `installRpcBarrier` holds each
+  `checkout_order` call until both arrive and releases them in the same microtask turn; every run
+  asserts `allInFlightTogether()` (last dispatch ≤ first response). A flow that never reaches its RPC
+  makes the barrier reject after 20 s instead of degrading into a sequential test.
+- **Database mechanism observed**: `checkout_order()` locks the listing row `FOR UPDATE` before its
+  remaining-quantity check.
+- **Result (every run)**: exactly one `ok` (idempotent_retry=false) and one
+  `ORDER_ITEM_QUANTITY_UNAVAILABLE` (no raw text). Winner: 1 ACTIVE reservation (id = result), 1 item
+  of 30 kg, 1 ISSUED proforma (id = result), 1 PENDING payment (= buyer total), 1 financial snapshot,
+  history DRAFT->CONFIRMED, CONFIRMED->HOLD. Loser: 0 reservations/items/proformas/payments/financials,
+  status CONFIRMED (its own earlier confirm write), hold columns null, correlation id unchanged, history
+  DRAFT->CONFIRMED only. Listing reserved = position reserved = Σ ACTIVE items = **30**, 1 active
+  reservation, filled 0, zero ownership events (global and lot).
+- Cases: two different buyer orgs; the same org from two independent sessions; CONTROL 20 + 20 → both
+  succeed, reserved exactly **40** (no lost update — and the harness can observe two winners).
+- **Stability**: 5 consecutive file runs → 15/15 passed. (T031's formal repeated-run closure is NOT
+  claimed.)
+- The first CONTROL design (25 + 25 of 50) failed 2/2 — diagnosed, not rerun: the second checkout was
+  refused by `cannot_publish_empty_listing` → **DB-OPEN-16** (§16.8).
+
+### 16.3 T020 — idempotency
+
+- **Sequential duplicate**: 1st call idempotent_retry=false; 2nd call reaches the RPC (spy count 1)
+  and returns idempotent_retry=true with identical reservation/proforma/buyer total/correlation id/hold
+  window. After both: 1 reservation, 1 proforma, 1 PENDING payment (same id), 1 financial row (same
+  `calculated_at` — nothing recomputed), `idempotencyKeyHistory` length 1, key unchanged, mirrors 5 kg,
+  no ownership event.
+- **Concurrent double submit** (two sessions, same order, same turn): both callers `ok` with the same
+  reservation/proforma/total; idempotent_retry values exactly `[false, true]`; single artefacts; ONE
+  key ever persisted (audit history). **Before the fix** one of the two submissions was refused
+  `ORDER_TRANSITION_REFUSED` in 3/3 runs although the order was successfully held (§16.9). Key rotation
+  was not measured pre-fix; the compare-and-set now makes it impossible and the audit history proves it.
+- **Post-failure retry**: the real `checkout_order` RPC is executed and awaited (commit happens), its
+  response is replaced by a transport error → caller gets generic `ORDER_SAVE_FAILED` with no raw text;
+  database already holds exactly one of each artefact; the retry returns idempotent_retry=true with the
+  committed reservation/proforma/total and creates nothing (same `calculated_at`, same key).
+- **What deduplicates (honest)**: a direct owner RPC with no key involved returns idempotent_retry=true
+  twice with the existing ids; the baseline `checkout_order()` body never references
+  `idempotency_key`. The function's own order lock + status/ACTIVE-reservation retry branch is the
+  transactional dedupe; `orders.idempotency_key` is the server-generated, never-client-supplied,
+  never-rotated intent marker (SEC-005).
+- **Stability**: 3 consecutive runs → 15/15.
+
+### 16.4 T021 — expiry exactly once under concurrency
+
+- **Clock/fixture (DB-OPEN-15 honest)**: `ageCheckoutHold` backdates only the reservation's
+  `expires_at`; the application path passes the documented test-only `now` seam; production call sites
+  still pass none (existing audit).
+- **Anti-clamp design**: an unexpired **12 kg** companion hold stays on the listing, so a second release
+  would drop the mirrors below 12 instead of being clamped at 0 by `greatest(…, 0)`.
+- **Synchronization**: barrier on `expire_order_hold`, 2 parties, `allInFlightTogether()` asserted.
+- **Application path** (two sessions' `ensureHoldFresh`): held **6 kg**; both callers see EXPIRED;
+  listing and position reserved each drop by exactly 6 (from the pre-race snapshot, companion 12 still
+  reserved).
+- **Database path** (two sessions' direct RPCs): held **5 kg**; both `error = null`; drop by exactly 5.
+- Both: reservation EXPIRED (1 row), exactly one HOLD->EXPIRED history row, payment EXPIRED (1),
+  proforma 1, financials 1, zero ownership events, companion still ACTIVE/HOLD, mirrors equal and ≥ 0.
+  `afterAll` expires the companion through the same function.
+- **Stability**: 5 consecutive runs of `expiry.test.ts` → 15/15 each.
+
+### 16.5 T022 — mirror consistency
+
+Zero drift (listing = position = Σ ACTIVE reservation items for the offer = Σ for the position) at
+every step: **0 → 12** (partial 12 of 50 — only the requested quantity) **→ 19** (second buyer 7 kg)
+**→ 49** (remaining 31 genuinely usable: 30 kg checks out) **→ 49** (a refused 2 kg checkout moves
+nothing, leaves no artefact) **→ 42** (expiry releases exactly 7) **→ 44** (the previously refused order
+checks out from released quantity). Filled stays 0; reserved ≤ quantity; position reserved ≤ available.
+Settlement/fill is not exercised (Feature 008/006).
+
+### 16.6 T023 — no title transfer
+
+Baseline → after checkout → after idempotent retry → after refused checkout → after expiry: global
+`inventory_ownership_events` count, lot-scoped count, seller position owner (Hills org, never either
+buyer) and available quantity (1000), and `filled_quantity_kg` (0) are all unchanged; the buyer's RLS
+view shows no event on the lot. Source audit over every file in the three production roots and the
+baseline bodies of `checkout_order`/`expire_order_hold`/`assert_order_checkout_ready`: no ledger write,
+no owner change.
+
+### 16.7 T024 — authorization and tenant isolation
+
+| Caller | Application (`executeCheckout` / `ensureHoldFresh`) | RPC calls | Database layer (same normal session) |
+|---|---|---|---|
+| Anonymous | `BUYER_NOT_CAPABLE` / `ORDER_NOT_ACCESSIBLE` | 0 | no EXECUTE on either function; no order/child row readable |
+| Authenticated, unattached | same | 0 | `checkout_order` → `forbidden` |
+| PENDING-KYB org | same | 0 | `forbidden` |
+| SUSPENDED org, its OWN ready order | same | 0 | `checkout_order` → `buyer_not_authorized`; zero artefacts; restored ACTIVE in `finally` |
+| Foreign org, known ready/HOLD id | `ORDER_NOT_FOUND`, deep-equal to nonexistent; `getOrderById` null even with a spoofed scope | 0 | `forbidden` on both (HOLD order's existing ids NOT returned); zero effect |
+| Nonexistent id | `ORDER_NOT_FOUND` | 0 | `order_not_found` |
+| Owning buyer | success | 1 checkout, 0 expiry | — |
+
+Honest DB-layer notes: (a) for a caller who already holds an exact UUID, `checkout_order()` itself
+distinguishes `forbidden` from `order_not_found`; the application never exposes that distinction.
+(b) `expire_order_hold()` has **no caller check**: a foreign session's direct call on an unexpired hold
+is a void no-op (indistinguishable from a nonexistent id), and on an already-expired hold it performs
+exactly the release that is due — the application boundary is what stops cross-org expiry. Neither is
+worked around (no schema/RLS change).
+`can_view_order`: owner true / foreign false; owner reads its order, items, shipments, financials,
+proforma, payment, history; the foreign org reads none of them nor shipment items or reservation items
+by known id, and its broad order list contains only its own orders. Reservations are admin-only (even
+the owner reads none).
+
+### 16.8 DB-OPEN-16 (NEW, confirmed live) — final kilograms cannot be checked out
+
+`checkout_order()` increments `coffee_offers.reserved_quantity_kg` without changing status;
+`validate_offer_transition` re-validates the whole row on every update and raises
+`cannot_publish_empty_listing` when a PUBLISHED/PARTIALLY_FILLED listing would have remaining ≤ 0. Any
+checkout reserving a listing's last kilograms rolls back. Fails CLOSED (no over-reservation, no
+artefact, zero drift; mapped to `ORDER_ITEM_QUANTITY_UNAVAILABLE`), but the final quantity of a listing
+is unsellable through checkout. Requires a database change; recorded in the capability map; not worked
+around. It does not break a Phase 8 invariant (double-sell protection, idempotency, exactly-once expiry,
+mirror consistency, title, authorization, error safety all hold), but it is a **release blocker for the
+buying journey** alongside DB-OPEN-13.
+
+### 16.9 Production-code changes in RUN D (both minimal, both test-discovered)
+
+1. **`lib/orders/checkout.ts` — concurrent duplicate submission (FR-003, T009/T020).** Defect: two
+   submissions of the same order both read `DRAFT`/key null, both wrote `{status: CONFIRMED,
+   idempotency_key: <own uuid>}`; the later write could overwrite the first key (CONFIRMED→CONFIRMED is
+   not a status change, so the trigger allows it), and a flow whose re-read saw the other flow's key (or
+   an already-HOLD order) returned `ORDER_TRANSITION_REFUSED` although checkout succeeded. Fix: (a) the
+   key write is a compare-and-set (`.is("idempotency_key", null)`), so a persisted key can never be
+   rotated; (b) after the separate re-read the call proceeds when the order is `CONFIRMED` with a
+   persisted key or already in a retry status — the same intent — and `checkout_order()`'s own lock +
+   retry branch returns the single checkout. No schema/RLS change, no transactional logic moved into
+   TypeScript, still the sole `checkout_order()` caller, still no RETURNING (DB-OPEN-14).
+2. **`lib/orders/errors.ts` — safe-error gap (SEC-004).** `validate_offer_transition` runs inside
+   `checkout_order()`'s reserved-mirror update; `cannot_publish_empty_listing` reached the caller live
+   and fell back to the generic `ORDER_SAVE_FAILED` (logged as unmapped). Added the five whole-row
+   re-validation strings reachable from that update: `cannot_publish_empty_listing`,
+   `listing_exceeds_tradable_inventory` → `ORDER_ITEM_QUANTITY_UNAVAILABLE`;
+   `hills_listing_requires_active_hills_owner`, `member_listing_requires_authorized_seller`,
+   `invalid_member_listing_purchase_source` → `ORDER_ITEM_NOT_AVAILABLE`. The other
+   `validate_offer_transition` strings concern columns/statuses the reserved-mirror update never
+   changes and stay unmapped (generic safe fallback).
+
+### 16.10 T025 — error mapping
+
+- Completeness vs the baseline: 18 distinct order-domain + 11 shipment-domain RAISE strings equal the
+  map keys, plus the 5 listing re-validation keys (34); every key resolves without the fallback log.
+- 19 distinct exceptions provoked LIVE under member sessions, the real PostgREST error mapped:
+  `order_not_found`, `forbidden`, `order_must_be_confirmed_before_checkout`, `order_has_no_items`,
+  `shipment_must_be_ready_before_checkout`, `shipment_quantities_do_not_match_order`,
+  `listing_inventory_changed`, `cannot_publish_empty_listing`, `requested_quantity_not_available`,
+  `listing_is_not_available`, `order_status_can_only_change_through_workflow`,
+  `order_items_can_only_change_in_draft`, `buyer_not_authorized`,
+  `warehouse_required_for_operational_shipment_status`, `only_warehouse_can_record_delivery`,
+  `shipment_or_order_item_missing`, `shipment_order_item_mismatch`, `shipment_plan_exceeds_order_item`,
+  `shipment_plan_is_closed`. Not member-reachable (platform/internal/warehouse authority or states a
+  member cannot create): `cannot_buy_own_listing`, `inventory_quantity_not_available`,
+  `seller_not_authorized`, `seller_inventory_changed`, `invalid_order_transition`,
+  `terminal_order_cannot_change`, `invalid_shipment_transition`, `terminal_shipment_cannot_change`,
+  `shipment_details_are_locked`, `delivered_quantity_cannot_decrease`,
+  `delivered_quantity_exceeds_plan`, and 4 of the 5 listing re-validation strings — covered string-level.
+- Production actions return exactly `{ ok: false, code }`.
+- Fallback: a live RLS violation → `ORDER_SAVE_FAILED`; one log line = fixed label + `{ sqlstate }`.
+- Leakage audits: no `ACTION_FEEDBACK` value is `forbidden`/`reservation_expired`/
+  `listing_inventory_changed`/… (only `order_not_found` coincides with a raised string — it IS the
+  stable code); EN/AR copy contains no raised string; no production file forwards
+  `error.message/details/hint`, logs, or renders a raw code; `errors.ts` is the only logger.
+
+### 16.11 Audits (final tree)
+
+`checkout_order` code references: only `lib/orders/checkout.ts`; `expire_order_hold`: only
+`lib/orders/expiry.ts` (comment-stripped repo-wide grep, untracked included). Across every file under
+`lib/orders`, `src/app/dashboard/orders`, `components/orders`: no service role, no shared cache or
+module-level Map/Set, no reservation-table reference, no reserved/filled mirror write, no
+payment/proforma/financial write, no HOLD/EXPIRED/PAID status write, no hold/total column write, no
+ownership ledger/owner change, no provider/escrow/webhook/settlement/payout code or dependency, no
+import of test/fixture utilities.
+
+### 16.12 Boundaries unchanged
+
+DB-OPEN-13 unchanged (T004 `[ ] [BLOCKED — DB-OPEN-13]`). DB-OPEN-14 write-then-re-read preserved
+(the CAS update has no RETURNING). DB-OPEN-15 preserved (test-only aging + `now` seam). Feature 009:
+READY established only by the real warehouse fixture session — proves checkout given a valid
+precondition, not the warehouse workflow. No Feature 008 payment/escrow/settlement/title/payout.
+Scheduler decision OPEN (lazy expiry).
+
+### 16.13 Test counts, task map, next run
+
+Regression and counts are recorded in §16.14. Task map: T001–T003 [x], **T004 [ ] BLOCKED —
+DB-OPEN-13**, T005–T025 [x], T026–T032 [ ] → **24/32**.
+
+**Remaining blockers**: DB-OPEN-13 (buyer cannot edit/remove draft items), **DB-OPEN-16** (final
+kilograms cannot be checked out), Feature 009 READY dependency, scheduler decision (lazy expiry),
+DB-OPEN-14/15 constraints for Feature 008, `expire_order_hold()` without caller check (application
+boundary enforced).
+
+**Recommended RUN E (Phases 9 + 10, T026–T032)**: T026/T027 states, accessibility, RTL and mobile with a
+real browser/axe pass (Sonnet-class, High); T028–T030 mechanical verification and audits (Sonnet, Low);
+T031 formal repeated concurrency/idempotency stability record (Opus-class, High — reuse the RUN D
+barrier files, ≥ 5 runs each); T032 roadmap update keeping the scheduler decision open and listing
+DB-OPEN-13/16 as database-owned blockers.
+
+### 16.14 Regression evidence (final working tree, 2026-09-13)
+
+| Check | Result |
+|---|---|
+| `tests/orders/concurrency.test.ts` × 5 consecutive runs | 5/5 green — 3/3 each (15/15) |
+| `tests/orders/idempotency.test.ts` × 3 consecutive runs | 3/3 green — 5/5 each (15/15) |
+| `tests/orders/expiry.test.ts` (incl. T021) × 5 consecutive runs | 5/5 green — 15/15 each (75/75) |
+| `mirror-consistency` / `no-title-transfer` / `authorization` / `error-mapping` | 2/2, 3/3, 10/10, 12/12 |
+| `tests/orders/` (in the full run) | 240 tests, 18 files |
+| auth / inventory (005) / listings (006) / dashboard / public / design (in the full run) | 338 / 80 / 175 / 58 / 151 / 65 |
+| Full `vitest run` | **1107/1107, 101 files** (was 1066/95) |
+| `npm run typecheck` | clean |
+| `npm run build` | exit 0 |
+| Feature 007 scoped eslint | 0 problems |
+| `git diff --check` | exit 0 (autocrlf notices only) |
+
+No flake occurred in any repeated run. The only failures seen during RUN D were design-time and were
+diagnosed rather than rerun: the 25 + 25 control race (DB-OPEN-16), the concurrent double submit (the
+checkout.ts defect, §16.9), and four T025 assertions of my own that were miscounted or over-broad
+(order-domain RAISE count is 18, not 17; the log-label check and the copy check wrongly included the
+fixed label and source comments) — corrected without loosening any database or leakage invariant.

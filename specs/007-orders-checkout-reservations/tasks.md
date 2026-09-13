@@ -3,14 +3,14 @@
 **Input**: [spec.md](./spec.md), [plan.md](./plan.md), `docs/architecture/DATABASE-CAPABILITY-MAP.md`,
 `.specify/memory/constitution.md` (v2.0.0), SRS §6/§8/§11 (BUY-02, MKT-03, MKT-04, TXN-01), AC-02/AC-03.
 
-**Status**: RUN C complete (2026-09-13) — **T001–T003, T005–T018 implemented and verified (17/32)**.
-Phase 5 (lazy hold expiry — `lib/orders/expiry.ts#ensureHoldFresh`, the sole `expire_order_hold()`
-caller, proven live to release exactly once), Phase 6 (order list/detail views, financial summary,
-countdown) and Phase 7 (Orders registered with Feature 004's module contract) are done. **T004 stays
-`[BLOCKED — DB-OPEN-13]`** (unchanged, per directive). Phases 8–10 (T019–T032: the release-blocking
-transactional tests, states/a11y closure, verification) remain untouched. The scheduler decision
-(spec Open Items) remains OPEN — expiry is lazy only. See `IMPLEMENTATION-HANDOFF.md` §15 for the
-RUN C account (§13 RUN A reconciliation, §14 RUN B), including the new DB-OPEN-15 finding.
+**Status**: RUN D complete (2026-09-13) — **T001–T003, T005–T025 implemented and verified (24/32)**.
+Phase 8 (T019–T025, the release-blocking transactional tests) is proven LIVE: genuine concurrent
+checkout (one winner, zero loser artefacts), idempotent and post-failure retry, concurrent expiry
+released exactly once, zero mirror drift, zero title events, two-layer authorization, complete safe
+error mapping. **T004 stays `[BLOCKED — DB-OPEN-13]`**. Phases 9–10 (T026–T032) remain untouched. New
+database finding **DB-OPEN-16** (the final remaining kilograms of a listing cannot be checked out —
+fails closed) is recorded and requires a database change. The scheduler decision remains OPEN (lazy
+expiry only). See `IMPLEMENTATION-HANDOFF.md` §16 for RUN D (§15 RUN C, §14 RUN B, §13 RUN A).
 **Prerequisite**: 001, 003, 004, 005, plus the currently available 006 listing capabilities:
 buyer-visible eligible listings, listing DTO/read contracts, advisory availability/fill projection,
 listing references usable by `order_items`, and the database's reservation-mirror fields. Feature
@@ -435,57 +435,123 @@ unless a concrete runtime capability is missing.
 > setup/read convention when proving transactional invariants; that test-only convention is not a
 > production service-role path or a member-facing read capability.
 
-- [ ] T019 [PS3] Write `tests/orders/concurrency.test.ts` (AC-02): two simultaneous checkouts against
+- [x] T019 [PS3] Write `tests/orders/concurrency.test.ts` (AC-02): two simultaneous checkouts against
   insufficient quantity — exactly one succeeds; the loser leaves no reservation, proforma, payment or
   financial row; totals remain consistent.
   - Req: SC-002, PS3 | Depends: T008
   - Verify: `npm test -- orders/concurrency` passes repeatedly (run it multiple times to catch flakiness)
   - Codex: GPT-5.6 Sol — High · Claude: Opus — High
   - Why: the platform's release-blocking double-sell protection; concurrency tests demand careful construction to be meaningful rather than accidentally serialised.
+  - **Done (RUN D)**: `tests/orders/concurrency.test.ts` (3 live tests, reset before each). Two
+    checkout-ready orders (30 kg each) on the dedicated 50 kg listing are checked out by two DIFFERENT
+    buyer orgs (and, separately, by two sessions of the same org) started in the same turn inside
+    `liveClientScope().run`; an explicit RPC barrier (`installRpcBarrier`) releases both
+    `checkout_order` calls together and the test asserts both requests were in flight before either
+    response (`allInFlightTogether`). Result every run: exactly one HOLD (1 ACTIVE reservation with one
+    30 kg item, 1 ISSUED proforma, 1 PENDING payment = buyer total, 1 financial snapshot, history
+    DRAFT->CONFIRMED,CONFIRMED->HOLD) and one `ORDER_ITEM_QUANTITY_UNAVAILABLE` with no raw text; loser
+    has 0 reservation/items/proforma/payment/financials, stays CONFIRMED with null hold columns and an
+    unchanged correlation id; listing = position = ACTIVE items = 30; zero ownership events. A control
+    race (20 + 20) proves two winners are observable and reserves exactly 40 (no lost update).
+    Stability: 5 consecutive file runs, 15/15. Formal T031 closure NOT claimed. The control race
+    exposed DB-OPEN-16 (final kilograms cannot be checked out) — see the handoff §16.
 
-- [ ] T020 [PS2] Write `tests/orders/idempotency.test.ts`: duplicate submission and post-failure retry
+- [x] T020 [PS2] Write `tests/orders/idempotency.test.ts`: duplicate submission and post-failure retry
   produce exactly one reservation, proforma and payment.
   - Req: FR-003, SC-003 | Depends: T008, T009
   - Verify: `npm test -- orders/idempotency` passes; the second call reports the function's retry path
   - Codex: GPT-5.6 Sol — High · Claude: Opus — High
   - Why: BUY-02 retry-safety is release-blocking and subtle.
+  - **Done (RUN D)**: `tests/orders/idempotency.test.ts` (5 tests). Sequential retry:
+    `idempotent_retry=true`, same reservation/proforma/total/correlation/hold window, still exactly 1
+    reservation/proforma/PENDING payment/financial row (same `calculated_at`, same payment id). CONCURRENT
+    double submit (two sessions, same order): both callers get the same reservation/proforma, one
+    `idempotent_retry=false` + one `true`, single artefacts, and the `audit_logs` history shows exactly
+    ONE persisted `idempotency_key`. This test found a real defect — one submission was falsely refused
+    `ORDER_TRANSITION_REFUSED` (3/3 runs) — fixed minimally in `lib/orders/checkout.ts` (compare-and-set
+    key write + accept a concurrently-confirmed/completed same intent). Post-failure retry: the real RPC
+    commits, its response is discarded as a transport error → safe `ORDER_SAVE_FAILED`; the retry
+    returns the committed reservation/proforma with `idempotent_retry=true` and creates nothing. Honesty:
+    a direct RPC with no key is deduplicated identically, and the baseline `checkout_order()` body never
+    reads `idempotency_key` — the function's retry branch dedupes; the key is the intent marker.
+    Stability: 3 consecutive runs, 15/15.
 
-- [ ] T021 [PS4] Write `tests/orders/expiry.test.ts`: expiry releases exactly once even when invoked
+- [x] T021 [PS4] Write `tests/orders/expiry.test.ts`: expiry releases exactly once even when invoked
   twice concurrently. Inspect reservation rows only through the test-only privileged fixture
   convention described above.
   - Req: FR-009, SC-004 | Depends: T012
   - Verify: `npm test -- orders/expiry` passes; reserved quantity decreases by exactly the reserved amount
   - Codex: GPT-5.6 Sol — High · Claude: Opus — High
   - Why: double-release is a silent inventory corruption with no obvious symptom.
+  - **Done (RUN D)**: `tests/orders/expiry.test.ts` T021 block (2 tests). An unexpired 12 kg
+    companion hold stays on the listing so a double release could not hide behind the
+    `greatest(…,0)` clamp. Application path: two sessions' `ensureHoldFresh` (test-only `now` seam,
+    DB-OPEN-15) reach `expire_order_hold` together behind the barrier (both in flight); database path:
+    two sessions' direct RPCs behind the barrier. Both: listing and position reserved drop by exactly
+    the held 6 kg / 5 kg (never 2×, never below the companion's 12), reservation EXPIRED once, history
+    has exactly one HOLD->EXPIRED, payment EXPIRED (1), proforma 1, financials 1, zero ownership events,
+    companion still ACTIVE. Stability: 5 consecutive runs, 15/15.
 
-- [ ] T022 Write `tests/orders/mirror-consistency.test.ts`: after checkout,
+- [x] T022 Write `tests/orders/mirror-consistency.test.ts`: after checkout,
   `coffee_offers.reserved_quantity_kg` mirrors `inventory_positions.reserved_quantity_kg` exactly;
   authoritative reservation inspection is test-only and never a member runtime read.
   - Req: SC-005 | Depends: T008
   - Verify: `npm test -- orders/mirror-consistency` passes with zero drift
   - Codex: GPT-5.6 Sol — High · Claude: Opus — High
   - Why: the offer/inventory mirror is an audited invariant; drift would break the marketplace's availability truth.
+  - **Done (RUN D)**: `tests/orders/mirror-consistency.test.ts`. One lifecycle, zero drift at every
+    step (listing = position = Σ ACTIVE reservation items for the offer and for the position): 0 → 12
+    (partial 12 of 50) → 19 (second buyer 7 kg) → 49 (remaining availability usable: 30 kg) → 49 (a
+    refused 2 kg checkout changes nothing) → 42 (expiry releases 7) → 44 (the refused order now checks
+    out). Filled stays 0. A second test characterizes DB-OPEN-16 fail-closed (50 of 50 refused
+    `cannot_publish_empty_listing`, zero artefacts, zero drift).
 
-- [ ] T023 Write `tests/orders/no-title-transfer.test.ts`: checkout produces zero
+- [x] T023 Write `tests/orders/no-title-transfer.test.ts`: checkout produces zero
   `inventory_ownership_events` (MKT-04 / AC-03).
   - Req: SC-008 | Depends: T008
   - Verify: `npm test -- orders/no-title-transfer` passes
   - Codex: GPT-5.6 Sol — Medium · Claude: Opus — High
   - Why: guards the settlement-before-title rule at the code boundary, where a future "helpful" change could break it.
+  - **Done (RUN D)**: `tests/orders/no-title-transfer.test.ts`. Global and checkout-lot
+    `inventory_ownership_events` counts, the seller position's owner and available quantity, and
+    `filled_quantity_kg` are unchanged after a real checkout, its idempotent retry, a refused checkout
+    and a hold expiry; the buyer's own RLS view shows no event on the lot. Source audit over every
+    Feature 007 production file and the baseline bodies of `checkout_order`/`expire_order_hold`/
+    `assert_order_checkout_ready`: no ledger or owner write.
 
-- [ ] T024 [P] Write `tests/orders/authorization.test.ts`: another organization's order id is refused
+- [x] T024 [P] Write `tests/orders/authorization.test.ts`: another organization's order id is refused
   before and by the function; suspended organization refused; `can_view_order` scoping holds.
   - Req: SEC-001, SEC-002, SC-006 | Depends: T008, T003
   - Verify: `npm test -- orders/authorization` passes for all cases
   - Codex: GPT-5.6 Sol — High · Claude: Opus — High
   - Why: cross-tenant commercial access is the most severe failure class here.
+  - **Done (RUN D)**: `tests/orders/authorization.test.ts` (10 tests). Anonymous, unattached,
+    PENDING-KYB, SUSPENDED (with its own ready order), cross-org and nonexistent callers are refused by
+    `executeCheckout`/`ensureHoldFresh` with 0 RPC calls; cross-org results deep-equal nonexistent
+    (`ORDER_NOT_FOUND`), even with a spoofed scope. Database layer under the same normal sessions:
+    anonymous has no EXECUTE; unattached/pending/foreign → `forbidden` (also on a HOLD order — no retry
+    disclosure); suspended own order → `buyer_not_authorized`; zero artefacts. `expire_order_hold()` has
+    NO caller check (characterized: a foreign call on an unexpired hold is a void no-op, on an already
+    expired hold it performs exactly the due release). Owner: 1 RPC, success. `can_view_order`: owner
+    true / foreign false; foreign reads nothing by known id across orders, items, shipments, shipment
+    items, financials, proforma, payments, history, reservation items; broad list contains only its own.
 
-- [ ] T025 [P] Write `tests/orders/error-mapping.test.ts`: each database exception maps to a safe,
+- [x] T025 [P] Write `tests/orders/error-mapping.test.ts`: each database exception maps to a safe,
   specific message; no raw text escapes.
   - Req: SEC-004, SC-007 | Depends: T002
   - Verify: `npm test -- orders/error-mapping` passes; no test observes `forbidden`/`reservation_expired` verbatim in client output
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — High
   - Why: information-disclosure boundary with many cases.
+  - **Done (RUN D)**: `tests/orders/error-mapping.test.ts` (12 tests). Completeness against the
+    baseline: 18 order-domain + 11 shipment-domain RAISE strings == map keys, plus 5 listing
+    re-validation strings reachable through checkout (34 total, each mapped without fallback). 19
+    distinct exceptions provoked LIVE under member sessions and the real PostgREST error mapped (incl.
+    `listing_inventory_changed`, `cannot_publish_empty_listing`, `buyer_not_authorized`, six shipment
+    triggers); production actions return only `{ok:false, code}`. Unknown live RLS error → generic
+    `ORDER_SAVE_FAILED`, log = fixed label + `{ sqlstate }` only. Audits: no code value is a sensitive
+    token (only `order_not_found` coincides, by design), EN/AR copy holds no raised string, no
+    production file forwards `error.message`/logs/renders a raw code. Gap fixed in `lib/orders/errors.ts`
+    (5 listing re-validation strings previously fell back to the generic code).
 
 ---
 

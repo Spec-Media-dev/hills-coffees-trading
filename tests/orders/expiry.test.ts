@@ -1,10 +1,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { CHECKOUT_FIXTURES, INVENTORY_FIXTURES, ageCheckoutHold, inspectCheckoutOrder, resetCheckoutFixtures, signInAsFixture } from "@/tests/auth/fixture-session";
 import { ACTION_FEEDBACK } from "@/lib/types/action-feedback";
 
-import { buildHoldOrder, buildRequestedOrder } from "./live-helpers";
+import { buildHoldOrder, buildRequestedOrder, installRpcBarrier, liveClientScope } from "./live-helpers";
 
 /**
  * Feature 007 RUN C (T012/T013) — LIVE proofs of `lib/orders/expiry.ts` against the real database
@@ -23,8 +23,11 @@ const serverClientState = vi.hoisted(() => ({ client: null as SupabaseClient | n
 
 vi.mock("@/lib/supabase/server", () => ({
   createClient: vi.fn(async () => {
-    if (!serverClientState.client) throw new Error("test has no live client installed");
-    return serverClientState.client;
+    // RUN D (T021): a flow running inside `liveClientScope().run(client, …)` uses its own session.
+    const scoped = (globalThis as { __ordersLiveClientScope?: { getStore(): SupabaseClient | undefined } }).__ordersLiveClientScope?.getStore();
+    const client = scoped ?? serverClientState.client;
+    if (!client) throw new Error("test has no live client installed");
+    return client;
   }),
 }));
 
@@ -224,6 +227,143 @@ describe("T012/T013 — a genuinely stale HOLD is expired exactly once through t
     expect(Number(snapshot.offer.reserved_quantity_kg)).toBe(10);
     expect(snapshot.reservationItems).toEqual([{ quantity_kg: 4, offer_id: CHECKOUT_FIXTURES.offerCheckout }]);
   });
+});
+
+/**
+ * Feature 007 RUN D — T021 (FR-009 / SC-004 / PS4): expiry releases EXACTLY ONCE even when TWO
+ * expiry attempts hit the SAME genuinely expired hold at the same time.
+ *
+ * FORCED EXPIRY (unchanged, DB-OPEN-15 honest): the approved test-only `ageCheckoutHold()` backdates
+ * only the reservation's `expires_at`; `orders.hold_expires_at` stays untouched, so the application
+ * path passes `ensureHoldFresh`'s documented test-only `now` seam (production callers never do —
+ * audited above). The release itself happens ONLY inside `expire_order_hold()`.
+ *
+ * GENUINE CONCURRENCY: both attempts start in the same synchronous turn and an explicit RPC BARRIER
+ * holds each `expire_order_hold` call until BOTH have arrived, then releases them together; the test
+ * asserts both requests were in flight before either response arrived. The database serializes them
+ * on the reservation row (`SELECT … WHERE status = 'ACTIVE' AND expires_at <= now() FOR UPDATE`): the
+ * second transaction re-evaluates after the first commits, finds no ACTIVE row, and returns.
+ *
+ * WHY A COMPANION HOLD: `expire_order_hold()` clamps releases with `greatest(reserved - qty, 0)`. If the
+ * expired hold were the only reservation on the listing, a double release would be silently clamped
+ * to 0 and look correct. Each test therefore keeps an UNEXPIRED companion hold on the same listing,
+ * so a second release would visibly drop the mirrors below the companion's quantity.
+ *
+ * Assertions are RELATIVE to the snapshot taken just before the race, so this block is independent of
+ * the RUN C tests above; its `afterAll` expires its own companion through the same database function
+ * so the listing is left as the RUN C tests found it.
+ */
+describe("T021 — two CONCURRENT expiry attempts against the same expired hold release exactly once (live, release-blocking)", () => {
+  const COMPANION_KG = 12;
+  let client: SupabaseClient;
+  let companionOrderId: string;
+
+  beforeAll(async () => {
+    client = await signInAsFixture(INVENTORY_FIXTURES.orgB.email);
+    companionOrderId = await buildHoldOrder(withLiveClient, client, INVENTORY_FIXTURES.orgB.organizationId, COMPANION_KG);
+  }, 120_000);
+
+  afterAll(async () => {
+    ageCheckoutHold(companionOrderId);
+    await client.rpc("expire_order_hold", { p_order_id: companionOrderId });
+  }, 60_000);
+
+  function expectExactlyOnceRelease(target: string, before: ReturnType<typeof inspectCheckoutOrder>, heldKg: number) {
+    const after = inspectCheckoutOrder(target);
+    // Released exactly once on BOTH mirrors — a double release would subtract 2 × heldKg.
+    expect(Number(after.offer.reserved_quantity_kg)).toBe(Number(before.offer.reserved_quantity_kg) - heldKg);
+    expect(Number(after.position.reserved_quantity_kg)).toBe(Number(before.position.reserved_quantity_kg) - heldKg);
+    expect(Number(after.offer.reserved_quantity_kg)).toBe(Number(after.position.reserved_quantity_kg));
+    // The unexpired companion is still fully reserved — the clamp cannot be hiding a second release.
+    expect(Number(after.offer.reserved_quantity_kg)).toBeGreaterThanOrEqual(COMPANION_KG);
+    expect(Number(after.offer.reserved_quantity_kg)).toBeGreaterThanOrEqual(0);
+    // The order reaches exactly the state the database defines, once.
+    expect(after.order?.status).toBe("EXPIRED");
+    expect(after.reservations).toHaveLength(1);
+    expect(after.reservations[0]!.status).toBe("EXPIRED");
+    expect(after.statusHistory.map((row) => `${row.old_status}->${row.new_status}`)).toEqual(["DRAFT->CONFIRMED", "CONFIRMED->HOLD", "HOLD->EXPIRED"]);
+    expect(after.payments).toHaveLength(1);
+    expect(after.payments[0]!.status).toBe("EXPIRED");
+    expect(after.proformas).toHaveLength(1);
+    expect(after.financials).toHaveLength(1);
+    expect(after.ownershipEventCount).toBe(before.ownershipEventCount);
+    expect(after.lotOwnershipEventCount).toBe(before.lotOwnershipEventCount);
+
+    const companion = inspectCheckoutOrder(companionOrderId);
+    expect(companion.reservations[0]!.status).toBe("ACTIVE");
+    expect(companion.order?.status).toBe("HOLD");
+    return after;
+  }
+
+  it(
+    "APPLICATION PATH — two concurrent ensureHoldFresh calls both reach expire_order_hold() together; the held 6 kg is released once, both callers see EXPIRED",
+    async () => {
+      const heldKg = 6;
+      const target = await buildHoldOrder(withLiveClient, client, INVENTORY_FIXTURES.orgB.organizationId, heldKg);
+      ageCheckoutHold(target);
+      const before = inspectCheckoutOrder(target);
+      expect(before.reservations[0]!.status).toBe("ACTIVE");
+      expect(before.reservationItems).toEqual([{ quantity_kg: heldKg, offer_id: CHECKOUT_FIXTURES.offerCheckout }]);
+      expect(Number(before.offer.reserved_quantity_kg)).toBeGreaterThanOrEqual(COMPANION_KG + heldKg);
+
+      serverClientState.client = null;
+      vi.resetModules();
+      const { ensureHoldFresh } = await import("@/lib/orders/expiry");
+      const scope = liveClientScope();
+      const secondSession = await signInAsFixture(INVENTORY_FIXTURES.orgB.email);
+      const barrier = installRpcBarrier([client, secondSession], "expire_order_hold", 2);
+      const referenceInstant = new Date(Date.now() + 30 * 60_000); // test-only seam (DB-OPEN-15)
+      let settled;
+      try {
+        settled = await Promise.allSettled([scope.run(client, () => ensureHoldFresh(target, { now: referenceInstant })), scope.run(secondSession, () => ensureHoldFresh(target, { now: referenceInstant }))]);
+      } finally {
+        barrier.restore();
+      }
+
+      expect(barrier.parties).toHaveLength(2);
+      expect(barrier.allInFlightTogether()).toBe(true);
+      for (const outcome of settled) {
+        expect(outcome.status).toBe("fulfilled");
+        if (outcome.status !== "fulfilled") continue;
+        expect(outcome.value.ok).toBe(true);
+        if (outcome.value.ok) {
+          expect(outcome.value.data.order.status).toBe("EXPIRED");
+          expect(outcome.value.data.fresh).toBe(false);
+        }
+      }
+
+      expectExactlyOnceRelease(target, before, heldKg);
+    },
+    150_000
+  );
+
+  it(
+    "DATABASE LAYER — two concurrent direct expire_order_hold() calls from two independent sessions (test-only) release the held 5 kg exactly once",
+    async () => {
+      const heldKg = 5;
+      const target = await buildHoldOrder(withLiveClient, client, INVENTORY_FIXTURES.orgB.organizationId, heldKg);
+      ageCheckoutHold(target);
+      const before = inspectCheckoutOrder(target);
+      expect(before.reservations[0]!.status).toBe("ACTIVE");
+
+      const sessionOne = await signInAsFixture(INVENTORY_FIXTURES.orgB.email);
+      const sessionTwo = await signInAsFixture(INVENTORY_FIXTURES.orgB.email);
+      const barrier = installRpcBarrier([sessionOne, sessionTwo], "expire_order_hold", 2);
+      let responses;
+      try {
+        responses = await Promise.all([sessionOne.rpc("expire_order_hold", { p_order_id: target }), sessionTwo.rpc("expire_order_hold", { p_order_id: target })]);
+      } finally {
+        barrier.restore();
+      }
+
+      expect(barrier.parties).toHaveLength(2);
+      expect(barrier.allInFlightTogether()).toBe(true);
+      for (const response of responses) expect(response.error).toBeNull();
+
+      expectExactlyOnceRelease(target, before, heldKg);
+    },
+    150_000
+  );
 });
 
 describe("T012/T014 — sole-caller, no-reservation-read and no-scheduler source audits", () => {
