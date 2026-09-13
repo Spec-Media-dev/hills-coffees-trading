@@ -2,13 +2,13 @@
 
 **Scope delivered**: RUN A — Phase 1 (Order domain layer & error mapping, T001–T003), Phase 2 (Draft
 orders, T004–T006), Phase 3 (Buyer shipment planning, narrow slice, T007). RUN B — Phase 4
-(Transactional checkout core, T008–T011) + T006 re-verification against a genuine `HOLD`. See §14.
-**Status** (RUN B, 2026-09-13): **T001, T002, T003, T005, T006, T007, T008, T009, T010, T011
-implemented and verified (10/32)**. **T004 stays `[BLOCKED — DB-OPEN-13]`** — order creation and
-item ADD are implemented and live-proven, but the task's own literal scope also requires item
-remove/edit, which the live database does not permit for a buyer (unchanged this run, per
-directive). Hold expiry (Phase 5), order views (Phase 6), module registration (Phase 7), the
-release-blocking transactional tests (Phase 8) and closure (Phases 9–10) are untouched.
+(Transactional checkout core, T008–T011) + T006 re-verification against a genuine `HOLD` (§14).
+RUN C — Phase 5 (Lazy hold expiry, T012–T014), Phase 6 (Order views, T015–T017), Phase 7 (Module
+registration, T018) (§15).
+**Status** (RUN C, 2026-09-13): **T001–T003, T005–T018 implemented and verified (17/32)**. **T004
+stays `[BLOCKED — DB-OPEN-13]`** (unchanged). Phase 8 (release-blocking transactional tests,
+T019–T025), Phase 9 (states/a11y/RTL/mobile closure, T026–T027) and Phase 10 (verification/closure,
+T028–T032) are untouched. The hold-expiry scheduler decision remains OPEN (lazy expiry only).
 **Feature 007 is NOT complete.**
 
 This document records the live-schema preflight evidence (including two newly-confirmed database
@@ -595,3 +595,160 @@ two unused parameters (lint hygiene; `drafts.test.ts` call updated). Full-suite/
    `expire_order_hold()` caller + expired-hold presentation + the documented lazy-expiry limitation)
    and Phase 6 (T015–T017, buyer order list/detail views + `financial-summary.tsx`/monospace code
    discipline), consuming the HOLD/financial/proforma reads already proven here.
+
+---
+
+## 15. RUN C (Phase 5 hold expiry, Phase 6 order views, Phase 7 module registration) — T012–T018
+
+### 15.1 What was built
+
+| File | Purpose |
+|---|---|
+| `lib/orders/expiry.ts` | T012/T013 — `ensureHoldFresh(orderId)` (the ONE `expire_order_hold()` caller) + `requireFreshHold(orderId)` (the pre-payment boundary). |
+| `lib/orders/read.ts` (extended) | `getOrderFinancialsForOrders` (page-keyed, bounded), `getPaymentStatus` (display-only), `getOrderCountsForOrganization` (two org-scoped COUNT reads), `mapFinancialsRow` shared. |
+| `src/app/dashboard/orders/page.tsx` (rewritten) | T015 — list: monospace code, status + "Held until", stored buyer total with currency, created/updated, lazy expiry for stale holds on the page. |
+| `src/app/dashboard/orders/[orderId]/page.tsx` (rewritten) | T016 — `ensureHoldFresh` first, then items / `FinancialSummary` / proforma / payment status / shipment plan / status history / HOLD countdown / expired panel. |
+| `components/orders/financial-summary.tsx` | T017 — pure presentational financial snapshot. |
+| `components/orders/hold-countdown.tsx` | T017 — RUN B's component preserved unchanged (already met the acceptance). |
+| `lib/dashboard/registry.tsx` (extended) | T018 — `orders` module (`trading` group, `requiredCapability: "buy"`) + "What did I buy?" / "What do I owe?" cards. |
+| `lib/types/action-feedback.ts` (extended) | +`ORDER_HOLD_EXPIRED`. |
+| `lib/app/copy/en.ts` / `ar.ts` (extended) | `orders.expired.*`, `orders.payment.*`, `orders.history.*`, `orders.listExtra.*`, `orders.nav.*`, `orders.overview.*` — EN/AR. |
+| `scripts/seed-test-fixtures.ts` / `tests/auth/fixture-session.ts` (extended) | `--age-checkout-hold=<id>` / `ageCheckoutHold()` — test-only "force expiry" (backdates the reservation's `expires_at` only). |
+| `docs/architecture/DATABASE-CAPABILITY-MAP.md` (extended) | +DB-OPEN-15 (§15.4). |
+| `specs/.../spec.md` (narrow reconciliation) | Open Items: (a) lazy expiry implemented, (b) scheduler still OPEN. |
+| `tests/orders/{expiry,views}.test.*`, `tests/orders/live-helpers.ts`, reconciled `audits`/`pages`/`checkout-page`/`tests/dashboard/registry` tests | RUN C tests. |
+
+### 15.2 Expiry flow and function authority (T012)
+
+`expire_order_hold(p_order_id)` (live body): locks the order's ACTIVE `inventory_reservations` row
+with `expires_at <= now()` (silent no-op otherwise); per reservation item releases
+`inventory_positions.reserved_quantity_kg` first, then the `coffee_offers` mirror (both
+`greatest(… − qty, 0)`); reservation → `EXPIRED`; `payments` → `EXPIRED`; order (`HOLD`/
+`PAYMENT_PROOF_SUBMITTED`/`PAYMENT_UNDER_REVIEW`) → `EXPIRED` under its own internal-transition
+attestation. Idempotent by construction. The function carries NO caller check — which is exactly why
+the application boundary must: `ensureHoldFresh` validates the id, resolves identity + acting org,
+reads the order org-scoped (cross-org/nonexistent → `ORDER_NOT_FOUND`, RPC never reached), inspects
+`orders.status` + `orders.hold_expires_at`, mutates nothing when not stale, and otherwise makes the
+ONE `rpc("expire_order_hold")` call followed by a separate authorized re-read (DB-OPEN-14 pattern).
+It never reads `inventory_reservations`/`inventory_reservation_items`, never writes a reserved
+quantity, status or history row.
+
+**Sole-caller evidence**: repo-wide `git grep --untracked` (comments stripped) finds
+`expire_order_hold` in code only in `lib/orders/expiry.ts` (one `.rpc(` site) and `checkout_order`
+only in `lib/orders/checkout.ts` — both asserted in `tests/orders/audits.test.ts` and
+`tests/orders/expiry.test.ts`.
+
+**Double-release proof (live, `tests/orders/expiry.test.ts`)**: a genuine 4 kg HOLD (real checkout)
+→ reservation backdated (test-only) → first `ensureHoldFresh`: exactly one RPC, order `EXPIRED`,
+listing AND inventory reserved down by exactly 4 (never negative), payment `EXPIRED`, still one
+proforma and one payment, zero ownership events, history `DRAFT->CONFIRMED, CONFIRMED->HOLD,
+HOLD->EXPIRED` → second `ensureHoldFresh`: zero RPC, mirrors unchanged → a direct second
+`expire_order_hold` call: nothing further released → the released 4 kg is purchasable again (a new
+4 kg order checks out). Unexpired HOLD and DRAFT: zero RPC, nothing mutated. A cross-org caller
+cannot trigger another organization's expiry (refused before the RPC; the reservation stays ACTIVE).
+Formal Phase 8 T021 (concurrent double-run) is NOT claimed by this.
+
+**Deterministic forced expiry, honestly**: a 20-minute hold cannot be waited out; the approved
+test-only fixture backdates ONLY `inventory_reservations.expires_at` (no triggers on that table; the
+one column the function consults). `orders.hold_expires_at` cannot be backdated at all (DB-OPEN-15,
+§15.4), so `ensureHoldFresh` takes an optional reference instant (`{ now }`) — a test seam with a
+server-clock default, never passed by production code (source-asserted), and never able to release
+anything early since the database alone decides the real release.
+
+### 15.3 Lazy expiry — the operational limitation (T014), pre-payment contract (T013)
+
+No scheduler is approved and none was added (asserted: no cron/pg_cron/Edge scheduler/worker/queue
+reference in application code, config or the live function list). A stale hold is processed ONLY
+when an approved read/action touches it: the order detail page (always, first), the orders list
+(for stale holds on the page being shown), and `requireFreshHold`. An order nobody revisits keeps its
+reserved quantity withheld until touched. Stated in `expiry.ts`'s header, here, and in spec.md's
+Open Items (narrow status note; the scheduler decision is deliberately NOT closed).
+
+`requireFreshHold(orderId)` runs lazy expiry, then refuses with `ORDER_HOLD_EXPIRED` unless the order
+is a fresh `HOLD` (live-proven: expired → refused; DRAFT → refused; fresh HOLD → accepted). **Feature
+008's real payment / payment-proof / escrow Server Action MUST call it first.** Feature 007 implements
+no payment proof, provider, escrow, webhook, settlement or fund-release logic (source-audited).
+
+### 15.4 DB-OPEN-15 (NEW, empirically confirmed)
+
+`validate_order_transition` runs `assert_order_checkout_ready(new.id)` unconditionally whenever
+`new.status = 'HOLD'`, so ANY UPDATE that leaves an order in `HOLD` — even a service-role update of a
+single unrelated column — is refused with `order_must_be_confirmed_before_checkout` (confirmed live
+this run with a service-role `hold_expires_at` UPDATE attempt). Consequences: `hold_expires_at` is
+effectively immutable after checkout; `idempotency_key` cannot be written once on HOLD (RUN B
+already writes it in the confirming UPDATE); a future feature writing to a HOLD order must do so via
+a status change. Recorded in the capability map §9; not worked around.
+
+### 15.5 Order views (T015/T016/T017)
+
+**List**: server-resolved acting org; one bounded, deterministic page (`created_at DESC, id DESC`,
+`range`, `MAX_PAGE_SIZE` 100) via `lib/orders/read.ts` only; one page-keyed `order_financials` read
+(`.in("order_id", ids)`); stored buyer total with currency ("—" when no snapshot — never fabricated);
+"Held until <hold_expires_at>" for HOLD; all 12 `orders.status` labels EN+AR, 1:1 (one test per
+status); own-org isolation and cross-org absence live-proven (`read.test.ts`); `TableCardList`'s
+own table→card behaviour. Stale rows on the page are picked by `lib/orders/expiry.ts#selectStaleHolds`
+(pure selection, server clock read outside React render — the `react-hooks/purity` rule rejects
+`Date.now()` inside a server component), each passed through `ensureHoldFresh`, then the page is
+re-read so the rendered rows are the database's post-expiry truth.
+
+**Detail**: `ensureHoldFresh` FIRST (position-proven in source and by call order), rendering the
+order it returned; then items (kg, unit-price snapshot, currency), `FinancialSummary` (verbatim
+pass-through — subtotal/shipping/VAT/quantity/total; commission and seller-net deliberately NOT
+shown to buyers), proforma code, internal `payments.status` label (display only — no action),
+shipment plan (read-only past DRAFT; no warehouse controls), status history (labelled old→new,
+timestamp, safe reason), HOLD countdown only for a fresh HOLD, expired panel only for `EXPIRED`,
+neither for any other status. Cross-org/nonexistent id → `notFound()`.
+
+**Components**: `hold-countdown.tsx` unchanged from RUN B — derives only from `hold_expires_at`,
+`role="timer"` (implicit `aria-live="off"`, ticks never announced), visually-hidden polite summary
+changing once per minute and announcing the expired state, no animation (reduced-motion safe).
+`financial-summary.tsx` — pure presentational, no arithmetic (source-asserted), money always with
+currency, quantity always with kg, monospace. Order/proforma codes: monospace + `break-all` wrapping.
+
+### 15.6 Module registration (T018)
+
+`orders` module in `lib/dashboard/registry.tsx` — one `orders` entry, `requiredCapability: "buy"`,
+merged into the existing `trading` nav group (no second nav system). Visible to buyer-only AND
+seller+buyer organizations (never hidden because `canSell` is true), hidden for a non-buy-capable
+organization — proven in `tests/dashboard/registry.test.tsx` (reconciled + new T018 test). Nav
+hiding is presentational only: every `/dashboard/orders/*` page re-verifies server-side. Overview
+cards "What did I buy?" (PAID/FULFILLMENT_IN_PROGRESS/PARTIALLY_DELIVERED/COMPLETED count) and "What
+do I owe?" (HOLD/PAYMENT_PROOF_SUBMITTED/PAYMENT_UNDER_REVIEW count) come from
+`getOrderCountsForOrganization` — two bounded, org-scoped, COUNT-only reads of stored statuses; no
+financial aggregation; zero-count cards omitted.
+
+### 15.7 DB-OPEN-13 / DB-OPEN-14 / Feature 009 boundary
+
+DB-OPEN-13 unchanged: no remove/edit control anywhere (the expired panel offers only "Start a new
+order"/"Back to marketplace"). DB-OPEN-14 unchanged: no `orders` write in RUN C at all (expiry is the
+function's own write). Feature 009: RUN C writes no shipment state; the READY precondition used by
+tests is established by the real `warehouse-admin` fixture session (RUN B's convention).
+
+### 15.8 EN/AR, RTL, Light/Dark, responsive, browser/axe — evidence
+
+All new strings EN+AR; logical properties; semantic tokens (`--status-review*` HOLD panel,
+`--danger*` expired panel, text always present, never color-only); `TableCardList` card mode below
+`lg:`; financial grid collapses 5→2→1 columns. **Honest limitation**: no browser/axe harness was
+invoked; no screenshot, breakpoint or theme verification was performed this run — structural reuse
+of already-verified primitives/tokens only. T026/T027 NOT claimed.
+
+### 15.9 Audits
+
+`checkout_order` sole caller `lib/orders/checkout.ts`; `expire_order_hold` sole caller
+`lib/orders/expiry.ts`; no runtime service-role; no shared cache; no direct reservation write; no
+member reservation-table read; no financial recomputation; no manual payment write; no
+escrow/provider code; no title transfer (live: ownership-event count unchanged across expiry); no
+warehouse-progression write; no DB-OPEN-13 workaround.
+
+### 15.10 Tests, task map, next run
+
+`tests/orders/` — **199 tests, 12 files** (RUN B 156 + `expiry.test.ts` 13 + `views.test.tsx` 24 +
+audits extended; `live-helpers.ts` shared). Reconciled: `pages.test.tsx`/`checkout-page.test.tsx`
+mock the new expiry/read functions; `tests/dashboard/registry.test.tsx` expects the `orders`
+module. Task map: T001–T003 `[x]`, T004 `[ ]` [BLOCKED — DB-OPEN-13], T005–T018 `[x]`, T019–T032
+`[ ]` — **17/32**. Recommended next: **Phase 8 (T019–T025)** — the release-blocking transactional
+tests (concurrency, idempotency, expiry idempotence under concurrent invocation, mirror consistency,
+no-title-transfer, authorization, error mapping), using `tests/orders/live-helpers.ts` +
+`inspectCheckoutOrder`/`ageCheckoutHold`; a high-reasoning model (Opus-class) per tasks.md's own
+Codex/Claude column, because T019/T021's concurrency tests must be genuinely concurrent, not
+accidentally serialised.

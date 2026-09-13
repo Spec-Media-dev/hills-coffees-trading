@@ -409,6 +409,15 @@ export function inspectCheckoutOrder(orderId: string): CheckoutInspection {
   return JSON.parse(line) as CheckoutInspection;
 }
 
+/**
+ * Feature 007 RUN C (T012) — TEST-ONLY "force expiry": backdates the order's ACTIVE reservation's
+ * `expires_at` (the only column `expire_order_hold()` consults) to simulate the 20-minute window
+ * having passed. Releases nothing itself. `orders.hold_expires_at` is untouched (DB-OPEN-15).
+ */
+export function ageCheckoutHold(orderId: string): void {
+  runFixtureScript([`--age-checkout-hold=${orderId}`]);
+}
+
 function runFixtureScript(args: readonly string[], options: { captureOutput?: boolean } = {}): string {
   loadTestEnvironment();
   const output = execFileSync(

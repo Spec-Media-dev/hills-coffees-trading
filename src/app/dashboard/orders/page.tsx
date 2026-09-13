@@ -10,8 +10,9 @@ import { OrderStatusBadge } from "@/components/orders/order-status-badge";
 import { Button } from "@/components/ui/button";
 import { appCopy } from "@/lib/app/copy";
 import { getRequestIdentity } from "@/lib/auth/dal";
-import { getOrdersForOrganization } from "@/lib/orders/read";
-import type { OrderSummary } from "@/lib/orders/validation";
+import { ensureHoldFresh, selectStaleHolds } from "@/lib/orders/expiry";
+import { getOrderFinancialsForOrders, getOrdersForOrganization } from "@/lib/orders/read";
+import type { OrderFinancialsDTO, OrderSummary } from "@/lib/orders/validation";
 
 import { StartOrderButton } from "./start-order-button";
 
@@ -21,16 +22,23 @@ export const metadata: Metadata = {
 
 const PAGE_SIZE = 25;
 
+type OrderListRow = { order: OrderSummary; financials: OrderFinancialsDTO | null };
+
 /**
- * Feature 007 RUN A (T005) — the buyer's own orders list. Only `DRAFT` orders can genuinely exist
- * this run (Phase 4's checkout is out of scope) — this page nonetheless renders whatever statuses
- * are actually present via the SAME closed `OrderStatusBadge` vocabulary Phase 6 (T015, out of RUN A
- * scope) will build on, rather than hard-coding a DRAFT-only assumption into the UI.
+ * Feature 007 (T005 → T015) — the buyer's own orders list. Reads exclusively through
+ * `lib/orders/read.ts`: one bounded, deterministically-ordered page (`created_at DESC, id DESC`,
+ * `PAGE_SIZE` + 1 probe row) scoped by the server-resolved acting organization, plus ONE bounded
+ * `order_financials` read keyed by that page's ids — never an org-wide aggregate, never a
+ * recomputation (the amount shown is `buyer_total_amount` verbatim, currency explicit).
  *
- * SECURITY: re-verifies `isAuthorizedMember` server-side, independent of nav visibility (T018's own
- * registry entry, Phase 7, is out of RUN A scope — this route has no nav entry yet at all). Reads
- * exclusively through `lib/orders/read.ts` — `organizationId` is the caller's already-resolved
- * ACTING organization, never a client-supplied value.
+ * LAZY EXPIRY (T012/T014): a stale hold on this page is processed through `ensureHoldFresh` (the
+ * sole `expire_order_hold()` caller) before the page is rendered, then the page is re-read so what
+ * the buyer sees is the database's own post-expiry truth. Only rows whose stored
+ * `hold_expires_at` has passed ever trigger the RPC; nothing else is mutated. An order that no page
+ * or action ever touches stays stale — no scheduler exists (spec Open Items).
+ *
+ * SECURITY: `isAuthorizedMember` re-verified server-side, independent of nav visibility (T018's
+ * registry entry is presentational only).
  */
 export default async function OrdersPage({ searchParams }: { searchParams: Promise<{ page?: string }> }) {
   const identity = await getRequestIdentity();
@@ -43,35 +51,68 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
 
   const { page: pageParam } = await searchParams;
   const page = Math.max(0, Number.parseInt(pageParam ?? "0", 10) || 0);
+  const organizationId = identity.organization.organizationId;
 
-  const { rows, hasMore } = await getOrdersForOrganization({
-    organizationId: identity.organization.organizationId,
-    page,
-    pageSize: PAGE_SIZE,
-  });
+  let { rows, hasMore } = await getOrdersForOrganization({ organizationId, page, pageSize: PAGE_SIZE });
 
-  const columns: TableCardListColumn<OrderSummary>[] = [
+  const staleHolds = selectStaleHolds(rows);
+  if (staleHolds.length > 0) {
+    await Promise.all(staleHolds.map((stale) => ensureHoldFresh(stale.id)));
+    ({ rows, hasMore } = await getOrdersForOrganization({ organizationId, page, pageSize: PAGE_SIZE }));
+  }
+
+  const financialsByOrder = await getOrderFinancialsForOrders({ orderIds: rows.map((order) => order.id) });
+  const listRows: OrderListRow[] = rows.map((order) => ({ order, financials: financialsByOrder.get(order.id) ?? null }));
+
+  const columns: TableCardListColumn<OrderListRow>[] = [
     {
       key: "code",
       header: <AppBilingual pick={(c) => c.orders.list.columns.code} />,
       primary: true,
-      render: (row) => (
-        <span className="font-mono text-foreground" dir="ltr">
-          {row.orderCode}
+      render: ({ order }) => (
+        <span className="font-mono break-all text-foreground" dir="ltr">
+          {order.orderCode}
         </span>
       ),
     },
     {
       key: "status",
       header: <AppBilingual pick={(c) => c.orders.list.columns.status} />,
-      render: (row) => <OrderStatusBadge status={row.status} />,
+      render: ({ order }) => (
+        <div className="flex flex-col items-start gap-1">
+          <OrderStatusBadge status={order.status} />
+          {order.status === "HOLD" && order.holdExpiresAt ? (
+            <span className="text-[length:var(--text-micro)] text-muted-foreground" dir="ltr">
+              {appCopy.orders.listExtra.holdUntil.replace("{time}", order.holdExpiresAt)}
+            </span>
+          ) : null}
+        </div>
+      ),
+    },
+    {
+      key: "amount",
+      header: <AppBilingual pick={(c) => c.orders.listExtra.amountColumn} />,
+      render: ({ financials }) => (
+        <span className="font-mono tabular-nums text-foreground" dir="ltr">
+          {financials ? `${financials.currency} ${financials.buyerTotalAmount}` : appCopy.orders.listExtra.amountPending}
+        </span>
+      ),
+    },
+    {
+      key: "created",
+      header: <AppBilingual pick={(c) => c.orders.listExtra.createdColumn} />,
+      render: ({ order }) => (
+        <span className="text-muted-foreground" dir="ltr">
+          {order.createdAt}
+        </span>
+      ),
     },
     {
       key: "updated",
       header: <AppBilingual pick={(c) => c.orders.list.columns.updated} />,
-      render: (row) => (
+      render: ({ order }) => (
         <span className="text-muted-foreground" dir="ltr">
-          {row.updatedAt}
+          {order.updatedAt}
         </span>
       ),
     },
@@ -82,9 +123,9 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
           <AppBilingual pick={(c) => c.orders.list.columns.actions} />
         </span>
       ),
-      render: (row) => (
+      render: ({ order }) => (
         <Link
-          href={`/dashboard/orders/${row.id}`}
+          href={`/dashboard/orders/${order.id}`}
           className="inline-flex min-h-11 min-w-11 items-center rounded-[var(--radius-sm)] px-1 text-[length:var(--text-small)] font-medium text-foreground underline underline-offset-4 hover:no-underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus-ring)]"
         >
           <AppBilingual pick={(c) => c.orders.list.viewDetails} />
@@ -102,20 +143,16 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
         actions={identity.organization.canBuy ? <StartOrderButton /> : null}
       />
 
-      {rows.length === 0 && page === 0 ? (
-        <EmptyState
-          title={appCopy.orders.list.empty.title}
-          description={appCopy.orders.list.empty.description}
-          action={identity.organization.canBuy ? <StartOrderButton /> : undefined}
-        />
+      {listRows.length === 0 && page === 0 ? (
+        <EmptyState title={appCopy.orders.list.empty.title} description={appCopy.orders.list.empty.description} action={identity.organization.canBuy ? <StartOrderButton /> : undefined} />
       ) : (
         <>
-          <TableCardList columns={columns} rows={rows} getRowKey={(row) => row.id} caption={appCopy.orders.list.caption} />
+          <TableCardList columns={columns} rows={listRows} getRowKey={(row) => row.order.id} caption={appCopy.orders.list.caption} />
 
           {page > 0 || hasMore ? (
             <div className="flex items-center justify-between gap-4">
               {page > 0 ? (
-                <Button variant="outline" render={<Link href={`/dashboard/orders?page=${page - 1}`} />}>
+                <Button variant="outline" nativeButton={false} render={<Link href={`/dashboard/orders?page=${page - 1}`} />}>
                   <AppBilingual pick={(c) => c.orders.list.pagination.previous} />
                 </Button>
               ) : (
@@ -127,7 +164,7 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
                 <AppBilingual pick={(c) => c.orders.list.pagination.pageLabel.replace("{page}", String(page + 1))} />
               </span>
               {hasMore ? (
-                <Button variant="outline" render={<Link href={`/dashboard/orders?page=${page + 1}`} />}>
+                <Button variant="outline" nativeButton={false} render={<Link href={`/dashboard/orders?page=${page + 1}`} />}>
                   <AppBilingual pick={(c) => c.orders.list.pagination.next} />
                 </Button>
               ) : (

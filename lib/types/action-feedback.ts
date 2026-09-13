@@ -97,6 +97,12 @@ export const ACTION_FEEDBACK = {
    * never stranded in `CONFIRMED`; `checkout_order()` re-validates all of this itself regardless.
    */
   ORDER_CHECKOUT_NOT_READY: "order_checkout_not_ready",
+  /**
+   * Feature 007 RUN C (T012/T013) — `lib/orders/expiry.ts#requireFreshHold`'s refusal: the order's
+   * hold has expired (or it is not in a hold-bearing status at all), so no downstream payment/
+   * proof/escrow hand-off may proceed. Feature 008's real payment action MUST call that boundary.
+   */
+  ORDER_HOLD_EXPIRED: "order_hold_expired",
 } as const;
 
 export type ActionFeedbackCode = (typeof ACTION_FEEDBACK)[keyof typeof ACTION_FEEDBACK];

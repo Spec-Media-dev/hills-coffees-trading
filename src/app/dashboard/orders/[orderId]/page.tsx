@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/app/page-header";
 import { AppBilingual } from "@/components/locale/app-bilingual";
 import { StateScreen } from "@/components/layout/state-screen";
 import { DraftEditor } from "@/components/orders/draft-editor";
+import { FinancialSummary } from "@/components/orders/financial-summary";
 import { HoldCountdown } from "@/components/orders/hold-countdown";
 import { OrderStatusBadge } from "@/components/orders/order-status-badge";
 import { ShipmentPlanner } from "@/components/orders/shipment-planner";
@@ -13,20 +14,23 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { appCopy } from "@/lib/app/copy";
 import { getRequestIdentity } from "@/lib/auth/dal";
-import { getOrderById, getOrderFinancials, getOrderItems, getOrderShipments, getProforma, getShipmentItems } from "@/lib/orders/read";
+import { ensureHoldFresh } from "@/lib/orders/expiry";
+import { getOrderFinancials, getOrderItems, getOrderShipments, getOrderStatusHistory, getPaymentStatus, getProforma, getShipmentItems } from "@/lib/orders/read";
 
 export const metadata: Metadata = {
   title: "Order",
 };
 
 /**
- * Feature 007 RUN A (T005/T006/T007) — the buyer's draft-order editor: items (add-only, see
- * `lib/orders/drafts.ts`'s own DB-OPEN-13 header for why there is no remove/edit control) and the
- * buyer-owned shipment-planning slice.
+ * Feature 007 — the buyer's order detail (RUN A: draft editor + shipment planning; RUN B: HOLD
+ * outcome; RUN C/T016: lazy expiry, expired state, financial/proforma/payment/history views).
  *
- * PRIVACY: `getOrderById` is org-scoped exactly like `lib/listings/manage.ts`'s established
- * convention — a cross-org id and a nonexistent id return the IDENTICAL `null`, so this page calls
- * `notFound()` for both with no branching that could reveal which case occurred (SEC-002).
+ * ORDER OF TRUTH (T016's own critical rule): `ensureHoldFresh(orderId)` runs FIRST — it is the sole
+ * `expire_order_hold()` caller and processes a stale hold lazily — and only its RETURNED order (the
+ * separate authorized re-read it performs) is rendered. Nothing below reads the order before that.
+ *
+ * DB-OPEN-13: items are add-only (no remove/edit control exists because none could succeed).
+ * PRIVACY: a cross-org/nonexistent id yields the identical `ORDER_NOT_FOUND` → `notFound()`.
  */
 export default async function OrderDetailPage({ params }: { params: Promise<{ orderId: string }> }) {
   const identity = await getRequestIdentity();
@@ -38,29 +42,43 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ or
   }
 
   const { orderId } = await params;
-  const organizationId = identity.organization.organizationId;
 
-  const order = await getOrderById({ organizationId, orderId });
-  if (!order) notFound();
+  // T012/T016 — lazy expiry BEFORE final truth. Its own re-read is the order we render.
+  const freshness = await ensureHoldFresh(orderId);
+  if (!freshness.ok) {
+    if (freshness.code === "order_not_found" || freshness.code === "validation_error") notFound();
+    return <StateScreen kind="error" />;
+  }
+  // `ensureHoldFresh` already read the order org-scoped for THIS identity's acting organization.
+  const order = freshness.data.order;
 
-  // T010 — `order_financials` and the proforma exist ONLY once `checkout_order()` has written them;
-  // both are verbatim pass-throughs (`null` before checkout), never computed here.
-  const [items, shipments, financials, proforma] = await Promise.all([getOrderItems({ orderId }), getOrderShipments({ orderId }), getOrderFinancials({ orderId }), getProforma({ orderId })]);
+  // `order_financials`/proforma/payment exist ONLY once `checkout_order()` has written them — all
+  // verbatim pass-throughs (`null` before checkout), never computed here.
+  const [items, shipments, financials, proforma, payment, history] = await Promise.all([
+    getOrderItems({ orderId }),
+    getOrderShipments({ orderId }),
+    getOrderFinancials({ orderId }),
+    getProforma({ orderId }),
+    getPaymentStatus({ orderId }),
+    getOrderStatusHistory({ orderId }),
+  ]);
 
-  // RUN A supports at most one buyer-owned shipment plan per order (a narrowing, not a schema
-  // limit) — the most recent one, if any, is what this page's ShipmentPlanner renders/acts on.
+  // At most one buyer-owned shipment plan per order (a RUN A narrowing, not a schema limit).
   const shipment = shipments.length > 0 ? shipments[shipments.length - 1]! : null;
   const shipmentItems = shipment ? await getShipmentItems({ shipmentId: shipment.id }) : [];
 
   const isEditable = order.status === "DRAFT";
   const canCheckout = order.status === "DRAFT" || order.status === "CONFIRMED";
-  const isOnHold = order.status === "HOLD";
+  const isOnHold = order.status === "HOLD" && freshness.data.fresh;
+  const isExpired = order.status === "EXPIRED";
+  const statusLabels = appCopy.orders.status as Record<string, string>;
+  const paymentLabels = appCopy.orders.payment.status as Record<string, string>;
 
   return (
     <div className="flex flex-col gap-8">
       <PageHeader
         title={
-          <span className="font-mono" dir="ltr">
+          <span className="font-mono break-all" dir="ltr">
             {order.orderCode}
           </span>
         }
@@ -100,23 +118,23 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ or
             </div>
           </div>
           <dl className="grid grid-cols-1 gap-3 text-[length:var(--text-small)] sm:grid-cols-3">
-            <div className="flex flex-col gap-0.5">
+            <div className="flex min-w-0 flex-col gap-0.5">
               <dt className="text-muted-foreground">
                 <AppBilingual pick={(c) => c.orders.hold.expiresLabel} />
               </dt>
-              <dd className="font-mono text-foreground" dir="ltr">
+              <dd className="font-mono break-all text-foreground" dir="ltr">
                 {order.holdExpiresAt}
               </dd>
             </div>
-            <div className="flex flex-col gap-0.5">
+            <div className="flex min-w-0 flex-col gap-0.5">
               <dt className="text-muted-foreground">
                 <AppBilingual pick={(c) => c.orders.hold.proformaLabel} />
               </dt>
-              <dd className="font-mono text-foreground" dir="ltr">
+              <dd className="font-mono break-all text-foreground" dir="ltr">
                 {proforma?.proformaCode ?? appCopy.orders.hold.proformaPending}
               </dd>
             </div>
-            <div className="flex flex-col gap-0.5">
+            <div className="flex min-w-0 flex-col gap-0.5">
               <dt className="text-muted-foreground">
                 <AppBilingual pick={(c) => c.orders.financials.buyerTotal} />
               </dt>
@@ -125,6 +143,30 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ or
               </dd>
             </div>
           </dl>
+        </section>
+      ) : null}
+
+      {isExpired ? (
+        <section data-slot="expired-outcome" role="status" aria-labelledby="expired-outcome-heading" className="flex flex-col gap-4 rounded-[var(--radius-xl)] border border-[var(--danger)] bg-[var(--danger-surface)] p-6 sm:p-7">
+          <div className="flex flex-col gap-1">
+            <h2 id="expired-outcome-heading" className="text-lg font-semibold text-foreground">
+              <AppBilingual pick={(c) => c.orders.expired.title} />
+            </h2>
+            <p className="max-w-[62ch] text-[length:var(--text-small)] text-muted-foreground">
+              <AppBilingual pick={(c) => c.orders.expired.description} />
+            </p>
+            <p className="text-[length:var(--text-small)] text-muted-foreground">
+              <AppBilingual pick={(c) => c.orders.history.reasonLabel} />: <AppBilingual pick={(c) => c.orders.expired.reason} />
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <Button nativeButton={false} render={<Link href="/dashboard/orders" />}>
+              <AppBilingual pick={(c) => c.orders.expired.startNewOrder} />
+            </Button>
+            <Button variant="outline" nativeButton={false} render={<Link href="/dashboard/coffee" />}>
+              <AppBilingual pick={(c) => c.orders.expired.backToMarketplace} />
+            </Button>
+          </div>
         </section>
       ) : null}
 
@@ -141,11 +183,13 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ or
               <ul className="flex flex-col gap-2">
                 {items.map((item) => (
                   <li key={item.id} className="flex flex-wrap items-center justify-between gap-3 border-b border-border py-2 text-[length:var(--text-small)] last:border-b-0">
-                    <div className="flex flex-col">
+                    <div className="flex min-w-0 flex-col">
                       <span className="font-medium text-foreground">{item.productNameSnapshot}</span>
-                      {item.originNameSnapshot ? <span className="text-muted-foreground">{item.originNameSnapshot}</span> : null}
+                      <span className="font-mono break-all text-muted-foreground" dir="ltr">
+                        {item.lotCodeSnapshot}
+                      </span>
                     </div>
-                    <div className="flex items-baseline gap-3 font-mono tabular-nums text-foreground" dir="ltr">
+                    <div className="flex flex-wrap items-baseline gap-3 font-mono tabular-nums text-foreground" dir="ltr">
                       <span>{item.quantityKg} kg</span>
                       <span className="text-muted-foreground">
                         {item.currency} {item.unitPricePerKg}/kg
@@ -175,50 +219,64 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ or
           <h2 id="financials-heading" className="text-lg font-semibold text-foreground">
             <AppBilingual pick={(c) => c.orders.financials.heading} />
           </h2>
-          {financials ? (
-            <dl className="grid grid-cols-1 gap-3 text-[length:var(--text-small)] sm:grid-cols-2 lg:grid-cols-4">
-              <div className="flex flex-col gap-0.5">
+          {financials ? <FinancialSummary financials={financials} /> : <p className="text-[length:var(--text-small)] text-muted-foreground">{appCopy.orders.financials.pending}</p>}
+          {proforma ? (
+            <dl className="grid grid-cols-1 gap-3 text-[length:var(--text-small)] sm:grid-cols-2">
+              <div className="flex min-w-0 flex-col gap-0.5">
                 <dt className="text-muted-foreground">
-                  <AppBilingual pick={(c) => c.orders.financials.baseSubtotal} />
+                  <AppBilingual pick={(c) => c.orders.hold.proformaLabel} />
                 </dt>
-                <dd className="font-mono tabular-nums text-foreground" dir="ltr">
-                  {financials.currency} {financials.baseSubtotal}
+                <dd className="font-mono break-all text-foreground" dir="ltr">
+                  {proforma.proformaCode}
                 </dd>
               </div>
-              <div className="flex flex-col gap-0.5">
-                <dt className="text-muted-foreground">
-                  <AppBilingual pick={(c) => c.orders.financials.shipping} />
-                </dt>
-                <dd className="font-mono tabular-nums text-foreground" dir="ltr">
-                  {financials.currency} {financials.shippingAmount}
-                </dd>
-              </div>
-              <div className="flex flex-col gap-0.5">
-                <dt className="text-muted-foreground">
-                  <AppBilingual pick={(c) => c.orders.financials.vat} />
-                </dt>
-                <dd className="font-mono tabular-nums text-foreground" dir="ltr">
-                  {financials.currency} {financials.vatAmount}
-                </dd>
-              </div>
-              <div className="flex flex-col gap-0.5">
-                <dt className="text-muted-foreground">
-                  <AppBilingual pick={(c) => c.orders.financials.buyerTotal} />
-                </dt>
-                <dd className="font-mono font-semibold tabular-nums text-foreground" dir="ltr">
-                  {financials.currency} {financials.buyerTotalAmount}
-                </dd>
-              </div>
+              {payment ? (
+                <div className="flex min-w-0 flex-col gap-0.5">
+                  <dt className="text-muted-foreground">
+                    <AppBilingual pick={(c) => c.orders.payment.label} />
+                  </dt>
+                  <dd className="text-foreground">
+                    {paymentLabels[payment.status] ?? payment.status}
+                    <span className="block text-muted-foreground">{appCopy.orders.payment.note}</span>
+                  </dd>
+                </div>
+              ) : null}
             </dl>
-          ) : (
-            <p className="text-[length:var(--text-small)] text-muted-foreground">{appCopy.orders.financials.pending}</p>
-          )}
+          ) : null}
         </section>
 
         <Separator />
 
         <section>
           <ShipmentPlanner orderId={order.id} items={items} shipment={shipment} shipmentItems={shipmentItems} />
+        </section>
+
+        <Separator />
+
+        <section className="flex flex-col gap-3" aria-labelledby="history-heading">
+          <h2 id="history-heading" className="text-lg font-semibold text-foreground">
+            <AppBilingual pick={(c) => c.orders.history.heading} />
+          </h2>
+          {history.length === 0 ? (
+            <p className="text-[length:var(--text-small)] text-muted-foreground">
+              <AppBilingual pick={(c) => c.orders.history.empty} />
+            </p>
+          ) : (
+            <ul className="flex flex-col gap-2">
+              {history.map((entry) => (
+                <li key={entry.id} className="flex flex-wrap items-center justify-between gap-3 border-b border-border py-2 text-[length:var(--text-small)] last:border-b-0">
+                  <span className="text-foreground">
+                    {entry.oldStatus ? `${statusLabels[entry.oldStatus] ?? entry.oldStatus} → ` : ""}
+                    {statusLabels[entry.newStatus] ?? entry.newStatus}
+                    {entry.reason ? <span className="block text-muted-foreground">{entry.reason}</span> : null}
+                  </span>
+                  <span className="font-mono text-muted-foreground" dir="ltr">
+                    {entry.createdAt}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
         </section>
       </div>
     </div>

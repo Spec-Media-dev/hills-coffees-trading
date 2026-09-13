@@ -1875,6 +1875,23 @@ async function inspectCheckoutOrder(admin: SupabaseClient, orderId: string): Pro
   );
 }
 
+/**
+ * TEST-ONLY "force expiry" (spec 007 PS4's own independent-test wording: "create a hold, force
+ * expiry, trigger the expiry path"). Backdates ONLY the order's ACTIVE `inventory_reservations.
+ * expires_at` — the one column `expire_order_hold()` actually consults — to one minute ago.
+ * `orders.hold_expires_at` is deliberately NOT touched: it cannot be (DB-OPEN-15 —
+ * `validate_order_transition` refuses every UPDATE that leaves an order in `HOLD`), and the
+ * application's staleness check therefore uses a caller-supplied reference instant in tests. This
+ * simulates the passage of 20 minutes; it does not release anything itself — the release still
+ * happens only inside `expire_order_hold()`, exactly as in production.
+ */
+async function ageCheckoutHold(admin: SupabaseClient, orderId: string): Promise<void> {
+  const pastIso = new Date(Date.now() - 60_000).toISOString();
+  const { data, error } = await admin.from("inventory_reservations").update({ expires_at: pastIso }).eq("order_id", orderId).eq("status", "ACTIVE").select("id");
+  if (error) throw new SafeFixtureError(`inventory_reservations backdate failed (Feature 007 test setup): ${error.message}`);
+  console.log(JSON.stringify({ agedReservations: (data ?? []).length }));
+}
+
 async function teardownCheckoutFixtures(admin: SupabaseClient): Promise<void> {
   console.log("\nTearing down 007-orders-checkout-reservations checkout fixtures…\n");
   await resetCheckoutFixtures(admin);
@@ -2299,6 +2316,15 @@ async function main(): Promise<void> {
     const orderId = inspectCheckoutArgument.slice(inspectCheckoutPrefix.length);
     if (!/^[0-9a-f-]{36}$/i.test(orderId)) throw new SafeFixtureError("--inspect-checkout-order requires a UUID.");
     await inspectCheckoutOrder(admin, orderId);
+    return;
+  }
+
+  const ageHoldPrefix = "--age-checkout-hold=";
+  const ageHoldArgument = process.argv.find((argument) => argument.startsWith(ageHoldPrefix));
+  if (ageHoldArgument) {
+    const orderId = ageHoldArgument.slice(ageHoldPrefix.length);
+    if (!/^[0-9a-f-]{36}$/i.test(orderId)) throw new SafeFixtureError("--age-checkout-hold requires a UUID.");
+    await ageCheckoutHold(admin, orderId);
     return;
   }
 

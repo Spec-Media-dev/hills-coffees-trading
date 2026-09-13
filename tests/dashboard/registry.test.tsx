@@ -80,7 +80,8 @@ describe("T002 — static registry lists implemented modules only", () => {
   it("registers exactly the genuinely-live account/overview + settings + inventory/storage + marketplace destinations", () => {
     // Feature 005 RUN B — "inventory" is now a genuinely-live module. Feature 006 RUN C (T020) adds
     // "marketplace" (coffee browse always; listings/sales additive for sell-capable organizations).
-    expect(DASHBOARD_MODULES.map((m) => m.id)).toEqual(["account", "inventory", "marketplace"]);
+    // Feature 007 RUN C (T018) adds "orders" (buyer-capable organizations; merges into the "trading" group).
+    expect(DASHBOARD_MODULES.map((m) => m.id)).toEqual(["account", "inventory", "marketplace", "orders"]);
     const account = DASHBOARD_MODULES[0]!;
     const accountHrefs = (account.navGroups ?? []).flatMap((g) => g.entries.map((e) => e.href));
     expect(accountHrefs.sort()).toEqual(["/dashboard", "/dashboard/settings"]);
@@ -94,12 +95,16 @@ describe("T002 — static registry lists implemented modules only", () => {
     const marketplace = DASHBOARD_MODULES[2]!;
     const marketplaceHrefs = (marketplace.navGroups ?? []).flatMap((g) => g.entries.map((e) => e.href));
     expect(marketplaceHrefs.sort()).toEqual(["/dashboard/coffee", "/dashboard/listings", "/dashboard/sales"]);
+
+    const orders = DASHBOARD_MODULES[3]!;
+    const orderHrefs = (orders.navGroups ?? []).flatMap((g) => g.entries.map((e) => e.href));
+    expect(orderHrefs).toEqual(["/dashboard/orders"]);
   });
 
   it("contains no placeholder module or nav entry for a business area that still has none of its own routes", () => {
-    // "marketplace"/"listings" are now genuinely live (Feature 006 RUN C, T020) — removed from the
-    // forbidden list; the still-unbuilt business areas remain forbidden.
-    const forbidden = ["orders", "payments", "delivery", "disputes"];
+    // "marketplace"/"listings" (Feature 006 RUN C, T020) and "orders" (Feature 007 RUN C, T018) are
+    // now genuinely live — removed from the forbidden list; the still-unbuilt areas remain forbidden.
+    const forbidden = ["payments", "delivery", "disputes"];
     const ids = DASHBOARD_MODULES.map((m) => m.id);
     const allHrefs = DASHBOARD_MODULES.flatMap((m) => (m.navGroups ?? []).flatMap((g) => g.entries.map((e) => e.href)));
     for (const name of forbidden) {
@@ -114,16 +119,27 @@ describe("T002 — static registry lists implemented modules only", () => {
     expect(groups.map((g) => g.key)).toEqual(["overview", "account", "trading", "marketplace"]);
     expect(groups[0]!.items.map((i) => i.href)).toEqual(["/dashboard"]);
     expect(groups[1]!.items.map((i) => i.href)).toEqual(["/dashboard/settings"]);
-    expect(groups[2]!.items.map((i) => i.href).sort()).toEqual(["/dashboard/inventory", "/dashboard/storage"]);
+    // Feature 007 RUN C (T018): "orders" merges into the SAME "trading" group as inventory/storage.
+    expect(groups[2]!.items.map((i) => i.href).sort()).toEqual(["/dashboard/inventory", "/dashboard/orders", "/dashboard/storage"]);
     // A buyer-only organization sees ONLY the marketplace browse entry — listings/sales are
     // entry-level `requiredCapability: "sell"` and stay hidden (T020's own additive-capability rule).
     expect(groups[3]!.items.map((i) => i.href)).toEqual(["/dashboard/coffee"]);
   });
 
-  it("a buyer-incapable organization (canBuy: false) sees no inventory/storage/marketplace nav entry", () => {
+  it("a buyer-incapable organization (canBuy: false) sees no inventory/storage/marketplace/orders nav entry", () => {
     const noBuyOrg: OrganizationMembership = { organizationId: "o", displayName: "O", memberRole: "OWNER", canBuy: false, canSell: false };
     const groups = buildDashboardNavGroups({ modules: DASHBOARD_MODULES, organization: noBuyOrg });
     expect(groups.map((g) => g.key)).toEqual(["overview", "account"]);
+    expect(groups.flatMap((g) => g.items.map((i) => i.href))).not.toContain("/dashboard/orders");
+  });
+
+  it("T018 (Feature 007) — Orders is visible to a buyer-only organization AND to a seller that can also buy; never hidden merely because canSell is true", () => {
+    const buyerOnly: OrganizationMembership = { organizationId: "o", displayName: "O", memberRole: "OWNER", canBuy: true, canSell: false };
+    const sellerAndBuyer: OrganizationMembership = { organizationId: "o", displayName: "O", memberRole: "OWNER", canBuy: true, canSell: true };
+    for (const organization of [buyerOnly, sellerAndBuyer]) {
+      const groups = buildDashboardNavGroups({ modules: DASHBOARD_MODULES, organization });
+      expect(groups.find((g) => g.key === "trading")!.items.map((i) => i.href)).toContain("/dashboard/orders");
+    }
   });
 
   it("T020 — a seller-capable organization sees ALL THREE marketplace entries (coffee, listings, sales) — the additive-capability model", () => {

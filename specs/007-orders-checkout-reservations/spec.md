@@ -299,6 +299,11 @@ history.
   adopts (a) as the implementable default and records (b) as an infrastructure decision. Without a
   sweep, a hold on an order nobody ever visits could remain `ACTIVE` past expiry — this must be
   stated honestly, not hidden.
+  *RUN C (2026-09-13) status*: (a) is implemented — `lib/orders/expiry.ts#ensureHoldFresh`, the sole
+  `expire_order_hold()` caller, runs on the order detail page, on the orders list for the page of
+  rows being shown, and inside the pre-payment boundary `requireFreshHold`. (b) remains **OPEN**:
+  no cron, pg_cron, Edge Function, worker or queue exists or was added; an untouched stale hold
+  still persists until touched. This item is deliberately not closed.
 - Members cannot read `inventory_reservations` directly (admin-only policy), so hold state is
   presented from `orders.hold_expires_at`/`orders.status` — a documented constraint, not a defect.
   Runtime member code MUST NOT read `inventory_reservations` or

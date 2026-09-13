@@ -7,6 +7,7 @@ import type {
   OrderStatusHistoryEntry,
   OrderSummary,
   PaginatedOrders,
+  PaymentStatus,
   ProformaDTO,
   ShipmentItemDTO,
 } from "@/lib/orders/validation";
@@ -186,7 +187,29 @@ export async function getOrderFinancials({ orderId }: { orderId: string }): Prom
   const supabase = await createClient();
   const { data: row } = await supabase.from("order_financials").select(ORDER_FINANCIALS_SELECT).eq("order_id", orderId).maybeSingle();
   if (!row) return null;
+  return mapFinancialsRow(row);
+}
 
+type FinancialsRow = {
+  order_id: string;
+  base_subtotal: number;
+  shipping_amount: number;
+  vat_amount: number;
+  commission_amount: number;
+  seller_net_amount: number;
+  buyer_total_amount: number;
+  total_quantity_kg: number;
+  currency: string;
+  commission_policy_id: string | null;
+  commission_percentage_snapshot: number | null;
+  tax_rule_id: string | null;
+  tax_percentage_snapshot: number | null;
+  tax_base_snapshot: string | null;
+  calculated_at: string;
+};
+
+/** Verbatim column-for-column mapping — `Number()` coerces PostgREST's numeric strings, nothing else changes. */
+function mapFinancialsRow(row: FinancialsRow): OrderFinancialsDTO {
   return {
     orderId: row.order_id,
     baseSubtotal: Number(row.base_subtotal),
@@ -204,6 +227,55 @@ export async function getOrderFinancials({ orderId }: { orderId: string }): Prom
     taxBaseSnapshot: row.tax_base_snapshot,
     calculatedAt: row.calculated_at,
   };
+}
+
+/**
+ * Feature 007 RUN C (T015) — the financial snapshots for ONE PAGE of orders (bounded by the ids the
+ * caller already fetched, never an org-wide scan). Verbatim pass-through, keyed by order id; orders
+ * without a snapshot (never checked out) are simply absent.
+ */
+export async function getOrderFinancialsForOrders({ orderIds }: { orderIds: readonly string[] }): Promise<Map<string, OrderFinancialsDTO>> {
+  const result = new Map<string, OrderFinancialsDTO>();
+  const ids = [...new Set(orderIds)].slice(0, MAX_PAGE_SIZE);
+  if (ids.length === 0) return result;
+
+  const supabase = await createClient();
+  const { data: rows } = await supabase.from("order_financials").select(ORDER_FINANCIALS_SELECT).in("order_id", ids);
+  for (const row of rows ?? []) result.set(row.order_id, mapFinancialsRow(row));
+  return result;
+}
+
+/**
+ * Feature 007 RUN C (T016) — the order's internal `payments` row STATUS only (`payments_view`:
+ * `can_view_order`), which Feature 007 is authorized to DISPLAY (it is `checkout_order()`'s own
+ * approved side-effect) but never to act on: no payment/proof/provider/escrow action exists in this
+ * feature (Feature 008). Narrow select; `null` before checkout.
+ */
+export async function getPaymentStatus({ orderId }: { orderId: string }): Promise<{ status: PaymentStatus; amount: number; currency: string } | null> {
+  const supabase = await createClient();
+  const { data: row } = await supabase.from("payments").select("status, amount, currency").eq("order_id", orderId).maybeSingle();
+  if (!row) return null;
+  return { status: row.status as PaymentStatus, amount: Number(row.amount), currency: row.currency };
+}
+
+/** Statuses that mean "this order still owes payment" — the DB's own vocabulary, no alias. */
+const AWAITING_PAYMENT_STATUSES = ["HOLD", "PAYMENT_PROOF_SUBMITTED", "PAYMENT_UNDER_REVIEW"] as const;
+/** Statuses that mean "this purchase went through" — the DB's own vocabulary, no alias. */
+const PURCHASED_STATUSES = ["PAID", "FULFILLMENT_IN_PROGRESS", "PARTIALLY_DELIVERED", "COMPLETED"] as const;
+
+/**
+ * Feature 007 RUN C (T018) — the two bounded, org-scoped COUNT-only reads behind the overview's
+ * "What did I buy?" / "What do I owe?" cards (`{ count: "exact", head: true }` — no row data, same
+ * pattern as `getInventoryPositionsCount`/`getManagedListingsCount`). Counts of stored statuses
+ * only; no financial figure is aggregated or computed here.
+ */
+export async function getOrderCountsForOrganization({ organizationId }: { organizationId: string }): Promise<{ purchased: number; awaitingPayment: number }> {
+  const supabase = await createClient();
+  const [purchased, awaiting] = await Promise.all([
+    supabase.from("orders").select("id", { count: "exact", head: true }).eq("buyer_organization_id", organizationId).in("status", [...PURCHASED_STATUSES]),
+    supabase.from("orders").select("id", { count: "exact", head: true }).eq("buyer_organization_id", organizationId).in("status", [...AWAITING_PAYMENT_STATUSES]),
+  ]);
+  return { purchased: purchased.count ?? 0, awaitingPayment: awaiting.count ?? 0 };
 }
 
 /** `proforma_invoices` + its items — issued ONLY by `checkout_order()`. `null` for every RUN A order. */

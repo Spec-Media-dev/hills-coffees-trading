@@ -26,6 +26,21 @@ vi.mock("@/lib/orders/read", () => ({
   // RUN B (T010): the detail page now also reads the financial snapshot + proforma (both null pre-checkout).
   getOrderFinancials: vi.fn(async () => null),
   getProforma: vi.fn(async () => null),
+  // RUN C (T015/T016): payment status, status history, page-level financials.
+  getPaymentStatus: vi.fn(async () => null),
+  getOrderStatusHistory: vi.fn(async () => []),
+  getOrderFinancialsForOrders: vi.fn(async () => new Map()),
+}));
+
+// RUN C (T016): the detail page runs lazy expiry first — mocked here to return the same order the
+// read mock serves (fresh when HOLD); the real chain is proven live in `expiry.test.ts`.
+vi.mock("@/lib/orders/expiry", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/orders/expiry")>()),
+  ensureHoldFresh: vi.fn(async () => {
+    const order = mocks.order as { status?: string } | null;
+    if (!order) return { ok: false, code: "order_not_found" };
+    return { ok: true, data: { order, fresh: order.status === "HOLD", expiredNow: false } };
+  }),
 }));
 
 afterEach(cleanup);

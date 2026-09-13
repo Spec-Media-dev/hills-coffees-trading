@@ -865,6 +865,54 @@ export const ar: DeepPartial<AppCopy> = {
         buyerTotal: "الإجمالي المستحق",
         totalQuantity: "إجمالي الكمية",
       },
+
+      expired: {
+        title: "انتهت صلاحية الحجز",
+        description: "انتهت نافذة الحجز البالغة 20 دقيقة قبل ترتيب الدفع، لذا أُعيدت الكمية المحجوزة إلى السوق. لا يمكن تغيير عناصر هذا الطلب.",
+        reason: "انتهت نافذة الحجز",
+        startNewOrder: "بدء طلب جديد",
+        backToMarketplace: "العودة إلى السوق",
+      },
+
+      payment: {
+        label: "الدفع",
+        note: "ستتوفر خطوات الدفع في إصدار لاحق. لا يُحصَّل أي دفع هنا.",
+        status: {
+          PENDING: "قيد الانتظار",
+          PROOF_SUBMITTED: "تم إرسال الإثبات",
+          UNDER_REVIEW: "قيد المراجعة",
+          CONFIRMED: "مؤكَّد",
+          REJECTED: "مرفوض",
+          EXPIRED: "منتهي الصلاحية",
+          VOID: "ملغى",
+        },
+      },
+
+      history: {
+        heading: "سجل الحالة",
+        empty: "لم تُسجَّل تغييرات في الحالة بعد.",
+        reasonLabel: "السبب",
+      },
+
+      listExtra: {
+        createdColumn: "تاريخ الإنشاء",
+        amountColumn: "الإجمالي",
+        amountPending: "—",
+        holdUntil: "محجوز حتى {time}",
+        holdEnded: "انتهت نافذة الحجز",
+      },
+
+      nav: {
+        orders: "الطلبات",
+      },
+      overview: {
+        boughtCard: "ماذا اشتريت؟",
+        boughtValue: "{count} عملية شراء مكتملة",
+        boughtValuePlural: "{count} عمليات شراء مكتملة",
+        oweCard: "ماذا أدين به؟",
+        oweValue: "{count} طلب بانتظار الدفع",
+        oweValuePlural: "{count} طلبات بانتظار الدفع",
+      },
     },
 
 };

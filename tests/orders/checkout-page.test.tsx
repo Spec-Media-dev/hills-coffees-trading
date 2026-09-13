@@ -25,6 +25,21 @@ vi.mock("@/lib/orders/read", () => ({
   getShipmentItems: vi.fn(async () => mocks.shipmentItems),
   getOrderFinancials: vi.fn(async () => mocks.financials),
   getProforma: vi.fn(async () => mocks.proforma),
+  // RUN C (T015/T016): payment status, status history, page-level financials.
+  getPaymentStatus: vi.fn(async () => null),
+  getOrderStatusHistory: vi.fn(async () => []),
+  getOrderFinancialsForOrders: vi.fn(async () => new Map()),
+}));
+
+// RUN C (T016): the detail page runs lazy expiry first — mocked here to return the same order the
+// read mock serves (fresh when HOLD); the real chain is proven live in `expiry.test.ts`.
+vi.mock("@/lib/orders/expiry", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/orders/expiry")>()),
+  ensureHoldFresh: vi.fn(async () => {
+    const order = mocks.order as { status?: string } | null;
+    if (!order) return { ok: false, code: "order_not_found" };
+    return { ok: true, data: { order, fresh: order.status === "HOLD", expiredNow: false } };
+  }),
 }));
 
 afterEach(cleanup);
@@ -145,7 +160,7 @@ describe("T010 — HOLD outcome on the order detail page (all from database rows
 
       expect(screen.getByText("Quantity reserved")).toBeTruthy();
       expect(screen.getByText("2026-09-13T11:19:00.000Z")).toBeTruthy();
-      expect(screen.getByText("PF-20260913-0000001")).toBeTruthy();
+      expect(screen.getAllByText("PF-20260913-0000001").length).toBeGreaterThan(0);
       expect(screen.getAllByText("USD 52.5").length).toBeGreaterThan(0);
       expect(screen.getByText("USD 2.5")).toBeTruthy();
       // The countdown is derived from the stored timestamp: 19:00 remaining at the mocked "now".

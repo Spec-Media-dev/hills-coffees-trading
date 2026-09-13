@@ -3,16 +3,14 @@
 **Input**: [spec.md](./spec.md), [plan.md](./plan.md), `docs/architecture/DATABASE-CAPABILITY-MAP.md`,
 `.specify/memory/constitution.md` (v2.0.0), SRS §6/§8/§11 (BUY-02, MKT-03, MKT-04, TXN-01), AC-02/AC-03.
 
-**Status**: RUN B complete (2026-09-13) — **T001, T002, T003, T005, T006, T007, T008, T009, T010,
-T011 implemented and verified (10/32)**. Phase 4 (transactional checkout core) is done:
-`lib/orders/checkout.ts#executeCheckout` is the sole `checkout_order()` caller, a genuine `HOLD` was
-produced live, the idempotent retry, the HOLD outcome and the authoritative availability failure are
-all proven against the real database, and T006's literal `HOLD` proof is now closed by
-re-verification. **T004 stays `[BLOCKED — DB-OPEN-13]`** (create + add-item work; buyer remove/edit
-of `order_items` is not permitted by the live RLS — unchanged this run, per directive). Phases 5–10
-(T012–T032) remain untouched. See `IMPLEMENTATION-HANDOFF.md` §14 for the RUN B account, including
-the exact checkout-ready DB contract, the Feature-009 (`READY` shipment) forward dependency and how
-the tests establish that precondition honestly (the RUN A reconciliation account remains in §13).
+**Status**: RUN C complete (2026-09-13) — **T001–T003, T005–T018 implemented and verified (17/32)**.
+Phase 5 (lazy hold expiry — `lib/orders/expiry.ts#ensureHoldFresh`, the sole `expire_order_hold()`
+caller, proven live to release exactly once), Phase 6 (order list/detail views, financial summary,
+countdown) and Phase 7 (Orders registered with Feature 004's module contract) are done. **T004 stays
+`[BLOCKED — DB-OPEN-13]`** (unchanged, per directive). Phases 8–10 (T019–T032: the release-blocking
+transactional tests, states/a11y closure, verification) remain untouched. The scheduler decision
+(spec Open Items) remains OPEN — expiry is lazy only. See `IMPLEMENTATION-HANDOFF.md` §15 for the
+RUN C account (§13 RUN A reconciliation, §14 RUN B), including the new DB-OPEN-15 finding.
 **Prerequisite**: 001, 003, 004, 005, plus the currently available 006 listing capabilities:
 buyer-visible eligible listings, listing DTO/read contracts, advisory availability/fill projection,
 listing references usable by `order_items`, and the database's reservation-mirror fields. Feature
@@ -307,15 +305,29 @@ unless a concrete runtime capability is missing.
 
 ## Phase 5 — Hold expiry
 
-- [ ] T012 [PS4] Implement `lib/orders/expiry.ts#ensureHoldFresh(orderId)` — the **only** caller of
+- [x] T012 [PS4] Implement `lib/orders/expiry.ts#ensureHoldFresh(orderId)` — the **only** caller of
   `expire_order_hold()`, invoked on order read paths and before any downstream payment/proof/escrow
   hand-off.
   - Req: FR-008, FR-009, PS4 | Depends: T003
   - Verify: `grep -rn "expire_order_hold" src lib` matches only this file; calling it twice releases quantity once
   - Codex: GPT-5.6 Sol — High · Claude: Opus — High
   - Why: double-release would corrupt inventory; single-call discipline plus idempotence is the guard.
+  - **Done (RUN C)**: `lib/orders/expiry.ts#ensureHoldFresh` — validate → identity → acting org →
+    org-scoped read → inspect `orders.status`/`hold_expires_at` → not stale: no mutation, truthful
+    state → stale: the ONE `rpc("expire_order_hold")` → separate re-read → controlled state. Live
+    (`tests/orders/expiry.test.ts`): DRAFT and unexpired HOLD → zero RPC calls, nothing mutated;
+    cross-org caller → `ORDER_NOT_FOUND` before the RPC (the other org's reservation stays ACTIVE);
+    a genuinely stale hold (reservation `expires_at` backdated by the approved test-only fixture —
+    `orders.hold_expires_at` itself cannot be backdated, DB-OPEN-15) → ONE RPC, order `EXPIRED`,
+    reserved quantity down by exactly the held 4 kg on BOTH the listing and inventory mirrors (never
+    negative), payment `EXPIRED`, one proforma/payment still, zero ownership events, history
+    `HOLD->EXPIRED`; a second `ensureHoldFresh` and a direct second `expire_order_hold` release
+    nothing further; the released quantity is genuinely purchasable again (a new 4 kg order checks
+    out). Repo-wide: `expire_order_hold` appears in code only in `lib/orders/expiry.ts` (one
+    `.rpc(` site); the file never reads reservation tables or writes any quantity/status/history.
+    Formal Phase 8 T021 (concurrent double-run) is NOT claimed.
 
-- [ ] T013 [PS4] Present expired-hold state with the reason and a route to start again if still
+- [x] T013 [PS4] Present expired-hold state with the reason and a route to start again if still
   eligible; expose the server-side pre-payment boundary that refuses downstream payment/proof/
   escrow actions against an expired hold. Feature 007 MUST NOT implement payment-proof upload or
   escrow-provider integration.
@@ -323,49 +335,94 @@ unless a concrete runtime capability is missing.
   - Verify: an expired hold shows the explicit state; `ensureHoldFresh` plus authoritative order state refuses the downstream hand-off server-side; no Feature 007 code calls `submit_payment_proof` or implements provider/escrow behavior; the hand-off requirement to 008 is recorded
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — High
   - Why: the refusal must be server-side, not merely a hidden button.
+  - **Done (RUN C)**: `EXPIRED` renders an explicit, localized panel (title, description, reason
+    "Hold window ended") with only routes that genuinely work — "Start a new order" / "Back to
+    marketplace" — no countdown, no checkout entry, no edit/remove control (DB-OPEN-13), no payment/
+    escrow action (only the internal `payments.status` label is displayed). The server-side
+    pre-payment boundary `lib/orders/expiry.ts#requireFreshHold` runs lazy expiry then refuses
+    anything but a fresh `HOLD` with `ORDER_HOLD_EXPIRED` — live-proven for an expired order, a
+    DRAFT, and (accepted) a fresh HOLD. **Feature 008's real payment/proof/escrow action MUST call
+    `requireFreshHold` first** (recorded in the file header, the handoff §15 and here); Feature 007
+    implements no payment proof, provider, escrow, webhook or fund-release logic (source-audited).
 
-- [ ] T014 [PS4] Document the lazy-expiry limitation in code and in the feature's Open items: an
+- [x] T014 [PS4] Document the lazy-expiry limitation in code and in the feature's Open items: an
   unvisited stale hold may persist until touched; no scheduler is approved.
   - Req: spec Open items | Depends: T012
   - Verify: a code comment and the spec both state the limitation; no scheduler/infrastructure was silently added
   - Codex: GPT-5.6 Sol — Low · Claude: Opus — Medium
   - Why: honestly recording a known gap rather than papering over it is a judgment call with continuity value.
+  - **Done (RUN C)**: the lazy-expiry limitation is stated in `lib/orders/expiry.ts`'s header, in
+    `IMPLEMENTATION-HANDOFF.md` §15, and in spec.md's Open Items (narrow status note appended:
+    (a) implemented, (b) scheduler still OPEN — not closed). `tests/orders/expiry.test.ts` proves no
+    cron/pg_cron/Edge-scheduler/worker/queue reference exists in application code, config or the
+    live function list, and that the three documents carry the limitation.
 
 ---
 
 ## Phase 6 — Order views
 
-- [ ] T015 [PS6] Implement `src/app/dashboard/orders/page.tsx` — buyer order list with approved
+- [x] T015 [PS6] Implement `src/app/dashboard/orders/page.tsx` — buyer order list with approved
   status labels and key figures.
   - Req: FR-011, FR-014, PS6 | Depends: T003
   - Verify: all twelve `orders.status` values render their exact labels; only own-organization orders appear
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — Medium
   - Why: list page over a scoped read layer with a closed vocabulary.
+  - **Done (RUN C)**: `src/app/dashboard/orders/page.tsx` — server-resolved acting org, one bounded
+    deterministic page (`created_at DESC, id DESC`, `range`, `MAX_PAGE_SIZE` 100) through
+    `lib/orders/read.ts` only, plus ONE page-keyed `order_financials` read (`.in("order_id", ids)`,
+    never org-wide); columns: monospace order code, status badge (+ "Held until <hold_expires_at>"
+    for HOLD), stored buyer total with currency ("—" when no snapshot — never fabricated), created,
+    updated, view link; stale holds on the page pass through `ensureHoldFresh` then the page is
+    re-read. All 12 `orders.status` values render their exact EN label with AR present
+    (`tests/orders/views.test.tsx`, one test per status); own-org isolation and cross-org absence
+    are live-proven in `read.test.ts`. Table→card responsive behaviour is `TableCardList`'s own.
 
-- [ ] T016 [PS6] Implement `src/app/dashboard/orders/[orderId]/page.tsx` — items, financial snapshot,
+- [x] T016 [PS6] Implement `src/app/dashboard/orders/[orderId]/page.tsx` — items, financial snapshot,
   proforma, shipment plan, status history, hold countdown where applicable.
   - Req: FR-010, FR-014, PS6 | Depends: T003, T010, T012
   - Verify: financials match snapshots; history renders transitions with reason/timestamp; `ensureHoldFresh` runs on load
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — High
   - Why: the buyer's single source of order truth; several data sources must agree.
+  - **Done (RUN C)**: `ensureHoldFresh(orderId)` is the FIRST read on the detail page and the order it
+    returns is the one rendered (position-proven in source and by call order in tests); then items
+    (kg + unit-price snapshot + currency), `FinancialSummary` (pass-through), proforma code,
+    internal payment status label (display only), shipment plan (`ShipmentPlanner`, read-only past
+    DRAFT), status history (labelled old→new, timestamp, safe reason), HOLD countdown only while a
+    fresh HOLD, expired panel only when `EXPIRED`, neither for other statuses. Cross-org/nonexistent
+    id → `notFound()`. Live: a real HOLD expired through this exact path in `expiry.test.ts`.
 
-- [ ] T017 [P] Build `components/orders/hold-countdown.tsx` and `financial-summary.tsx` with
+- [x] T017 [P] Build `components/orders/hold-countdown.tsx` and `financial-summary.tsx` with
   unit/currency discipline and monospace order/proforma codes.
   - Req: FR-018 | Depends: T001
   - Verify: `HC-2026-0418`-style codes render monospaced; all money shows currency
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — Low
   - Why: focused presentational components.
+  - **Done (RUN C)**: `components/orders/hold-countdown.tsx` (RUN B's working component preserved —
+    derives ONLY from `hold_expires_at`, `role="timer"` so ticks are never announced, a
+    visually-hidden polite summary that changes only per minute and announces the expired state,
+    nothing animates) and NEW `components/orders/financial-summary.tsx` (pure presentational: every
+    money figure with currency, quantity with kg, monospace, no arithmetic — source-proven; commission/
+    seller-net deliberately not shown to buyers). Order/proforma codes use the project monospace
+    treatment with `break-all` wrapping on both pages. Proven in `tests/orders/views.test.tsx`.
 
 ---
 
 ## Phase 7 — Module registration
 
-- [ ] T018 Register the `orders` nav entry and the "what did I buy" / "what do I owe" overview cards
+- [x] T018 Register the `orders` nav entry and the "what did I buy" / "what do I owe" overview cards
   with 004's contract.
   - Req: FR-016 | Depends: T015
   - Verify: entries appear for buy-capable organizations; summary queries are bounded
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — Medium
   - Why: contract-conformant registration.
+  - **Done (RUN C)**: a new `orders` module in `lib/dashboard/registry.tsx` (Feature 004's existing
+    contract, no second nav system) — one `orders` entry at `requiredCapability: "buy"` merged into
+    the existing "trading" group; visible to buyer-only AND seller+buyer organizations, hidden for a
+    non-buy-capable one (`tests/dashboard/registry.test.tsx`, reconciled + a new T018 test). Nav
+    hiding is presentational only — every `/dashboard/orders/*` page re-verifies server-side. Overview
+    cards "What did I buy?" / "What do I owe?" come from `getOrderCountsForOrganization` — two
+    bounded, org-scoped, COUNT-only reads of stored statuses (no financial aggregation); zero-count
+    cards are omitted.
 
 ---
 

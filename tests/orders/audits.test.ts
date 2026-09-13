@@ -29,15 +29,19 @@ const RUN_B_FILES = [
   "components/orders/hold-countdown.tsx",
 ];
 
-const ALL_FILES = [...RUN_A_FILES, ...RUN_B_FILES];
+/** Feature 007 RUN C (T012–T018) — `lib/orders/expiry.ts` is the ONE sanctioned `expire_order_hold()` caller. */
+const RUN_C_FILES = ["lib/orders/expiry.ts", "components/orders/financial-summary.tsx"];
+
+const ALL_FILES = [...RUN_A_FILES, ...RUN_B_FILES, ...RUN_C_FILES];
 const SOLE_CHECKOUT_CALLER = "lib/orders/checkout.ts";
+const SOLE_EXPIRY_CALLER = "lib/orders/expiry.ts";
 
 function stripComments(source: string): string {
   return source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
 }
 
-describe("RUN A/B audit — checkout_order() has exactly one caller; expire_order_hold() has none", () => {
-  it.each(ALL_FILES.filter((path) => path !== SOLE_CHECKOUT_CALLER))("%s never calls checkout_order or expire_order_hold", async (path) => {
+describe("RUN A/B/C audit — checkout_order() and expire_order_hold() each have exactly one caller", () => {
+  it.each(ALL_FILES.filter((path) => path !== SOLE_CHECKOUT_CALLER && path !== SOLE_EXPIRY_CALLER))("%s never calls checkout_order or expire_order_hold", async (path) => {
     const { readFileSync } = await import("node:fs");
     const source = stripComments(readFileSync(path, "utf8"));
     expect(source).not.toMatch(/checkout_order/);
@@ -51,7 +55,14 @@ describe("RUN A/B audit — checkout_order() has exactly one caller; expire_orde
     expect(source).not.toMatch(/expire_order_hold/);
   });
 
-  it("a repo-wide grep (untracked included, comments stripped) finds checkout_order in code only in lib/orders/checkout.ts, and expire_order_hold nowhere (T029's own future check, verified early)", async () => {
+  it("lib/orders/expiry.ts calls expire_order_hold exactly once and never checkout_order", async () => {
+    const { readFileSync } = await import("node:fs");
+    const source = stripComments(readFileSync(SOLE_EXPIRY_CALLER, "utf8"));
+    expect(source.match(/"expire_order_hold"/g)?.length).toBe(1);
+    expect(source).not.toMatch(/checkout_order/);
+  });
+
+  it("a repo-wide grep (untracked included, comments stripped) finds checkout_order/expire_order_hold in code only in their two sole-caller files (T029's own future check, verified early)", async () => {
     const { execFileSync } = await import("node:child_process");
     const { readFileSync } = await import("node:fs");
     let output = "";
@@ -66,7 +77,7 @@ describe("RUN A/B audit — checkout_order() has exactly one caller; expire_orde
       .split(/\r?\n/)
       .filter(Boolean)
       .filter((file) => /checkout_order|expire_order_hold/.test(stripComments(readFileSync(file, "utf8"))));
-    expect(codeReferences).toEqual([SOLE_CHECKOUT_CALLER]);
+    expect(codeReferences.sort()).toEqual([SOLE_CHECKOUT_CALLER, SOLE_EXPIRY_CALLER]);
   });
 });
 

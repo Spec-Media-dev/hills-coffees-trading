@@ -961,6 +961,59 @@ export const en = {
         buyerTotal: "Total to pay",
         totalQuantity: "Total quantity",
       },
+
+      /** Feature 007 RUN C (T013) — the expired-hold state. Recovery offers only routes that genuinely work (DB-OPEN-13). */
+      expired: {
+        title: "Reservation expired",
+        description: "The 20-minute reservation window ended before payment was arranged, so the reserved quantity has been released back to the marketplace. Items on this order can't be changed.",
+        reason: "Hold window ended",
+        startNewOrder: "Start a new order",
+        backToMarketplace: "Back to marketplace",
+      },
+
+      /** Feature 007 RUN C (T016) — `payments.status` display labels, 1:1 with the DB vocabulary. Display only; no payment action exists here. */
+      payment: {
+        label: "Payment",
+        note: "Payment steps arrive in a later release. No payment is collected here.",
+        status: {
+          PENDING: "Pending",
+          PROOF_SUBMITTED: "Proof submitted",
+          UNDER_REVIEW: "Under review",
+          CONFIRMED: "Confirmed",
+          REJECTED: "Rejected",
+          EXPIRED: "Expired",
+          VOID: "Void",
+        },
+      },
+
+      /** Feature 007 RUN C (T016) — `order_status_history` display. */
+      history: {
+        heading: "Status history",
+        empty: "No status changes recorded yet.",
+        reasonLabel: "Reason",
+      },
+
+      /** Feature 007 RUN C (T015) — extra list columns / indications. */
+      listExtra: {
+        createdColumn: "Created",
+        amountColumn: "Total",
+        amountPending: "—",
+        holdUntil: "Held until {time}",
+        holdEnded: "Hold window ended",
+      },
+
+      /** Feature 007 RUN C (T018) — dashboard registration + overview cards. */
+      nav: {
+        orders: "Orders",
+      },
+      overview: {
+        boughtCard: "What did I buy?",
+        boughtValue: "{count} completed purchase",
+        boughtValuePlural: "{count} completed purchases",
+        oweCard: "What do I owe?",
+        oweValue: "{count} order awaiting payment",
+        oweValuePlural: "{count} orders awaiting payment",
+      },
     },
 
 } as const;

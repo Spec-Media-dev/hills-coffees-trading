@@ -3,6 +3,7 @@ import { Icon } from "@/components/ui/icon";
 import { getStoredAllocationsCount } from "@/lib/inventory/allocations";
 import { getInventoryPositionsCount } from "@/lib/inventory/positions";
 import { getManagedListingsCount } from "@/lib/listings/manage";
+import { getOrderCountsForOrganization } from "@/lib/orders/read";
 
 import type { DashboardModule, OverviewCard } from "./modules";
 
@@ -231,6 +232,63 @@ export const DASHBOARD_MODULES: readonly DashboardModule[] = [
           href: "/dashboard/listings",
         },
       ];
+      return cards;
+    },
+  },
+  /**
+   * Feature 007 RUN C (T018) — the orders module. ONE entry, `orders`, at `requiredCapability:
+   * "buy"` on BOTH the module and the entry: every buy-capable organization sees it — buyer-only
+   * AND seller-that-also-buys alike (selling is additive on top of buying; the entry is never hidden
+   * because `canSell` is true) — and an organization without buy capability never sees it. Per this
+   * file's own established rule that hiding is PRESENTATIONAL ONLY: `src/app/dashboard/orders/*`
+   * re-verify identity/membership (and, for every write, `canBuy`) server-side regardless of what
+   * this registry rendered. The `trading` group key merges this entry under the same group header as
+   * Feature 005's inventory/storage entries rather than adding a second "Trading" header.
+   *
+   * Overview cards answer the two approved questions with BOUNDED, org-scoped COUNT-only reads of
+   * stored statuses (`getOrderCountsForOrganization`) — no financial figure is aggregated or computed
+   * here; zero-count cards are omitted (the same discipline as every other module).
+   */
+  {
+    id: "orders",
+    requiredCapability: "buy",
+    navGroups: [
+      {
+        key: "trading",
+        label: <AppBilingual pick={(c) => c.inventory.nav.inventory} />,
+        entries: [
+          {
+            id: "orders",
+            label: <AppBilingual pick={(c) => c.orders.nav.orders} />,
+            href: "/dashboard/orders",
+            icon: <Icon name="file-text" className="size-[18px]" />,
+            requiredCapability: "buy",
+          },
+        ],
+      },
+    ],
+    overviewCards: async ({ organization }) => {
+      const { purchased, awaitingPayment } = await getOrderCountsForOrganization({ organizationId: organization.organizationId });
+
+      const cards: OverviewCard[] = [];
+      if (purchased > 0) {
+        cards.push({
+          id: "orders-bought",
+          area: "bought",
+          title: <AppBilingual pick={(c) => c.orders.overview.boughtCard} />,
+          value: <AppBilingual pick={(c) => (purchased === 1 ? c.orders.overview.boughtValue : c.orders.overview.boughtValuePlural).replace("{count}", String(purchased))} />,
+          href: "/dashboard/orders",
+        });
+      }
+      if (awaitingPayment > 0) {
+        cards.push({
+          id: "orders-owe",
+          area: "owe",
+          title: <AppBilingual pick={(c) => c.orders.overview.oweCard} />,
+          value: <AppBilingual pick={(c) => (awaitingPayment === 1 ? c.orders.overview.oweValue : c.orders.overview.oweValuePlural).replace("{count}", String(awaitingPayment))} />,
+          href: "/dashboard/orders",
+        });
+      }
       return cards;
     },
   },
