@@ -4,7 +4,11 @@
 `.specify/memory/constitution.md` (v2.0.0), SRS §6/§8/§11 (BUY-02, MKT-03, MKT-04, TXN-01), AC-02/AC-03.
 
 **Status**: all tasks unchecked — implementation NOT started.
-**Prerequisite**: 001, 003, 004, 005, 006 implemented.
+**Prerequisite**: 001, 003, 004, 005, plus the currently available 006 listing capabilities:
+buyer-visible eligible listings, listing DTO/read contracts, advisory availability/fill projection,
+listing references usable by `order_items`, and the database's reservation-mirror fields. Feature
+006 need not be fully closed; deferred 006 tasks that depend on 007/008/009 do not block startup
+unless a concrete runtime capability is missing.
 
 > **Standing rule for every task in this feature**: the application never creates reservations,
 > computes commercial totals, issues proformas, sets holds, or transfers title. `checkout_order()`
@@ -91,7 +95,7 @@
   `checkout_order()`. Verify identity/capability/order ownership first, generate and persist a
   server-side idempotency key, call the function, map errors via T002, return its values verbatim.
   - Req: FR-001, FR-002, FR-003, SEC-001, SEC-002, SEC-005, SC-001 | Depends: T002, T004
-  - Verify: `grep -rn "checkout_order" src lib` matches only this file; the function's returned values are used unmodified; no total/reservation/proforma is created in application code
+  - Verify: `grep -rn "checkout_order" src lib` matches only this file; the function's returned values are used unmodified; no total/reservation/proforma is created in application code; any multi-seller order remains one order-level function call with no application-side split processing
   - Codex: GPT-5.6 Sol — High · Claude: Opus — High
   - Why: the single highest-blast-radius function in the entire platform — overselling, duplicate reservations and financial divergence all live or die here.
 
@@ -122,16 +126,19 @@
 ## Phase 5 — Hold expiry
 
 - [ ] T012 [PS4] Implement `lib/orders/expiry.ts#ensureHoldFresh(orderId)` — the **only** caller of
-  `expire_order_hold()`, invoked on order read paths and before any payment action.
+  `expire_order_hold()`, invoked on order read paths and before any downstream payment/proof/escrow
+  hand-off.
   - Req: FR-008, FR-009, PS4 | Depends: T003
   - Verify: `grep -rn "expire_order_hold" src lib` matches only this file; calling it twice releases quantity once
   - Codex: GPT-5.6 Sol — High · Claude: Opus — High
   - Why: double-release would corrupt inventory; single-call discipline plus idempotence is the guard.
 
 - [ ] T013 [PS4] Present expired-hold state with the reason and a route to start again if still
-  eligible; refuse payment actions against an expired hold.
+  eligible; expose the server-side pre-payment boundary that refuses downstream payment/proof/
+  escrow actions against an expired hold. Feature 007 MUST NOT implement payment-proof upload or
+  escrow-provider integration.
   - Req: FR-017, PS4 | Depends: T012
-  - Verify: an expired hold shows the explicit state; a payment-proof attempt against it is refused server-side
+  - Verify: an expired hold shows the explicit state; `ensureHoldFresh` plus authoritative order state refuses the downstream hand-off server-side; no Feature 007 code calls `submit_payment_proof` or implements provider/escrow behavior; the hand-off requirement to 008 is recorded
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — High
   - Why: the refusal must be server-side, not merely a hidden button.
 
@@ -182,6 +189,13 @@
 
 ## Phase 8 — Release-blocking transactional tests
 
+> **Runtime/test boundary:** member-facing order code reads hold truth from the permitted
+> `orders.status` and `orders.hold_expires_at` fields. It MUST NOT directly read
+> `inventory_reservations` or `inventory_reservation_items`, and it MUST NOT bypass RLS. Tests may
+> inspect authoritative reservation rows through the repository's existing privileged fixture
+> setup/read convention when proving transactional invariants; that test-only convention is not a
+> production service-role path or a member-facing read capability.
+
 - [ ] T019 [PS3] Write `tests/orders/concurrency.test.ts` (AC-02): two simultaneous checkouts against
   insufficient quantity — exactly one succeeds; the loser leaves no reservation, proforma, payment or
   financial row; totals remain consistent.
@@ -198,14 +212,16 @@
   - Why: BUY-02 retry-safety is release-blocking and subtle.
 
 - [ ] T021 [PS4] Write `tests/orders/expiry.test.ts`: expiry releases exactly once even when invoked
-  twice concurrently.
+  twice concurrently. Inspect reservation rows only through the test-only privileged fixture
+  convention described above.
   - Req: FR-009, SC-004 | Depends: T012
   - Verify: `npm test -- orders/expiry` passes; reserved quantity decreases by exactly the reserved amount
   - Codex: GPT-5.6 Sol — High · Claude: Opus — High
   - Why: double-release is a silent inventory corruption with no obvious symptom.
 
 - [ ] T022 Write `tests/orders/mirror-consistency.test.ts`: after checkout,
-  `coffee_offers.reserved_quantity_kg` mirrors `inventory_positions.reserved_quantity_kg` exactly.
+  `coffee_offers.reserved_quantity_kg` mirrors `inventory_positions.reserved_quantity_kg` exactly;
+  authoritative reservation inspection is test-only and never a member runtime read.
   - Req: SC-005 | Depends: T008
   - Verify: `npm test -- orders/mirror-consistency` passes with zero drift
   - Codex: GPT-5.6 Sol — High · Claude: Opus — High
@@ -239,7 +255,7 @@
 - [ ] T026 State coverage: loading, empty, error, unauthorized, suspended, reserved, expired,
   partial-fill, unavailable across order and checkout screens.
   - Req: FR-017 | Depends: Phases 4–6
-  - Verify: each state renders for a seeded fixture
+  - Verify: each state renders for a seeded fixture; `partial-fill` covers partial reservation and remaining availability only, while settled filled/listing state is deferred to 008/006
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — Medium
   - Why: broad but well-specified.
 
@@ -296,6 +312,12 @@
 - Phase 8's tests: T024/T025 parallel; T019–T023 should be run and reviewed individually because
   each targets a distinct integrity invariant.
 - Phase 10 depends on everything.
+
+**Cross-feature boundary**: 006 supplies the current buyer-visible listing/read, eligibility,
+advisory availability/fill and listing-reference capabilities; its deferred 007/008/009-dependent
+tasks do not create a blanket prerequisite. 008 receives the pending payment and owns payment
+collection, the TBD escrow-provider integration, settlement, title transfer and payouts. T013's
+expired-order hand-off must be enforced again by 008's real payment/proof/provider action.
 
 **Parallel-safe tasks**: T007, T017, T024, T025 (4 of 32) — deliberately low, because most of this
 feature converges on one transactional path.

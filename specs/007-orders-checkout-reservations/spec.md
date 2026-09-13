@@ -4,8 +4,12 @@
 **Created**: 2026-09-08
 **Status**: Planning prepared — implementation NOT started
 **Primary surface**: Member Portal (`/dashboard/orders`, checkout flow)
-**Depends on**: 001, 003 (eligibility), 004 (module contract), 005 (inventory facts),
-006 (listings)
+**Depends on**: 001, 003 (eligibility), 004 (module contract), 005 (inventory facts), and the
+currently available 006 listing capabilities (buyer-visible eligible listings, listing DTO/read
+contracts, advisory availability/fill projection, listing references usable by `order_items`, and
+the database's reservation-mirror fields). Feature 006's overall closure is **not** a prerequisite;
+its deferred tasks that wait for 007/008/009 do not block this feature unless a concrete runtime
+capability is missing.
 
 ## Purpose
 
@@ -17,7 +21,8 @@ That entire operation is already owned by the approved database function `checko
 feature's job is to **call it correctly, exactly once per intent, and present its outcome
 truthfully** — never to reimplement any part of it (SRS TXN-01, MKT-03, BUY-02; Constitution IX/X).
 
-Title does **not** move here. Settlement (008) moves title.
+Title does **not** move here. Settlement (008) moves title. Feature 007 only consumes the current
+006 listing contracts and does not require Feature 006 to be fully closed before implementation.
 
 ## Scope
 
@@ -40,7 +45,9 @@ Title does **not** move here. Settlement (008) moves title.
 - Warehouse/delivery fulfilment states beyond the buyer's request — 009.
 - Listing creation and fill projection — 006.
 - Any recomputation of pricing, commission or tax — `checkout_order()` computes and snapshots them.
-- Automated payment providers (MVP is manual bank transfer — 008).
+- Payment collection, escrow-provider integration, settlement, title transfer and payouts — 008.
+  The escrow provider remains TBD; Feature 007 only produces the pending payment record through
+  `checkout_order()` and contains no escrow, fund-release or provider-specific logic.
 
 ## Actors
 
@@ -138,8 +145,9 @@ exactly the reserved amount.
    decreased exactly once (no double release).
 3. Given expiry ran, when the buyer views the order, then its state and the reason are explicit, with
    a route to start again if still eligible.
-4. Given an expired hold, when the buyer attempts to submit payment proof against it, then it is
-   refused.
+4. Given an expired hold, when the order is handed to a downstream payment/proof flow, then
+   Feature 007's freshness/pre-payment guard refuses the handoff server-side. Payment proof,
+   escrow-provider integration and the real payment action remain Feature 008's responsibility.
 
 ### PS5 — Partial-fill purchasing works (P2)
 
@@ -147,12 +155,17 @@ A buyer may purchase part of a listing's quantity; the remainder stays available
 
 **Why P2**: required by the approved model, but only meaningful once PS2/PS3 hold.
 **Independent test**: buy part of a listing, then confirm the remainder is still purchasable by
-another buyer and the listing shows partially-filled state after settlement.
+another buyer through a valid checkout. Feature 007 does not independently assert the settled
+`filled_quantity_kg` or the post-settlement listing state.
 
 **Acceptance scenarios**
 
 1. Given a partial purchase, when checkout completes, then only the purchased quantity is reserved.
 2. Given the remainder, when another buyer checks out, then it succeeds independently.
+
+Feature 007 proves the **reservation-stage** partial purchase only. Feature 008's settlement
+updates filled/title/custody truth, and Feature 006 presents `PARTIALLY_FILLED`/`SOLD_OUT` from
+that settled truth; those downstream outcomes are not fabricated or asserted here.
 
 ### PS6 — Buyers see order truth (P2)
 
@@ -191,7 +204,10 @@ history.
 - **FR-007**: The 20-minute hold MUST be presented from `orders.hold_expires_at`; the application MUST
   NOT compute or extend the hold duration.
 - **FR-008**: Expiry MUST be effected by calling `expire_order_hold(p_order_id)`; the application MUST
-  NOT release reservations by direct table writes.
+  NOT release reservations by direct table writes. Before handing an order to any downstream
+  payment/proof/escrow action, the server MUST pass through `ensureHoldFresh(orderId)` and the
+  authoritative order state; an expired order MUST be refused. This is a pre-payment boundary,
+  not payment-proof or provider implementation in Feature 007.
 - **FR-009**: Expiry MUST be idempotent — running it twice MUST NOT release quantity twice.
 - **FR-010**: Financial figures MUST be read from `order_financials` as snapshotted; the application
   MUST NOT recompute commission, tax or totals for display.
@@ -229,13 +245,16 @@ history.
   idempotent-retry result.
 - Listing is suspended between draft and checkout → `assert_order_checkout_ready` refuses; safe error.
 - Quantity becomes unavailable between draft and checkout → checkout fails atomically; nothing partial.
-- Hold expires while the buyer is on the payment page → the payment attempt is refused with an
-  explicit expired state and a route to retry.
+- Hold expires while the buyer is on the payment page → the Feature 007 pre-payment handoff is
+  refused with an explicit expired state and a route to retry; Feature 008 must preserve this
+  refusal for its payment/proof/provider action.
 - Expiry path runs twice (e.g. two requests hit a stale hold) → quantity releases exactly once.
 - Buyer's organization is suspended mid-hold → protected actions refuse; the hold still expires
   normally.
-- Order contains items from multiple sellers → each item's reservation is handled inside the single
-  atomic function call; the application never partially processes them.
+- The current approved order contract permits items from multiple seller organizations: each item's
+  reservation is handled inside the single atomic function call; the application never partially
+  processes them and no split-cart settlement is introduced. Feature 008 owns the downstream
+  settlement/payout treatment.
 - Network failure after `checkout_order()` succeeded but before the response is rendered → the retry
   path returns the same reservation rather than creating a new one.
 - Buyer edits a draft while another tab checks it out → the second edit is refused once the order
@@ -259,12 +278,17 @@ history.
 
 ## Assumptions
 
+- The current database capability map/report and verified live function/policy definitions are the
+  authority for runtime behavior; an older checked-in SQL snapshot is not evidence against them.
 - `checkout_order()` behaves exactly as recorded in the capability map (locks the order, validates
   readiness, reserves inventory first then mirrors the listing, snapshots financials, issues the
   proforma, creates the `PENDING` payment, sets `HOLD` + 20 minutes, and supports idempotent retry).
-- Payment collection and settlement are 008's responsibility; this feature only produces the pending
-  payment record via the function.
+- Payment collection, escrow-provider integration and settlement are 008's responsibility; the
+  provider remains TBD and this feature only produces the pending payment record via the function.
 - Shipment/delivery progression beyond REQUESTED belongs to 009 and the warehouse role.
+- The current authoritative schema/function contract stores `seller_organization_id` per
+  `order_item` and processes all items in one checkout transaction; therefore a multi-seller order
+  remains supported without making Feature 007 responsible for settlement or payout splitting.
 
 ## Open items / blockers
 
@@ -277,6 +301,10 @@ history.
   stated honestly, not hidden.
 - Members cannot read `inventory_reservations` directly (admin-only policy), so hold state is
   presented from `orders.hold_expires_at`/`orders.status` — a documented constraint, not a defect.
+  Runtime member code MUST NOT read `inventory_reservations` or
+  `inventory_reservation_items` directly. Release-blocking tests may inspect those authoritative
+  rows through the repository's approved privileged fixture setup/read convention only; that does
+  not create a production or member-facing bypass.
 
 ## Dependencies
 
@@ -284,6 +312,6 @@ history.
 |---|---|
 | 001, 003, 004 | Guard, eligibility, module contract |
 | 005 | Availability facts and post-checkout inventory display |
-| 006 | Listings that orders reference; fill/reservation effects |
-| 008 | Consumes the pending payment; performs settlement and title transfer |
+| 006 | The current buyer-visible listing/read/availability contracts and listing references; deferred 006 tasks waiting on 007/008/009 do not block 007 startup |
+| 008 | Consumes the pending payment; owns payment collection, escrow-provider integration, settlement and title transfer; provider TBD |
 | 009 | Consumes the shipment plan this feature initiates |
