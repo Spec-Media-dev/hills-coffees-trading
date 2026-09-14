@@ -1,13 +1,14 @@
 -- ══════════════════════════════════════════════════════════════════════════════════════════════
--- DRAFT — pairs with 20260914_feature_009_db_block_07_migration.DRAFT.sql (RUN A2-PRE3 version, which
--- adds the settlement-time reservation hook on top of RUN A2-PRE2's hardening). Not yet applicable to
--- any database (the forward migration has not been applied anywhere). Once the forward migration is
--- actually applied (RUN A2), RE-VERIFY the fingerprints below against the REAL live `prosrc` (the
--- guard will simply refuse to run if they do not match, so this is a safety net, not a silent risk)
--- before relying on this rollback.
+-- APPLIED — rollback for 20260914120000_feature_009_db_block_07.sql, copied verbatim from the reviewed, human-approved DRAFT at
+-- supabase/maintenance/20260914_feature_009_db_block_07_migration.DRAFT.rollback.sql (T010 approval
+-- recorded in specs/009-delivery-shipments/tasks.md). The executable SQL below (begin; ... commit;)
+-- is byte-for-byte identical to that DRAFT rollback's own executable body -- only this header/path
+-- framing differs. Full design rationale remains in the DRAFT rollback file and in
+-- specs/009-delivery-shipments/DB-BLOCK-07-DESIGN.md.
 -- ══════════════════════════════════════════════════════════════════════════════════════════════
 --
--- Rollback for 20260914_feature_009_db_block_07_migration.DRAFT.sql.
+-- Rollback for 20260914120000_feature_009_db_block_07.sql.
+
 --
 -- ══════════════════════════════════════════════════════════════════════════════════════════════
 -- SCHEMA ROLLBACK ≠ BUSINESS DATA REVERSAL (RUN A2-PRE Issue 16 — read before running this)

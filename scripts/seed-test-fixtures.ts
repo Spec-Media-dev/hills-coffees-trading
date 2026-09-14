@@ -138,11 +138,11 @@ type FixtureOrganization = {
 };
 
 type Fixture = {
-  label: "buyer-only" | "buyer-and-seller" | "warehouse-admin";
+  label: "buyer-only" | "buyer-and-seller" | "warehouse-admin" | "finance-admin" | "delivery-admin";
   email: string;
   fullName: string;
   organization: FixtureOrganization | null;
-  platformAdminRole: "WAREHOUSE" | null;
+  platformAdminRole: "WAREHOUSE" | "FINANCE" | "ADMIN" | null;
 };
 
 /**
@@ -189,7 +189,33 @@ const FIXTURES: readonly Fixture[] = [
     organization: null,
     platformAdminRole: "WAREHOUSE",
   },
+  {
+    label: "finance-admin",
+    email: "finance-admin+foundation-test@example.com",
+    // No organization — mirrors warehouse-admin exactly. This fixture stays deliberately narrow:
+    // `admin_review_payment()` accepts FINANCE through `is_finance_operator()`. T013's separate,
+    // opt-in `T013_DELIVERY_ADMIN_FIXTURE` below is the ONLY fixture allowed to exercise a genuinely
+    // ADMIN-only transition such as DISPUTED.
+    fullName: "Foundation Test — Finance Operator",
+    organization: null,
+    platformAdminRole: "FINANCE",
+  },
 ];
+
+/**
+ * Feature 009 T013's human-approved, disposable ADMIN proof identity. It is intentionally NOT part
+ * of `FIXTURES`, so normal `npm run test:seed` never creates or reactivates it. The guarded
+ * `--prepare-t013-live-fixtures` command creates it only after proving there is no stale T013
+ * business residue; `--cleanup-t013-live-fixtures` removes its ADMIN capability and deletes or bans
+ * the auth principal deterministically. It has no organization membership and is never SUPER_ADMIN.
+ */
+const T013_DELIVERY_ADMIN_FIXTURE: Fixture = {
+  label: "delivery-admin",
+  email: "delivery-admin+t013-test@example.com",
+  fullName: "Feature 009 Test — Delivery Admin",
+  organization: null,
+  platformAdminRole: "ADMIN",
+};
 
 // ---------------------------------------------------------------------------
 // Catalogue fixtures — Feature 002 (T006a)
@@ -1993,6 +2019,508 @@ async function teardownCheckoutFixtures(admin: SupabaseClient): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
+// 009-delivery-shipments RUN A2 T013 fixtures
+// ---------------------------------------------------------------------------
+
+/**
+ * Two DEDICATED listings for Feature 009's live delivery-reservation/settlement proof (T013),
+ * deliberately separate from Feature 007's own `CHECKOUT_FIXTURE_IDS.offerCheckout` (its own header
+ * warns reuse breaks its exact-number live assertions) and sized for two different purposes:
+ *   - `offerDeliveryMain` (200kg): the shared listing for every positive-path scenario.
+ *   - `offerDeliveryScarce` (5kg): a deliberately small-capacity listing for the insufficient-
+ *     inventory-at-settlement negative case (T013 item 8), engineered independently so it can never
+ *     interfere with the main listing's own assertions.
+ * T013 cleanup is intentionally narrower than a generic "orders referencing offer" operation. It
+ * accepts only rows that prove they belong to the two dedicated lots/offers AND to a `T013-ORD-`
+ * order created by one of the documented buyer fixtures. An unknown row on either fixture offer
+ * stops cleanup before any DELETE. `--inspect-delivery-*` are TEST-ONLY privileged reads, the same
+ * approved convention as Feature 007's own `inspectCheckoutOrder`/`inspectCheckoutMirrors`.
+ */
+const DELIVERY_FIXTURE_IDS = {
+  lotMain: "09000000-0000-4000-8000-000000000001",
+  hillsPositionMain: "09000000-0000-4000-8000-000000000002",
+  offerDeliveryMain: "09000000-0000-4000-8000-000000000003",
+  lotScarce: "09000000-0000-4000-8000-000000000004",
+  hillsPositionScarce: "09000000-0000-4000-8000-000000000005",
+  offerDeliveryScarce: "09000000-0000-4000-8000-000000000006",
+} as const;
+
+const DELIVERY_FIXTURE_QUANTITY_KG = { main: 200, scarce: 5 } as const;
+
+async function seedDeliveryFixtures(admin: SupabaseClient): Promise<void> {
+  console.log("\nSeeding 009-delivery-shipments RUN A2 T013 delivery fixtures…\n");
+
+  const upsert = async (table: string, row: Record<string, unknown>): Promise<void> => {
+    const { error } = await admin.from(table).upsert(row, { onConflict: "id" });
+    if (error) throw new SafeFixtureError(`${table} upsert failed (Feature 009): ${error.message}`);
+  };
+  const buyerAndSellerUserId = await findAuthUserIdByEmail(admin, FIXTURES[1]!.email);
+  if (!buyerAndSellerUserId) throw new SafeFixtureError("001 identity fixtures are missing; run npm run test:seed first.");
+
+  const seedListing = async (lotId: string, positionId: string, offerId: string, lotCode: string, quantityKg: number, title: string): Promise<void> => {
+    await upsert("coffee_lots", {
+      id: lotId,
+      coffee_id: INVENTORY_FIXTURE_COFFEE_ID,
+      lot_code: lotCode,
+      total_quantity_kg: Math.max(quantityKg, 1000),
+      status: "AVAILABLE",
+      source_organization_id: INVENTORY_FIXTURE_IDS.hillsOrg,
+    });
+    await upsert("inventory_positions", {
+      id: positionId,
+      lot_id: lotId,
+      owner_organization_id: INVENTORY_FIXTURE_IDS.hillsOrg,
+      warehouse_id: INVENTORY_FIXTURE_IDS.warehouse,
+      available_quantity_kg: Math.max(quantityKg, 1000),
+      reserved_quantity_kg: 0,
+    });
+    const { data: existing } = await admin.from("coffee_offers").select("id").eq("id", offerId).maybeSingle();
+    if (!existing) {
+      const { error } = await admin.from("coffee_offers").insert({
+        id: offerId,
+        coffee_id: INVENTORY_FIXTURE_COFFEE_ID,
+        lot_id: lotId,
+        seller_organization_id: INVENTORY_FIXTURE_IDS.hillsOrg,
+        seller_type: "HILLS",
+        warehouse_id: INVENTORY_FIXTURE_IDS.warehouse,
+        title,
+        quantity_kg: quantityKg,
+        reserved_quantity_kg: 0,
+        filled_quantity_kg: 0,
+        price_per_kg: 10,
+        currency: "USD",
+        status: "PUBLISHED",
+        created_by: buyerAndSellerUserId,
+      });
+      if (error) throw new SafeFixtureError(`coffee_offers insert failed (Feature 009, ${lotCode}): ${error.message}`);
+    }
+  };
+
+  await seedListing(DELIVERY_FIXTURE_IDS.lotMain, DELIVERY_FIXTURE_IDS.hillsPositionMain, DELIVERY_FIXTURE_IDS.offerDeliveryMain, "F009-LOT-MAIN", DELIVERY_FIXTURE_QUANTITY_KG.main, "Feature 009 Fixture — Delivery Main Listing");
+  await seedListing(DELIVERY_FIXTURE_IDS.lotScarce, DELIVERY_FIXTURE_IDS.hillsPositionScarce, DELIVERY_FIXTURE_IDS.offerDeliveryScarce, "F009-LOT-SCARCE", DELIVERY_FIXTURE_QUANTITY_KG.scarce, "Feature 009 Fixture — Delivery Scarce Listing");
+
+  console.log("  seeded 2 dedicated lot+position pairs and 2 PUBLISHED delivery listings (200kg main, 5kg scarce).");
+}
+
+const T013_ORDER_PREFIX = "T013-ORD-";
+const T013_SHIPMENT_PREFIX = "T013-SHP-";
+const T013_PAYMENT_PROOF_PREFIX = "t013-payment-proofs/";
+const T013_RESALE_DENIAL_TITLE = "T013 Fixture — delivery-reserved resale denial";
+
+type T013FixtureActors = {
+  buyerOnlyUserId: string;
+  buyerAndSellerUserId: string;
+};
+
+type T013Residue = {
+  scopeProblems: string[];
+  orders: Array<{ id: string; order_code: string; buyer_organization_id: string; created_by: string; status: string }>;
+  orderItems: Array<{ id: string; order_id: string; offer_id: string; lot_id: string; seller_organization_id: string }>;
+  allDeliveryOfferItems: Array<{ id: string; order_id: string; offer_id: string; lot_id: string }>;
+  resaleOffers: Array<{ id: string; source_purchase_order_item_id: string | null; lot_id: string; seller_organization_id: string; created_by: string; title: string | null }>;
+  shipments: Array<{ id: string; order_id: string; shipment_code: string; created_by: string }>;
+  shipmentItems: Array<{ id: string; shipment_id: string; order_item_id: string }>;
+  proformas: Array<{ id: string; order_id: string }>;
+  storageAllocations: Array<{ id: string; order_item_id: string | null; owner_organization_id: string; lot_id: string; warehouse_id: string; warehouse_location_id: string | null }>;
+  payouts: Array<{ id: string; order_id: string }>;
+  taxInvoices: Array<{ id: string; order_id: string }>;
+  paymentProofAssets: Array<{ id: string; object_path: string; bucket_name: string; uploaded_by: string | null; organization_id: string | null }>;
+  buyerPositions: Array<{ id: string; lot_id: string; owner_organization_id: string; warehouse_id: string | null; warehouse_location_id: string | null }>;
+  immutableOwnershipEvents: Array<{ id: string; order_item_id: string | null }>;
+};
+
+const deliveryOfferIds = [DELIVERY_FIXTURE_IDS.offerDeliveryMain, DELIVERY_FIXTURE_IDS.offerDeliveryScarce] as const;
+const deliveryLotIds = [DELIVERY_FIXTURE_IDS.lotMain, DELIVERY_FIXTURE_IDS.lotScarce] as const;
+const t013BuyerOrganizationIds = [ORGANIZATION_IDS.buyerOnly, ORGANIZATION_IDS.buyerAndSeller] as const;
+
+async function getT013FixtureActors(admin: SupabaseClient): Promise<T013FixtureActors> {
+  const [buyerOnlyUserId, buyerAndSellerUserId] = await Promise.all([
+    findAuthUserIdByEmail(admin, FIXTURES[0]!.email),
+    findAuthUserIdByEmail(admin, FIXTURES[1]!.email),
+  ]);
+  if (!buyerOnlyUserId || !buyerAndSellerUserId) {
+    throw new SafeFixtureError("T013 buyer fixtures are missing; run npm run test:seed first.");
+  }
+  return { buyerOnlyUserId, buyerAndSellerUserId };
+}
+
+function throwT013ReadError(): never {
+  throw new SafeFixtureError("T013 fixture cleanup inspection failed; no cleanup was performed.");
+}
+
+/**
+ * Reads the entire, deliberately small T013 cleanup scope before any mutation. Every later DELETE is
+ * by an exact id array captured here; this function deliberately does not accept arbitrary ids.
+ */
+async function readT013Residue(admin: SupabaseClient): Promise<T013Residue> {
+  const actors = await getT013FixtureActors(admin);
+  const { data: orders, error: ordersError } = await admin
+    .from("orders")
+    .select("id, order_code, buyer_organization_id, created_by, status")
+    .like("order_code", `${T013_ORDER_PREFIX}%`)
+    .order("id", { ascending: true });
+  if (ordersError) throwT013ReadError();
+  const orderRows = orders ?? [];
+  const orderIds = orderRows.map((row) => row.id);
+
+  const { data: allDeliveryOfferItems, error: allDeliveryOfferItemsError } = await admin
+    .from("order_items")
+    .select("id, order_id, offer_id, lot_id")
+    .in("offer_id", [...deliveryOfferIds]);
+  if (allDeliveryOfferItemsError) throwT013ReadError();
+
+  const emptyResidue: T013Residue = {
+    scopeProblems: [],
+    orders: orderRows,
+    orderItems: [],
+    allDeliveryOfferItems: allDeliveryOfferItems ?? [],
+    resaleOffers: [],
+    shipments: [],
+    shipmentItems: [],
+    proformas: [],
+    storageAllocations: [],
+    payouts: [],
+    taxInvoices: [],
+    paymentProofAssets: [],
+    buyerPositions: [],
+    immutableOwnershipEvents: [],
+  };
+  if (orderIds.length === 0) {
+    const { data: assets, error: assetsError } = await admin
+      .from("file_assets")
+      .select("id, object_path, bucket_name, uploaded_by, organization_id")
+      .like("object_path", `${T013_PAYMENT_PROOF_PREFIX}%`);
+    if (assetsError) throwT013ReadError();
+    const { data: positions, error: positionsError } = await admin
+      .from("inventory_positions")
+      .select("id, lot_id, owner_organization_id, warehouse_id, warehouse_location_id")
+      .in("lot_id", [...deliveryLotIds])
+      .in("owner_organization_id", [...t013BuyerOrganizationIds]);
+    if (positionsError) throwT013ReadError();
+    const scopeProblems: string[] = [];
+    if ((allDeliveryOfferItems ?? []).length > 0) scopeProblems.push("delivery offer item is not attached to a tagged T013 order");
+    if ((assets ?? []).length > 0) scopeProblems.push("tagged T013 payment-proof metadata has no tagged T013 order");
+    if ((positions ?? []).length > 0) scopeProblems.push("buyer delivery position exists without a tagged T013 order");
+    return { ...emptyResidue, scopeProblems, paymentProofAssets: assets ?? [], buyerPositions: positions ?? [] };
+  }
+
+  const [itemsResult, shipmentsResult, proformasResult, payoutsResult, taxInvoicesResult] = await Promise.all([
+    admin.from("order_items").select("id, order_id, offer_id, lot_id, seller_organization_id").in("order_id", orderIds),
+    admin.from("order_shipments").select("id, order_id, shipment_code, created_by").in("order_id", orderIds),
+    admin.from("proforma_invoices").select("id, order_id").in("order_id", orderIds),
+    admin.from("payouts").select("id, order_id").in("order_id", orderIds),
+    admin.from("tax_invoices").select("id, order_id").in("order_id", orderIds),
+  ]);
+  if (itemsResult.error || shipmentsResult.error || proformasResult.error || payoutsResult.error || taxInvoicesResult.error) throwT013ReadError();
+  const orderItems = itemsResult.data ?? [];
+  const shipmentRows = shipmentsResult.data ?? [];
+  const orderItemIds = orderItems.map((row) => row.id);
+  const shipmentIds = shipmentRows.map((row) => row.id);
+
+  const [shipmentItemsResult, allocationsResult, eventsResult, resaleOffersResult, assetsResult, positionsResult] = await Promise.all([
+    shipmentIds.length === 0
+      ? Promise.resolve({ data: [], error: null })
+      : admin.from("shipment_items").select("id, shipment_id, order_item_id").in("shipment_id", shipmentIds),
+    orderItemIds.length === 0
+      ? Promise.resolve({ data: [], error: null })
+      : admin.from("storage_allocations").select("id, order_item_id, owner_organization_id, lot_id, warehouse_id, warehouse_location_id").in("order_item_id", orderItemIds),
+    orderItemIds.length === 0
+      ? Promise.resolve({ data: [], error: null })
+      : admin.from("inventory_ownership_events").select("id, order_item_id").in("order_item_id", orderItemIds),
+    orderItemIds.length === 0
+      ? Promise.resolve({ data: [], error: null })
+      : admin.from("coffee_offers").select("id, source_purchase_order_item_id, lot_id, seller_organization_id, created_by, title").in("source_purchase_order_item_id", orderItemIds),
+    admin.from("file_assets").select("id, object_path, bucket_name, uploaded_by, organization_id").like("object_path", `${T013_PAYMENT_PROOF_PREFIX}%`),
+    admin.from("inventory_positions").select("id, lot_id, owner_organization_id, warehouse_id, warehouse_location_id").in("lot_id", [...deliveryLotIds]).in("owner_organization_id", [...t013BuyerOrganizationIds]),
+  ]);
+  if (shipmentItemsResult.error || allocationsResult.error || eventsResult.error || resaleOffersResult.error || assetsResult.error || positionsResult.error) throwT013ReadError();
+
+  const residue: T013Residue = {
+    scopeProblems: [],
+    orders: orderRows,
+    orderItems,
+    allDeliveryOfferItems: allDeliveryOfferItems ?? [],
+    resaleOffers: resaleOffersResult.data ?? [],
+    shipments: shipmentRows,
+    shipmentItems: shipmentItemsResult.data ?? [],
+    proformas: proformasResult.data ?? [],
+    storageAllocations: allocationsResult.data ?? [],
+    payouts: payoutsResult.data ?? [],
+    taxInvoices: taxInvoicesResult.data ?? [],
+    paymentProofAssets: assetsResult.data ?? [],
+    buyerPositions: positionsResult.data ?? [],
+    immutableOwnershipEvents: eventsResult.data ?? [],
+  };
+
+  const permittedUsers = new Set([actors.buyerOnlyUserId, actors.buyerAndSellerUserId]);
+  const permittedOrganizations = new Set(t013BuyerOrganizationIds);
+  const permittedOrders = new Set(orderIds);
+  const permittedItems = new Set(orderItemIds);
+  const permittedShipments = new Set(shipmentIds);
+  const expectedPaymentProofPaths = new Set(orderIds.map((orderId) => `${T013_PAYMENT_PROOF_PREFIX}${orderId}.metadata`));
+
+  if (residue.orders.some((row) => !row.order_code.startsWith(T013_ORDER_PREFIX) || !permittedOrganizations.has(row.buyer_organization_id as (typeof t013BuyerOrganizationIds)[number]) || !permittedUsers.has(row.created_by))) residue.scopeProblems.push("tagged order identity is not one of the two documented buyer fixtures");
+  if (residue.allDeliveryOfferItems.some((row) => !permittedOrders.has(row.order_id))) residue.scopeProblems.push("delivery offer item is not attached to a tagged T013 order");
+  if (residue.orderItems.some((row) => !permittedOrders.has(row.order_id) || !deliveryOfferIds.includes(row.offer_id as (typeof deliveryOfferIds)[number]) || !deliveryLotIds.includes(row.lot_id as (typeof deliveryLotIds)[number]) || row.seller_organization_id !== INVENTORY_FIXTURE_IDS.hillsOrg)) residue.scopeProblems.push("tagged order item does not match the two dedicated Hills delivery fixtures");
+  if (residue.shipments.some((row) => !permittedOrders.has(row.order_id) || !row.shipment_code.startsWith(T013_SHIPMENT_PREFIX) || !permittedUsers.has(row.created_by))) residue.scopeProblems.push("tagged shipment identity does not match the documented T013 scope");
+  if (residue.shipmentItems.some((row) => !permittedShipments.has(row.shipment_id) || !permittedItems.has(row.order_item_id))) residue.scopeProblems.push("tagged shipment item is not linked to its exact tagged parent");
+  if (residue.resaleOffers.some((row) => !permittedItems.has(row.source_purchase_order_item_id ?? "") || row.lot_id !== DELIVERY_FIXTURE_IDS.lotMain || row.seller_organization_id !== ORGANIZATION_IDS.buyerAndSeller || row.created_by !== actors.buyerAndSellerUserId || row.title !== T013_RESALE_DENIAL_TITLE)) residue.scopeProblems.push("T013 resale control listing does not match its exact documented identity");
+  if (residue.storageAllocations.some((row) => !permittedItems.has(row.order_item_id ?? "") || !permittedOrganizations.has(row.owner_organization_id as (typeof t013BuyerOrganizationIds)[number]) || !deliveryLotIds.includes(row.lot_id as (typeof deliveryLotIds)[number]) || row.warehouse_id !== INVENTORY_FIXTURE_IDS.warehouse || row.warehouse_location_id !== null)) residue.scopeProblems.push("T013 storage allocation is not attached to the exact fixture ownership/custody key");
+  if (residue.payouts.length > 0) residue.scopeProblems.push("unexpected T013 payout exists; this driver only uses Hills seller fixtures");
+  if (residue.taxInvoices.length > 0) residue.scopeProblems.push("unexpected T013 tax invoice exists");
+  if (residue.paymentProofAssets.some((row) => !expectedPaymentProofPaths.has(row.object_path) || row.bucket_name !== "t013-test-artifacts" || row.uploaded_by === null || row.organization_id === null)) residue.scopeProblems.push("T013 payment-proof metadata does not match its exact fixture path or owner");
+  if (residue.buyerPositions.some((row) => !permittedOrganizations.has(row.owner_organization_id as (typeof t013BuyerOrganizationIds)[number]) || row.warehouse_id !== INVENTORY_FIXTURE_IDS.warehouse || row.warehouse_location_id !== null)) residue.scopeProblems.push("buyer delivery position does not match the exact fixture custody key");
+
+  return residue;
+}
+
+function t013ResidueSummary(residue: T013Residue): Record<string, unknown> {
+  const statusCounts = residue.orders.reduce<Record<string, number>>((counts, order) => {
+    counts[order.status] = (counts[order.status] ?? 0) + 1;
+    return counts;
+  }, {});
+  return {
+    taggedOrders: residue.orders.length,
+    orderStatusCounts: statusCounts,
+    orderItems: residue.orderItems.length,
+    resaleOffers: residue.resaleOffers.length,
+    shipments: residue.shipments.length,
+    shipmentItems: residue.shipmentItems.length,
+    storageAllocations: residue.storageAllocations.length,
+    metadataOnlyPaymentProofAssets: residue.paymentProofAssets.length,
+    buyerDeliveryPositions: residue.buyerPositions.length,
+    immutableOwnershipEvents: residue.immutableOwnershipEvents.length,
+    scopeProblems: residue.scopeProblems,
+  };
+}
+
+async function deleteExactIds(admin: SupabaseClient, table: string, ids: readonly string[], label: string): Promise<number> {
+  if (ids.length === 0) return 0;
+  const { data, error } = await admin.from(table).delete().in("id", [...ids]).select("id");
+  if (error || (data?.length ?? 0) !== ids.length) {
+    throw new SafeFixtureError(`T013 ${label} cleanup did not delete the pre-verified exact set.`);
+  }
+  return data!.length;
+}
+
+/**
+ * Removes only current T013 business state. `inventory_ownership_events` is append-only history and
+ * is intentionally retained (exact synthetic ids are reported); no active orders, allocations,
+ * payment-proof metadata, or buyer delivery positions remain after this function returns.
+ */
+async function cleanupT013BusinessResidue(admin: SupabaseClient): Promise<Record<string, unknown>> {
+  const residue = await readT013Residue(admin);
+  if (residue.scopeProblems.length > 0) {
+    throw new SafeFixtureError("T013 cleanup scope mismatch; refusing to mutate any fixture row.");
+  }
+  const orderIds = residue.orders.map((row) => row.id);
+  const orderItemIds = residue.orderItems.map((row) => row.id);
+  const proformaIds = residue.proformas.map((row) => row.id);
+  const immutableEventIds = residue.immutableOwnershipEvents.map((row) => row.id);
+
+  if (orderIds.length > 0) {
+    const { data: proformaItems, error: proformaItemsError } = await admin.from("proforma_invoice_items").select("id").in("proforma_id", proformaIds);
+    if (proformaItemsError) throw new SafeFixtureError("T013 proforma cleanup inspection failed; no further cleanup was performed.");
+    await deleteExactIds(admin, "proforma_invoice_items", (proformaItems ?? []).map((row) => row.id), "proforma invoice items");
+    await deleteExactIds(admin, "storage_allocations", residue.storageAllocations.map((row) => row.id), "storage allocations");
+    await deleteExactIds(admin, "coffee_offers", residue.resaleOffers.map((row) => row.id), "resale-denial control listings");
+    await deleteExactIds(admin, "orders", orderIds, "orders");
+  }
+
+  await deleteExactIds(admin, "file_assets", residue.paymentProofAssets.map((row) => row.id), "payment-proof metadata");
+  await deleteExactIds(admin, "inventory_positions", residue.buyerPositions.map((row) => row.id), "buyer delivery positions");
+
+  // `validate_offer_transition()`'s own live state machine has NO edge from PARTIALLY_FILLED back to
+  // PUBLISHED (confirmed empirically: an UPDATE attempting it is refused with
+  // `compliance_required_for_listing_state`/`invalid_listing_transition` regardless of caller
+  // authority, since PARTIALLY_FILLED may only advance to SUSPENDED/SOLD_OUT/ARCHIVED) — and a
+  // successful T013 settlement legitimately moves the fixture offer to PARTIALLY_FILLED, exactly the
+  // real behavior DB-BLOCK-07 is proving. Restoring the baseline therefore deletes and re-inserts the
+  // row (a fresh INSERT has no `old.status` to compare against, so the trigger's UPDATE-only
+  // transition/compliance block does not apply — the SAME bypass `seedDeliveryFixtures`'s own
+  // creation path already relies on), rather than attempting an UPDATE the live trigger cannot permit.
+  const restoreOffer = async (offerId: string, lotId: string, quantityKg: number, title: string): Promise<void> => {
+    const buyerAndSellerUserId = await findAuthUserIdByEmail(admin, FIXTURES[1]!.email);
+    if (!buyerAndSellerUserId) throw new SafeFixtureError("T013 delivery offer restore: 001 identity fixtures are missing.");
+    const { error: deleteError } = await admin.from("coffee_offers").delete().eq("id", offerId).eq("seller_organization_id", INVENTORY_FIXTURE_IDS.hillsOrg);
+    if (deleteError) throw new SafeFixtureError("T013 delivery offer restore delete failed.");
+    const { data, error: insertError } = await admin
+      .from("coffee_offers")
+      .insert({
+        id: offerId,
+        coffee_id: INVENTORY_FIXTURE_COFFEE_ID,
+        lot_id: lotId,
+        seller_organization_id: INVENTORY_FIXTURE_IDS.hillsOrg,
+        seller_type: "HILLS",
+        warehouse_id: INVENTORY_FIXTURE_IDS.warehouse,
+        title,
+        quantity_kg: quantityKg,
+        reserved_quantity_kg: 0,
+        filled_quantity_kg: 0,
+        price_per_kg: 10,
+        currency: "USD",
+        status: "PUBLISHED",
+        created_by: buyerAndSellerUserId,
+      })
+      .select("id");
+    if (insertError || data?.length !== 1) throw new SafeFixtureError("T013 delivery offer restore did not affect its exact fixture row.");
+  };
+  const restorePosition = async (positionId: string): Promise<void> => {
+    const { data, error } = await admin
+      .from("inventory_positions")
+      .update({ reserved_quantity_kg: 0, available_quantity_kg: 1000 })
+      .eq("id", positionId)
+      .eq("owner_organization_id", INVENTORY_FIXTURE_IDS.hillsOrg)
+      .eq("warehouse_id", INVENTORY_FIXTURE_IDS.warehouse)
+      .select("id");
+    if (error || data?.length !== 1) throw new SafeFixtureError("T013 delivery position restore did not affect its exact fixture row.");
+  };
+  await restoreOffer(DELIVERY_FIXTURE_IDS.offerDeliveryMain, DELIVERY_FIXTURE_IDS.lotMain, DELIVERY_FIXTURE_QUANTITY_KG.main, "Feature 009 Fixture — Delivery Main Listing");
+  await restoreOffer(DELIVERY_FIXTURE_IDS.offerDeliveryScarce, DELIVERY_FIXTURE_IDS.lotScarce, DELIVERY_FIXTURE_QUANTITY_KG.scarce, "Feature 009 Fixture — Delivery Scarce Listing");
+  await restorePosition(DELIVERY_FIXTURE_IDS.hillsPositionMain);
+  await restorePosition(DELIVERY_FIXTURE_IDS.hillsPositionScarce);
+
+  const after = await readT013Residue(admin);
+  if (after.orders.length !== 0 || after.allDeliveryOfferItems.length !== 0 || after.paymentProofAssets.length !== 0 || after.buyerPositions.length !== 0) {
+    throw new SafeFixtureError("T013 cleanup postcondition failed; fixture state was not left clean.");
+  }
+  if (immutableEventIds.length > 0) {
+    const { count, error } = await admin.from("inventory_ownership_events").select("id", { count: "exact", head: true }).in("id", immutableEventIds);
+    if (error || count !== immutableEventIds.length) throw new SafeFixtureError("T013 immutable ownership-event retention check failed.");
+  }
+
+  return {
+    before: t013ResidueSummary(residue),
+    removedOrders: orderIds.length,
+    removedOrderItems: orderItemIds.length,
+    retainedImmutableOwnershipEvents: immutableEventIds.length,
+    after: t013ResidueSummary(after),
+    businessFixtureResidue: "zero",
+  };
+}
+
+async function resetDeliveryFixtures(admin: SupabaseClient): Promise<void> {
+  console.log(JSON.stringify(await cleanupT013BusinessResidue(admin)));
+}
+
+async function teardownDeliveryFixtures(admin: SupabaseClient): Promise<void> {
+  console.log("\nTearing down 009-delivery-shipments delivery fixtures…\n");
+  await resetDeliveryFixtures(admin);
+  const deleteByIds = async (table: string, ids: readonly string[]): Promise<void> => {
+    const { error } = await admin.from(table).delete().in("id", ids);
+    if (error) throw new SafeFixtureError(`${table} delete failed (Feature 009): ${error.message}`);
+  };
+  await deleteByIds("coffee_offers", [DELIVERY_FIXTURE_IDS.offerDeliveryMain, DELIVERY_FIXTURE_IDS.offerDeliveryScarce]);
+  await deleteByIds("inventory_positions", [DELIVERY_FIXTURE_IDS.hillsPositionMain, DELIVERY_FIXTURE_IDS.hillsPositionScarce]);
+  await deleteByIds("coffee_lots", [DELIVERY_FIXTURE_IDS.lotMain, DELIVERY_FIXTURE_IDS.lotScarce]);
+  console.log("  removed 2 delivery listings, 2 positions, 2 lots.");
+}
+
+/** TEST-ONLY privileged read of one inventory_positions row, by id. */
+async function inspectDeliveryPosition(admin: SupabaseClient, positionId: string): Promise<void> {
+  const { data, error } = await admin
+    .from("inventory_positions")
+    .select("id, lot_id, owner_organization_id, warehouse_id, warehouse_location_id, available_quantity_kg, reserved_quantity_kg")
+    .eq("id", positionId)
+    .maybeSingle();
+  if (error) throw new SafeFixtureError("Delivery position inspection failed (Feature 009).");
+  console.log(JSON.stringify(data ?? null));
+}
+
+/** TEST-ONLY privileged read of one buyer's position for a given lot/org (the schema's own uniqueness
+ * guarantee means at most one row can match, warehouse/location held fixed by this fixture set). */
+async function inspectDeliveryPositionByLotOwner(admin: SupabaseClient, lotId: string, ownerOrganizationId: string): Promise<void> {
+  const { data, error } = await admin
+    .from("inventory_positions")
+    .select("id, available_quantity_kg, reserved_quantity_kg, warehouse_id, warehouse_location_id")
+    .eq("lot_id", lotId)
+    .eq("owner_organization_id", ownerOrganizationId)
+    .maybeSingle();
+  if (error) throw new SafeFixtureError("Delivery position-by-owner inspection failed (Feature 009).");
+  console.log(JSON.stringify(data ?? null));
+}
+
+/** TEST-ONLY privileged integrity snapshot for one order: its shipments, their items, any
+ * storage_allocations for its order_items, its payment, and its ACTIVE reservation (if any). Mirrors
+ * `inspectCheckoutOrder`'s convention. */
+async function inspectDeliveryOrder(admin: SupabaseClient, orderId: string): Promise<void> {
+  const [order, items, shipments] = await Promise.all([
+    admin.from("orders").select("id, status, buyer_organization_id, correlation_id").eq("id", orderId).maybeSingle(),
+    admin.from("order_items").select("id, offer_id, lot_id, quantity_kg").eq("order_id", orderId),
+    admin.from("order_shipments").select("id, status, settlement_verified_at, ready_at, created_by").eq("order_id", orderId),
+  ]);
+  for (const result of [order, items, shipments]) {
+    if (result.error) throw new SafeFixtureError("Delivery order inspection failed (Feature 009).");
+  }
+
+  const shipmentIds = (shipments.data ?? []).map((row) => row.id as string);
+  let shipmentItems: unknown[] = [];
+  if (shipmentIds.length > 0) {
+    const { data, error } = await admin
+      .from("shipment_items")
+      .select("id, shipment_id, order_item_id, planned_quantity_kg, delivered_quantity_kg, reserved_quantity_kg")
+      .in("shipment_id", shipmentIds);
+    if (error) throw new SafeFixtureError("Delivery order inspection failed (Feature 009).");
+    shipmentItems = data ?? [];
+  }
+
+  const orderItemIds = (items.data ?? []).map((row) => row.id as string);
+  let allocations: unknown[] = [];
+  if (orderItemIds.length > 0) {
+    const { data, error } = await admin
+      .from("storage_allocations")
+      .select("id, order_item_id, owner_organization_id, quantity_kg, released_quantity_kg, status")
+      .in("order_item_id", orderItemIds);
+    if (error) throw new SafeFixtureError("Delivery order inspection failed (Feature 009).");
+    allocations = data ?? [];
+  }
+
+  const [payment, reservation] = await Promise.all([
+    admin.from("payments").select("id, status, amount").eq("order_id", orderId).maybeSingle(),
+    admin.from("inventory_reservations").select("id, status, expires_at").eq("order_id", orderId).eq("status", "ACTIVE").maybeSingle(),
+  ]);
+
+  console.log(
+    JSON.stringify({
+      order: order.data ?? null,
+      items: items.data ?? [],
+      shipments: shipments.data ?? [],
+      shipmentItems,
+      allocations,
+      payment: payment.data ?? null,
+      activeReservation: reservation.data ?? null,
+    })
+  );
+}
+
+/**
+ * TEST-ONLY privileged setup for T013 item 8 (insufficient inventory at settlement): pre-seeds a
+ * buyer-owned `inventory_positions` row at the EXACT `(lot, owner, warehouse, null location)` key
+ * `admin_review_payment()`'s own title-transfer upsert will target on the SCARCE lot, with
+ * `available_quantity_kg = 0` and `reserved_quantity_kg = <phantomReservedKg>` — an isolated test
+ * artifact standing in for "already mostly reserved by something else". `admin_review_payment()`'s
+ * own upsert only ever ADDS to `available_quantity_kg` on conflict (never touches
+ * `reserved_quantity_kg` — confirmed in its own reviewed body), so this phantom reservation survives
+ * the title transfer and leaves the settlement-time delivery-reservation hook genuinely short of free
+ * quantity, reproducing the negative case without touching any other fixture or real data.
+ */
+async function seedPhantomReservation(admin: SupabaseClient, ownerOrganizationId: string, phantomReservedKg: number): Promise<void> {
+  const { error } = await admin.from("inventory_positions").upsert(
+    {
+      lot_id: DELIVERY_FIXTURE_IDS.lotScarce,
+      owner_organization_id: ownerOrganizationId,
+      warehouse_id: INVENTORY_FIXTURE_IDS.warehouse,
+      warehouse_location_id: null,
+      available_quantity_kg: 0,
+      reserved_quantity_kg: phantomReservedKg,
+    },
+    { onConflict: "lot_id,owner_organization_id,warehouse_id,warehouse_location_id" }
+  );
+  if (error) throw new SafeFixtureError(`phantom reservation seed failed (Feature 009): ${error.message}`);
+  console.log(JSON.stringify({ seeded: true }));
+}
+
+// ---------------------------------------------------------------------------
 // Supabase admin access
 // ---------------------------------------------------------------------------
 
@@ -2056,6 +2584,199 @@ async function ensureAuthUser(
 }
 
 // ---------------------------------------------------------------------------
+/**
+ * Creates exactly one T013-only metadata pointer so the buyer can exercise the production
+ * `submit_payment_proof()` state-machine path. No Storage object is written or claimed: this proof
+ * is about the payment/status transition, not document upload. The path is deterministic and is
+ * accepted only for a pre-verified T013 order created by that order's authenticated buyer.
+ */
+async function createT013PaymentProofMetadata(admin: SupabaseClient, orderId: string): Promise<void> {
+  if (!/^[0-9a-f-]{36}$/i.test(orderId)) throw new SafeFixtureError("T013 payment-proof setup requires an exact UUID.");
+  const actors = await getT013FixtureActors(admin);
+  const { data: order, error: orderError } = await admin
+    .from("orders")
+    .select("id, order_code, buyer_organization_id, created_by")
+    .eq("id", orderId)
+    .maybeSingle();
+  if (orderError || !order || !order.order_code.startsWith(T013_ORDER_PREFIX)) {
+    throw new SafeFixtureError("T013 payment-proof setup refused a non-fixture order.");
+  }
+  const permittedUsers = new Set([actors.buyerOnlyUserId, actors.buyerAndSellerUserId]);
+  if (!t013BuyerOrganizationIds.includes(order.buyer_organization_id as (typeof t013BuyerOrganizationIds)[number]) || !permittedUsers.has(order.created_by)) {
+    throw new SafeFixtureError("T013 payment-proof setup fixture identity mismatch.");
+  }
+
+  const objectPath = `${T013_PAYMENT_PROOF_PREFIX}${orderId}.metadata`;
+  const { data: existing, error: existingError } = await admin
+    .from("file_assets")
+    .select("id, bucket_name, object_path, uploaded_by, organization_id")
+    .eq("bucket_name", "t013-test-artifacts")
+    .eq("object_path", objectPath)
+    .maybeSingle();
+  if (existingError) throw new SafeFixtureError("T013 payment-proof metadata inspection failed.");
+  if (existing) {
+    if (existing.uploaded_by !== order.created_by || existing.organization_id !== order.buyer_organization_id) {
+      throw new SafeFixtureError("T013 payment-proof metadata scope mismatch.");
+    }
+    console.log(JSON.stringify({ fileAssetId: existing.id, metadataOnly: true, reused: true }));
+    return;
+  }
+
+  const { data: created, error: createError } = await admin
+    .from("file_assets")
+    .insert({
+      uploaded_by: order.created_by,
+      organization_id: order.buyer_organization_id,
+      bucket_name: "t013-test-artifacts",
+      object_path: objectPath,
+      original_name: "t013-payment-proof-metadata.txt",
+      mime_type: "text/plain",
+      size_bytes: 0,
+      is_private: true,
+    })
+    .select("id")
+    .single();
+  if (createError || !created) throw new SafeFixtureError("T013 payment-proof metadata setup failed.");
+  console.log(JSON.stringify({ fileAssetId: created.id, metadataOnly: true, reused: false }));
+}
+
+/** Proves the standing FINANCE fixture was not broadened before T013 uses it. */
+async function assertT013FinanceFixtureIsNarrow(admin: SupabaseClient): Promise<void> {
+  const financeUserId = await findAuthUserIdByEmail(admin, FIXTURES[3]!.email);
+  if (!financeUserId) throw new SafeFixtureError("T013 FINANCE fixture is missing; run npm run test:seed first.");
+  const { data, error } = await admin.from("platform_admins").select("role, is_active").eq("user_id", financeUserId).maybeSingle();
+  if (error || !data || data.role !== "FINANCE" || data.is_active !== true) {
+    throw new SafeFixtureError("T013 requires the existing finance fixture to remain active FINANCE only.");
+  }
+}
+
+/**
+ * Creates the separately approved ADMIN-only principal. Existing identities are never silently
+ * reused, re-enabled, or role-changed EXCEPT one exact, narrow prior state: the SAME identity, left
+ * by this fixture's own matching cleanup with its ADMIN capability already removed, no organization
+ * membership, and permanently blocked/banned (the `cleanupT013DeliveryAdminFixture` retention path
+ * taken when the identity accrued real, immutable `audit_logs` references from a genuine prior T013
+ * run). Reactivating that EXACT identity for a new run — never a differently-shaped one — is the same
+ * "disposable per run, not literally single-use" precedent every other fixture in this file already
+ * follows; any other pre-existing shape is refused, not silently altered.
+ */
+async function createT013DeliveryAdminFixture(admin: SupabaseClient, password: string): Promise<void> {
+  await assertT013FinanceFixtureIsNarrow(admin);
+  const existingUserId = await findAuthUserIdByEmail(admin, T013_DELIVERY_ADMIN_FIXTURE.email);
+  if (existingUserId) {
+    const [{ count: membershipCount, error: membershipError }, { data: capability, error: capabilityError }, { data: profile, error: profileError }] = await Promise.all([
+      admin.from("organization_members").select("organization_id", { count: "exact", head: true }).eq("user_id", existingUserId),
+      admin.from("platform_admins").select("role, is_active").eq("user_id", existingUserId).maybeSingle(),
+      admin.from("profiles").select("is_blocked").eq("id", existingUserId).maybeSingle(),
+    ]);
+    if (membershipError || capabilityError || profileError || membershipCount !== 0) {
+      throw new SafeFixtureError("Existing T013 ADMIN fixture is not the exact approved disposable identity; refusing to alter it.");
+    }
+    const isActiveAdmin = capability?.role === "ADMIN" && capability?.is_active === true;
+    const isRetainedBlockedShape = !capability && profile?.is_blocked === true;
+    if (isActiveAdmin) {
+      throw new SafeFixtureError("T013 ADMIN fixture already exists; run --cleanup-t013-live-fixtures before a new live proof.");
+    }
+    if (!isRetainedBlockedShape) {
+      throw new SafeFixtureError("Existing T013 ADMIN fixture is not the exact approved disposable identity; refusing to alter it.");
+    }
+    const { error: unbanError } = await admin.auth.admin.updateUserById(existingUserId, { ban_duration: "none", password, email_confirm: true });
+    if (unbanError) throw new SafeFixtureError("T013 ADMIN fixture reactivation (unban) failed.");
+    const { error: unblockError } = await admin.from("profiles").update({ is_blocked: false, block_reason: null }).eq("id", existingUserId);
+    if (unblockError) throw new SafeFixtureError("T013 ADMIN fixture reactivation (unblock) failed.");
+    const { error: capabilityInsertError } = await admin.from("platform_admins").insert({ user_id: existingUserId, role: "ADMIN", is_active: true });
+    if (capabilityInsertError) throw new SafeFixtureError("T013 ADMIN fixture reactivation (capability grant) failed.");
+    console.log(JSON.stringify({ userId: existingUserId, role: "ADMIN", organizationMemberships: 0, disposable: true, reactivated: true }));
+    return;
+  }
+
+  const { data: createdUser, error: createUserError } = await admin.auth.admin.createUser({
+    email: T013_DELIVERY_ADMIN_FIXTURE.email,
+    password,
+    email_confirm: true,
+    user_metadata: { fixture: "feature-009-t013-delivery-admin" },
+  });
+  if (createUserError || !createdUser.user) throw new SafeFixtureError("T013 ADMIN fixture auth creation failed.");
+  const userId = createdUser.user.id;
+
+  try {
+    // A live database trigger on `auth.users` now auto-creates a matching `profiles` row on user
+    // creation (this file's own header predates that trigger and still documents the OLD baseline —
+    // confirmed empirically: a plain INSERT here hits `profiles_pkey` immediately after `createUser`
+    // returns). `upsert` keeps this function correct under either baseline without editing that
+    // unrelated historical claim.
+    const { error: profileError } = await admin.from("profiles").upsert(
+      {
+        id: userId,
+        full_name: T013_DELIVERY_ADMIN_FIXTURE.fullName,
+        company_name: null,
+        is_blocked: false,
+      },
+      { onConflict: "id" }
+    );
+    if (profileError) throw new SafeFixtureError("T013 ADMIN fixture profile creation failed.");
+    const { error: capabilityError } = await admin.from("platform_admins").insert({
+      user_id: userId,
+      role: "ADMIN",
+      is_active: true,
+    });
+    if (capabilityError) throw new SafeFixtureError("T013 ADMIN fixture capability creation failed.");
+  } catch (error) {
+    await admin.auth.admin.deleteUser(userId);
+    throw error;
+  }
+
+  console.log(JSON.stringify({ userId, role: "ADMIN", organizationMemberships: 0, disposable: true }));
+}
+
+/**
+ * Removes the elevated capability first. Auth deletion is attempted only for this exact identity;
+ * immutable-audit FK retention falls back to a blocked profile plus an Auth ban, never an active
+ * ADMIN principal. No audit/history row is deleted.
+ */
+async function cleanupT013DeliveryAdminFixture(admin: SupabaseClient): Promise<Record<string, unknown>> {
+  const userId = await findAuthUserIdByEmail(admin, T013_DELIVERY_ADMIN_FIXTURE.email);
+  if (!userId) return { adminFixture: "absent", activeAdminPrivilege: false };
+
+  const [{ data: capability, error: capabilityError }, { count: membershipCount, error: membershipError }, { count: auditCount, error: auditError }] = await Promise.all([
+    admin.from("platform_admins").select("role, is_active").eq("user_id", userId).maybeSingle(),
+    admin.from("organization_members").select("organization_id", { count: "exact", head: true }).eq("user_id", userId),
+    admin.from("audit_logs").select("id", { count: "exact", head: true }).eq("actor_user_id", userId),
+  ]);
+  if (capabilityError || membershipError || auditError || membershipCount !== 0 || !capability || capability.role !== "ADMIN") {
+    throw new SafeFixtureError("T013 ADMIN fixture cleanup scope mismatch; refusing to alter the principal.");
+  }
+
+  const { data: removedCapability, error: removeCapabilityError } = await admin
+    .from("platform_admins")
+    .delete()
+    .eq("user_id", userId)
+    .eq("role", "ADMIN")
+    .select("user_id");
+  if (removeCapabilityError || removedCapability?.length !== 1) {
+    throw new SafeFixtureError("T013 ADMIN fixture capability removal failed.");
+  }
+
+  const { error: deleteError } = await admin.auth.admin.deleteUser(userId);
+  if (!deleteError) {
+    return { adminFixture: "deleted", activeAdminPrivilege: false, auditReferenceCount: auditCount ?? 0 };
+  }
+
+  const [{ error: blockError }, { error: banError }] = await Promise.all([
+    admin.from("profiles").update({ is_blocked: true }).eq("id", userId),
+    admin.auth.admin.updateUserById(userId, { ban_duration: "876000h" }),
+  ]);
+  if (blockError || banError) {
+    throw new SafeFixtureError("T013 ADMIN fixture was de-privileged but could not be safely disabled after Auth deletion was blocked.");
+  }
+  return {
+    adminFixture: "retained-blocked-and-banned",
+    activeAdminPrivilege: false,
+    auditReferenceCount: auditCount ?? 0,
+    retentionReason: "Auth deletion was refused by an existing immutable reference; no audit/history row was deleted.",
+  };
+}
+
 // Seed
 // ---------------------------------------------------------------------------
 
@@ -2387,6 +3108,22 @@ async function main(): Promise<void> {
   const isResetCheckoutFixtures = process.argv.includes("--reset-checkout-fixtures");
   const inspectCheckoutPrefix = "--inspect-checkout-order=";
   const inspectCheckoutArgument = process.argv.find((argument) => argument.startsWith(inspectCheckoutPrefix));
+  const isResetDeliveryFixtures = process.argv.includes("--reset-delivery-fixtures");
+  const isSeedDeliveryFixtures = process.argv.includes("--seed-delivery-fixtures");
+  const isInspectT013Residue = process.argv.includes("--inspect-t013-residue");
+  const isCleanupT013Residue = process.argv.includes("--cleanup-t013-residue");
+  const isPrepareT013LiveFixtures = process.argv.includes("--prepare-t013-live-fixtures");
+  const isCleanupT013LiveFixtures = process.argv.includes("--cleanup-t013-live-fixtures");
+  const createT013PaymentProofPrefix = "--create-t013-payment-proof-metadata=";
+  const createT013PaymentProofArgument = process.argv.find((argument) => argument.startsWith(createT013PaymentProofPrefix));
+  const inspectDeliveryPositionPrefix = "--inspect-delivery-position=";
+  const inspectDeliveryPositionArgument = process.argv.find((argument) => argument.startsWith(inspectDeliveryPositionPrefix));
+  const inspectDeliveryPositionByLotOwnerPrefix = "--inspect-delivery-position-by-lot-owner=";
+  const inspectDeliveryPositionByLotOwnerArgument = process.argv.find((argument) => argument.startsWith(inspectDeliveryPositionByLotOwnerPrefix));
+  const inspectDeliveryOrderPrefix = "--inspect-delivery-order=";
+  const inspectDeliveryOrderArgument = process.argv.find((argument) => argument.startsWith(inspectDeliveryOrderPrefix));
+  const seedPhantomReservationPrefix = "--seed-phantom-reservation=";
+  const seedPhantomReservationArgument = process.argv.find((argument) => argument.startsWith(seedPhantomReservationPrefix));
   const admin = createAdminClient();
 
   if (isVerifyInventoryFixtures && isVerifyInventoryAppendOnly) {
@@ -2396,6 +3133,84 @@ async function main(): Promise<void> {
   if (isResetCheckoutFixtures) {
     await seedCheckoutFixtures(admin);
     await resetCheckoutFixtures(admin);
+    return;
+  }
+
+  if (isSeedDeliveryFixtures) {
+    await seedDeliveryFixtures(admin);
+    return;
+  }
+
+  if (isInspectT013Residue) {
+    console.log(JSON.stringify(t013ResidueSummary(await readT013Residue(admin))));
+    return;
+  }
+
+  if (isCleanupT013Residue) {
+    console.log(JSON.stringify(await cleanupT013BusinessResidue(admin)));
+    return;
+  }
+
+  if (isPrepareT013LiveFixtures) {
+    const before = await readT013Residue(admin);
+    if (before.scopeProblems.length > 0 || before.orders.length !== 0 || before.allDeliveryOfferItems.length !== 0 || before.paymentProofAssets.length !== 0 || before.buyerPositions.length !== 0) {
+      throw new SafeFixtureError("T013 live fixture preparation refused while tagged business residue exists; run --cleanup-t013-residue first.");
+    }
+    await seedDeliveryFixtures(admin);
+    await createT013DeliveryAdminFixture(admin, requireEnv("TEST_FIXTURE_PASSWORD"));
+    return;
+  }
+
+  if (isCleanupT013LiveFixtures) {
+    const business = await cleanupT013BusinessResidue(admin);
+    const adminFixture = await cleanupT013DeliveryAdminFixture(admin);
+    console.log(JSON.stringify({ business, adminFixture }));
+    return;
+  }
+
+  if (createT013PaymentProofArgument) {
+    await createT013PaymentProofMetadata(admin, createT013PaymentProofArgument.slice(createT013PaymentProofPrefix.length));
+    return;
+  }
+
+  if (isResetDeliveryFixtures) {
+    await resetDeliveryFixtures(admin);
+    await seedDeliveryFixtures(admin);
+    return;
+  }
+
+  if (inspectDeliveryPositionArgument) {
+    const positionId = inspectDeliveryPositionArgument.slice(inspectDeliveryPositionPrefix.length);
+    if (!/^[0-9a-f-]{36}$/i.test(positionId)) throw new SafeFixtureError("--inspect-delivery-position requires a UUID.");
+    await inspectDeliveryPosition(admin, positionId);
+    return;
+  }
+
+  if (inspectDeliveryPositionByLotOwnerArgument) {
+    const value = inspectDeliveryPositionByLotOwnerArgument.slice(inspectDeliveryPositionByLotOwnerPrefix.length);
+    const [lotId, ownerOrganizationId] = value.split(":");
+    if (!lotId || !ownerOrganizationId || !/^[0-9a-f-]{36}$/i.test(lotId) || !/^[0-9a-f-]{36}$/i.test(ownerOrganizationId)) {
+      throw new SafeFixtureError("--inspect-delivery-position-by-lot-owner requires <lotUuid>:<ownerOrgUuid>.");
+    }
+    await inspectDeliveryPositionByLotOwner(admin, lotId, ownerOrganizationId);
+    return;
+  }
+
+  if (inspectDeliveryOrderArgument) {
+    const orderId = inspectDeliveryOrderArgument.slice(inspectDeliveryOrderPrefix.length);
+    if (!/^[0-9a-f-]{36}$/i.test(orderId)) throw new SafeFixtureError("--inspect-delivery-order requires a UUID.");
+    await inspectDeliveryOrder(admin, orderId);
+    return;
+  }
+
+  if (seedPhantomReservationArgument) {
+    const value = seedPhantomReservationArgument.slice(seedPhantomReservationPrefix.length);
+    const [ownerOrganizationId, kgRaw] = value.split(":");
+    const kg = Number(kgRaw);
+    if (!ownerOrganizationId || !/^[0-9a-f-]{36}$/i.test(ownerOrganizationId) || !Number.isFinite(kg) || kg < 0) {
+      throw new SafeFixtureError("--seed-phantom-reservation requires <ownerOrgUuid>:<nonNegativeKg>.");
+    }
+    await seedPhantomReservation(admin, ownerOrganizationId, kg);
     return;
   }
 
@@ -2476,6 +3291,10 @@ async function main(): Promise<void> {
     // `file_assets` rows hold a (non-cascading) foreign key to the 001 `buyerOnly`/`buyerAndSeller`
     // organizations — those must be removed before `teardown()` can delete those organizations, or
     // the delete fails with a foreign-key violation.
+    // Feature 009 FIRST (newest): its delivery listings/positions are entirely independent of
+    // Feature 007's checkout fixture (separate lot ids), but torn down first regardless, matching the
+    // same "newest feature torn down first" discipline every extension here follows.
+    await teardownDeliveryFixtures(admin);
     await teardownCheckoutFixtures(admin);
     await teardownListingFixtures(admin);
     await teardownInventoryFixtures(admin);
@@ -2496,8 +3315,11 @@ async function main(): Promise<void> {
   await seedInventoryFixtures(admin);
   // Feature 006: depends on Feature 005's hillsOrg/warehouse/lots/positions/offerB.
   await seedListingFixtures(admin);
-  // Feature 007 LAST: its own dedicated lot/position/listing for transactional checkout tests.
+  // Feature 007: its own dedicated lot/position/listing for transactional checkout tests.
   await seedCheckoutFixtures(admin);
+  // Feature 009 LAST: its own dedicated lot/position/listing pair for the live delivery-reservation/
+  // settlement proof (T013), independent of Feature 007's own checkout fixture.
+  await seedDeliveryFixtures(admin);
 }
 
 main().catch((error: unknown) => {

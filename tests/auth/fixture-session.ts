@@ -31,6 +31,18 @@ export const FOUNDATION_FIXTURES = {
   warehouseAdmin: {
     email: "warehouse-admin+foundation-test@example.com",
   },
+  /** Feature 009 RUN A2 T013 — `platform_admins.role = 'FINANCE'`, mirrors `warehouseAdmin` exactly. */
+  financeAdmin: {
+    email: "finance-admin+foundation-test@example.com",
+  },
+  /**
+   * Feature 009 T013's separately approved ADMIN-only proof identity. It is deliberately absent
+   * from normal `npm run test:seed`; only `--prepare-t013-live-fixtures` may create it, and the
+   * matching exact-id cleanup removes its capability afterwards. It has no organization membership.
+   */
+  deliveryAdmin: {
+    email: "delivery-admin+t013-test@example.com",
+  },
 } as const;
 
 /**

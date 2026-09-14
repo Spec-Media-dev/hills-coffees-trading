@@ -74,6 +74,17 @@ isolation, plus the new DB-BLOCK-07 reservation/concurrency/settlement-gate suit
 
 ## DB-BLOCK-07 — authoritative delivery-reservation design draft (Phase 2; no SQL written here)
 
+> **SUPERSEDED (2026-09-14, RUN A2-PRE)**: `specs/009-delivery-shipments/DB-BLOCK-07-DESIGN.md` is
+> now the single authoritative design document — read it, not this section, for the current design.
+> A human adversarial database/security review found this section's own §4 (Cancellation/release)
+> and §5 (Partial delivery) described INCORRECT inventory arithmetic (this section, as originally
+> drafted, said cancellation adds back to `available_quantity_kg` — CRITICAL bug, would have
+> manufactured inventory from nothing; confirmed wrong and corrected below and in the design doc).
+> The rest of this section (options comparison, reserve point, eligibility) remains directionally
+> accurate but the design doc's own numbered sections are the current source of truth, including
+> corrections to the reserve point's `READY` handling, column-tamper protection, exact-once
+> mechanism, and the `FAILED`/`DISPUTED` bypass analysis this section does not cover.
+
 ### Design choice: extend the `inventory_positions` available/reserved ledger — not `inventory_reservations`
 
 Considered against the run's own criteria (one inventory truth, transactional safety, auditability,
@@ -141,25 +152,28 @@ capacity sooner; this document does not treat its own recommendation as final.
 in the same lock order convention `checkout_order`/`admin_review_payment` already establish
 (offer/shipment row first, then inventory position) — no new locking primitive is introduced.
 
-### 4. Cancellation/release — exactly once
+### 4. Cancellation/release — exactly once — **CORRECTED 2026-09-14 (RUN A2-PRE)**
 
-Mirrors `expire_order_hold()`'s own `greatest(reserved_quantity_kg - qty, 0)` pattern: releasing adds
-back to `available_quantity_kg` and subtracts from `reserved_quantity_kg`, guarded so a
-shipment/item that was never reserved (still pre-`RESERVED`) or already released cannot be released
-twice — the guard reads the shipment's own current state (has this specific item's quantity already
-been moved to `reserved`, per whatever marker the real migration design uses — e.g., a `reserved_at`
-timestamp or checking the shipment's own status history) rather than trusting a client "please
-release" call blindly.
+`available_quantity_kg` is the GROSS on-hand figure, proven by the live `inventory_reserved_within_
+available_check` CHECK constraint (`reserved_quantity_kg <= available_quantity_kg`) and by
+`checkout_order()`'s own reservation step, which only ever touches `reserved_quantity_kg`. Releasing
+a cancelled/failed reservation therefore **only decrements `reserved_quantity_kg`** — it must
+**never** increment `available_quantity_kg` (the goods never left custody; only the earmark is
+removed). The exact-once guard is a stateful column check under row lock
+(`shipment_items.reserved_quantity_kg`, read and compared before every release), not a bare
+`greatest()` clamp — see `DB-BLOCK-07-DESIGN.md` §7 for the full mechanism and its coverage of
+duplicate-cancel/duplicate-fail/retry scenarios.
 
-### 5. Partial delivery
+### 5. Partial delivery — **CORRECTED 2026-09-14 (RUN A2-PRE)**
 
 `shipment_items.delivered_quantity_kg` increases monotonically (already enforced) up to
-`planned_quantity_kg` (already enforced). Each delivery write should correspondingly reduce
-`reserved_quantity_kg` on the buyer's position by the newly delivered amount (the goods are leaving
-custody, not merely leaving the "available" pool) — **not** `available_quantity_kg`, since delivered
-goods are no longer part of the organization's on-hand tradable stock at all. Whether this decrement
-happens inside the same delivery-recording call or as its own step is a Phase 2 implementation
-decision, not decided here.
+`planned_quantity_kg` (already enforced). Each delivery write reduces **BOTH**
+`reserved_quantity_kg` AND `available_quantity_kg` on the buyer's position by the newly delivered
+amount — the goods leave custody (and the gross on-hand figure) entirely, the same arithmetic
+`admin_review_payment()` already uses for a full title transfer. The delivery write also updates
+`storage_allocations.released_quantity_kg`/`status` in the same statement (Feature 005's own
+existing custody ledger — not a second model). See `DB-BLOCK-07-DESIGN.md` §2/§11 for the full proof
+and mechanism.
 
 ### 6. Completion
 
@@ -353,3 +367,28 @@ this gap), extending the shared seed script is Phase 5's own explicit task, foll
 | `FAILED`/`DISPUTED` having no DB-enforced forward limit | A warehouse operator could otherwise move a disputed/failed shipment anywhere | Application-level narrowing (decision 8); recorded as a DB-OPEN-09 extension for 010/012's eventual resolution |
 | Address/contact data leakage | Privacy | SEC-005: never cached, never logged, scoped reads only |
 | Phase 2 migration risk | Single Supabase instance; financially-adjacent (though not financial itself) invariant | Preflight → migration → rollback → static tests → manual review → **explicit user approval** → live apply → postflight → concurrency tests, per the run's own migration-safety sequence |
+
+## RUN A2-PRE2 final pre-apply correction
+
+The current DRAFT package, not any earlier prose, is authoritative for the following final facts:
+
+- The baseline transition trigger is actually enabled `BEFORE UPDATE` only; because buyer DRAFT INSERT
+  is currently authorized, the draft recreates this one binding as `BEFORE INSERT OR UPDATE`, resets
+  `settlement_verified_at` to NULL on INSERT, and rejects non-DRAFT insertion.
+- A parent-trigger child update needs a narrow transaction-local trusted marker. Without it,
+  `validate_shipment_item()` can rewrite the value while the parent still observes `ROW_COUNT = 1`.
+  The revised reserve/release protocol proves the child guard transition first, then changes the
+  position by exactly that amount in the same statement transaction.
+- Effective locking is shipment (implicit) → item (ascending) → order → position. Direct delivery's
+  implicit item lock shares the item → order → position suffix. The Phase 2 live concurrency suite must prove
+  the five actual collision classes documented in `DB-BLOCK-07-DESIGN.md` §19.
+- There is no silent no-backfill path. Existing READY/gated rows and their remaining item quantities
+  are mandatory zero-row preflight/guard conditions; otherwise a separate reviewed reconciliation is
+  required.
+- `FAILED`/`DISPUTED` recovery is fail-closed in this DRAFT. It is no longer merely an
+  application-level caveat: future operational re-entry needs a dedicated approved workflow that
+  proves exact remaining quantity/custody.
+
+The two business decisions remain proposed, not self-approved: **DISPUTED = FREEZE** (recommended)
+and bundling buyer `DRAFT → CANCELLED` RLS. T010 remains unchecked, the DRAFT is not a migration, and
+no SQL has been applied.

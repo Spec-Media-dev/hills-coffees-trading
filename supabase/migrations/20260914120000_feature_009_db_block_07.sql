@@ -1,16 +1,16 @@
 -- ══════════════════════════════════════════════════════════════════════════════════════════════
--- DRAFT — NOT YET APPLIED. Authored during Feature 009 RUN A1 (T007), HARDENED during RUN A2-PRE,
--- consistency-corrected during RUN A2-PRE2, then extended during RUN A2-PRE3 (2026-09-14) to close a
--- settlement-time reservation gap a human review found in the RUN A2-PRE2 package (an order settling
--- while an already-READY shipment stayed unreserved, because no shipment UPDATE fires
--- validate_shipment_transition() at the moment of settlement). Full defect list and reasoning:
--- specs/009-delivery-shipments/DB-BLOCK-07-DESIGN.md ("RUN A2-PRE3" section). Do NOT run this against
--- any database — including a test/staging Supabase project — without first running the read-only
--- preflight (supabase/maintenance/20260914_feature_009_db_block_07_preflight.sql) AND the postflight
--- plan review, and obtaining explicit recorded human approval per the design doc's checklist. Once
--- approved, this file's content is copied into a real
--- supabase/migrations/<timestamp>_feature_009_db_block_07.sql (this project's own convention keeps
--- supabase/migrations/ as APPLIED history only — see 20260913100000_feature_007_db_blockers.sql).
+-- APPLIED — Feature 009 DB-BLOCK-07 (delivery reservation + settlement-eligibility gate), copied
+-- verbatim from the reviewed, human-approved DRAFT at
+-- supabase/maintenance/20260914_feature_009_db_block_07_migration.DRAFT.sql (T010 approval recorded
+-- in specs/009-delivery-shipments/tasks.md). The executable SQL below (begin; ... commit;) is
+-- byte-for-byte identical to that DRAFT's own executable body -- only this header/path framing and
+-- the rollback filename reference near the end of this comment block differ, since this file IS now
+-- the applied destination the DRAFT's own header described. Full design rationale, defect history,
+-- and the RUN A1/A2-PRE/A2-PRE2/A2-PRE3 review trail remain in the DRAFT file and in
+-- specs/009-delivery-shipments/DB-BLOCK-07-DESIGN.md (see especially §20/§21). This comment block only
+-- orients a reader of supabase/migrations/ directly; it does not re-derive that history.
+-- Rollback: 20260914120000_feature_009_db_block_07.rollback.sql (paired, same convention as
+-- 20260913100000_feature_007_db_blockers.sql/.rollback.sql).
 -- ══════════════════════════════════════════════════════════════════════════════════════════════
 --
 -- Feature 009 — DB-BLOCK-07 (delivery reservation + settlement-eligibility gate). Two related
@@ -209,7 +209,7 @@
 --   reserve_ready_deliveries_for_settlement (new) 12226e365e405185845fc4561b87db85
 --
 -- Not re-applicable by design: on a second run the guard finds the new columns already present and
--- aborts. Rollback: 20260914_feature_009_db_block_07_migration.DRAFT.rollback.sql.
+-- aborts. Rollback: 20260914120000_feature_009_db_block_07.rollback.sql.
 
 begin;
 
