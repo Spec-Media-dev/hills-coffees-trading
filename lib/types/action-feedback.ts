@@ -119,6 +119,19 @@ export const ACTION_FEEDBACK = {
    * instruction, or a pending provider state.
    */
   FINANCE_FUNDING_UNAVAILABLE: "finance_funding_unavailable",
+
+  /**
+   * Feature 009 RUN A1 (T002) — the delivery domain's own safe result codes, reusing the shipment
+   * codes Feature 007 already defined above (`SHIPMENT_NOT_FOUND`/`SHIPMENT_NOT_EDITABLE`/
+   * `SHIPMENT_ITEM_QUANTITY_INVALID`/`SHIPMENT_SAVE_FAILED`) for everything the CURRENT database
+   * already raises. These two are NEW and map to the DB-BLOCK-07 Phase 2 exception names drafted in
+   * `lib/delivery/validation.ts#DB_BLOCK_07_DRAFT_EXCEPTIONS` — prepared now (no database exception
+   * exists yet; no migration is applied in RUN A1) so Phase 2/3 reuse this SAME contract rather than
+   * inventing a second one, mirroring Feature 008's own "forward-compatible, not prematurely acted
+   * on" precedent for `lib/finance/errors.ts`.
+   */
+  SHIPMENT_ORDER_NOT_SETTLED: "shipment_order_not_settled",
+  SHIPMENT_RESERVATION_UNAVAILABLE: "shipment_reservation_unavailable",
 } as const;
 
 export type ActionFeedbackCode = (typeof ACTION_FEEDBACK)[keyof typeof ACTION_FEEDBACK];

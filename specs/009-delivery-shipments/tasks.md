@@ -1,6 +1,8 @@
 # Tasks: Delivery & Shipments (009)
 
-**Status**: Reconciled planning (RUN 0 / Phase 0, 2026-09-14) — implementation has NOT started
+**Status**: RUN A1 complete (T001–T004, T009; 5/39) — T005–T008 drafted, pending RUN A2's T010 human
+approval gate. Zero live database effect in RUN A1. See `DB-BLOCK-07-DESIGN.md` for the corrected
+reserve-point analysis (supersedes `plan.md`'s own earlier draft).
 **Real task count**: **39** (`T001`–`T039`)
 **Primary decision**: DB-BLOCK-07 (both halves — inventory reservation AND settlement-eligibility
 gating) must be resolved through an approved database capability (Phase 2) before Phase 3's buyer/
@@ -24,7 +26,7 @@ application-side workaround.
 
 ## Phase 1 — Delivery domain foundation (can start now)
 
-- [ ] T001 Create `lib/delivery/types.ts` and `lib/delivery/validation.ts` — DTOs and Zod schemas for
+- [x] T001 Create `lib/delivery/types.ts` and `lib/delivery/validation.ts` — DTOs and Zod schemas for
   shipment/item/address/contact/method, and the 13-status enum mirrored VERBATIM from the live
   `order_shipments_status_allowed` CHECK constraint.
   - Req: FR-007, FR-013 | Depends: —
@@ -32,8 +34,16 @@ application-side workaround.
     address/contact fields are documented private (SEC-005); the 13 values match
     `docs/database/database-schema-report.json`'s live constraint exactly.
   - Recommended: Codex — Medium | Why: mechanical typing/schema work, low ambiguity.
+  - Done (2026-09-14, RUN A1): discovered `lib/orders/validation.ts` (Feature 007) already defines
+    `OrderShipmentDTO`/`ShipmentItemDTO`/`ORDER_SHIPMENT_STATUSES` verbatim from the live constraint —
+    `lib/delivery/types.ts`/`validation.ts` re-export these (no duplicate authority) and add ONLY the
+    genuinely new warehouse-operation input schemas Feature 007 never built
+    (`ConfirmCapacityInput`/`MarkReadyInput`/`ReserveInput`/`StartPickingInput`/`BookInput`/
+    `DispatchInput`/`FailShipmentInput`/`CancelShipmentInput`/`RecordDeliveryInput`) plus the
+    `DB_BLOCK_07_DRAFT_EXCEPTIONS` forward-declared exception names. `tests/delivery/
+    foundation.test.ts` (T001 section) proves the reuse and the input contracts.
 
-- [ ] T002 Implement `lib/delivery/errors.ts` — map `shipment_plan_is_closed`,
+- [x] T002 Implement `lib/delivery/errors.ts` — map `shipment_plan_is_closed`,
   `invalid_shipment_transition`, `warehouse_required_for_operational_shipment_status`,
   `only_warehouse_can_record_delivery`, `shipment_order_item_mismatch`,
   `delivered_quantity_cannot_decrease`, `delivered_quantity_exceeds_plan`,
@@ -48,16 +58,31 @@ application-side workaround.
     text/payload.
   - Recommended: Codex — Medium | Why: bounded mapping work against an already-read exception
     vocabulary.
+  - Done (2026-09-14, RUN A1): discovered `lib/orders/errors.ts#mapShipmentError` (Feature 007)
+    already maps every current exception listed above, live-tested. `lib/delivery/errors.ts#
+    mapDeliveryError` delegates to it (no duplicate map) and adds the two NEW forward-declared codes
+    `SHIPMENT_ORDER_NOT_SETTLED`/`SHIPMENT_RESERVATION_UNAVAILABLE` for the DB-BLOCK-07 draft
+    exceptions (not yet reachable — no migration applied). `tests/delivery/foundation.test.ts` (T002
+    section, 6 tests) proves delegation and safe fallback.
 
-- [ ] T003 Implement `lib/delivery/read.ts` — RLS-scoped shipment/item reads via `can_view_order`
+- [x] T003 Implement `lib/delivery/read.ts` — RLS-scoped shipment/item reads via `can_view_order`
   (buyer) or `is_warehouse_operator()` (operations), explicit column allowlists, no `select("*")`.
   - Req: FR-006, SEC-003 | Depends: T001
   - Verify: explicit selected columns only; own-org buyer and warehouse-operator reads match live
     RLS; cross-org and anonymous return nothing; no shared cache directive anywhere in the file.
   - Recommended: Codex — High | Why: dual-audience (buyer vs. warehouse) private-data scoping is
     easy to get subtly wrong.
+  - Done (2026-09-14, RUN A1): discovered `lib/orders/read.ts#getOrderShipments`/`getShipmentItems`
+    (Feature 007) already RLS-compatible with warehouse callers (`shipments_view`/`shipment_items_view`
+    both have an `is_warehouse_operator()` branch) — re-exported, not redefined. Added the genuinely
+    new capability: `getShipmentsForWarehouseQueue`/`getShipmentById`, scoped by
+    `is_warehouse_operator()` alone (no prior `orderId` needed), with order context attached via a
+    second, separately-RLS-authorized `orders` read (never an embedded join, never a fabricated
+    value if that second read returns nothing). No `select("*")`, no cache directive, no
+    service-role. `tests/delivery/foundation.test.ts` (T003 section) proves the reuse and the
+    absence audit.
 
-- [ ] T004 Create `lib/delivery/transitions.ts` — a documented, read-only UI-affordance copy of the
+- [x] T004 Create `lib/delivery/transitions.ts` — a documented, read-only UI-affordance copy of the
   database's permitted-transition map, sourced from the LIVE `validate_shipment_transition` body
   (not guessed), including an explicit, prominent comment that `FAILED`/`DISPUTED` have **no**
   DB-enforced forward-transition limit today and that this file's own narrower allowlist for those
@@ -68,6 +93,11 @@ application-side workaround.
   - Recommended: Codex — Medium | Why: a mirrored state map is exactly the artefact that later
     drifts into being treated as authority — the framing and the FAILED/DISPUTED caveat must be
     unambiguous.
+  - Done (2026-09-14, RUN A1): `SHIPMENT_TRANSITIONS` built from the live trigger body (13 keys,
+    exact match); `FAILED`/`DISPUTED` deliberately empty with the caveat documented inline and in
+    `DATABASE-CAPABILITY-MAP.md`'s new `DB-OPEN-18` entry; `isTransitionDisplayable` is a pure
+    boolean hint, no DB call. `tests/delivery/foundation.test.ts` (T004 section, 5 tests) proves
+    exact graph fidelity and the no-authorization guarantee.
 
 ## Phase 2 — Authoritative delivery-reservation + settlement-eligibility DB capability (DB-BLOCK-07; blocking gate before Phase 3)
 
@@ -83,6 +113,14 @@ application-side workaround.
     run's own DB inspection found they do not — the new capability is additive and independent).
   - Recommended: Database/security specialist + Codex strongest | Why: engineering may not silently
     choose the reserve point or the dispute policy — both are business/architecture decisions.
+  - Partial (2026-09-14, RUN A1): design FORMALIZED at `specs/009-delivery-shipments/
+    DB-BLOCK-07-DESIGN.md`, explicitly CORRECTING RUN 0's own draft reserve-point recommendation
+    (was `RESERVED`; now the first entry into `{CAPACITY_CONFIRMED, RESERVED, PICKING, BOOKED,
+    DISPATCHED, PARTIALLY_DELIVERED, DELIVERED}`, grounded in SRS DEL-01's literal "approved
+    delivery request" wording and live-proven against Feature 007's own already-tested pre-payment
+    `REQUESTED → READY` path — see the design doc §0/§1 for the full evidence trail). `DISPUTED`
+    policy recorded as still-open with a reasoned recommendation (freeze), not a silent choice.
+    **Not yet human-approved** — stays unchecked; T010 owns that step.
 
 - [ ] T006 Author read-only preflight SQL: inspect current data for anything the migration must
   account for — any existing shipment already in an operational status
@@ -94,6 +132,13 @@ application-side workaround.
     results are recorded for the manual review in T010.
   - Recommended: Database specialist + Codex strongest | Why: financial/inventory-adjacent
     irreversible-effect surface — preflight evidence must be real before any migration is trusted.
+  - Partial (2026-09-14, RUN A1): drafted at `supabase/maintenance/
+    20260914_feature_009_db_block_07_preflight.sql`, covering both required checks plus function
+    fingerprints, new-column absence, and a negative-quantity data-health check. Statically proven
+    read-only (`tests/delivery/db-block-07-migration.test.ts`). **Not yet executed against the live
+    database** — its results cannot be "recorded for T010" until a human runs it (this project's own
+    convention: preflight files are run via the Supabase SQL Editor by a reviewer, never by an
+    agent). Stays unchecked.
 
 - [ ] T007 Author migration SQL implementing T005's approved design: the reserve/release capability
   operating on `inventory_positions.available_quantity_kg`/`reserved_quantity_kg`, its trigger
@@ -107,6 +152,16 @@ application-side workaround.
     pattern (owner + warehouse + auditor read, warehouse-only write).
   - Recommended: Database specialist + Codex strongest | Why: irreversible financial/inventory
     authority — the exact same rigor Feature 007's own DB-OPEN-16/17 migrations required.
+  - Partial (2026-09-14, RUN A1): drafted at `supabase/maintenance/
+    20260914_feature_009_db_block_07_migration.DRAFT.sql` (deliberately kept OUT of
+    `supabase/migrations/`, which this project's own convention reserves for APPLIED history — see
+    Feature 007's `20260913100000_feature_007_db_blockers.sql` precedent). Fingerprint-guarded
+    exactly like that precedent; additive-only (2 new columns, 2 function bodies replaced with a
+    verified-unchanged transition-validity chain, 1 policy widened); statically proven touches no
+    unrelated table, repurposes no existing status, and never references
+    `admin_review_payment`/`checkout_order`/`expire_order_hold`
+    (`tests/delivery/db-block-07-migration.test.ts`, 19 tests, all passing). **Not yet approved or
+    applied.** Stays unchecked.
 
 - [ ] T008 Author rollback SQL for T007's migration.
   - Req: SEC-001 | Depends: T007
@@ -114,8 +169,14 @@ application-side workaround.
     state, and is proven safe against the T006 preflight data (no data loss on rollback).
   - Recommended: Database specialist + Codex strongest | Why: a migration without a proven rollback
     is not safe to apply to the project's one Supabase instance.
+  - Partial (2026-09-14, RUN A1): drafted at `supabase/maintenance/
+    20260914_feature_009_db_block_07_migration.DRAFT.rollback.sql`; guarded on the POST-migration
+    fingerprints (computed from the draft migration's own text — flagged for re-verification against
+    the real live `prosrc` once actually applied); statically proven to drop exactly the two new
+    columns and restore both function bodies byte-for-byte against the live schema-report baseline.
+    **Not yet approved or applied** (nothing exists yet to roll back). Stays unchecked.
 
-- [ ] T009 Write static migration tests: schema/RLS-shape assertions against the migration file's own
+- [x] T009 Write static migration tests: schema/RLS-shape assertions against the migration file's own
   text/structure (no live apply required) — mirrors `tests/finance/rls-policy.test.ts`'s established
   static-proof convention.
   - Req: SC-008, SC-009 | Depends: T007
@@ -124,6 +185,18 @@ application-side workaround.
     owner/warehouse/auditor shape.
   - Recommended: Codex — High | Why: a pre-apply, cheap-to-run proof that catches scope creep before
     the expensive live-apply step.
+  - Done (2026-09-14, RUN A1): `tests/delivery/db-block-07-migration.test.ts` — 19 tests, all
+    passing (`npx vitest run tests/delivery`, exit 0), asserting guard-before-any-change ordering,
+    scope (only the approved tables), fingerprint fidelity, the settlement gate, the reservation and
+    release mechanics (including the exact-once idempotency guard — see the run's own report), the
+    unchanged transition-validity chain, the RLS widening, and a guarded exact rollback. The one
+    verify-line item that does not literally apply is "RLS policies match owner/warehouse/auditor
+    shape" — this design introduces NO new table (§11 of the design doc), so there is no new RLS
+    policy of that shape; the test instead verifies the ACTUAL change (the widened buyer `WITH
+    CHECK`). This task's own literal requirement (a written, passing static test suite) does not
+    itself require T010's human approval — unlike T005–T008, whose own verify lines name "approved"/
+    "applied" outcomes — so it is marked complete on that narrower, precise basis. It does not
+    substitute for or imply that approval.
 
 - [ ] T010 **Manual review checkpoint (not code)**: present T006's preflight results and T007/T008's
   migration/rollback SQL for human database/security review, and obtain **explicit user approval**
