@@ -1,5 +1,6 @@
 import { AppBilingual } from "@/components/locale/app-bilingual";
 import { Icon } from "@/components/ui/icon";
+import { getActiveShipmentsCount } from "@/lib/delivery/read";
 import { getStoredAllocationsCount } from "@/lib/inventory/allocations";
 import { getInventoryPositionsCount } from "@/lib/inventory/positions";
 import { getManagedListingsCount } from "@/lib/listings/manage";
@@ -289,6 +290,59 @@ export const DASHBOARD_MODULES: readonly DashboardModule[] = [
           href: "/dashboard/orders",
         });
       }
+      return cards;
+    },
+  },
+  /**
+   * Feature 009 RUN C (T023) — the delivery module. `requiredCapability: "buy"` on both the module
+   * and its one entry, mirroring the `orders` module's own established rationale directly above:
+   * deliveries only ever exist for orders the acting organization bought, so buy-capable is the
+   * correct (and only) gate; selling additively on top of buying never hides this entry. The
+   * `trading` group key merges it under the SAME group header as inventory/storage/orders rather than
+   * adding a fourth "Trading"-shaped header. Per this file's own established rule, hiding this entry
+   * is PRESENTATIONAL ONLY — `src/app/dashboard/deliveries/*` independently re-verify identity/
+   * membership server-side regardless of what this registry ever rendered.
+   *
+   * The "where is it" overview card answers exactly that question with ONE bounded COUNT-only read
+   * (`getActiveShipmentsCount` — shipments not yet DRAFT and not yet terminal) — no financial figure,
+   * no aggregation beyond the count itself; a zero count contributes no card, the same discipline
+   * every other module already follows.
+   */
+  {
+    id: "delivery",
+    requiredCapability: "buy",
+    navGroups: [
+      {
+        key: "trading",
+        label: <AppBilingual pick={(c) => c.inventory.nav.inventory} />,
+        entries: [
+          {
+            id: "deliveries",
+            label: <AppBilingual pick={(c) => c.deliveries.nav.deliveries} />,
+            href: "/dashboard/deliveries",
+            icon: <Icon name="map-pin" className="size-[18px]" />,
+            requiredCapability: "buy",
+          },
+        ],
+      },
+    ],
+    overviewCards: async ({ organization }) => {
+      const activeCount = await getActiveShipmentsCount({ organizationId: organization.organizationId });
+      if (activeCount === 0) return [];
+
+      const cards: OverviewCard[] = [
+        {
+          id: "delivery-active",
+          area: "where",
+          title: <AppBilingual pick={(c) => c.deliveries.overview.activeCard} />,
+          value: (
+            <AppBilingual
+              pick={(c) => (activeCount === 1 ? c.deliveries.overview.activeValue : c.deliveries.overview.activeValuePlural).replace("{count}", String(activeCount))}
+            />
+          ),
+          href: "/dashboard/deliveries",
+        },
+      ];
       return cards;
     },
   },

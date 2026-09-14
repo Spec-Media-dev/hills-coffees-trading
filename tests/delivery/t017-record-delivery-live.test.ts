@@ -258,4 +258,32 @@ describe.skipIf(!LIVE)("T017 — recordDelivery live closeout (decrease refused,
 
     evidence.proof2 = { planned: 5, before, positionBefore, overPlan: { attempt: 6, result: overPlan, after, positionAfter }, diagnosticRawException: rawError?.message ?? null };
   }, 300_000);
+
+  /**
+   * Feature 009 RUN C (T024/T026) — completes T017's own proof: `recordDelivery` choosing `DELIVERED`
+   * (not merely `PARTIALLY_DELIVERED`) when the full planned quantity is reached, through ITS OWN
+   * code path (not a raw update). Added to this ALREADY-authorized gated file — same fixture
+   * boundary, no new privileged mechanism — rather than a second env-gated file.
+   */
+  it("proof 3 — recordDelivery reaches DELIVERED (not PARTIALLY_DELIVERED) once the full planned quantity is recorded, and leaves zero stranded reservation", async () => {
+    const fx = await buildPaidDispatchedShipment(sessions, 6, "T017F");
+    expect(fx.snapshot.order?.status).toBe("PAID");
+
+    const positionBefore = inspectBuyerPosition();
+    const full = await asWarehouse(sessions.warehouse, async () => {
+      const { recordDelivery } = await import("@/lib/delivery/warehouse");
+      return recordDelivery({ shipmentId: fx.shipmentId, items: [{ shipmentItemId: fx.shipmentItemId, deliveredQuantityKg: 6 }] });
+    });
+    expect(full).toEqual({ ok: true, data: null });
+
+    const after = itemState(fx.orderId, fx.shipmentId, fx.orderItemId);
+    const positionAfter = inspectBuyerPosition();
+    expect(after.shipmentStatus).toBe("DELIVERED");
+    expect(after.item.delivered_quantity_kg).toBe(6);
+    expect(after.item.reserved_quantity_kg).toBe(0);
+    expect(after.allocation.status).toBe("DELIVERED");
+    expect(positionAfter!.reserved_quantity_kg - positionBefore!.reserved_quantity_kg).toBe(-6);
+
+    evidence.proof3 = { planned: 6, positionBefore, full: { result: full, after, positionAfter } };
+  }, 300_000);
 });

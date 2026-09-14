@@ -77,11 +77,12 @@ describe("T001 — module registration contract", () => {
 });
 
 describe("T002 — static registry lists implemented modules only", () => {
-  it("registers exactly the genuinely-live account/overview + settings + inventory/storage + marketplace destinations", () => {
+  it("registers exactly the genuinely-live account/overview + settings + inventory/storage + marketplace + orders + delivery destinations", () => {
     // Feature 005 RUN B — "inventory" is now a genuinely-live module. Feature 006 RUN C (T020) adds
     // "marketplace" (coffee browse always; listings/sales additive for sell-capable organizations).
     // Feature 007 RUN C (T018) adds "orders" (buyer-capable organizations; merges into the "trading" group).
-    expect(DASHBOARD_MODULES.map((m) => m.id)).toEqual(["account", "inventory", "marketplace", "orders"]);
+    // Feature 009 RUN C (T023) adds "delivery" (buyer-capable organizations; also merges into "trading").
+    expect(DASHBOARD_MODULES.map((m) => m.id)).toEqual(["account", "inventory", "marketplace", "orders", "delivery"]);
     const account = DASHBOARD_MODULES[0]!;
     const accountHrefs = (account.navGroups ?? []).flatMap((g) => g.entries.map((e) => e.href));
     expect(accountHrefs.sort()).toEqual(["/dashboard", "/dashboard/settings"]);
@@ -99,12 +100,19 @@ describe("T002 — static registry lists implemented modules only", () => {
     const orders = DASHBOARD_MODULES[3]!;
     const orderHrefs = (orders.navGroups ?? []).flatMap((g) => g.entries.map((e) => e.href));
     expect(orderHrefs).toEqual(["/dashboard/orders"]);
+
+    const delivery = DASHBOARD_MODULES[4]!;
+    const deliveryHrefs = (delivery.navGroups ?? []).flatMap((g) => g.entries.map((e) => e.href));
+    expect(deliveryHrefs).toEqual(["/dashboard/deliveries"]);
+    // The delivery detail route is deliberately NOT a top-level nav entry (discoverable from the list).
+    expect(deliveryHrefs).not.toContain("/dashboard/deliveries/new");
   });
 
   it("contains no placeholder module or nav entry for a business area that still has none of its own routes", () => {
-    // "marketplace"/"listings" (Feature 006 RUN C, T020) and "orders" (Feature 007 RUN C, T018) are
-    // now genuinely live — removed from the forbidden list; the still-unbuilt areas remain forbidden.
-    const forbidden = ["payments", "delivery", "disputes"];
+    // "marketplace"/"listings" (Feature 006 RUN C, T020), "orders" (Feature 007 RUN C, T018), and
+    // "delivery" (Feature 009 RUN C, T023) are now genuinely live — removed from the forbidden list;
+    // the still-unbuilt areas remain forbidden.
+    const forbidden = ["payments", "disputes"];
     const ids = DASHBOARD_MODULES.map((m) => m.id);
     const allHrefs = DASHBOARD_MODULES.flatMap((m) => (m.navGroups ?? []).flatMap((g) => g.entries.map((e) => e.href)));
     for (const name of forbidden) {
@@ -119,18 +127,20 @@ describe("T002 — static registry lists implemented modules only", () => {
     expect(groups.map((g) => g.key)).toEqual(["overview", "account", "trading", "marketplace"]);
     expect(groups[0]!.items.map((i) => i.href)).toEqual(["/dashboard"]);
     expect(groups[1]!.items.map((i) => i.href)).toEqual(["/dashboard/settings"]);
-    // Feature 007 RUN C (T018): "orders" merges into the SAME "trading" group as inventory/storage.
-    expect(groups[2]!.items.map((i) => i.href).sort()).toEqual(["/dashboard/inventory", "/dashboard/orders", "/dashboard/storage"]);
+    // Feature 007 RUN C (T018) / Feature 009 RUN C (T023): "orders"/"delivery" merge into the SAME
+    // "trading" group as inventory/storage — no fourth "Trading"-shaped header.
+    expect(groups[2]!.items.map((i) => i.href).sort()).toEqual(["/dashboard/deliveries", "/dashboard/inventory", "/dashboard/orders", "/dashboard/storage"]);
     // A buyer-only organization sees ONLY the marketplace browse entry — listings/sales are
     // entry-level `requiredCapability: "sell"` and stay hidden (T020's own additive-capability rule).
     expect(groups[3]!.items.map((i) => i.href)).toEqual(["/dashboard/coffee"]);
   });
 
-  it("a buyer-incapable organization (canBuy: false) sees no inventory/storage/marketplace/orders nav entry", () => {
+  it("a buyer-incapable organization (canBuy: false) sees no inventory/storage/marketplace/orders/delivery nav entry", () => {
     const noBuyOrg: OrganizationMembership = { organizationId: "o", displayName: "O", memberRole: "OWNER", canBuy: false, canSell: false };
     const groups = buildDashboardNavGroups({ modules: DASHBOARD_MODULES, organization: noBuyOrg });
     expect(groups.map((g) => g.key)).toEqual(["overview", "account"]);
     expect(groups.flatMap((g) => g.items.map((i) => i.href))).not.toContain("/dashboard/orders");
+    expect(groups.flatMap((g) => g.items.map((i) => i.href))).not.toContain("/dashboard/deliveries");
   });
 
   it("T018 (Feature 007) — Orders is visible to a buyer-only organization AND to a seller that can also buy; never hidden merely because canSell is true", () => {

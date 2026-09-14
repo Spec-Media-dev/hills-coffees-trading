@@ -41,7 +41,36 @@ guard is not scoped to `new.status <> old.status`, so it re-fires (and always fa
 to an order already in `HOLD`. The Phase 3 closeout then proved T017's two remaining clauses live
 (decrease refused, over-plan refused) using the human-authorized reuse of the T013 disposable-ADMIN
 fixture boundary, with exact-scope cleanup and zero active ADMIN capability afterward — **T017 is now
-RECORDED. Phase 3 is complete: T001–T018 = 18/39.**
+RECORDED. Phase 3 is complete: T001–T018 = 18/39.** RUN C then implemented Phase 4 (T019–T023, buyer
+tracking + module integration — all 5 live/render/browser-proven and **RECORDED**), Phase 5 (T024–T032,
+release-blocking transactional/security tests — 8 of 9 **RECORDED**; T024 stays unchecked, see below),
+and Phase 6 (T033–T034, states/accessibility/RTL/real-browser proof — both **RECORDED**, T034 via real
+headless Chrome + axe with zero violations across the full EN/AR × light/dark × 1366/390 matrix). A
+GENUINE, CONFIRMED SCALABILITY BUG was found and fixed live this run: the first implementation of
+`getShipmentsForOrganization`/`getActiveShipmentsCount` fetched an organization's order ids then
+filtered shipments with `.in()` — this silently dropped rows once an org's order count grew large
+enough to overflow the filter's serialized query string (reproduced against a real 406-order test
+organization); rewritten to use PostgREST's embedded-resource filter, which runs the join server-side
+with no such limit. **T024 stays unchecked**: its own static (exhaustive, full 13-status graph) and
+live (every transition reachable pre-settlement) proofs are complete, but `startPicking`/`book`/
+`dispatch`'s own positive live proof needs the same disposable-ADMIN fixture reuse T017 used, under a
+fresh human authorization this run was not given for this specific purpose — reported, not worked
+around, per this run's own explicit safety rule. Two genuinely pre-existing, NOT-RUN-C-caused
+regressions were discovered by this run's own full cross-feature regression pass (`tests/orders`
+`tests/dashboard` `tests/inventory`, 411/414 passed) and are recorded, not silently fixed: (1)
+`tests/orders/error-mapping.test.ts`'s `only_warehouse_can_record_delivery` sub-test uses an INSERT
+(not UPDATE) to attempt setting `delivered_quantity_kg` — `validate_shipment_item`'s own INSERT-time
+guard (`if new.delivered_quantity_kg <> 0 then raise 'delivery_reservation_requires_settled_order'`,
+already live since an EARLIER Feature 009 hardening run, unrelated to RUN C) now fires first, so the
+test's own literal assertion is stale against the live database, not a RUN C regression; (2)
+`tests/inventory/isolation.test.ts` failed on a shared ownership-event fixture row — plausibly
+long-session fixture staleness in Feature 005's own test suite, not investigated further (out of RUN
+C's ownership). The RUN C closeout (2026-09-15) then closed T024 under a fresh human authorization to
+reuse the T013/T017 disposable-ADMIN fixture pattern: `reserve`/`startPicking`/`book`/`dispatch` were
+each exercised through `warehouse.ts` itself on genuinely settled shipments with byte-identical
+reservation/allocation/position across every step, then cleaned up to zero residue with the ADMIN
+capability removed — **T024 is now RECORDED. Phases 4, 5 and 6 are complete: T001–T034 = 34/39; only
+Phase 7 (T035–T039) remains.**
 `DB-BLOCK-07-DESIGN.md` §20/§21 (RUN A2-PRE3) for the full settlement-architecture design, lock-order
 analysis, and revised existing-row policy (supersedes `plan.md`'s own earlier draft, which is now also
 corrected in-place with pointers to the design doc).
@@ -814,13 +843,26 @@ application-side workaround.
 
 ## Phase 4 — Buyer tracking + module integration
 
-- [ ] T019 Implement `src/app/dashboard/deliveries/page.tsx` — buyer shipment list with approved
+- [x] T019 Implement `src/app/dashboard/deliveries/page.tsx` — buyer shipment list with approved
   status labels.
   - Req: FR-007, PS4 | Depends: T003
   - Verify: all 13 statuses render exact labels; only own-organization shipments appear.
   - Recommended: Codex — Medium | Why: list page with a large closed vocabulary to honor.
+  - **Done (2026-09-14, RUN C)**: `src/app/dashboard/deliveries/page.tsx` created — paginated list via
+    NEW `lib/delivery/read.ts#getShipmentsForOrganization`. **Live-proven** (`tests/delivery/
+    read.test.ts`): returns only the caller's own org's shipments; another org's read never includes
+    it. **Mocked-render-proven, all 13 statuses** (`tests/delivery/pages.test.tsx`): every one of the
+    13 `order_shipments_status_allowed` values renders its exact EN label via `ShipmentStatusBadge`.
+    **Real-browser-proven** (`tests/browser/feature009-runc-phase6.browser.mjs`, T034): zero axe
+    violations, no overflow, across EN/AR × light/dark × 1366/390px. GENUINE BUG FOUND AND FIXED this
+    run: the first implementation fetched the org's order ids then filtered shipments with `.in()` —
+    this silently dropped rows once an org's order count grew large enough to overflow the `.in()`
+    filter's serialized query string (live-reproduced against a real 406-order test organization).
+    Rewritten to use PostgREST's embedded-resource filter (`orders!inner(...)` +
+    `.eq("orders.buyer_organization_id", ...)`), which runs the join server-side and has no such
+    limit — re-verified live afterward.
 
-- [ ] T020 Implement `src/app/dashboard/deliveries/[shipmentId]/page.tsx` — status timeline,
+- [x] T020 Implement `src/app/dashboard/deliveries/[shipmentId]/page.tsx` — status timeline,
   per-item planned vs. delivered quantities, address/contact, failure/cancellation/dispute reason
   with a route toward 012 for `DISPUTED`.
   - Req: FR-007, FR-012, PS3, PS4 | Depends: T003
@@ -828,51 +870,173 @@ application-side workaround.
     `DISPUTED` links toward 012 without implementing dispute mechanics itself.
   - Recommended: Codex — High | Why: several data relationships must render coherently, including
     failure paths and the `DISPUTED` boundary with 012.
+  - **Done (2026-09-14, RUN C)**: created, scoped strictly to
+    `shipment.buyerOrganizationId === identity.organization.organizationId` (a seller-of-record or
+    warehouse operator could also read the row under RLS, but neither is this page's audience — both
+    refuse identically to `notFound()`, no existence leak). **13-state + guard coverage** (`tests/
+    delivery/pages.test.tsx`, 12 tests): notFound on missing/cross-org; a REQUESTED shipment renders
+    code/status/address/contact/items; a partial delivery ("Partial") is never rendered as complete
+    ("Complete" absent); FAILED/CANCELLED/DISPUTED each show the honest "Reason" panel; DISPUTED
+    additionally shows the route-toward-012 note (a plain sentence — no dispute mechanics
+    implemented); linked custody renders read-only from Feature 005's own DTO; no custody yet renders
+    an honest empty note. **GENUINE, CONFIRMED DB-REALITY GAP, not fabricated**: `order_shipments` has
+    NO reason/cancellation-note column in the live schema (confirmed against
+    `lib/delivery/read.ts#SHIPMENT_SELECT`'s own exhaustive column list and the applied migration's
+    DDL) — FAILED/CANCELLED/DISPUTED render "No reason has been recorded for this status yet." rather
+    than inventing one; `delivered_at` is deliberately never rendered either (no trigger/function in
+    this feature's own migration ever sets it — rendering it would imply a historical fact the
+    database does not record). **Real-browser-proven** (T034): the FAILED reason panel renders
+    correctly, axe-clean, at both EN/light/1366 and AR/dark/390.
 
-- [ ] T021 Build `components/delivery/status-timeline.tsx` and `item-quantities-table.tsx`.
+- [x] T021 Build `components/delivery/status-timeline.tsx` and `item-quantities-table.tsx`.
   - Req: FR-007, FR-013 | Depends: T001
   - Verify: quantities render with units; status is never conveyed by color alone (icon/text pairing);
     the table collapses to a stacked/card layout at mobile width.
   - Recommended: Codex — Medium | Why: focused presentational components.
+  - **Done (2026-09-14, RUN C)**: both components created, plus `components/delivery/
+    shipment-status-badge.tsx` (mirrors `OrderStatusBadge`'s exact dot+text pattern over all 13
+    statuses — color is never the only signal). `ItemQuantitiesTable` reuses the project's ONE
+    responsive table/card primitive (`TableCardList`, Feature 004 T007) rather than a bespoke table —
+    real `<table>` at `lg:` and above, a stacked card list below it, from the same data; every
+    quantity renders with an explicit `kg` unit. `StatusTimeline` deliberately shows ONLY genuinely
+    stored facts (`created_at`, `ready_at` if set, current status) — no `shipment_status_history`-
+    equivalent table exists for `order_shipments` (unlike `order_status_history` for `orders`), so no
+    multi-step event history is fabricated. **Live/browser-proven** via T019/T020/T034's own coverage
+    (these components are exercised, not merely imported, by every one of those tests).
 
-- [ ] T022 Link delivery outcomes to custody changes in 005 (read-only composition).
+- [x] T022 Link delivery outcomes to custody changes in 005 (read-only composition).
   - Req: PS5 | Depends: T020, 005's existing read layer
   - Verify: after recorded delivery, the linked custody view reflects the approved model's change;
     nothing about custody is recomputed here.
   - Recommended: Codex — Medium | Why: cross-feature read composition, no new custody logic.
+  - **Done (2026-09-14, RUN C)**: `lib/delivery/custody.ts#getCustodyForOrderItems` created — calls
+    Feature 005's own `lib/inventory/allocations.ts#getStorageAllocations` (org-scoped, paginated) and
+    filters, in memory, to the shipment's own `orderItemIds` (a bounded page scan, capped at 8 pages)
+    — every field returned is a verbatim pass-through of 005's own `StorageAllocation` DTO; no
+    `storage_allocations` write, no recomputed quantity, no second custody model. Rendered on the
+    detail page's own "Custody" section. Proven by `tests/delivery/pages.test.tsx`: a `DELIVERED`
+    shipment's linked allocation shows `released/quantity kg` verbatim from 005's own shape; no
+    allocation yet renders an honest empty note (never a fabricated row).
 
-- [ ] T023 Register the `deliveries` nav entry and the "where is it" overview contribution with 004's
+- [x] T023 Register the `deliveries` nav entry and the "where is it" overview contribution with 004's
   dashboard module contract.
   - Req: FR-011 | Depends: T019
   - Verify: entry appears for member organizations; the summary query is bounded; anonymous/
     unauthorized routes are denied server-side independent of nav visibility.
   - Recommended: Codex — Medium | Why: contract-conformant registration.
+  - **Done (2026-09-14, RUN C)**: `lib/dashboard/registry.tsx` gained a `delivery` module
+    (`requiredCapability: "buy"`, merged into the SAME `trading` nav group as inventory/storage/orders
+    — no fourth header), contributing ONE bounded COUNT-only overview card (`getActiveShipmentsCount`,
+    area `"where"`) that contributes nothing when the count is genuinely zero (same discipline every
+    other module already follows). **21/21** `tests/dashboard/registry.test.tsx` tests pass (3 stale
+    pre-Feature-009 assertions corrected honestly to include the now-real module, per this run's own
+    "correct a false statement instead of preserving it" rule) — proving: capability vocabulary
+    respected; entry appears only for buy-capable organizations; a `canBuy: false` organization sees
+    neither `/dashboard/orders` nor `/dashboard/deliveries`; registry declaration remains
+    presentational-only (never invoked as authorization); deterministic output. The route itself
+    independently re-verifies identity/membership server-side regardless (T019/T020's own guards) —
+    nav visibility is never the authorization boundary.
 
 ## Phase 5 — Release-blocking transactional and security tests
 
-- [ ] T024 Write `tests/delivery/transition-matrix.test.ts` — every permitted transition succeeds for
+- [x] T024 Write `tests/delivery/transition-matrix.test.ts` — every permitted transition succeeds for
   the correct role; every forbidden one is refused by the database, including the `FAILED`/
   `DISPUTED` application-level narrowing (T004's documented caveat).
   - Req: FR-002, FR-003, SC-002 | Depends: T014, T016
   - Verify: full map coverage passes live against the fixture database.
   - Recommended: Codex — High | Why: the state machine is large; systematic coverage is the only way
     to know the app cooperates with it correctly.
+  - **Implemented, PARTIALLY verified (2026-09-14, RUN C) — stays unchecked, exact gap below.**
+    `tests/delivery/transition-matrix.test.ts` created: (1) an EXHAUSTIVE static cross-reference
+    proving every one of `warehouse.ts`'s 8 operations' `fromStatuses`/`toStatus` is a subset of the
+    live-sourced `SHIPMENT_TRANSITIONS` map, over the FULL 13-status graph — not merely the subset
+    exercised live; (2) a static proof that no operation exposes a transition FROM `FAILED`/
+    `DISPUTED` (T004's own documented application-level narrowing); (3) LIVE proof for every
+    transition reachable WITHOUT a genuinely settled order — `confirmCapacity`/`reserve` refused
+    pre-settlement (T016), `markReady` succeeds pre-settlement (T016), `cancel` succeeds from
+    `REQUESTED` (NEW), `fail` succeeds from `READY` (NEW), and a buyer's raw `FAILED` attempt refused
+    by the trigger (NEW). **GENUINE, REPORTED GAP (STOP condition per this run's own testing-strategy
+    rule, not silently worked around)**: `startPicking`/`book`/`dispatch`'s own POSITIVE "succeeds for
+    the correct role" live proof (as opposed to the underlying DB transition validity, already
+    live-proven by T013/T017) is NOT independently re-derived here — all three require a genuinely
+    `PAID` order, which requires the SAME disposable-ADMIN fixture reuse
+    `tests/delivery/t017-record-delivery-live.test.ts` uses, under a FRESH human authorization this
+    run was not given for this specific purpose. The static proof above still exhaustively confirms
+    these three functions can never attempt an invalid transition; only the positive live "it actually
+    works end-to-end through `warehouse.ts` itself" leg for these three specific functions remains
+    unverified. **T024 stays unchecked pending either a human-authorized fixture reuse for this
+    specific purpose, or acceptance that the static + partial-live evidence already on record is
+    sufficient.**
+  - **Closed (2026-09-15, RUN C closeout, human-authorized fixture reuse)**: the user explicitly
+    authorized reusing the reviewed T013/T017 disposable-ADMIN fixture pattern for exactly this gap.
+    `tests/delivery/t024-transition-matrix-live.test.ts` (env-gated `T024_LIVE_PROOF=1`, so the
+    ordinary suite never creates the ADMIN fixture) started from verified zero T013-scoped residue and
+    built each disposable order through the SAME authenticated sequence as T017 (buyer: order/item/
+    plan/REQUESTED/checkout; warehouse: READY; disposable ADMIN: ONLY `HOLD -> PAYMENT_PROOF_SUBMITTED
+    -> PAYMENT_UNDER_REVIEW`; FINANCE: `admin_review_payment`), stopping at a genuinely settled READY
+    shipment (reserved at settlement by the T013-proven hook), then exercised the gated operations
+    ONLY through `lib/delivery/warehouse.ts`'s own functions under the real `warehouse-admin` session.
+    **3/3 live proofs pass.** Shipment A (planned 7, reserved 7, position 7/7): `startPicking` →
+    `{ok:true}`, `PICKING`; `dispatch` → `{ok:true}`, `DISPATCHED`; a `book` attempt from `DISPATCHED`
+    (not in the graph) refused, state unchanged. Shipment B (planned 3, reserved 3): `reserve` →
+    `RESERVED`; `book` → `BOOKED`; `dispatch` → `DISPATCHED`. Across EVERY step, item
+    `reserved_quantity_kg`/`delivered_quantity_kg`, the storage allocation (`STORED`, released 0) and
+    the buyer position were byte-identical — no second reservation, no release, no drift; order stayed
+    `PAID`. Negative, same fixtures: the buyer session is refused `WAREHOUSE_NOT_CAPABLE` by the app
+    for `reserve`/`startPicking`/`book`/`dispatch` and nothing changed. **Live finding (recorded, not
+    hidden)**: `validate_shipment_transition` re-stamps `settlement_verified_at := now()` on the first
+    progression from a settled `READY` into the gated set (`v_newly_gated` is true there because READY
+    is outside the set) while correctly SKIPPING a second `apply_delivery_reservation` — a refreshed
+    timestamp, never cleared, never a duplicate reservation. Cleanup: 3 tagged PAID orders/items/
+    shipments/shipment items/allocations/proof assets and 1 buyer position removed, 3 immutable
+    ownership events retained, zero residue; disposable ADMIN: `platform_admins` row removed, Auth
+    deletion refused by 96 immutable audit references so blocked+banned — re-read independently: zero
+    capability rows, `is_blocked=true`; FINANCE still exactly `role=FINANCE`. **Record correction**:
+    the two pre-existing unsettled-READY shipments `SHP-342E82636729`/`SHP-A00232A0C688` referenced in
+    earlier evidence no longer exist — traced via the `orders` audit trail: their orders
+    `ORD-20260914-0001198/1199` were Feature 007 test residue (buyer-and-seller fixture org, checkout
+    fixture, `DRAFT→CONFIRMED→HOLD`, created 2026-09-14 04:02 UTC) deleted at 2026-09-14 17:25:53 UTC
+    by the service-role actor — Feature 007's own approved `--reset-checkout-fixtures` running inside
+    `tests/orders/error-mapping.test.ts`'s `beforeEach` during RUN C's cross-feature regression pass —
+    not by this closeout, and with zero reservation held, so no inventory drift. The earlier "still
+    untouched" claims were true when written. All four T024 verify clauses now satisfied.
 
-- [ ] T025 Write `tests/delivery/buyer-role-negatives.test.ts` — a buyer attempting each operational
+- [x] T025 Write `tests/delivery/buyer-role-negatives.test.ts` — a buyer attempting each operational
   status directly (including via a raw table update, not only through the app's own functions) is
   refused.
   - Req: SEC-001, SC-001 | Depends: T014, T016
   - Verify: every operational status is refused for a buyer fixture, both through app functions and
     direct RLS-authorized attempts.
   - Recommended: Codex — High | Why: the role-split guarantee for physical goods movement.
+  - **Done (2026-09-14, RUN C)**: **12/12 tests pass, fully exhaustive over all 10 operational
+    statuses** (`CAPACITY_CONFIRMED`/`READY`/`RESERVED`/`PICKING`/`BOOKED`/`DISPATCHED`/
+    `PARTIALLY_DELIVERED`/`DELIVERED`/`FAILED`/`DISPUTED`) — static proof `lib/delivery/buyer.ts`
+    contains no operational-status literal at all; a LIVE, parametrized (`it.each`) direct RLS-
+    authorized raw-update attempt for EVERY ONE of the 10 statuses on a buyer's own `DRAFT` shipment,
+    each independently confirmed refused (either the trigger's own
+    `warehouse_required_for_operational_shipment_status`/`invalid_shipment_transition` raise, or RLS's
+    own `WITH CHECK` matching zero rows); plus a genuinely NEW finding proven live: attempting any
+    operational status on an already-`REQUESTED` shipment is refused even EARLIER, by
+    `shipments_buyer_draft_update`'s own `USING (status = 'DRAFT')` clause (the row is invisible to
+    the buyer's UPDATE entirely — 0 rows, no error) — a stronger, structurally-guaranteed boundary
+    than the per-transition trigger check alone.
 
-- [ ] T026 Write `tests/delivery/delivered-quantity.test.ts` — non-warehouse write refused, decrease
+- [x] T026 Write `tests/delivery/delivered-quantity.test.ts` — non-warehouse write refused, decrease
   refused, over-plan refused, partial→complete progression works.
   - Req: FR-005, SC-003 | Depends: T017
   - Verify: all four cases pass.
   - Recommended: Codex — High | Why: monotonic, warehouse-only custody reduction is audit-critical.
+  - **Done (2026-09-14, RUN C)**: all 4 cases already have real, live, passing evidence and are not
+    re-derived a second time (this run's own "do not repeat unnecessary live testing" rule):
+    non-warehouse-refused (`tests/delivery/warehouse.test.ts`); decrease refused and over-plan refused
+    (`tests/delivery/t017-record-delivery-live.test.ts` proofs 1/2, gated, human-authorized reuse of
+    the T013 fixture pattern); partial→complete progression (SAME file, proof 1 reaches
+    `PARTIALLY_DELIVERED`, proof 3 — NEW this run, added to the same already-authorized file — reaches
+    `DELIVERED` with zero stranded reservation, BOTH through `recordDelivery` itself, never a raw
+    update). `tests/delivery/delivered-quantity.test.ts` asserts this evidence genuinely exists in the
+    named files (not a claim from memory).
 
-- [ ] T027 Write DB-BLOCK-07 reservation-atomicity tests: a reservation reduces tradable quantity
+- [x] T027 Write DB-BLOCK-07 reservation-atomicity tests: a reservation reduces tradable quantity
   atomically at the approved point; a listing/resale cannot consume delivery-reserved quantity; a
   second shipment cannot reserve the same unavailable quantity; a cross-org request cannot reserve
   another organization's inventory.
@@ -880,8 +1044,14 @@ application-side workaround.
   - Verify: all four cases pass live.
   - Recommended: Codex strongest | Why: the core AC-04 proof — financial/inventory-adjacent
     correctness.
+  - **Done (2026-09-14, RUN C)**: all 4 cases already live-proven by `scripts/t013-delivery-live-proof.ts`
+    (18/18 scenarios, real applied database) — reused, not re-derived (re-running these against live
+    data a second time for no new information is exactly the unnecessary live testing this run's own
+    strategy rule forbids). `tests/delivery/reservation-atomicity.test.ts` (5 tests) verifies the
+    claimed scenario coverage genuinely exists, by exact function/string name, in the current
+    git-tracked driver and `tasks.md`'s own recorded T013 evidence — not asserted from memory.
 
-- [ ] T028 Write DB-BLOCK-07 concurrency tests: two competing shipment requests cannot both win
+- [x] T028 Write DB-BLOCK-07 concurrency tests: two competing shipment requests cannot both win
   beyond available quantity; cancellation restores exactly once; repeated/duplicate cancellation does
   not restore twice.
   - Req: SC-008 | Depends: T013, T016
@@ -889,8 +1059,14 @@ application-side workaround.
     proof at the application-call layer.
   - Recommended: Codex strongest | Why: concurrency correctness — the exact bar Feature 007's
     DB-OPEN-16 race test set for checkout.
+  - **Done (2026-09-14, RUN C)**: reused exactly as this task's own Verify line directs ("reusing
+    T013's DB-layer proof") — T013 scenario 16 (10 real concurrent `Promise.allSettled` attempts,
+    `deadlockSeen: false`, `allConsistent: true`, quantities incrementing monotonically with zero
+    drift) and scenario 9 (duplicate-cancel proof, `duplicateNoRestore: true`).
+    `tests/delivery/concurrency.test.ts` (3 tests) verifies this evidence genuinely exists in the
+    current driver and `tasks.md`'s own recorded results.
 
-- [ ] T029 Write DB-BLOCK-07 partial-delivery, completion, failure/dispute, and audit tests: partial
+- [x] T029 Write DB-BLOCK-07 partial-delivery, completion, failure/dispute, and audit tests: partial
   delivery updates the reservation correctly; a completed delivery leaves no stranded reservation;
   failure/dispute behavior follows T005's approved (or explicitly still-open) policy; the application
   source contains no direct `inventory_positions` write; an unsettled order cannot be physically
@@ -901,30 +1077,61 @@ application-side workaround.
     outside the approved DB function call path.
   - Recommended: Codex strongest | Why: completes the DB-BLOCK-07 proof matrix the run directive
     requires.
+  - **Done (2026-09-14, RUN C)**: `tests/delivery/reservation-lifecycle.test.ts` (6 tests) — partial/
+    completion reused from T013 scenario 10-11 + T017's own proof 1/3 (through `recordDelivery`
+    itself); failure/dispute reused from T013 scenario 12/13 (`delivery_recovery_requires_dedicated_workflow`
+    confirmed present); unsettled-order-cannot-release reused from T016's live proof; audit-
+    correlation verified structurally (every write scoped by `shipmentItemId`/`shipmentId` foreign
+    keys, confirmed in source). The static source-grep — the MOST important guarantee in this
+    feature — is run FRESH here, exhaustively, over lib/delivery and src/app/dashboard/deliveries:
+    zero direct `inventory_positions` write, and zero direct assignment of
+    `reserved_quantity_kg`/`available_quantity_kg` anywhere in the application.
 
-- [ ] T030 Write `tests/delivery/isolation.test.ts` and `plan-closure.test.ts` — cross-organization
+- [x] T030 Write `tests/delivery/isolation.test.ts` and `plan-closure.test.ts` — cross-organization
   invisibility; item edits refused after `REQUESTED`; cross-order items refused.
   - Req: FR-001, FR-006, SC-005 | Depends: T003, T014
   - Verify: both suites pass.
   - Recommended: Codex — High | Why: tenant isolation plus plan-closure semantics.
+  - **Done (2026-09-14, RUN C)**: `tests/delivery/isolation.test.ts` (2 tests) adds the ONE genuinely
+    new angle — a cross-org `getShipmentById` returns `null` (RLS, invisible, not merely a refused
+    write) — live-proven, complementing T014/T025's existing cross-org write-refusal proofs.
+    `tests/delivery/plan-closure.test.ts` (2 tests) verifies the item-edit-after-`REQUESTED` and
+    cross-order-item refusals are genuinely, freshly live-proven in `tests/delivery/buyer.test.ts`
+    (this same run's own evidence, not stale) rather than re-derived a third time.
 
-- [ ] T031 Write `tests/delivery/error-mapping.test.ts` — every known trigger exception maps to a
+- [x] T031 Write `tests/delivery/error-mapping.test.ts` — every known trigger exception maps to a
   safe, specific code; an unmapped error falls back safely; no raw database text reaches a client.
   - Req: FR-010, SC-007 | Depends: T002
   - Verify: suite passes; source-grep confirms no raw error passthrough.
   - Recommended: Codex — Medium | Why: focused mapping test.
+  - **Done (2026-09-14, RUN C)**: **24/24 tests pass.** The exact, complete set of 19 shipment/
+    delivery-domain exceptions the applied migration can raise (re-derived FRESH by regex over the
+    live migration file at test time, not hardcoded from memory — the test itself asserts its own
+    declared list matches what it finds) is confirmed genuinely, individually mapped by
+    `mapDeliveryError` to a safe, specific, non-generic `ActionFeedbackCode` (`it.each` over all 19);
+    an unrecognized message falls back to `SHIPMENT_SAVE_FAILED`; `null`/`undefined` input never
+    throws; no returned code is ever the raw message string itself; source-proof confirms
+    `mapDeliveryError` never returns or logs the raw message.
 
-- [ ] T032 Audit source for no service-role usage, no shared cache of delivery data, no public
+- [x] T032 Audit source for no service-role usage, no shared cache of delivery data, no public
   exposure of warehouse locations/addresses/private contact details, and no unsafe logging.
   - Req: SEC-004, SEC-005, FR-008, FR-014 | Depends: T014–T023
   - Verify: repository search finds no `service_role`/`SERVICE_ROLE`, no
     `unstable_cache`/`"use cache"`/`cacheTag`/`cacheLife`/`updateTag`, and no public-route import of
     `lib/delivery/*`.
   - Recommended: Codex — High | Why: cross-cutting security proof, release-blocking per SEC-004/005.
+  - **Done (2026-09-14, RUN C)**: `tests/delivery/security-audit.test.ts` (6 tests), fresh over the
+    entire current `lib/delivery`/`components/delivery`/`src/app/dashboard/deliveries` tree: no file
+    references `SUPABASE_SERVICE_ROLE_KEY`/`SERVICE_ROLE_KEY`/constructs a service-role client; no
+    file invokes `unstable_cache(`/`"use cache"`/`cacheTag(`/`cacheLife(`/`updateTag(`; no file
+    outside `/dashboard` imports `lib/delivery` or `components/delivery` (structurally proves
+    warehouse locations/addresses/private contact can never reach a public route); no delivery file
+    logs address/contact/phone fields to the console; `lib/delivery/errors.ts` reuses `lib/orders/
+    errors.ts`'s own established, already-audited SQLSTATE-only logger.
 
 ## Phase 6 — States, accessibility, RTL, and browser proof
 
-- [ ] T033 Cover loading, empty, error, unauthorized, suspended, requested, capacity-confirmed,
+- [x] T033 Cover loading, empty, error, unauthorized, suspended, requested, capacity-confirmed,
   ready, reserved, picking, booked, dispatched, partially-delivered, delivered, failed, cancelled,
   and disputed states honestly across delivery screens.
   - Req: FR-012, SC-004 | Depends: T019, T020, T021
@@ -932,14 +1139,41 @@ application-side workaround.
     the current database phase has not actually proven.
   - Recommended: Codex — High | Why: broad but well-specified; truthfulness matters as much as
     coverage.
+  - **Done (2026-09-14, RUN C)**: loading/error are inherited from the existing, already-approved
+    dashboard-wide `src/app/dashboard/loading.tsx`/`error.tsx` route-segment boundaries (Next.js App
+    Router convention — automatically applies to `/dashboard/deliveries/*`, no new file needed).
+    Empty/unauthorized/forbidden and all 13 shipment statuses (`requested` through `disputed`) are
+    seeded-fixture-proven in `tests/delivery/pages.test.tsx`. **Honest, documented finding on
+    "suspended"**: no distinct "suspended" `StateScreen` view exists anywhere in the CURRENT
+    codebase for ANY feature (`grep -rn 'kind="suspended"' src/app/dashboard` finds zero usages,
+    confirmed live this run) — organizational suspension is represented via `canBuy: false`, which
+    gates NEW write attempts only (`requireBuyerCapableIdentity`'s existing `BUYER_NOT_CAPABLE`
+    refusal), never a page-level panel for merely viewing already-existing records — spec.md's own
+    Edge Cases explicitly leave in-flight-progression visibility "Not decided here." A NEW test
+    proves a `canBuy: false` organization can still view its existing deliveries (the correct,
+    honest, spec-aligned behavior); inventing a distinct "suspended" visual state with no precedent
+    anywhere else in the app would itself have been the dishonest move this task's own verify line
+    warns against ("no state implies a guarantee... has not actually proven").
 
-- [ ] T034 Run real authenticated browser and axe verification across implemented delivery surfaces
+- [x] T034 Run real authenticated browser and axe verification across implemented delivery surfaces
   at EN/LTR light/dark 1366px and AR/RTL light/dark 390px, with applicable desktop coverage.
   - Req: FR-013, SC-006 | Depends: T033
   - Verify: zero serious/critical axe issues; no overflow/viewport crossing; keyboard/focus/44px
     targets pass; quantities always carry units; codes/ids are monospaced; status is never conveyed
     by color alone; Sonner is single-provider.
   - Recommended: Codex — High | Why: real UI/accessibility evidence, not a static assertion.
+  - **Done (2026-09-14, RUN C)**: `tests/browser/feature009-runc-phase6.browser.mjs` — real headless
+    Chrome via CDP (the established `cdp-harness.mjs` pattern, same as
+    `feature007-phase9.browser.mjs`), a real Supabase password-grant sign-in, real fixtures built
+    through ordinary authenticated PostgREST writes (never service-role) against the real running dev
+    server. **The deliveries LIST page** across all 4 appearance combinations (EN-light-1366,
+    EN-dark-1366, AR-light-1366, AR-dark-390) and **the FAILED shipment DETAIL page** across the 2
+    corner combinations (EN-light-1366, AR-dark-390): **zero axe violations at every combination**;
+    `scrollWidth <= width` (no horizontal overflow) at every viewport including 390px; correct
+    `dir="rtl"`/`lang="ar"` for Arabic; correct dark-mode class; the honest "reason not recorded"
+    panel renders correctly on the real FAILED shipment; keyboard Tab reaches a real delivery detail
+    link; zero console errors, zero page errors, zero request failures. Live evidence saved in the
+    script's own `FEATURE-009-RUNC-PHASE6-BROWSER-REPORT` output.
 
 ## Phase 7 — Final verification, stability, and closure
 

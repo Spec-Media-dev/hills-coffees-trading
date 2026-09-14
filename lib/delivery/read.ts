@@ -137,3 +137,78 @@ export async function getShipmentById({ shipmentId }: { shipmentId: string }): P
     buyerOrganizationId: orderRow?.buyer_organization_id ?? "",
   };
 }
+
+const DEFAULT_PAGE_SIZE = 25;
+const MAX_PAGE_SIZE = 100;
+
+/**
+ * Feature 009 RUN C (T019) — the buyer's own shipment list across ALL of their orders, newest first.
+ * `order_shipments` has no `buyer_organization_id` column of its own (it is reached only via
+ * `order_id` -> `orders.buyer_organization_id`) — this uses PostgREST's embedded-resource filter
+ * (`orders!inner(...)` + `.eq("orders.buyer_organization_id", ...)`) so the join and the filter both
+ * run server-side in ONE query, under the caller's own RLS-scoped client.
+ *
+ * GENUINE BUG FIXED THIS RUN (live-discovered, not assumed): an earlier version of this function did
+ * a two-step "fetch every one of the org's order ids, then `.in('order_id', ids)`" — this silently
+ * broke once the org's real order count grew large (a live org in this project's own long-running
+ * test database reached 406 orders), because a `.in()` filter with hundreds of UUIDs serializes into
+ * a query string that can be silently truncated/rejected — a freshly created shipment could be
+ * missing from the result with NO error surfaced. The embedded-resource filter below never
+ * constructs such a query string at all. RLS (`shipments_view`) remains the real security boundary
+ * regardless — a caller could not read another organization's shipment even if this filter were
+ * somehow bypassed.
+ */
+export async function getShipmentsForOrganization({
+  organizationId,
+  page = 0,
+  pageSize = DEFAULT_PAGE_SIZE,
+}: {
+  organizationId: string;
+  page?: number;
+  pageSize?: number;
+}): Promise<{ rows: readonly ShipmentWithOrderContextDTO[]; hasMore: boolean }> {
+  const supabase = await createClient();
+  const boundedPageSize = Math.max(1, Math.min(pageSize, MAX_PAGE_SIZE));
+  const from = Math.max(0, page) * boundedPageSize;
+  const to = from + boundedPageSize;
+
+  const { data: rows } = await supabase
+    .from("order_shipments")
+    .select(`${SHIPMENT_SELECT}, orders!inner(order_code, buyer_organization_id)`)
+    .eq("orders.buyer_organization_id", organizationId)
+    .order("created_at", { ascending: false })
+    .order("id", { ascending: false })
+    .range(from, to);
+
+  type ShipmentRowWithOrder = ShipmentRow & { orders: { order_code: string; buyer_organization_id: string } };
+  const allRows = (rows as unknown as ShipmentRowWithOrder[] | null) ?? [];
+  const hasMore = allRows.length > boundedPageSize;
+  const pageRows = hasMore ? allRows.slice(0, boundedPageSize) : allRows;
+
+  return {
+    rows: pageRows.map((row) => ({
+      ...mapShipmentRow(row),
+      orderCode: row.orders.order_code,
+      buyerOrganizationId: row.orders.buyer_organization_id,
+    })),
+    hasMore,
+  };
+}
+
+/**
+ * Feature 009 RUN C (T023) — a bounded COUNT-only read for the dashboard overview's "where is it"
+ * contribution: shipments that have left the buyer's own DRAFT plan but have not yet reached a
+ * terminal outcome (`DELIVERED`/`CANCELLED`/`FAILED`) — i.e. genuinely "somewhere in progress" right
+ * now. Same embedded-resource-filter technique as `getShipmentsForOrganization` above (see its own
+ * comment for the scalability bug this avoids) — `{ count: "exact", head: true }`, no row data
+ * fetched, no aggregation performed here.
+ */
+export async function getActiveShipmentsCount({ organizationId }: { organizationId: string }): Promise<number> {
+  const supabase = await createClient();
+  const { count } = await supabase
+    .from("order_shipments")
+    .select("id, orders!inner(buyer_organization_id)", { count: "exact", head: true })
+    .eq("orders.buyer_organization_id", organizationId)
+    .in("status", ["REQUESTED", "CAPACITY_CONFIRMED", "READY", "RESERVED", "PICKING", "BOOKED", "DISPATCHED", "PARTIALLY_DELIVERED", "DISPUTED"]);
+  return count ?? 0;
+}

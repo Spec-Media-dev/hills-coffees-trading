@@ -1079,6 +1079,89 @@ export const en = {
           action: "Go to your orders",
         },
       },
+      /**
+       * Feature 009 RUN C (T019/T033) — the full 13-value `order_shipments.status` vocabulary
+       * (`order_shipments_status_allowed`), verbatim from the live CHECK constraint. Every rendered
+       * shipment status MUST use exactly one of these labels (FR-007/SC-004) — never an invented
+       * synonym, never a status this list omits.
+       */
+      status: {
+        DRAFT: "Draft",
+        REQUESTED: "Requested",
+        CAPACITY_CONFIRMED: "Capacity confirmed",
+        READY: "Ready",
+        RESERVED: "Reserved",
+        PICKING: "Picking",
+        BOOKED: "Booked",
+        DISPATCHED: "Dispatched",
+        PARTIALLY_DELIVERED: "Partially delivered",
+        DELIVERED: "Delivered",
+        CANCELLED: "Cancelled",
+        FAILED: "Failed",
+        DISPUTED: "Disputed",
+      },
+      nav: {
+        deliveries: "Deliveries",
+      },
+      /** Feature 009 RUN C (T023) — the "where is it" overview contribution: shipments genuinely in progress right now. */
+      overview: {
+        activeCard: "In progress",
+        activeValue: "{count} delivery in progress",
+        activeValuePlural: "{count} deliveries in progress",
+      },
+      list: {
+        title: "Deliveries",
+        breadcrumb: "Deliveries",
+        description: "Track every shipment across your orders, from request through delivery.",
+        caption: "Your deliveries",
+        columns: {
+          code: "Shipment",
+          order: "Order",
+          status: "Status",
+          updated: "Updated",
+        },
+        viewDetails: "View details",
+        empty: {
+          title: "No deliveries yet",
+          description: "Once you plan a delivery from one of your orders, it will appear here.",
+        },
+      },
+      /**
+       * Feature 009 RUN C (T020) — the shipment detail/tracking page. `reason` copy is deliberately
+       * honest about a genuine, confirmed database gap: `order_shipments` has NO reason/cancellation-
+       * note/failure-note column (confirmed against the live schema — see `lib/delivery/warehouse.ts`'s
+       * own header for the same finding). `notRecorded` renders instead of fabricating one.
+       */
+      detail: {
+        breadcrumb: "Delivery",
+        itemsHeading: "Items",
+        addressHeading: "Delivery address",
+        contactHeading: "Contact",
+        timelineHeading: "Status",
+        custodyHeading: "Custody",
+        custodyEmpty: "No custody record is linked to this delivery yet.",
+        reason: {
+          heading: "Reason",
+          notRecorded: "No reason has been recorded for this status yet.",
+        },
+        disputed: {
+          note: "This delivery is disputed. Dispute details and resolution are handled separately.",
+        },
+        itemsTable: {
+          item: "Item",
+          planned: "Planned",
+          delivered: "Delivered",
+          progress: "Progress",
+          partial: "Partial",
+          complete: "Complete",
+          notStarted: "Not started",
+        },
+        timeline: {
+          created: "Created",
+          ready: "Ready since",
+          current: "Current status",
+        },
+      },
     },
 
 } as const;
