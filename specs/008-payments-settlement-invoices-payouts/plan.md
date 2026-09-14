@@ -1,137 +1,171 @@
 # Implementation Plan: Payments, Settlement, Invoices & Payouts
 
-**Feature**: `008-payments-settlement-invoices-payouts` | **Date**: 2026-09-08 |
-**Spec**: [spec.md](./spec.md) | **Status**: Planning prepared — implementation NOT started
+**Feature**: `008-payments-settlement-invoices-payouts`
+**Reconciled**: 2026-09-13
+**Spec**: [spec.md](./spec.md)
+**Status**: Planning reconciled — implementation NOT started
 
 ## Summary
 
-Deliver the MVP finance path: payment instructions → proof submission → finance decision →
-database-executed settlement and title transfer → outcome visibility for both parties, plus
-invoices and payouts. The two database functions (`submit_payment_proof`, `admin_review_payment`)
-own every commercial effect; this feature is a guarded, idempotent, well-mapped caller and a
-faithful presenter. Title transfer exists in exactly one place, and it is not in this codebase.
+Feature 008 moves from an obsolete manual-bank-proof plan to an **escrow-oriented,
+provider-neutral** plan. It can start with private finance reads, controlled errors, immutable
+snapshot presentation, and an honest funding-unavailable state. It cannot implement a real funding,
+provider event, escrow release, or provider payout until a provider is selected and the required
+database contract is approved.
 
-## Technical Context
+Feature 007 is closed and already owns checkout, reservation, HOLD, proforma, payment creation,
+commercial snapshots, and lazy expiry. Feature 008 consumes those facts. It never recalculates,
+reserves, changes checkout totals, or directly mutates commercial settlement effects.
 
-**Functions**: `submit_payment_proof(order_id, file_asset_id, reference)`,
-`admin_review_payment(payment_id, approved, reason)` (FINANCE-only, atomic settlement).
-**Reads**: `payments`, `payment_proofs`, `payment_reviews`, `payment_events`, `order_financials`,
-`proforma_invoices` + items, `tax_invoices`, `payouts`, `payment_accounts` (admin-managed config).
-**Direct writes**: none of consequence — everything commercial goes through the two functions.
-**Caching**: none (Constitution XI).
-**Testing**: role negatives, settlement effect verification, idempotency, expired-reservation
-refusal, cross-organization isolation.
+## Technical context and authority
 
-## Database capabilities consumed
+**Current authorities**: SRS MKT-04, MKT-05, API-02, OPS-01, the current database schema report,
+`DATABASE-CAPABILITY-MAP.md`, `commission-capability.md`, and the Feature 007 live-verification
+handoff. Where older SQL/planning prose conflicts with those sources, current capability/live
+evidence wins.
 
-| Need | Approved mechanism | Note |
-|---|---|---|
-| Submit proof | `submit_payment_proof()` | SECURITY DEFINER; creates `payment_proofs`, advances state |
-| Settle / reject | `admin_review_payment()` | `is_finance_operator()` only; performs the entire settlement transaction |
-| Amount due | `order_financials.buyer_total_amount` | snapshotted at checkout — never recomputed |
-| Payment visibility | `payments` SELECT (`can_view_order` or finance/auditor) | |
-| Proof visibility | `payment_proofs` SELECT (order-viewer or finance/auditor) | no member INSERT policy — the function handles it |
-| Proforma / tax invoice | `proforma_invoices`, `proforma_invoice_items`, `tax_invoices` via `can_view_order` | tax invoice writes are finance-only |
-| Payouts | `payouts` SELECT (own seller org or admin); ALL for finance | created by `admin_review_payment` |
-| Bank details | `payment_accounts` (admin-only ALL) | read-only here; never member-writable |
-| Commission (per order) | `order_financials.commission_policy_id` / `commission_percentage_snapshot` / `commission_amount` / `seller_net_amount` / `total_quantity_kg` | **Snapshot only.** Written by `checkout_order()`; read by `admin_review_payment()` for payouts. This feature never reads `commission_policies`/`commission_tiers` |
+**Application shape**:
 
-**Commission capability** — implemented in the database, fully described in
-[`docs/database/commission-capability.md`](../../docs/database/commission-capability.md). The three
-properties this feature must preserve and prove:
+| Layer | Authority / responsibility |
+|---|---|
+| Postgres + approved database procedures | Commercial truth, RLS, order/payment/settlement/title invariants, snapshots, and atomic effects. |
+| Supabase Edge Functions | Future provider-secret custody, provider calls, webhook/event ingestion, signature verification, replay handling, normalization, retry/recovery. No implementation before provider selection. |
+| Next.js Server Actions | Web adapter only: validate/authenticate web requests and call the shared boundary. Never the sole payment backend. |
+| Future React Native | Calls the same Supabase/Edge/DB boundary; never depends on a Next.js Server Action. |
 
-1. **Total-quantity tiering** — one band is chosen from the order's *total* quantity (inclusive
-   minimum, exclusive maximum, NULL maximum = open-ended) and its percentage applies to the whole
-   base subtotal. It is **not** progressive/marginal banding, and the base excludes shipping and VAT.
-2. **Snapshot at checkout** — policy id, percentage, commission amount, seller net and total
-   quantity are frozen into `order_financials` at checkout time.
-3. **Historical immutability** — settlement and payouts read that snapshot; a later SUPER_ADMIN
-   policy/tier edit (Feature 010) affects eligible *future* checkouts only and must never
-   recalculate previous orders or existing payouts. No recalculation action may exist in this
-   feature.
+Provider secrets never enter `NEXT_PUBLIC_*`, browser bundles, client components, `EXPO_PUBLIC_*`, or
+React Native client code. A client submits minimal identifiers; backend code re-reads order,
+organization, payment, amount, currency, state, and permissions.
 
-`COMMISSION-OPEN-01` (0% fallback when no tier matches) is a Business/Finance decision owned by this
-feature — see spec.md Open items. It is not resolved here and no database change is proposed.
+**Private-data/caching rule**: payment, settlement, invoice, payout, proof, provider, and title
+truth are authorization-scoped fresh reads. There is no shared cache, public route, public metadata,
+or public API for them.
 
-## Constitution Check
+## Current database capability assessment
 
-| Principle | Status | Note |
-|---|---|---|
-| III Database authority | PASS | Zero schema change; DB-BLOCK-01, refunds and dual-control recorded |
-| VIII Server/DB authorization | PASS | FR-003, SEC-001 — finance role enforced in app *and* function |
-| IX Postgres transactional authority | PASS | FR-001/FR-002 — settlement is entirely database-owned |
-| X Transactional integrity | PASS | FR-006 idempotence; SC-003/SC-004 tests |
-| XI Caching / no external infra | PASS | FR-010; no gateway/webhook infrastructure (FR-011) |
-| XII Server Action discipline | PASS | FR-012 safe error mapping |
-| XIV Security & secrets | PASS | SEC-001..006; no member-facing bank-detail changes |
-| XV Ambiguity rule | PASS | Refunds, dual control, payout evidence and DB-BLOCK-01 surfaced |
+| Area | Reusable now | Manual-specific / legacy | Escrow-compatible | Missing or provider-dependent |
+|---|---|---|---|---|
+| Checkout-created payment | `checkout_order()` atomically creates/updates the payment, amount, currency, correlation ID, and `PENDING` state. | Default method is `BANK_TRANSFER`. | `payments.payment_method` already permits `PROVIDER`; `provider`, `external_reference`, `idempotency_key`, `correlation_id` columns exist. | Checkout/provider initiation must be designed after selection; no current trusted provider path. |
+| Provider events | `payment_events(payment_id, provider, external_event_id, event_type, payload, correlation_id)` exists. Unique `(provider, external_event_id)` supports duplicate receipt detection when both values are present. | None. | Correlation and unique external event key are useful primitives. | `provider`/`external_event_id` are nullable, so the key alone is not a complete inbound-event guarantee; there is no Edge ingestion, signature evidence, normalized processing state, ordering/retry/DLQ mechanism, or DB trust-to-settlement gate. |
+| Settlement/title | `admin_review_payment()` is atomic, FINANCE-authorized, locks payment/order/reservation, is confirmed-state idempotent, writes ownership/custody/fill/payout/proforma/order effects. | Existing rejection/proof cycle semantics. | Its atomic transaction and payout aggregation remain the correct settlement core. | It can approve without proving trusted provider funding; its `auth.uid()` FINANCE guard is not provider-event identity. |
+| Payment proof | `submit_payment_proof()` records a proof and moves current manual states. | Entire flow is proof/manual-review specific. | None for the primary target. | `p_file_asset_id` and `payment_proofs.file_asset_id` are required, so reference-only submission is not currently possible; no dedicated payment-proof Storage bucket/policies exist. Fallback only if separately approved. |
+| Financial snapshots | `order_financials` preserves amount, currency, tax and commission/payout inputs; `proforma_invoices` exists. | None. | Directly reusable. | None for private display; tax/proof document bytes still require proper Storage. |
+| Payouts | `payouts` records amount, currency, status, `paid_by`, `paid_at`, and reference; unique order/seller identity. | Existing status may reflect manual operations. | Platform accounting/payout-record state is reusable. | Provider money movement/release evidence, reconciliation, and event mapping depend on provider/business model. |
+| Payment accounts | Admin-only configuration table exists. | Bank-account fields and checkout default are manual-bank shaped. | May remain operational/manual-fallback data. | Do not expose member bank mutations or primary bank instructions; provider payout/bank requirements remain undecided. |
 
-## Architecture decisions
+### Honest status mapping
 
-1. **Two single-caller modules.** `lib/finance/proof.ts` is the only caller of
-   `submit_payment_proof()`; `lib/finance/settlement.ts` is the only caller of
-   `admin_review_payment()`. Both are greppable in one command — the structural guarantee that
-   settlement has exactly one entry point.
-2. **The decision layer is shared, the screens are not.** `lib/finance/settlement.ts` exposes
-   `decidePayment({paymentId, approved, reason})` with guards, idempotency and error mapping. 010's
-   Finance console renders the queue and calls this; no console screen calls the function directly.
-3. **Idempotency by payment.** A decision is keyed on the payment's current state; a repeat decision
-   on an already-`CONFIRMED` payment is a safe no-op rather than a second call, and the function's own
-   guard is the backstop.
-4. **Amounts are never computed.** Every figure displayed comes from `order_financials` or `payouts`.
-   `grep` for arithmetic on money fields is part of the verification (SC-005).
-5. **Bank details are configuration, not code.** Instructions render from `payment_accounts`; when
-   none is active the UI says so explicitly rather than rendering an empty or invented block (FR-005).
-6. **File handling stops at the seam.** Like 003, a single marked function would attach a
-   `file_asset_id`; it is inert until a bucket is approved. Reference-text proof still flows.
-7. **No gateway, no webhooks.** MVP is manual. If a provider is later approved, SRS API-02's
-   requirements are pre-recorded in the spec so nobody implements a webhook without them.
-8. **Settlement outcomes are read from the domain owners.** Custody/positions come from 005, listing
-   fills from 006 — this feature does not duplicate those reads, it links to them.
+| Existing vocabulary | Safe meaning in this plan |
+|---|---|
+| `payments.PENDING` | Internal payment exists after checkout; not proof that funding was initiated or received. |
+| `PROOF_SUBMITTED`, `UNDER_REVIEW`, `REJECTED` | Existing manual-proof/review vocabulary only; not escrow aliases. |
+| `CONFIRMED` | Existing post-settlement result; not a trusted-funding precursor. |
+| `EXPIRED`, `VOID` | Existing terminal/payment outcome vocabulary; no provider-specific mapping assumed. |
+| `payment_method.PROVIDER` | Available schema value only; not proof that provider initiation is implemented. |
 
-## Project structure (files this feature adds)
+No new lifecycle status is invented in application code. The selected provider and approved database
+design determine whether a migration introduces an explicit funding/settlement-eligibility model or
+uses another formally reviewed representation.
+
+## Required architecture decisions
+
+1. **Provider decision gate.** Phase 1 may begin now. A provider decision, legal/banking approval,
+   credentials model, webhook/event contract, funding/release semantics, and payout model are required
+   before provider-specific work or production trading.
+2. **Provider-neutral seam.** The domain names only four operations conceptually: initiate
+   funding/escrow, retrieve/verify provider state, normalize a provider event, and correlate it to an
+   internal payment/order. It does not create fictional adapter signatures or a generic payment SDK.
+3. **Webhook policy.** No webhook/Event Function is built before selection. If required, it must be an
+   Edge Function that verifies signatures, persists/rejects duplicate IDs, handles ordering/retry/DLQ
+   according to API-02, maps errors safely, and never trusts the client.
+4. **Settlement classification — B.** `admin_review_payment()` is reusable only after an approved DB
+   change makes trusted funding a database-enforced precondition (or supplies an equivalently secure
+   provider-event settlement procedure). Application code cannot close this gap.
+5. **Proof classification — C.** `submit_payment_proof()` is legacy for the primary escrow target.
+   It has no primary route/caller. A manual fallback needs separate Business/Finance approval; only
+   then is DB-BLOCK-01 relevant to its file bytes.
+6. **Payment-account classification.** `payment_accounts` remains an admin-configured operational or
+   manual-fallback capability. Feature 010 owns its configuration UI; Feature 008 adds no member
+   bank-detail mutation or primary bank-instruction surface.
+7. **Settlement/payout separation.** A database payout record is not actual money release. Provider
+   release/reconciliation proof is provider-dependent and must not be claimed by a status label alone.
+8. **Commission immutability.** This feature reads only `order_financials` snapshots and existing
+   payout values. It never queries live tiers to derive historical value. `COMMISSION-OPEN-01` stays
+   open with Business/Finance and blocks production trading only.
+9. **Feature boundaries.** Feature 005 presents custody, 006 presents listings/fills, 009 presents
+   delivery progression, 010 presents finance/admin operations, and 012 owns disputes/notifications/
+   audit workflows. Feature 008 supplies only its guarded finance/domain seam and payment-state links.
+10. **UX/error convention.** Field validation is inline. Global/action/server outcomes use the one
+    existing Sonner provider with localized controlled codes. No raw provider/Postgres/Supabase errors
+    or sensitive financial payloads are displayed or logged.
+
+## Project structure after implementation
 
 ```text
-src/app/dashboard/
-├── payments/page.tsx + [orderId]/page.tsx      # NEW — amount due, instructions, proof submission, status
-├── payments/[orderId]/actions.ts                # NEW — proof submission action
-├── documents/page.tsx                            # NEW — proformas + tax invoices for permitted orders
-└── payouts/page.tsx                              # NEW — seller payout list (can_sell organizations)
-
 lib/finance/
-├── proof.ts          # NEW — only caller of submit_payment_proof()
-├── settlement.ts     # NEW — only caller of admin_review_payment(); consumed by 010
-├── read.ts           # NEW — payments/proofs/invoices/payouts DTOs, scoped
-├── instructions.ts   # NEW — payment_accounts → instructions presentation
-├── errors.ts         # NEW — finance function exception → safe error mapping
-└── validation.ts     # NEW — Zod schemas (reference text, decision reason)
+├── validation.ts       # exact current status/DTO allowlists; no invented escrow states
+├── errors.ts           # controlled finance/provider result codes only
+├── read.ts             # RLS-scoped payment/financial/invoice/payout reads
+├── funding.ts          # provider-neutral boundary; unavailable until selected adapter exists
+├── settlement.ts       # sole app caller of approved post-gate settlement procedure
+└── types.ts            # shared web/mobile-safe DTOs, never secrets
 
-components/finance/   # NEW — amount-due panel, instructions block, proof form,
-                      #       payment status timeline, payout list, invoice cards
+supabase/functions/<provider-boundary>/  # provider-selected only; future Edge Function
 
-tests/finance/        # NEW — role negatives, settlement effects, idempotency, isolation
+src/app/dashboard/
+├── payments/           # private payment state and later funding adapter UI
+├── documents/          # permitted proforma/tax-invoice metadata/presentation
+└── payouts/            # seller payout-record presentation
+
+components/finance/     # existing primitives/tokens/Sonner; EN+AR from first render
+tests/finance/          # domain, RLS, provider-boundary, settlement, UI and audit proofs
 ```
 
-## Testing strategy (release-blocking)
+The Edge Function directory is planned only; it is not created until a provider is selected.
 
-| Test | Proves |
+## Phase sequence and gates
+
+| Phase | Goal | Can start now? | Blocking dependency |
+|---|---|---:|---|
+| 1 | Provider-neutral finance foundation and safe private reads | Yes | Feature 007 closed outputs only |
+| 2 | Provider decision and DB-contract gate | No code until external decision | Provider + Finance/Legal/Banking approval |
+| 3 | Provider funding/event boundary | No | Phase 2, approved migration, credentials |
+| 4 | Authoritative settlement/title boundary | No | Phase 3 trusted funding gate |
+| 5 | Payment/document/payout member integration | Partially; final funded states depend on Phase 4 | Read capability now; final states after Phase 4 |
+| 6 | Release-blocking financial/security tests | Partially | Provider scenarios after Phase 3/4 |
+| 7 | States/accessibility/RTL/browser proof | Partially | Implemented routes |
+| 8 | Final verification and closure | No | All in-scope implementation and provider gates |
+
+## Testing strategy
+
+| Test family | Required proof |
 |---|---|
-| **Role negatives** — member/warehouse/compliance/auditor attempt a decision | SC-002, AC-03: only finance can settle |
-| **Settlement effects** — approve once, inspect the database | Exactly one ownership event per item, custody created, listing filled, reservation `CONSUMED`, payment `CONFIRMED`, proforma `PAID`, order `PAID` |
-| **Idempotency** — decide twice | SC-003: no duplicate settlement/ownership/payout |
-| **Expired reservation** — approve after hold expiry | SC-004: refused, no title moves |
-| **Pending payment** — assert no ownership event exists before approval | SC-004/AC-03 |
-| **Isolation** — other organization's payment/payout/invoice | SC-006 |
-| **Amount fidelity** — displayed vs `order_financials` | SC-005 |
-| **Error mapping** — each raised exception | SC-007 |
+| Read/visibility | RLS and route boundary: buyer/seller/finance/auditor allowed only as appropriate; cross-org/anonymous/public denied. |
+| Snapshot fidelity | Amount, currency, tax, commission and payout displays equal stored fields; later tier changes do not alter historic values. |
+| Provider-neutral unavailable | Before selection there is no fake payment success, bank instruction, provider API call, secret, or client-trusted state. |
+| Provider events — blocked until selected | Signature/forgery rejection, duplicate/replay event, wrong payment/order correlation, ordering/retry/DLQ semantics. |
+| Settlement | No premature title; exactly one database-owned settlement/title/custody/fill/payout effect; expired reservation, role negatives, and concurrency are refused safely. |
+| Payout | Exact per-seller record count/amount from snapshot; release cannot be claimed without provider evidence. |
+| Security audit | No service role in runtime, no shared cache/private leakage, no raw errors/log secrets, no direct commercial writes. |
+| UI/browser | EN/AR, RTL/LTR, light/dark, 390/1366/desktop, focus/keyboard, touch targets, no overflow, loading/empty/error/unavailable/pending/settled states. |
 
-## Risks & blockers
+## Final verification baseline
 
-| Risk / blocker | Impact | Handling |
+The feature-specific/product lint scope must exit 0, alongside typecheck, full tests, production
+build, and `git diff --check`. Repository-wide `npm run lint` currently has an established historical
+`docs/claude-design` baseline; it must be run, reported with its true exit/result, and compared against
+that baseline. It must not be hidden through ESLint configuration changes. A literal repo-wide exit-0
+requirement would be an explicit planning blocker, not a result to fabricate.
+
+## Risks and open-item handling
+
+| Risk / item | Classification | Handling |
 |---|---|---|
-| **DB-BLOCK-01** | Payment proof files cannot be stored | Reference-text path only; single inert file seam; recorded in spec |
-| **Refund/chargeback model undecided** | No refund workflow can be built | Recorded as a Sprint 0 finance/legal dependency |
-| **Dual control (OPS-01) undecided** | 010's console design depends on it | Recorded; single-reviewer is what the schema supports today |
-| Temptation to "confirm payment" in app code | Would break AC-03 catastrophically | Single-caller discipline + grep verification + tests |
-| Recomputing totals for display | Divergence from snapshot | FR-004 + SC-005 test |
-| Two operators deciding simultaneously | Duplicate settlement | Idempotency test + function's own guard |
+| Provider choice, credentials, webhook/event contract | Blocks provider-specific implementation | Phase 2 gate; no provider guessing. |
+| Trusted-funding DB gate and lifecycle state vocabulary | Blocks provider-specific implementation | Approved migration/design required; no app workaround. |
+| DB-BLOCK-01 payment-proof bytes | Informational for primary path; blocks manual fallback attachments | Preserve isolation; no bucket reuse or fake upload. |
+| Refunds/chargebacks | Blocks production trading only | Finance/Legal decision; no mechanics invented. |
+| Dual control | Deferred to 010 | Current table supports a single reviewer; do not invent maker-checker. |
+| Payout release evidence | Blocks production trading only | Distinguish record from money movement; provider decision required. |
+| COMMISSION-OPEN-01 | Blocks production trading only | Preserve snapshot; Business/Finance decides 0% vs fail-closed. |
+| Feature 009 delivery | Deferred to 009 | Surface settlement handoff only. |

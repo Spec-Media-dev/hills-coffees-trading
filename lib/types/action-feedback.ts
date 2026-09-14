@@ -103,6 +103,22 @@ export const ACTION_FEEDBACK = {
    * proof/escrow hand-off may proceed. Feature 008's real payment action MUST call that boundary.
    */
   ORDER_HOLD_EXPIRED: "order_hold_expired",
+
+  /**
+   * Feature 008 Phase 1 (T002) — the finance/escrow domain's own safe result codes
+   * (`lib/finance/errors.ts` is the single place that maps a raised database exception string to one
+   * of these; `lib/finance/read.ts`/`lib/finance/funding.ts` never inspect a raw Postgres/PostgREST
+   * message themselves). Reuses this SAME `ActionFeedbackResult` contract rather than inventing a
+   * second one (mirrors Feature 007's own established precedent above).
+   */
+  FINANCE_READ_FAILED: "finance_read_failed",
+  /**
+   * `lib/finance/funding.ts`'s controlled, honest outcome: no provider is selected and no approved
+   * database trusted-funding gate exists yet (spec.md PS2, FR-003 through FR-007). This code MUST
+   * NEVER be interpreted as, or paired with copy implying, payment success, escrow initiation, a bank
+   * instruction, or a pending provider state.
+   */
+  FINANCE_FUNDING_UNAVAILABLE: "finance_funding_unavailable",
 } as const;
 
 export type ActionFeedbackCode = (typeof ACTION_FEEDBACK)[keyof typeof ACTION_FEEDBACK];

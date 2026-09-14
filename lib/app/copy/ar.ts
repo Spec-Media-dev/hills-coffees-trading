@@ -926,4 +926,17 @@ export const ar: DeepPartial<AppCopy> = {
       },
     },
 
+    /** Feature 008 Phase 1 (T002) — see `en.ts`'s matching block for scope/honesty notes. */
+    finance: {
+      errors: {
+        readFailed: "تعذّر تحميل بيانات المالية. يرجى المحاولة مرة أخرى.",
+      },
+      funding: {
+        unavailable: {
+          title: "التمويل غير متاح حاليًا",
+          description: "خطوات التمويل لهذا الطلب غير متاحة بعد. لم يتم إعداد وسيلة دفع، ولم يُخصم أو يُحجز أي مبلغ.",
+        },
+      },
+    },
+
 };

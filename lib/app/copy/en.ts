@@ -1027,4 +1027,26 @@ export const en = {
       },
     },
 
+    /**
+     * Feature 008 Phase 1 (T002) — the finance/escrow domain's own controlled result-code copy only.
+     * No payment/funding UI exists yet (Phase 5, T022–T026); this is the localization-ready text for
+     * `ACTION_FEEDBACK.FINANCE_READ_FAILED`/`FINANCE_FUNDING_UNAVAILABLE` so a later Server Action or
+     * page can map its result to a real message on day one, never a placeholder. The unavailable copy
+     * is deliberately honest and non-actionable (run directive "UNAVAILABLE UX CONTRACT"): it never
+     * claims payment success, escrow initiation, a bank instruction, or a pending provider state, and
+     * mirrors the existing `orders.payment.note` precedent's tone ("Payment steps arrive in a later
+     * release. No payment is collected here.") rather than inventing new phrasing conventions.
+     */
+    finance: {
+      errors: {
+        readFailed: "We couldn't load that finance information. Please try again.",
+      },
+      funding: {
+        unavailable: {
+          title: "Funding isn't available",
+          description: "Funding steps for this order aren't available yet. No payment method has been set up, and nothing has been charged or reserved.",
+        },
+      },
+    },
+
 } as const;
