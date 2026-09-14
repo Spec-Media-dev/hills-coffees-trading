@@ -65,7 +65,10 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ or
   ]);
 
   // At most one buyer-owned shipment plan per order (a RUN A narrowing, not a schema limit).
-  const shipment = shipments.length > 0 ? shipments[shipments.length - 1]! : null;
+  // Feature 009 RUN B (T014/T015): a `CANCELLED` plan (the buyer's own withdrawn DRAFT) is excluded
+  // from this pick — otherwise a cancelled plan would permanently block starting a fresh one.
+  const activeShipments = shipments.filter((row) => row.status !== "CANCELLED");
+  const shipment = activeShipments.length > 0 ? activeShipments[activeShipments.length - 1]! : null;
   const shipmentItems = shipment ? await getShipmentItems({ shipmentId: shipment.id }) : [];
 
   const isDraft = order.status === "DRAFT";

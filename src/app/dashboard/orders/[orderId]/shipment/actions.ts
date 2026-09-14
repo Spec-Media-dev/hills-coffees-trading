@@ -3,17 +3,21 @@
 import { revalidatePath } from "next/cache";
 
 import { getRequestIdentity } from "@/lib/auth/dal";
-import { mapShipmentError } from "@/lib/orders/errors";
-import { getOrderById, getOrderShipments } from "@/lib/orders/read";
-import { createClient } from "@/lib/supabase/server";
+import * as deliveryBuyer from "@/lib/delivery/buyer";
 import { AddShipmentItemInput, CreateShipmentInput } from "@/lib/orders/validation";
 import { ACTION_FEEDBACK, type ActionFeedbackResult } from "@/lib/types/action-feedback";
 
 /**
- * Feature 007 RUN A (T007) — the buyer-owned shipment-planning slice ONLY: `order_shipments` INSERT
- * as `DRAFT`, UPDATE to `REQUESTED`, and `shipment_items` while `DRAFT`. Everything beyond
- * `REQUESTED` belongs to Feature 009/the warehouse role — this file never sets, exposes, or even
- * names a later status as a selectable option anywhere in its own code or forms.
+ * Feature 007 RUN A (T007) / Feature 009 RUN B (T014) — the buyer-owned shipment-planning Server
+ * Action surface: `order_shipments` INSERT as `DRAFT`, UPDATE to `REQUESTED` or `CANCELLED` (DRAFT
+ * only), and `shipment_items` while `DRAFT`. Everything beyond `REQUESTED` belongs to the warehouse
+ * role (`lib/delivery/warehouse.ts`) — this file never sets, exposes, or even names a later status as
+ * a selectable option anywhere in its own code or forms.
+ *
+ * REUSE, NOT DUPLICATION: every actual write now lives in `lib/delivery/buyer.ts` (T014) — this file
+ * is Zod validation + identity resolution + the thin Server Action contract only, mirroring
+ * `dashboard/orders/actions.ts` -> `lib/orders/drafts.ts`'s own established split. `cancelShipment`
+ * is the one NEW action (Phase 2's `shipments_buyer_draft_update` RLS widening, live since RUN A2).
  *
  * SAME six-step contract and acting-organization discipline as `dashboard/orders/actions.ts`.
  */
@@ -26,9 +30,6 @@ async function requireBuyerCapableIdentity() {
   if (!identity.organization.canBuy) return null;
   return identity;
 }
-
-const SHIPMENT_SELECT =
-  "id, order_id, shipment_code, status, delivery_method, country_code, city, address_line, contact_name, contact_phone, shipping_fee, currency, ready_at, delivered_at, created_by, created_at, updated_at";
 
 /**
  * T007 — creates a `DRAFT` shipment plan on the caller's own order. `order_id`/`created_by` are
@@ -52,43 +53,20 @@ export async function createShipment(_prevState: ActionFeedbackResult<{ id: stri
     return { ok: false, code: ACTION_FEEDBACK.BUYER_NOT_CAPABLE };
   }
 
-  // Re-read the parent order under the caller's OWN organization id — a cross-org/nonexistent
-  // order id refuses identically, before any shipment write is attempted (no existence leak).
-  const order = await getOrderById({ organizationId: identity.organization!.organizationId, orderId });
-  if (!order) {
-    return { ok: false, code: ACTION_FEEDBACK.ORDER_NOT_FOUND };
-  }
-
-  const supabase = await createClient();
-  const { data: inserted, error } = await supabase
-    .from("order_shipments")
-    .insert({
-      order_id: orderId,
-      created_by: identity.userId,
-      delivery_method: parsed.data.deliveryMethod,
-      country_code: parsed.data.countryCode,
-      city: parsed.data.city ?? null,
-      address_line: parsed.data.addressLine,
-      contact_name: parsed.data.contactName,
-      contact_phone: parsed.data.contactPhone,
-    })
-    .select("id")
-    .single();
-
-  if (error || !inserted) {
-    return { ok: false, code: mapShipmentError(error) };
-  }
+  const result = await deliveryBuyer.createDraftShipment({
+    organizationId: identity.organization!.organizationId,
+    userId: identity.userId,
+    orderId,
+    input: parsed.data,
+  });
+  if (!result.ok) return result;
 
   revalidatePath(`/dashboard/orders/${orderId}`);
-  return { ok: true, data: { id: inserted.id } };
+  return result;
 }
 
 /**
- * T007 — plans a quantity of one existing order item onto a DRAFT shipment. Re-verifies, server-
- * side, that the target shipment (a) belongs to the caller's own order and (b) is genuinely `DRAFT`
- * before attempting the write — `validate_shipment_item`'s trigger (`shipment_plan_is_closed`) and
- * the `shipment_items_buyer_insert` RLS policy (`s.status = 'DRAFT'`) both refuse regardless, this
- * is defense in depth only.
+ * T007 — plans a quantity of one existing order item onto a DRAFT shipment.
  */
 export async function addShipmentItem(_prevState: ActionFeedbackResult | undefined, formData: FormData): Promise<ActionFeedbackResult> {
   const orderId = formData.get("orderId");
@@ -107,40 +85,22 @@ export async function addShipmentItem(_prevState: ActionFeedbackResult | undefin
     return { ok: false, code: ACTION_FEEDBACK.BUYER_NOT_CAPABLE };
   }
 
-  const order = await getOrderById({ organizationId: identity.organization!.organizationId, orderId });
-  if (!order) {
-    return { ok: false, code: ACTION_FEEDBACK.ORDER_NOT_FOUND };
-  }
-
-  const shipments = await getOrderShipments({ orderId });
-  const shipment = shipments.find((row) => row.id === shipmentId);
-  if (!shipment) {
-    return { ok: false, code: ACTION_FEEDBACK.SHIPMENT_NOT_FOUND };
-  }
-  if (shipment.status !== "DRAFT") {
-    return { ok: false, code: ACTION_FEEDBACK.SHIPMENT_NOT_EDITABLE };
-  }
-
-  const supabase = await createClient();
-  const { data: inserted, error } = await supabase
-    .from("shipment_items")
-    .insert({ shipment_id: shipmentId, order_item_id: parsed.data.orderItemId, planned_quantity_kg: parsed.data.plannedQuantityKg })
-    .select("id")
-    .single();
-
-  if (error || !inserted) {
-    return { ok: false, code: mapShipmentError(error) };
-  }
+  const result = await deliveryBuyer.addShipmentItem({
+    organizationId: identity.organization!.organizationId,
+    orderId,
+    shipmentId,
+    input: parsed.data,
+  });
+  if (!result.ok) return result;
 
   revalidatePath(`/dashboard/orders/${orderId}`);
   return { ok: true, data: undefined };
 }
 
 /**
- * T007 — the ONLY status transition this file (or any buyer-facing surface) ever attempts:
- * `DRAFT -> REQUESTED`. `validate_shipment_transition`'s trigger and the `shipments_buyer_draft_
- * update` RLS policy (`with_check`: `status IN ('DRAFT','REQUESTED')`) both independently refuse
- * anything else; this action offers no status selector at all — the target value is a literal.
+ * T007 — the ONLY forward status transition this file ever attempts: `DRAFT -> REQUESTED`.
+ * `validate_shipment_transition`'s trigger and the `shipments_buyer_draft_update` RLS policy both
+ * independently refuse anything else; this action offers no status selector at all.
  */
 export async function requestShipment(_prevState: ActionFeedbackResult | undefined, formData: FormData): Promise<ActionFeedbackResult> {
   const orderId = formData.get("orderId");
@@ -154,17 +114,40 @@ export async function requestShipment(_prevState: ActionFeedbackResult | undefin
     return { ok: false, code: ACTION_FEEDBACK.BUYER_NOT_CAPABLE };
   }
 
-  const order = await getOrderById({ organizationId: identity.organization!.organizationId, orderId });
-  if (!order) {
-    return { ok: false, code: ACTION_FEEDBACK.ORDER_NOT_FOUND };
+  const result = await deliveryBuyer.requestShipment({
+    organizationId: identity.organization!.organizationId,
+    orderId,
+    shipmentId,
+  });
+  if (!result.ok) return result;
+
+  revalidatePath(`/dashboard/orders/${orderId}`);
+  return { ok: true, data: undefined };
+}
+
+/**
+ * Feature 009 RUN B (T014) — NEW: withdraws an unwanted `DRAFT` shipment plan before submission, via
+ * Phase 2's now-live `shipments_buyer_draft_update` RLS widening (DB-OPEN-18). The ONLY other target
+ * this action ever attempts beyond `REQUESTED` — `CANCELLED`, and only from `DRAFT`.
+ */
+export async function cancelShipment(_prevState: ActionFeedbackResult | undefined, formData: FormData): Promise<ActionFeedbackResult> {
+  const orderId = formData.get("orderId");
+  const shipmentId = formData.get("shipmentId");
+  if (typeof orderId !== "string" || orderId.length === 0 || typeof shipmentId !== "string" || shipmentId.length === 0) {
+    return { ok: false, code: ACTION_FEEDBACK.VALIDATION_ERROR };
   }
 
-  const supabase = await createClient();
-  const { data: updated, error } = await supabase.from("order_shipments").update({ status: "REQUESTED" }).eq("id", shipmentId).eq("order_id", orderId).eq("status", "DRAFT").select(SHIPMENT_SELECT).maybeSingle();
-
-  if (error || !updated) {
-    return { ok: false, code: mapShipmentError(error) };
+  const identity = await requireBuyerCapableIdentity();
+  if (!identity) {
+    return { ok: false, code: ACTION_FEEDBACK.BUYER_NOT_CAPABLE };
   }
+
+  const result = await deliveryBuyer.cancelDraftShipment({
+    organizationId: identity.organization!.organizationId,
+    orderId,
+    shipmentId,
+  });
+  if (!result.ok) return result;
 
   revalidatePath(`/dashboard/orders/${orderId}`);
   return { ok: true, data: undefined };

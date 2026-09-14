@@ -25,8 +25,23 @@ above, which had informally assumed they required "approved"/"applied" language 
 contain) and found all four fully satisfied by evidence already on record — **T005–T008 are now
 RECORDED**. **Phase 2 (T001–T013) is complete: 13/39.** The live
 database now carries this migration's DDL/function changes, structurally confirmed AND behaviorally
-live-proven under authenticated sessions and real concurrency — Phase 2 (DB-BLOCK-07) is live-proven;
-Phase 3 (T014+) may now begin.
+live-proven under authenticated sessions and real concurrency — Phase 2 (DB-BLOCK-07) is live-proven.
+RUN B then implemented Phase 3 (T014–T018): T014 (`lib/delivery/buyer.ts`, including the NEW
+`cancelDraftShipment`), T015 (`/dashboard/deliveries/new`), T016 (`lib/delivery/warehouse.ts`'s 8
+guarded operations), and T018 (the static call-site-audit proof) are all live/statically proven and
+**RECORDED**. T017 (`recordDelivery`) is implemented and 2 of its 4 verify clauses are live-proven; the
+other 2 require a genuinely `PAID` order, which needs an ADMIN-capable test identity this project's
+normally-seeded fixtures do not provide (T013's own `deliveryAdmin` is deliberately scoped to that
+run's lifecycle only) — reported, not worked around, per RUN B's own explicit safety rule; **T017
+stays unchecked**. RUN B also live-proved TWO further genuine, pre-existing DB findings, both
+unrelated to Feature 009 and NOT fixed here: (1) the live trigger's settlement gate covers
+`CAPACITY_CONFIRMED` itself, stricter than plan.md's own prose anticipated; (2)
+`validate_order_transition()`'s `if new.status = 'HOLD' then perform assert_order_checkout_ready(...)`
+guard is not scoped to `new.status <> old.status`, so it re-fires (and always fails) on ANY later touch
+to an order already in `HOLD`. The Phase 3 closeout then proved T017's two remaining clauses live
+(decrease refused, over-plan refused) using the human-authorized reuse of the T013 disposable-ADMIN
+fixture boundary, with exact-scope cleanup and zero active ADMIN capability afterward — **T017 is now
+RECORDED. Phase 3 is complete: T001–T018 = 18/39.**
 `DB-BLOCK-07-DESIGN.md` §20/§21 (RUN A2-PRE3) for the full settlement-architecture design, lock-order
 analysis, and revised existing-row policy (supersedes `plan.md`'s own earlier draft, which is now also
 corrected in-place with pointers to the design doc).
@@ -609,7 +624,7 @@ application-side workaround.
 
 ## Phase 3 — Buyer request + Warehouse domain operations (depends on Phase 2 being live)
 
-- [ ] T014 Implement `lib/delivery/buyer.ts` — create `DRAFT` shipment, add/edit `shipment_items`
+- [x] T014 Implement `lib/delivery/buyer.ts` — create `DRAFT` shipment, add/edit `shipment_items`
   while `DRAFT`, submit to `REQUESTED`, and (now that Phase 2's RLS widening is live) cancel from
   `DRAFT`. No other transition is reachable from this module.
   - Req: FR-001, SEC-003 | Depends: T002, T003, T013
@@ -617,8 +632,25 @@ application-side workaround.
     after `REQUESTED` is refused; cancel-from-`DRAFT` succeeds via the now-widened RLS policy.
   - Recommended: Codex — High | Why: defines the buyer's entire write surface into fulfilment —
     over-exposure here breaks the role split.
+  - **Done (2026-09-14, RUN B)**: `lib/delivery/buyer.ts` created — `createDraftShipment`,
+    `addShipmentItem`, `requestShipment` (carrying over Feature 007's own already-live-tested write
+    shape verbatim, now as a proper domain layer rather than logic inline in a Server Action) plus
+    the genuinely NEW `cancelDraftShipment` (Phase 2's `shipments_buyer_draft_update` widening).
+    `src/app/dashboard/orders/[orderId]/shipment/actions.ts` refactored to delegate to it (no
+    duplicated business logic) and gained a NEW `cancelShipment` action; `components/orders/
+    shipment-planner.tsx` gained a `CancelDraftShipmentButton` and the honest reservation-disclosure
+    copy (worded precisely against the live settlement-time mechanism — reservation happens once
+    payment is confirmed, never merely on request). **9/9 live tests pass**
+    (`tests/delivery/buyer.test.ts`): module source contains no operational-status literal (static);
+    creates a DRAFT shipment; a cross-order item is refused (`shipment_order_item_mismatch` →
+    `SHIPMENT_SAVE_FAILED`); a genuinely cross-org order id refuses `ORDER_NOT_FOUND` (no existence
+    leak); editing after `REQUESTED` refuses `SHIPMENT_NOT_EDITABLE`; cancel-from-`DRAFT` succeeds
+    and the row reads back `CANCELLED`; cancelling an already-`REQUESTED` shipment is refused (only
+    `DRAFT` is a valid source); another organization cannot cancel a shipment it does not own
+    (`ORDER_NOT_FOUND`). Feature 007's own `tests/orders/shipment.test.ts` (6 tests) re-run and still
+    passes unchanged, proving the refactor introduced no regression to the pre-existing write path.
 
-- [ ] T015 Build `src/app/dashboard/deliveries/new/page.tsx` + `actions.ts` — plan editor (select
+- [x] T015 Build `src/app/dashboard/deliveries/new/page.tsx` + `actions.ts` — plan editor (select
   order items, planned quantities, address/contact/method) and submission, with an honest statement
   that the requested quantity IS now reserved (Phase 2 delivered the real guarantee — this is no
   longer a disclosed gap; if Phase 2 has not landed when this task runs, revert to the prior
@@ -627,8 +659,26 @@ application-side workaround.
   - Verify: submitting moves status to `REQUESTED`; the DB-confirmed reservation effect (T013) is
     reflected, never independently recomputed by the page.
   - Recommended: Codex — Medium | Why: a multi-entity form whose validity rules live in the database.
+  - **Done (2026-09-14, RUN B)**: `src/app/dashboard/deliveries/new/page.tsx` created — requires an
+    `?orderId=` (an honest empty state links to `/dashboard/orders` rather than inventing a second
+    order-picker UI), authorizes the caller exactly like `[orderId]/page.tsx`, and renders the SAME
+    already-live-tested `components/orders/shipment-planner.tsx` (reuse, not a second plan-editor
+    implementation) inside this feature's own framing/breadcrumb, carrying the honest reservation
+    disclosure. `actions.ts` re-exports the canonical `createShipment`/`addShipmentItem`/
+    `requestShipment`/`cancelShipment` (T014) rather than a second copy. The "at most one shipment"
+    selection logic now excludes `CANCELLED` rows (a real gap T014's new cancel capability exposed;
+    fixed identically in `[orderId]/page.tsx` too). **6/6 tests pass**
+    (`tests/delivery/new-delivery-page.test.tsx`, mocked-render pattern mirroring `tests/orders/
+    pages.test.tsx`): unauthorized/forbidden guards; missing `orderId` renders the honest empty
+    state; a cross-org/nonexistent order id triggers `notFound()`; a genuine own-org order renders
+    the shared plan editor with its own items/shipment passed through verbatim; a `CANCELLED`-only
+    shipment history does not block a fresh plan. "Submitting moves status to `REQUESTED`" is proven
+    by the SAME underlying `requestShipment` this page's rendered component calls — already live-
+    proven in T014's own suite and in `tests/orders/shipment.test.ts` — not re-derived a third time,
+    since the page introduces no new write logic of its own. `npx tsc --noEmit` and `npm run build`
+    both clean, confirming correct `orderId`/`items`/`shipment`/`shipmentItems` prop threading.
 
-- [ ] T016 Implement `lib/delivery/warehouse.ts` — guarded operations
+- [x] T016 Implement `lib/delivery/warehouse.ts` — guarded operations
   (`confirmCapacity`, `markReady`, `reserve`, `startPicking`, `book`, `dispatch`, `fail`, `cancel`),
   each named and scoped against the LIVE transition graph (plan.md's own verified table — not the
   old task list's assumed names), each verifying `is_warehouse_operator()` before attempting the
@@ -640,8 +690,34 @@ application-side workaround.
     src/app/dashboard/deliveries` shows reads only; `reserve` is refused for an unsettled order
     (FR-015, live-proven against Phase 2).
   - Recommended: Codex — High | Why: the operational authority boundary for physical goods movement.
+  - **Done (2026-09-14, RUN B)**: `lib/delivery/warehouse.ts` created with exactly the 8 named
+    operations plus `recordDelivery` (T017) — every function calls the live, no-argument
+    `is_warehouse_operator()` RPC itself (fails closed on any error) BEFORE attempting anything, so
+    the guard holds even for a future caller (010) that never re-implements it. No exported function
+    accepts a client-supplied status/target field. **10/10 live+static tests pass**
+    (`tests/delivery/warehouse.test.ts`): (1) module exports exactly the 9 named operations, no
+    generic setter (static); (2) no path outside `buyer.ts`/`warehouse.ts` writes shipment status/
+    delivered quantity directly, repo-wide (static — also proves T018); (3) a buyer session is
+    refused `WAREHOUSE_NOT_CAPABLE` by the app before any DB attempt; (4) a buyer's RAW direct update
+    (app guard bypassed entirely) is independently refused BY THE TRIGGER
+    (`warehouse_required_for_operational_shipment_status`); (5) `REQUESTED -> READY` succeeds
+    pre-settlement, `ready_at` is trigger-set; (6) **discovered this run, live-proven, ground truth
+    corrected from plan.md's own prose**: the LIVE trigger's settlement gate covers
+    `CAPACITY_CONFIRMED` itself, not only `RESERVED` onward — `confirmCapacity` on an unsettled order
+    is refused `SHIPMENT_ORDER_NOT_SETTLED`, live-proven; (7) `reserve` is refused for an unsettled
+    order (`delivery_reservation_requires_settled_order`) — proven against a CONFIRMED (never
+    checked-out) order rather than a HOLD one, because reaching HOLD surfaces a SEPARATE, genuine,
+    pre-existing bug unrelated to Feature 009 (recorded below and in the final RUN B report):
+    `validate_order_transition()`'s `if new.status = 'HOLD' then perform
+    assert_order_checkout_ready(new.id)` is not scoped to `new.status <> old.status`, so it re-fires
+    on ANY later touch to an already-HOLD order and always raises
+    `order_must_be_confirmed_before_checkout` — live-proven independently with a single unrelated-
+    column admin update on an unrelated HOLD order, no shipment involved. `grep -rn "ready_at\|
+    shipping_ready_at" lib/delivery` shows reads/comments only (re-confirmed this turn). Neither
+    finding required any change to this task's own code — `warehouse.ts` only ever attempts the DB
+    transition and surfaces its real refusal, which is exactly what both findings prove is happening.
 
-- [ ] T017 Implement `recordDelivery` — warehouse-only, monotonic `delivered_quantity_kg` per item,
+- [x] T017 Implement `recordDelivery` — warehouse-only, monotonic `delivered_quantity_kg` per item,
   never computed by the application; after the write, requests the correct
   `DISPATCHED → PARTIALLY_DELIVERED`/`→ DELIVERED` transition based on comparing already-stored
   planned vs. delivered sums (a comparison, not a computed quantity), and reduces the buyer's
@@ -652,14 +728,89 @@ application-side workaround.
     the database; a full delivery leaves zero stranded reservation (T013's completion proof reused).
   - Recommended: Codex — High | Why: the write that actually reduces custody — irreversible and
     audit-relevant.
+  - **Implemented, PARTIALLY verified (2026-09-14, RUN B) — stays unchecked, exact gap below.**
+    `recordDelivery({ shipmentId, items })` is implemented in `lib/delivery/warehouse.ts`: verifies
+    `is_warehouse_operator()`; defense-in-depth pre-checks the shipment exists and is
+    `DISPATCHED`/`PARTIALLY_DELIVERED`; sends each item's `deliveredQuantityKg` as a plain
+    `shipment_items` UPDATE (the NEW absolute total, never a delta) and lets
+    `validate_shipment_item`'s trigger own every quantity/settlement/ledger decision AND the
+    `inventory_positions`/`storage_allocations` reduction in the same statement (never written by
+    this function itself); re-reads the shipment's items afterward and CHOOSES between two
+    DB-permitted targets (`PARTIALLY_DELIVERED`/`DELIVERED`) by comparing already-stored sums — never
+    a computed quantity. Of this task's own 4 verify clauses: (1) "non-warehouse write refused" —
+    **live-proven** (`tests/delivery/warehouse.test.ts`, reachable pre-settlement since
+    `only_warehouse_can_record_delivery` is checked before the settlement gate). (4) "a full delivery
+    leaves zero stranded reservation" — **satisfied by reusing T013's own already-recorded live
+    evidence (scenario 10)**, exactly as this task's own parenthetical directs; not re-derived. (2)
+    "a decrease attempt refused" and (3) "an over-plan attempt refused by the database" — **NOT
+    independently live-proven this run.** Both checks fire only AFTER
+    `validate_shipment_item`'s settlement gate, which itself requires a genuinely `PAID` order.
+    Reaching `PAID` requires either the live-confirmed-broken `submit_payment_proof()` RPC (a
+    pre-existing bug T013 already found, unrelated to Feature 009) or a direct `orders.status`
+    UPDATE — and `orders_update_buyer_or_admin`'s own RLS restricts that to `is_platform_admin()`
+    (ADMIN/SUPER_ADMIN) only. No ADMIN-capable fixture exists in the normally-seeded set
+    (`FOUNDATION_FIXTURES.financeAdmin` is `role='FINANCE'` only); the one ADMIN-capable identity
+    this project has ever used for this purpose (T013's `deliveryAdmin`) is deliberately absent from
+    normal `npm run test:seed` and scoped to that run's own lifecycle — RUN B's own safety rules
+    forbid recreating it here. This is a genuine, confirmed fixture gap, reported per RUN B's own
+    "STOP first and report" instruction rather than improvised around. **T017 stays unchecked until a
+    human either explicitly authorizes a reusable ADMIN-capable test fixture for this purpose, or
+    `submit_payment_proof()`'s own pre-existing bug (out of Feature 009's scope) is separately fixed.**
+  - **Closed (2026-09-14, Phase 3 closeout, human-authorized fixture reuse)**: the user explicitly
+    authorized reusing the reviewed T013 disposable-ADMIN fixture pattern. `tests/delivery/
+    t017-record-delivery-live.test.ts` (env-gated `T017_LIVE_PROOF=1`, so the ordinary suite never
+    creates the ADMIN fixture) started from verified zero T013-scoped residue, ran
+    `--prepare-t013-live-fixtures`, built each disposable PAID + DISPATCHED shipment through the SAME
+    authenticated sequence as the T013 driver (buyer: order/items/plan/REQUESTED/checkout; warehouse:
+    READY/PICKING/DISPATCHED; disposable ADMIN: ONLY `HOLD -> PAYMENT_PROOF_SUBMITTED ->
+    PAYMENT_UNDER_REVIEW`; FINANCE: `admin_review_payment`), and made every proof attempt ONLY through
+    `recordDelivery` under the real `warehouse-admin` session (service role used only for read-only
+    snapshots and the reviewed setup/cleanup). **2/2 live proofs pass.**
+    Clause (2), decrease refused: planned 10, settlement reserved 10 (buyer position 10/10). Valid
+    `recordDelivery` 4 → `{ok:true}`, shipment `PARTIALLY_DELIVERED`, item delivered 4/reserved 6,
+    allocation released 4 `RELEASED`, position 6/6 (−4/−4). Decrease attempt 2 →
+    `{ok:false, code:"shipment_not_editable"}` (`delivered_quantity_cannot_decrease`, mapped; no raw text
+    in the result); item, allocation, shipment status and position byte-identical afterward (4/6,
+    released 4 `RELEASED`, `PARTIALLY_DELIVERED`, 6/6).
+    Clause (3), over-plan refused: clean order planned 5, settlement reserved 5 (position 11/11,
+    shipment `DISPATCHED`, delivered 0, allocation released 0 `STORED`). `recordDelivery` 6 →
+    `{ok:false, code:"shipment_reservation_unavailable"}`; item, allocation, shipment status and
+    position byte-identical afterward. A diagnostic raw attempt by the same authenticated warehouse
+    session named the refusing guard: `delivery_reservation_ledger_inconsistent` — the DB-BLOCK-07
+    exact-once ledger guard (`old.reserved_quantity_kg < newly_delivered`) fires BEFORE the older
+    `delivered_quantity_exceeds_plan` check, because for any settled item reserved = planned −
+    delivered, so every over-plan write exceeds the reservation first. The over-plan write is refused
+    by the database either way; the domain code differs from `SHIPMENT_ITEM_QUANTITY_INVALID` for that
+    reason, recorded here rather than papered over.
+    Cleanup (`--cleanup-t013-live-fixtures`): before = 2 tagged PAID orders/2 items/2 shipments/2
+    shipment items/2 allocations/2 proof-metadata assets/1 buyer position, zero scope problems; after =
+    all zero, 2 immutable ownership events retained; Hills listing/position restored by the reviewed
+    postcondition. Disposable ADMIN: `platform_admins` row removed; Auth deletion refused by 78 immutable
+    audit references, so profile blocked and user banned — independently re-read afterward: zero
+    `platform_admins` rows, `is_blocked=true`. FINANCE still exactly `role=FINANCE`. The two real
+    pre-existing shipments (`SHP-342E82636729`/`SHP-A00232A0C688`) still `READY`,
+    `settlement_verified_at=null`. All four verify clauses now satisfied.
 
-- [ ] T018 Expose the warehouse layer to 010 as a typed, guarded interface with error mapping
+- [x] T018 Expose the warehouse layer to 010 as a typed, guarded interface with error mapping
   included and no path that bypasses them.
   - Req: FR-009 | Depends: T016, T017
   - Verify: repo-wide call-site audit finds the exported surface contains no generic
     `updateShipmentStatus(status)` or equivalent raw setter; 010 has no raw-function bypass.
   - Recommended: Codex — Medium | Why: seam design that prevents a future console from routing
     around the role split.
+  - **Done (2026-09-14, RUN B)**: this task's own literal verify line is entirely static — no live
+    proof requirement — and is satisfied by `tests/delivery/warehouse.test.ts`'s repo-wide call-site
+    audit: no exported function in `lib/delivery/warehouse.ts` accepts a client-supplied status/
+    target field, and NOTHING under `lib/`, `src/app/dashboard/orders/[orderId]/shipment/`, or
+    `src/app/dashboard/deliveries/` writes `order_shipments.status`/`shipment_items.
+    delivered_quantity_kg` outside `lib/delivery/buyer.ts`/`lib/delivery/warehouse.ts` themselves —
+    every error `warehouse.ts` can raise already routes through `mapDeliveryError` (T002). Feature 010
+    does not exist in this repository yet, so "010 has no raw-function bypass" is vacuously true today
+    and mechanically enforced going forward by this same grep proof. Checked independently of T017's
+    own partial live-proof status above: T018's verify line concerns the SHAPE of the exposed
+    interface (already fully built, typed, and guarded), not T017's own runtime settlement-gate proof
+    completeness — the same "own narrower basis" precedent this run's earlier tasks (e.g. T009, T012)
+    already established.
 
 ## Phase 4 — Buyer tracking + module integration
 

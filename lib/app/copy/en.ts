@@ -902,12 +902,26 @@ export const en = {
             requested: "Shipment requested.",
             requestFailed: "The shipment couldn't be requested.",
           },
+          /** Feature 009 RUN B (T014) — withdrawing an unsubmitted DRAFT plan before it is requested. */
+          cancel: {
+            action: "Cancel this plan",
+            cancelling: "Cancelling…",
+            cancelled: "Delivery plan cancelled.",
+            cancelFailed: "This plan couldn't be cancelled.",
+          },
+          /**
+           * Feature 009 RUN B (T015) — the honest reservation disclosure spec.md/plan.md require:
+           * reservation happens once the order is PAID (or immediately if it already is), never
+           * merely on request/submission — this copy must never claim otherwise.
+           */
+          reservationDisclosure: "Once your order payment is confirmed, this planned quantity is automatically reserved from your custody — it can no longer be listed for resale or planned into another delivery.",
           statusLabel: "Shipment status",
           status: {
             DRAFT: "Draft",
             REQUESTED: "Requested",
             READY: "Ready",
             RESERVED: "Reserved",
+            CANCELLED: "Cancelled",
           },
         },
         checkoutAction: "Proceed to checkout",
@@ -1045,6 +1059,24 @@ export const en = {
         unavailable: {
           title: "Funding isn't available",
           description: "Funding steps for this order aren't available yet. No payment method has been set up, and nothing has been charged or reserved.",
+        },
+      },
+    },
+
+    /**
+     * Feature 009 RUN B (T015) — the delivery-request entry point at `/dashboard/deliveries/new`.
+     * The plan editor itself is `components/orders/shipment-planner.tsx` (reused, not duplicated —
+     * see `orders.detail.shipment`'s own copy for its labels); this namespace covers only the page
+     * shell around it: breadcrumb, title, and the "no order chosen yet" empty state.
+     */
+    deliveries: {
+      new: {
+        title: "Plan a delivery",
+        breadcrumb: "New delivery",
+        noOrderSelected: {
+          title: "Choose an order to deliver",
+          description: "Open the order you'd like to plan a delivery for, then continue from its delivery details section.",
+          action: "Go to your orders",
         },
       },
     },

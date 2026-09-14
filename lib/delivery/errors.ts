@@ -25,6 +25,34 @@ const DB_BLOCK_07_ERROR_MAP: Record<string, ActionFeedbackCode> = {
   delivery_reservation_requires_settled_order: ACTION_FEEDBACK.SHIPMENT_ORDER_NOT_SETTLED,
   delivery_reservation_insufficient_inventory: ACTION_FEEDBACK.SHIPMENT_RESERVATION_UNAVAILABLE,
   delivery_reservation_position_missing: ACTION_FEEDBACK.SHIPMENT_RESERVATION_UNAVAILABLE,
+
+  /**
+   * Feature 009 RUN B (T014/T016/T017) — the REST of the exception vocabulary the now-LIVE (RUN A2)
+   * `validate_shipment_transition`/`validate_shipment_item`/`apply_delivery_reservation` bodies raise
+   * (read directly from `supabase/migrations/20260914120000_feature_009_db_block_07.sql`, the actually
+   * applied migration — never guessed). All are internal-consistency/exact-once guards or ambiguity
+   * fail-safes that a correctly-behaving application should never trigger through the exposed
+   * `lib/delivery/buyer.ts`/`warehouse.ts` surface; mapped here anyway so an UNEXPECTED one (a bug, a
+   * race, a future schema change) still degrades to a safe, non-leaking result instead of falling
+   * through to `mapShipmentError`'s own unrecognized-message log-and-generic-fallback path.
+   */
+  delivery_reservation_ledger_inconsistent: ACTION_FEEDBACK.SHIPMENT_RESERVATION_UNAVAILABLE,
+  delivery_release_position_missing: ACTION_FEEDBACK.SHIPMENT_RESERVATION_UNAVAILABLE,
+  delivery_reservation_position_ambiguous: ACTION_FEEDBACK.SHIPMENT_RESERVATION_UNAVAILABLE,
+  /**
+   * The `FAILED`/`DISPUTED` fail-closed re-entry guard (plan.md architecture decision 8) — the
+   * warehouse domain layer never exposes an operation targeting a transition FROM either state, so
+   * this should be unreachable through normal use; mapped as `SHIPMENT_NOT_EDITABLE` (the same code
+   * every other "this transition is not available" refusal already uses) rather than inventing a
+   * distinct code for a path the application deliberately never offers.
+   */
+  delivery_recovery_requires_dedicated_workflow: ACTION_FEEDBACK.SHIPMENT_NOT_EDITABLE,
+  /**
+   * The trigger's own BEFORE INSERT guard — a shipment must always be created as `DRAFT`.
+   * `lib/delivery/buyer.ts#createDraftShipment` never sends any other status, so this is unreachable
+   * through the approved write surface; mapped safely regardless.
+   */
+  shipment_must_start_draft: ACTION_FEEDBACK.SHIPMENT_SAVE_FAILED,
 };
 
 /** Same minimal shape `lib/orders/errors.ts` uses internally — kept local since that file does not export its own type alias. */

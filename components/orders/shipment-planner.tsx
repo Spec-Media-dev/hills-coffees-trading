@@ -14,7 +14,7 @@ import { Input } from "@/components/ui/input";
 import { ACTION_FEEDBACK } from "@/lib/types/action-feedback";
 import { AddShipmentItemInput, CreateShipmentInput } from "@/lib/orders/validation";
 import type { OrderItemDTO, OrderShipmentDTO, ShipmentItemDTO } from "@/lib/orders/validation";
-import { addShipmentItem, createShipment, requestShipment } from "@/src/app/dashboard/orders/[orderId]/shipment/actions";
+import { addShipmentItem, cancelShipment, createShipment, requestShipment } from "@/src/app/dashboard/orders/[orderId]/shipment/actions";
 
 /**
  * Feature 007 RUN A (T007) — the buyer-owned shipment-planning UI. Three narrow states, matching
@@ -100,10 +100,15 @@ export function ShipmentPlanner({
         <p className="text-[length:var(--text-small)] text-muted-foreground">{copy.empty}</p>
       )}
 
+      {shipment.status === "DRAFT" || shipment.status === "REQUESTED" ? <p className="text-[length:var(--text-small)] text-muted-foreground">{copy.reservationDisclosure}</p> : null}
+
       {shipment.status === "DRAFT" ? (
         <>
           <AddShipmentItemForm orderId={orderId} shipmentId={shipment.id} items={items} />
-          <RequestShipmentButton orderId={orderId} shipmentId={shipment.id} />
+          <div className="flex flex-wrap gap-3">
+            <RequestShipmentButton orderId={orderId} shipmentId={shipment.id} />
+            <CancelDraftShipmentButton orderId={orderId} shipmentId={shipment.id} />
+          </div>
         </>
       ) : null}
     </div>
@@ -231,6 +236,32 @@ function RequestShipmentButton({ orderId, shipmentId }: { orderId: string; shipm
   return (
     <Button type="button" onClick={onClick} disabled={isPending || state?.ok === true}>
       {isPending ? copy.requesting : copy.action}
+    </Button>
+  );
+}
+
+/**
+ * Feature 009 RUN B (T014/T015) — NEW: withdraws an unwanted DRAFT plan before it is ever submitted,
+ * via `cancelShipment` (Phase 2's now-live `shipments_buyer_draft_update` RLS widening, DB-OPEN-18).
+ */
+function CancelDraftShipmentButton({ orderId, shipmentId }: { orderId: string; shipmentId: string }) {
+  const { tApp } = useLocale();
+  const copy = tApp.orders.detail.shipment.cancel;
+  const [state, dispatch, isPending] = useActionState(cancelShipment, undefined);
+  useActionToast(state, state?.ok === true ? { tone: "success", message: copy.cancelled } : state?.ok === false ? { tone: "error", message: copy.cancelFailed } : null);
+
+  const onClick = () => {
+    const formData = new FormData();
+    formData.set("orderId", orderId);
+    formData.set("shipmentId", shipmentId);
+    startTransition(() => {
+      dispatch(formData);
+    });
+  };
+
+  return (
+    <Button type="button" variant="outline" onClick={onClick} disabled={isPending || state?.ok === true}>
+      {isPending ? copy.cancelling : copy.action}
     </Button>
   );
 }

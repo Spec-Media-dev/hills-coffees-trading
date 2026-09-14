@@ -809,12 +809,20 @@ export const ar: DeepPartial<AppCopy> = {
             requested: "تم طلب الشحنة.",
             requestFailed: "تعذَّر طلب الشحنة.",
           },
+          cancel: {
+            action: "إلغاء هذه الخطة",
+            cancelling: "جارٍ الإلغاء…",
+            cancelled: "تم إلغاء خطة التسليم.",
+            cancelFailed: "تعذَّر إلغاء هذه الخطة.",
+          },
+          reservationDisclosure: "بمجرد تأكيد دفع طلبك، يتم حجز هذه الكمية المخطط لها تلقائيًا من عهدتك — ولا يمكن بعد ذلك إدراجها لإعادة البيع أو تخطيطها ضمن شحنة أخرى.",
           statusLabel: "حالة الشحنة",
           status: {
             DRAFT: "مسودة",
             REQUESTED: "مطلوبة",
             READY: "جاهزة",
             RESERVED: "محجوزة",
+            CANCELLED: "ملغاة",
           },
         },
         checkoutAction: "المتابعة إلى إتمام الشراء",
@@ -935,6 +943,19 @@ export const ar: DeepPartial<AppCopy> = {
         unavailable: {
           title: "التمويل غير متاح حاليًا",
           description: "خطوات التمويل لهذا الطلب غير متاحة بعد. لم يتم إعداد وسيلة دفع، ولم يُخصم أو يُحجز أي مبلغ.",
+        },
+      },
+    },
+
+    /** Feature 009 RUN B (T015) — see `en.ts`'s matching block for scope/honesty notes. */
+    deliveries: {
+      new: {
+        title: "تخطيط عملية تسليم",
+        breadcrumb: "تسليم جديد",
+        noOrderSelected: {
+          title: "اختر طلبًا لتسليمه",
+          description: "افتح الطلب الذي تريد تخطيط تسليمه، ثم تابع من قسم تفاصيل التسليم فيه.",
+          action: "الانتقال إلى طلباتك",
         },
       },
     },

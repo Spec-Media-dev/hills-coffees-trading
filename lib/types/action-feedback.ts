@@ -132,6 +132,14 @@ export const ACTION_FEEDBACK = {
    */
   SHIPMENT_ORDER_NOT_SETTLED: "shipment_order_not_settled",
   SHIPMENT_RESERVATION_UNAVAILABLE: "shipment_reservation_unavailable",
+  /**
+   * Feature 009 RUN B (T016) — the warehouse domain layer's own app-level pre-check (mirrors
+   * `BUYER_NOT_CAPABLE` exactly): the caller is not `is_warehouse_operator()`, checked live via RPC
+   * BEFORE any transition is attempted. Distinct from `SHIPMENT_NOT_EDITABLE` (which also covers the
+   * DATABASE's own `warehouse_required_for_operational_shipment_status` refusal) so a UI can tell
+   * "you don't have this role at all" apart from "this specific transition isn't valid right now."
+   */
+  WAREHOUSE_NOT_CAPABLE: "warehouse_not_capable",
 } as const;
 
 export type ActionFeedbackCode = (typeof ACTION_FEEDBACK)[keyof typeof ACTION_FEEDBACK];
