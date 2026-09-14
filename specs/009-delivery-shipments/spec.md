@@ -2,10 +2,12 @@
 
 **Feature Directory**: `specs/009-delivery-shipments`
 **Created**: 2026-09-08
-**Status**: Planning prepared — implementation NOT started
+**Status**: Planning reconciled (RUN 0 / Phase 0, 2026-09-14) — implementation NOT started
 **Primary surfaces**: Member Portal (`/dashboard/deliveries`) + the delivery domain layer consumed by
 010's Warehouse console
-**Depends on**: 001, 003, 004, 005, 007 (shipment plan initiation), 008 (settled orders)
+**Depends on**: 001, 003, 004, 005, 007 (shipment plan initiation). Reads `orders.status` for the
+settlement gate — see "Feature 008 dependency" below; Feature 009 does **not** depend on Feature
+008 reaching its own production-ready (Stripe/trusted-funding) state.
 
 ## Purpose
 
@@ -40,6 +42,34 @@ decrease).
 - Capacity/cut-off rule configuration — `shipping_rules` is super-admin configuration (010).
 - Order, payment and settlement mechanics — 007/008.
 - Dispute workflow itself — 012.
+
+## Feature 008 dependency (reconciled 2026-09-14 — RUN 0 / Phase 0)
+
+**Feature 008 is NOT complete.** As of this reconciliation: Phase 1 (finance foundation, private
+reads, controlled errors) is done; Stripe architecture preparation is done at the provisional/
+documentation level; real Stripe account verification, credentials, the trusted-funding database
+gate, and provider-backed settlement are **not** implemented. `admin_review_payment()` remains
+classified **B — reusable only with a formally required database change** (Feature 008's own
+`STRIPE-PREPARATION.md` §6): today it settles an order purely on a FINANCE operator's own
+`p_approved` input, with **no reference to Stripe or any provider evidence at all**.
+
+This matters for 009 because **Feature 009 reads only `orders.status`, never a provider fact.**
+`assert_order_checkout_ready`/`checkout_order`/`admin_review_payment` already move an order through
+`HOLD → PAID → FULFILLMENT_IN_PROGRESS/PARTIALLY_DELIVERED → COMPLETED` today, using the CURRENT,
+already-functional manual FINANCE-approval path — the same path Feature 007/008's own tests already
+use to reach a genuine `PAID` order. Feature 008's remaining Stripe work changes **how** an order
+reaches `PAID` (adding a trusted-funding precondition on top of the existing manual approval); it
+does not change **that** `orders.status = 'PAID'` is the fact Feature 009 must gate on, and that fact
+is fully producible today.
+
+**Conclusion**: no part of Feature 009 is blocked on Feature 008's remaining Stripe/trusted-funding
+work. Every phase of 009 can be implemented and release-blocking-tested now, using the existing
+`admin_review_payment()` manual-approval path to produce genuinely `PAID` orders for both
+implementation and test fixtures — this is not a workaround; it is the actual current production
+settlement mechanism. The only thing that remains gated on Feature 008's own completion is
+**production trading readiness for the platform as a whole** (whether a `PAID` order can be trusted
+to mean real money moved, not whether Feature 009's delivery mechanics are correct) — a
+platform-level production gate, not a Feature-009 implementation blocker.
 
 ## Actors
 
@@ -150,7 +180,10 @@ represents it.
 ## Functional Requirements
 
 - **FR-001**: Buyer shipment actions MUST be limited to creating `DRAFT` shipments/items, editing
-  them while `DRAFT`, and transitioning `DRAFT → REQUESTED` or `DRAFT → CANCELLED`.
+  them while `DRAFT`, and transitioning `DRAFT → REQUESTED` or `DRAFT → CANCELLED`. The
+  `DRAFT → CANCELLED` half currently has no RLS-authorized path (see Open items) — Phase 3 MUST NOT
+  expose a buyer cancel action until Phase 2's migration closes that gap, and MUST NOT work around it
+  with a service-role or elevated-privilege call.
 - **FR-002**: All operational transitions MUST be performed only by `is_warehouse_operator()` actors
   through the warehouse domain layer; the application MUST NOT attempt to bypass
   `validate_shipment_transition`.
@@ -177,6 +210,17 @@ represents it.
   tables collapse to cards at mobile.
 - **FR-014**: Delivery/warehouse data MUST never appear on any public surface, including exact
   warehouse locations (SRS SEO-APP-02).
+- **FR-015**: Physical-fulfillment progression (any transition past `READY` into an operational
+  state that begins picking/dispatch, and any `delivered_quantity_kg` write) MUST be refused by the
+  database unless the order's `orders.status` is in the settled family (`PAID` or later). This gate
+  is part of the DB-BLOCK-07 database design (Phase 2) — the application MUST NOT implement it as an
+  apply-side check in place of a database-enforced one, and MUST NOT compute or infer settlement from
+  any signal other than `orders.status`.
+- **FR-016**: The delivery-reservation quantity effect (available → reserved on the requesting
+  organization's own `inventory_positions` row) MUST be applied, restored on cancellation, and never
+  duplicated, entirely inside the approved database capability from Phase 2 — the application only
+  invokes it and reads its result; it never computes or writes `reserved_quantity_kg`/
+  `available_quantity_kg` itself.
 
 ## Security Requirements
 
@@ -195,16 +239,46 @@ represents it.
 - Warehouse cancels a `REQUESTED` shipment → permitted; the buyer sees the reason.
 - Partial delivery followed by a second delivery → delivered quantity increases monotonically; state
   moves `PARTIALLY_DELIVERED` → `DELIVERED` when complete.
-- A shipment is `DISPUTED` → progression pauses; 012 owns the dispute record and any freeze.
+- A shipment is `DISPUTED` → progression pauses; 012 owns the dispute record and any freeze. **DB
+  reality (found 2026-09-14)**: `validate_shipment_transition`'s live body has no `elsif old.status =
+  'DISPUTED'` branch at all, so once a shipment reaches `DISPUTED` the trigger does not itself
+  constrain what it can move to next (any target a warehouse-role/internal caller requests falls
+  through unrefused). This feature MUST NOT rely on the database to already enforce the pause — the
+  warehouse domain layer (Phase 3) treats `DISPUTED` as an application-narrowed dead end (no
+  operation exposed to move out of it) until 012/010 defines real resolution semantics, exactly as
+  DB-OPEN-09 already records for `orders` (a COMPLIANCE operator cannot even reach `order_shipments`
+  today — its only RLS policies are the buyer-DRAFT ones and `shipments_warehouse_manage`, which is
+  `is_warehouse_operator()` only). See Open items below.
+- The same gap applies to `FAILED`: no `elsif old.status = 'FAILED'` branch exists either — the same
+  application-level narrowing (no exposed forward operation from `FAILED`) applies.
 - Delivery requested for quantity that has since been listed/sold → the request must not be
   satisfiable; see **DB-BLOCK-07** below, because the approved schema does not currently reserve
-  inventory on delivery request.
+  inventory on delivery request, and does not currently gate physical-fulfillment progression on the
+  order's settlement status either (a related, newly-confirmed finding — see Open items).
 - Two shipments planned against the same order item → combined planned quantity must not exceed the
-  ordered quantity (the database's item validation enforces the per-item rule).
+  ordered quantity (the database's item validation enforces the per-item rule against
+  `order_items.quantity_kg` only — it does not check `inventory_positions`, which is exactly
+  DB-BLOCK-07's root cause).
 - Order not yet settled → delivery of unsettled goods must not be possible; the applicable guard is
-  the order's own status, and the feature must not invent an alternative rule.
-- Buyer organization suspended mid-delivery → new requests refused; existing operational progression
-  is a warehouse/compliance decision, not an application invention.
+  the order's own status (`orders.status`, reached via the CURRENT `admin_review_payment()` — see
+  "Feature 008 dependency" above), and the feature must not invent an alternative rule. **DB reality
+  (found 2026-09-14)**: no current trigger on `order_shipments`/`shipment_items` reads `orders.status`
+  at all, so this guard does not yet exist at the database layer — it is part of the DB-BLOCK-07
+  design (Open items below), not something 009 can assume is already enforced.
+- Buyer organization suspended mid-delivery → new requests refused (via `organization_can_buy`, which
+  `checkout_order`/`assert_order_checkout_ready` already re-check, and which any new delivery-request
+  path must re-check identically); existing operational progression is a warehouse/compliance
+  decision, not an application invention. Neither the SRS (only "a suspended organization cannot
+  start new trading activity" — silent on in-flight progression) nor the current database answers the
+  in-flight-progression half of this question. **Not decided here** — see Open items.
+- Buyer-initiated cancellation of a `DRAFT` shipment → **DB reality (found 2026-09-14)**: the live
+  RLS policy `shipments_buyer_draft_update`'s `WITH CHECK` permits only `status IN ('DRAFT',
+  'REQUESTED')` as the target — it does **not** permit `CANCELLED`, even though
+  `validate_shipment_transition`'s own top-level guard nominally allows a buyer to move
+  `DRAFT → CANCELLED`. No buyer `DELETE` policy exists on `order_shipments` either. **A buyer
+  therefore cannot cancel an unwanted `DRAFT` shipment today, through any RLS-authorized path.** This
+  is a genuine, narrow, pre-existing RLS gap (trigger permission and RLS permission disagree) — see
+  Open items; it does not affect the buyer's ability to create/edit/submit a shipment.
 
 ## Success Criteria
 
@@ -217,37 +291,95 @@ represents it.
 - **SC-005**: No shipment data is readable across organizations.
 - **SC-006**: No delivery data appears in any shared cache or on any public route.
 - **SC-007**: No raw database exception text reaches a client.
+- **SC-008** *(AC-04, added 2026-09-14)*: A delivery reservation reduces tradable/resellable quantity
+  atomically at the moment defined by Phase 2's approved design; a listing/resale/another delivery
+  request cannot consume the same reserved quantity; concurrent competing requests never oversubscribe
+  available quantity; cancellation restores exactly once, and a repeated/duplicate cancel never
+  restores twice.
+- **SC-009** *(MKT-04 applied to physical release, added 2026-09-14)*: No shipment can reach an
+  operational-fulfillment state, and no `delivered_quantity_kg` can be recorded, while the order's
+  `orders.status` is outside the settled family — proven by direct negative test, not merely absent
+  from the UI.
 
 ## Assumptions
 
 - Warehouse capacity/cut-off rules live in `shipping_rules` (super-admin configuration) and are
   applied operationally; this feature presents outcomes rather than enforcing capacity itself.
-- Delivery proof storage depends on DB-BLOCK-01 (no Storage bucket) exactly as elsewhere.
-- The order's settlement status governs whether goods may be released; this feature reads it.
+- Delivery proof storage depends on DB-BLOCK-01 — reassessed below; it does not block 009
+  implementation, only document-byte attachment.
+- The order's settlement status (`orders.status`) governs whether goods may be released; this feature
+  reads it and does not create its own settlement truth — see "Feature 008 dependency" above.
 
 ## Open items / blockers
 
-- **DB-BLOCK-07 — delivery reservation does not reduce tradable quantity (NEW, release-critical).**
-  SRS DEL-01 and AC-04 require that an approved delivery request atomically reserves quantity, making
-  it unavailable for listing, sale or another delivery reservation, and that cancellation restores it
-  exactly once. In the approved baseline, the only triggers on `order_shipments` are
-  `sync_shipment_ready` (sets `ready_at`/`shipping_ready_at`), `validate_shipment_transition` and
-  `set_updated_at` — **none of which touches `inventory_positions.reserved_quantity_kg`** — and there
-  is no delivery-reservation function. Consequently quantity reserved for delivery is **not**
-  currently excluded from resale/sale availability. This must be resolved through the Constitution's
-  database-change process (an approved reservation function/trigger) before AC-04 can pass. **No
-  application-side reservation may be invented** — doing so would create a second, competing
-  inventory truth (Constitution IX/X).
-- **DB-BLOCK-01**: delivery proof documents cannot be stored (no Storage bucket).
-- Whether a suspended buyer organization's in-flight shipments continue is an operations/compliance
-  decision, not an application default.
+Each item below is classified using: **BLOCKS IMPLEMENTATION NOW** / **BLOCKS DATABASE PHASE** /
+**BLOCKS FINAL FEATURE CLOSURE** / **BLOCKS PRODUCTION ONLY** / **DEFERRED TO 008/010/012** /
+**INFORMATIONAL / CONTINUITY ONLY**.
+
+- **DB-BLOCK-07 — delivery reservation does not reduce tradable quantity, AND physical-fulfillment
+  progression is not gated on order settlement (release-critical; reconciled 2026-09-14).**
+  Classification: **BLOCKS DATABASE PHASE** (Phase 2 must resolve it before Phase 3 domain code is
+  built against it); the unresolved state also **BLOCKS FINAL FEATURE CLOSURE** (AC-04 is a
+  release-blocking acceptance criterion per SRS §17 — a build is not release-ready merely because the
+  UI works). Two related, confirmed findings, both resolved by the same authoritative database
+  capability (see plan.md's design draft):
+  1. SRS DEL-01/AC-04: an approved delivery request must atomically reserve quantity (unavailable for
+     new listing/sale/another delivery reservation), with exactly-once cancellation restoration. The
+     only triggers on `order_shipments` are `sync_shipment_ready`, `validate_shipment_transition`,
+     `set_updated_at` — none touches `inventory_positions.reserved_quantity_kg`, and
+     `validate_shipment_item`'s only quantity check is against `order_items.quantity_kg` (the total
+     ordered), never against tradable/available inventory. No delivery-reservation function exists.
+  2. **Newly confirmed (2026-09-14, direct trigger inspection)**: neither `validate_shipment_transition`
+     nor `validate_shipment_item` reads `orders.status` at all. Nothing in the database today prevents
+     a warehouse-role caller from progressing a shipment through `RESERVED → PICKING → BOOKED →
+     DISPATCHED → DELIVERED` (and recording `delivered_quantity_kg`) for an order that is **not yet
+     `PAID`** — a direct gap against SRS MKT-04 ("settlement before title") as applied to physical
+     release. This is not a duplicate of DB-BLOCK-07's original framing; it is a second, independent
+     gate the same design must close.
+  **No application-side workaround may be invented for either** — doing so would create a second,
+  competing inventory truth (Constitution IX/X) or a fake settlement gate (Constitution VIII/IX).
+- **DB-OPEN-09 extension to `order_shipments` (found 2026-09-14) — DEFERRED TO 010/012,
+  INFORMATIONAL for 009's own scope.** The capability map's existing DB-OPEN-09 ("dispute freeze has
+  no mechanism, and compliance cannot apply it") was recorded against `orders`; the same root cause
+  applies identically to `order_shipments` — its only write policies are the buyer-DRAFT-scoped ones
+  and `shipments_warehouse_manage` (`is_warehouse_operator()`, `ALL`). A COMPLIANCE-role account has
+  **no RLS path to `order_shipments` at all**, so it cannot itself freeze/dispute a shipment even
+  though MKT-07 implies compliance owns dispute resolution. 009 does not need to fix this — it treats
+  `DISPUTED`/`FAILED` as application-narrowed dead ends (see Edge Cases) and links toward 012 — but
+  the underlying RLS gap is recorded here for whichever feature (010's compliance console, or 012)
+  formally resolves it.
+- **Buyer-cancel-from-DRAFT RLS gap (found 2026-09-14) — BLOCKS IMPLEMENTATION of that one narrow
+  capability only; does not block the rest of 009.** `shipments_buyer_draft_update`'s `WITH CHECK`
+  permits only `DRAFT`/`REQUESTED` as a target status, never `CANCELLED`, and no buyer `DELETE`
+  policy exists — see Edge Cases. FR-001's "cancel while `DRAFT`" cannot be implemented as an
+  RLS-authorized buyer action until this is fixed. Because it is a small, additive, non-financial
+  authorization widening (permit an already-trigger-intended value), it is recommended as part of
+  Phase 2's migration scope (see plan.md) rather than its own separate migration cycle, but it is
+  **not required** for Phase 2's harder reservation/settlement-gate work and could ship independently
+  if the business wants incremental delivery.
+- **DB-BLOCK-01 — delivery proof document bytes (reassessed 2026-09-14).** Classification:
+  **BLOCKS PROOF ATTACHMENT ONLY** — no approved private Storage bucket/policy exists for delivery
+  proof bytes (the KYB bucket from DB-BLOCK-01's Feature 003 resolution is explicitly scoped to KYB
+  evidence only; reuse is prohibited). This does **not** block 009 implementation: status, reason,
+  and metadata/evidence linkage (e.g., a `file_asset_id`-shaped reference column, once such a column
+  is formally added) can exist and render honestly without storing bytes. No Storage bucket, fake URL,
+  or reused bucket is created in Phase 0 or any phase until a dedicated approved bucket/policy design
+  is separately authored and approved — the same discipline Feature 008 applied to its own
+  `submit_payment_proof()`/DB-BLOCK-01 boundary.
+- **Suspended buyer organization mid-shipment — DEFERRED TO 010/COMPLIANCE OPERATIONS (unresolved
+  operational policy).** Neither the SRS nor the current database states whether existing operational
+  progression continues, freezes, or requires compliance approval once a buyer organization is
+  suspended mid-shipment. **Not decided here.** 009 implements only the answered half (new requests
+  refused via the existing `organization_can_buy` check) and does not invent an answer for the
+  unanswered half; a future decision may require its own small database change (analogous to
+  DB-OPEN-09) if compliance needs to act on an in-flight shipment directly.
 
 ## Dependencies
 
 | Depends on | Why |
 |---|---|
-| 007 | Initiates the shipment plan (DRAFT → REQUESTED) |
-| 008 | Settlement determines whether goods may be released |
-| 005 | Custody/storage figures affected by delivery |
-| 010 | Builds the Warehouse console on this feature's domain layer |
-| 012 | Dispute records linked from failed/disputed shipments |
+| 007 | Initiates the shipment plan (DRAFT → REQUESTED); closed, consumed not re-verified |
+| 008 | Reads `orders.status` only — NOT a dependency on Feature 008's remaining Stripe/trusted-funding work; see "Feature 008 dependency" above |
+| 005 | Custody/storage figures affected by delivery; 009 reads, never recomputes |
+| 010 | Builds the Warehouse console on this feature's domain layer; also owns the compliance-console resolution of the DB-OPEN-09 extension above |
+| 012 | Dispute records linked from failed/disputed shipments; owns the DISPUTED resolution/recovery semantics 009 deliberately does not invent |
