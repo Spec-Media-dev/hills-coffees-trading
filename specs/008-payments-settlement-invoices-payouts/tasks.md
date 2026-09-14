@@ -1,7 +1,8 @@
 # Tasks: Payments, Settlement, Invoices & Payouts (008)
 
-**Status**: RUN A / Phase 1 complete (T001–T006, 6/39) — Phase 2 (provider decision/DB-contract gate)
-not started; Feature 008 is NOT closed
+**Status**: RUN A / Phase 1 complete (T001–T006, 6/39). RUN B / Phase 2A Stripe architecture
+preparation done (see `STRIPE-PREPARATION.md`) — T007–T010 remain unchecked pending Stripe account
+verification/credentials/approval; still 6/39. Feature 008 is NOT closed.
 **Real task count**: **39** (`T001`–`T039`)
 **Primary decision**: escrow-oriented, provider-neutral; provider is TBD
 **Feature 007 prerequisite**: closed; consume its checkout/reservation/payment/snapshot outputs only
@@ -98,6 +99,11 @@ application-side workaround.
   - Verify: an approved decision record exists; it names no unapproved assumptions and resolves
     provider selection, payout/release model, and whether webhooks are required.
   - Recommended: Product/Finance/Legal owner + Codex — High | Why: engineering may not choose this.
+  - Partial (2026-09-14, RUN B / Phase 2A): provider is now directionally Stripe. See
+    `STRIPE-PREPARATION.md` §4 for the provisional recommended charge/Connect model. Legal/banking
+    approval, supported countries/currencies, and payout/release responsibility remain
+    ACCOUNT-VERIFICATION-REQUIRED (§14) — not satisfiable without the real account, so this stays
+    unchecked.
 
 - [ ] T008 Derive the selected provider's minimal event/funding contract: identifiers, signatures,
   retries, ordering, refund/chargeback responsibilities, and required provider evidence.
@@ -105,6 +111,10 @@ application-side workaround.
   - Verify: contract satisfies SRS API-02 and documents replay, signature, correlation, retry and DLQ
     needs without exposing credentials or provider secrets.
   - Recommended: Security/Payments architect + Codex — High | Why: externally defined trust boundary.
+  - Partial (2026-09-14, RUN B / Phase 2A): `STRIPE-PREPARATION.md` §8 records the likely event
+    categories and the future Edge Function's signature/idempotency/ordering/no-raw-payload-logging
+    responsibilities, explicitly marked PENDING ACCOUNT/FLOW VERIFICATION for the exact final event
+    list — design-prepared, not finalized, so this stays unchecked.
 
 - [ ] T009 Produce and approve the required database change design for trusted funding,
   settlement-eligibility, provider correlation/event processing, and any missing state vocabulary.
@@ -114,6 +124,12 @@ application-side workaround.
     overloading, includes RLS/ACL/integrity/audit/rollback review, and is approved before a migration
     is authored.
   - Recommended: Database/security specialist + Codex strongest | Why: financial transaction authority.
+  - Partial (2026-09-14, RUN B / Phase 2A): `STRIPE-PREPARATION.md` §9 drafts additive
+    `payments`/`payment_transfers` columns/table, the settlement-eligibility gate, and a rollback/
+    test plan not dependent on account-specific facts; §6 documents two settlement-gate options
+    (trusted funding + finance approval, vs. trusted funding + automatic settlement) without
+    choosing between them, per explicit instruction. A draft awaiting that business decision and a
+    human database/security approval is not an approved design, so this stays unchecked.
 
 - [ ] T010 Provision approved secret-management and non-production provider test credentials without
   committing a key or exposing it to Web/React Native clients.
@@ -121,6 +137,10 @@ application-side workaround.
   - Verify: environment contract is documented without values; secret scans are clean; no
     `NEXT_PUBLIC_*`/`EXPO_PUBLIC_*` provider credential exists.
   - Recommended: DevOps/security + Codex — High | Why: secret-boundary work.
+  - Partial (2026-09-14, RUN B / Phase 2A): `STRIPE-PREPARATION.md` §12 names variable classes only
+    (`STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PUBLISHABLE_KEY`) with no values. No
+    credential was provisioned, requested, or displayed — stays unchecked until real non-production
+    credentials exist.
 
 ## Phase 3 — Provider funding and event boundary (blocked until Phase 2 is approved)
 
