@@ -221,9 +221,15 @@ describe("Phase 5.5 UIF-036 — member shell applied at /dashboard", () => {
     // buyer-owned shipment-planning slice, genuinely live (`/dashboard/orders`,
     // `/dashboard/orders/[orderId]`). Not yet registered with Feature 004's module contract (Phase 7/
     // T018, out of RUN A's scope) — no nav entry exists yet, but the route itself is real and guarded
-    // server-side. No OTHER business area (payments, delivery, disputes) has a directory here yet.
-    expect(dirs.sort()).toEqual(["coffee", "inventory", "kyb", "listings", "onboarding", "orders", "sales", "settings", "storage"]);
-    for (const stillUnbuilt of ["payments", "delivery", "disputes"]) {
+    // server-side.
+    //
+    // Feature 009 (RUN B T015 → RUN C T019/T020) adds `dashboard/deliveries/` — the buyer delivery
+    // request form (`/dashboard/deliveries/new`), list (`/dashboard/deliveries`) and tracking detail
+    // (`/dashboard/deliveries/[shipmentId]`), registered with Feature 004's module contract as the
+    // `delivery` module (`requiredCapability: "buy"`), each page enforcing its own Feature 003
+    // eligibility truth server-side. No OTHER business area (payments, disputes) has a directory here yet.
+    expect(dirs.sort()).toEqual(["coffee", "deliveries", "inventory", "kyb", "listings", "onboarding", "orders", "sales", "settings", "storage"]);
+    for (const stillUnbuilt of ["payments", "disputes"]) {
       expect(dirs).not.toContain(stillUnbuilt);
     }
 

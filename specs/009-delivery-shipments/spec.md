@@ -2,7 +2,13 @@
 
 **Feature Directory**: `specs/009-delivery-shipments`
 **Created**: 2026-09-08
-**Status**: Planning reconciled (RUN 0 / Phase 0, 2026-09-14) — implementation NOT started
+**Status**: **IMPLEMENTED / VERIFIED / CLOSED — 39/39 tasks (T001–T039), 2026-09-15.** DB-BLOCK-07 (both
+halves) RESOLVED by the human-approved, manually-applied, live-proven migration
+`supabase/migrations/20260914120000_feature_009_db_block_07.sql` (2026-09-14). Final closure evidence is
+recorded in [tasks.md](./tasks.md)'s status block and Phase 7. **This verdict covers Feature 009 only**
+— it does not authorize production trading for the platform (Feature 008's own real-payment readiness,
+Features 010/012's deferred scope, and the product-wide legal/finance/security/UAT/release gates remain
+open — see "Open items / blockers" for the per-item owner).
 **Primary surfaces**: Member Portal (`/dashboard/deliveries`) + the delivery domain layer consumed by
 010's Warehouse console
 **Depends on**: 001, 003, 004, 005, 007 (shipment plan initiation). Reads `orders.status` for the
@@ -318,11 +324,18 @@ Each item below is classified using: **BLOCKS IMPLEMENTATION NOW** / **BLOCKS DA
 
 - **DB-BLOCK-07 — delivery reservation does not reduce tradable quantity, AND physical-fulfillment
   progression is not gated on order settlement (release-critical; reconciled 2026-09-14).**
-  Classification: **BLOCKS DATABASE PHASE** (Phase 2 must resolve it before Phase 3 domain code is
-  built against it); the unresolved state also **BLOCKS FINAL FEATURE CLOSURE** (AC-04 is a
-  release-blocking acceptance criterion per SRS §17 — a build is not release-ready merely because the
-  UI works). Two related, confirmed findings, both resolved by the same authoritative database
-  capability (see plan.md's design draft):
+  Classification: **RESOLVED — CLOSED BY FEATURE 009 (2026-09-14, both halves)** — was **BLOCKS
+  DATABASE PHASE** / **BLOCKS FINAL FEATURE CLOSURE**. Resolved by the human-approved (T010),
+  manually-applied and postflight-verified (T011/T012, 22/22 `ok`) migration
+  `supabase/migrations/20260914120000_feature_009_db_block_07.sql`, then live-proven under real
+  authenticated sessions and real concurrency (T013, 18/18 scenarios; T017 and T024 live closeouts;
+  `tests/delivery/*`). AC-04 now passes live: settlement-time reservation (`apply_delivery_reservation`
+  + `reserve_ready_deliveries_for_settlement` from `admin_review_payment`), settlement-gated physical
+  progression (`delivery_reservation_requires_settled_order`), exact-once reserve/release, delivery
+  arithmetic on both `available_quantity_kg` and `reserved_quantity_kg`, DISPUTED = FREEZE. The
+  authoritative record is `docs/architecture/DATABASE-CAPABILITY-MAP.md` (DB-BLOCK-07 row) and
+  `DB-BLOCK-07-DESIGN.md` §20/§21. The historical finding is kept below verbatim for continuity. Two
+  related, confirmed findings, both resolved by the same authoritative database capability:
   1. SRS DEL-01/AC-04: an approved delivery request must atomically reserve quantity (unavailable for
      new listing/sale/another delivery reservation), with exactly-once cancellation restoration. The
      only triggers on `order_shipments` are `sync_shipment_ready`, `validate_shipment_transition`,
@@ -348,8 +361,10 @@ Each item below is classified using: **BLOCKS IMPLEMENTATION NOW** / **BLOCKS DA
   `DISPUTED`/`FAILED` as application-narrowed dead ends (see Edge Cases) and links toward 012 — but
   the underlying RLS gap is recorded here for whichever feature (010's compliance console, or 012)
   formally resolves it.
-- **Buyer-cancel-from-DRAFT RLS gap (found 2026-09-14) — BLOCKS IMPLEMENTATION of that one narrow
-  capability only; does not block the rest of 009.** `shipments_buyer_draft_update`'s `WITH CHECK`
+- **Buyer-cancel-from-DRAFT RLS gap (found 2026-09-14) — RESOLVED, CLOSED BY FEATURE 009 (bundled
+  into the Phase 2 DB-BLOCK-07 migration as recommended below; live-proven by `cancelDraftShipment` in
+  `tests/delivery/buyer.test.ts`). Was: BLOCKS IMPLEMENTATION of that one narrow capability only.**
+  Historical text kept for continuity: `shipments_buyer_draft_update`'s `WITH CHECK`
   permits only `DRAFT`/`REQUESTED` as a target status, never `CANCELLED`, and no buyer `DELETE`
   policy exists — see Edge Cases. FR-001's "cancel while `DRAFT`" cannot be implemented as an
   RLS-authorized buyer action until this is fixed. Because it is a small, additive, non-financial

@@ -335,7 +335,22 @@ describe("T025 — LIVE shipment-domain database exceptions map to their specifi
       const operational = await orgB.from("order_shipments").update({ status: "READY" }).eq("id", first.shipmentId);
       await expectLiveMapping(operational.error, "shipment", "warehouse_required_for_operational_shipment_status", ACTION_FEEDBACK.SHIPMENT_NOT_EDITABLE);
 
-      const delivered = await orgB.from("shipment_items").insert({ shipment_id: first.shipmentId, order_item_id: first.orderItemId, planned_quantity_kg: 1, delivered_quantity_kg: 1 });
+      // Since Feature 009's applied DB-BLOCK-07 migration (20260914120000), `validate_shipment_item`'s
+      // INSERT branch refuses ANY non-zero `delivered_quantity_kg` on insert with the settlement gate
+      // (`delivery_reservation_requires_settled_order`) BEFORE the role check can fire — an item can
+      // only ever be born undelivered. That live fact is asserted here; its mapping belongs to the
+      // delivery-domain mapper (`tests/delivery/error-mapping.test.ts`). `only_warehouse_can_record_delivery`
+      // is therefore proven on the path where it genuinely fires: a buyer UPDATE of an existing item.
+      const bornDelivered = await orgB.from("shipment_items").insert({ shipment_id: first.shipmentId, order_item_id: first.orderItemId, planned_quantity_kg: 1, delivered_quantity_kg: 1 });
+      expect(bornDelivered.error?.message).toBe("delivery_reservation_requires_settled_order");
+
+      const { data: plannedItem, error: plannedItemError } = await orgB
+        .from("shipment_items")
+        .insert({ shipment_id: second.shipmentId, order_item_id: second.orderItemId, planned_quantity_kg: 1 })
+        .select("id")
+        .single();
+      expect(plannedItemError).toBeNull();
+      const delivered = await orgB.from("shipment_items").update({ delivered_quantity_kg: 1 }).eq("id", plannedItem!.id);
       await expectLiveMapping(delivered.error, "shipment", "only_warehouse_can_record_delivery", ACTION_FEEDBACK.SHIPMENT_NOT_EDITABLE);
 
       const missing = await orgB.from("shipment_items").insert({ shipment_id: first.shipmentId, order_item_id: NONEXISTENT_ID, planned_quantity_kg: 1 });

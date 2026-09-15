@@ -35,6 +35,27 @@ async function withLiveClient<T>(client: SupabaseClient, run: () => Promise<T>):
   return run();
 }
 
+/**
+ * Every ownership event visible to `organizationId`, paged through the SAME production read function
+ * (`getOwnershipEvents`, newest first) until it reports no more pages. The seeded Feature 005 fixture
+ * events are immutable history dated 2026-09-12; Features 007/008/009's live settlement proofs have
+ * since added genuine, deliberately-retained `SALE` events for the same organizations, so the seeded
+ * rows are no longer within the first default-size page. Visibility (RLS + role/redaction) is the
+ * property under test here, not first-page recency — so look through every page, never just page 0.
+ */
+async function allOwnershipEvents(client: SupabaseClient, organizationId: string) {
+  return withLiveClient(client, async () => {
+    const { getOwnershipEvents } = await import("@/lib/inventory/ownership");
+    const rows: Awaited<ReturnType<typeof getOwnershipEvents>>["rows"][number][] = [];
+    for (let page = 0; page < 50; page += 1) {
+      const result = await getOwnershipEvents({ organizationId, page, pageSize: 100 });
+      rows.push(...result.rows);
+      if (!result.hasMore) break;
+    }
+    return { rows };
+  });
+}
+
 describe("T016 — cross-organization isolation (real seeded rows, real RLS, real sessions)", () => {
   it("Org A sees its OWN position, with the exact seeded quantities — a genuine positive read", async () => {
     const client = await signInAsFixture(INVENTORY_FIXTURES.orgA.email);
@@ -136,10 +157,7 @@ describe("T016 — cross-organization isolation (real seeded rows, real RLS, rea
   describe("ownership event visibility", () => {
     it("Org A sees the event where it is the DESTINATION (from hillsOrg)", async () => {
       const client = await signInAsFixture(INVENTORY_FIXTURES.orgA.email);
-      const result = await withLiveClient(client, async () => {
-        const { getOwnershipEvents } = await import("@/lib/inventory/ownership");
-        return getOwnershipEvents({ organizationId: INVENTORY_FIXTURES.orgA.organizationId });
-      });
+      const result = await allOwnershipEvents(client, INVENTORY_FIXTURES.orgA.organizationId);
       const event = result.rows.find((row) => row.id === INVENTORY_FIXTURES.events.hillsToOrgA);
       expect(event).toBeTruthy();
       expect(event!.role).toEqual({ isSource: false, isDestination: true });
@@ -147,19 +165,13 @@ describe("T016 — cross-organization isolation (real seeded rows, real RLS, rea
 
     it("Org A sees the event where it is the SOURCE (to Org B), and Org B sees the same event as destination", async () => {
       const asOrgA = await signInAsFixture(INVENTORY_FIXTURES.orgA.email);
-      const fromA = await withLiveClient(asOrgA, async () => {
-        const { getOwnershipEvents } = await import("@/lib/inventory/ownership");
-        return getOwnershipEvents({ organizationId: INVENTORY_FIXTURES.orgA.organizationId });
-      });
+      const fromA = await allOwnershipEvents(asOrgA, INVENTORY_FIXTURES.orgA.organizationId);
       const eventForA = fromA.rows.find((row) => row.id === INVENTORY_FIXTURES.events.orgAToOrgB);
       expect(eventForA).toBeTruthy();
       expect(eventForA!.role).toEqual({ isSource: true, isDestination: false });
 
       const asOrgB = await signInAsFixture(INVENTORY_FIXTURES.orgB.email);
-      const fromB = await withLiveClient(asOrgB, async () => {
-        const { getOwnershipEvents } = await import("@/lib/inventory/ownership");
-        return getOwnershipEvents({ organizationId: INVENTORY_FIXTURES.orgB.organizationId });
-      });
+      const fromB = await allOwnershipEvents(asOrgB, INVENTORY_FIXTURES.orgB.organizationId);
       const eventForB = fromB.rows.find((row) => row.id === INVENTORY_FIXTURES.events.orgAToOrgB);
       expect(eventForB).toBeTruthy();
       expect(eventForB!.role).toEqual({ isSource: false, isDestination: true });
@@ -173,19 +185,13 @@ describe("T016 — cross-organization isolation (real seeded rows, real RLS, rea
 
     it("Org A does NOT see the unrelated Org B → Org C event — invisible, not merely redacted", async () => {
       const client = await signInAsFixture(INVENTORY_FIXTURES.orgA.email);
-      const result = await withLiveClient(client, async () => {
-        const { getOwnershipEvents } = await import("@/lib/inventory/ownership");
-        return getOwnershipEvents({ organizationId: INVENTORY_FIXTURES.orgA.organizationId });
-      });
+      const result = await allOwnershipEvents(client, INVENTORY_FIXTURES.orgA.organizationId);
       expect(result.rows.find((row) => row.id === INVENTORY_FIXTURES.events.orgBToOrgC)).toBeUndefined();
     });
 
     it("Org C DOES see the Org B → Org C event, as destination, with Org B's identity redacted", async () => {
       const client = await signInAsFixture(INVENTORY_FIXTURES.orgC.email);
-      const result = await withLiveClient(client, async () => {
-        const { getOwnershipEvents } = await import("@/lib/inventory/ownership");
-        return getOwnershipEvents({ organizationId: INVENTORY_FIXTURES.orgC.organizationId });
-      });
+      const result = await allOwnershipEvents(client, INVENTORY_FIXTURES.orgC.organizationId);
       const event = result.rows.find((row) => row.id === INVENTORY_FIXTURES.events.orgBToOrgC);
       expect(event).toBeTruthy();
       expect(event!.role).toEqual({ isSource: false, isDestination: true });

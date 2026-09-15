@@ -33,7 +33,7 @@ export default function DashboardNotFound() {
           <AppBilingual pick={(c) => c.inventory.notFound.description} />
         </p>
         <div className="mt-6">
-          <Button variant="outline" render={<Link href="/dashboard/inventory" />}>
+          <Button variant="outline" nativeButton={false} render={<Link href="/dashboard/inventory" />}>
             <AppBilingual pick={(c) => c.inventory.notFound.backAction} />
           </Button>
         </div>

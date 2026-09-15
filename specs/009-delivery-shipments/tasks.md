@@ -1,6 +1,6 @@
 # Tasks: Delivery & Shipments (009)
 
-**Status**: RUN A1 complete, RUN A2-PRE2 consistency review complete, RUN A2 preflight (STEP 1)
+**Status**: **CLOSED — 39/39 (2026-09-15), all 7 phases complete; DB-BLOCK-07 RESOLVED and live-proven.** History: RUN A1 complete, RUN A2-PRE2 consistency review complete, RUN A2 preflight (STEP 1)
 executed against the real live database and found (a) two genuine SQL-Editor-only execution bugs in
 the preflight (UNION column-count mismatch, implicit `"char"` concatenation) and (b) a real
 settlement-to-READY reservation gap — a shipment already READY while its order is unsettled had no
@@ -69,8 +69,25 @@ C's ownership). The RUN C closeout (2026-09-15) then closed T024 under a fresh h
 reuse the T013/T017 disposable-ADMIN fixture pattern: `reserve`/`startPicking`/`book`/`dispatch` were
 each exercised through `warehouse.ts` itself on genuinely settled shipments with byte-identical
 reservation/allocation/position across every step, then cleaned up to zero residue with the ADMIN
-capability removed — **T024 is now RECORDED. Phases 4, 5 and 6 are complete: T001–T034 = 34/39; only
-Phase 7 (T035–T039) remains.**
+capability removed — **T024 is now RECORDED. Phases 4, 5 and 6 are complete: T001–T034 = 34/39.**
+RUN D (2026-09-15) then closed Phase 7: T035 (product lint/typecheck/full suite/build/diff-check —
+full `vitest run` 127 files, 1425 passed, 0 failed, exit 0, after six stale cross-feature test
+assertions and one shared not-found prop were corrected with root causes recorded, and two of RUN B's
+own stale test HOLDs were released through the authoritative `expire_order_hold` path only), T036
+(repo-wide lint exactly at the 273/124/149 `docs/claude-design` baseline, zero Feature 009 findings),
+T037 (literal grep clean; stability: delivery suite ×3 identical, gated T017/T024 proofs ×2 each,
+T013 scenarios 5/9/10-11/16 ×3 = 30 real concurrent attempts with zero drift and no 40P01 observed,
+plus scenarios 7/14/17 once more, every run ending with zero residue and zero active ADMIN
+capability, independently re-verified read-only), T038 (capability map DB-BLOCK-07 + DB-OPEN-18
+marked RESOLVED with evidence; roadmap, spec and plan reconciled; every remaining item classified
+with an owner), and T039 (fresh independent 15-question review — no Feature 009 defect). Real-browser
+proof was re-run for durability (RUN C script: zero axe violations, no overflow, keyboard reach) and
+extended (RUN D script: anonymous visitors land on `/sign-in/` with nothing leaked, a cross-org
+buyer gets not-found with nothing leaked, visible 2 px focus ring, every Feature 009 target ≥ 44 px
+at 390 px, units and planned/delivered labels present in EN and AR RTL, zero console/page/request
+errors). **Phase 7 is complete: T001–T039 = 39/39. FEATURE 009 CLOSED (2026-09-15).** This closes
+Feature 009 only — it does not authorize production trading for the platform (see T038 for the
+Feature 008/010/012 and product-wide gates that remain, each with its owner).
 `DB-BLOCK-07-DESIGN.md` §20/§21 (RUN A2-PRE3) for the full settlement-architecture design, lock-order
 analysis, and revised existing-row policy (supersedes `plan.md`'s own earlier draft, which is now also
 corrected in-place with pointers to the design doc).
@@ -1050,6 +1067,8 @@ application-side workaround.
     strategy rule forbids). `tests/delivery/reservation-atomicity.test.ts` (5 tests) verifies the
     claimed scenario coverage genuinely exists, by exact function/string name, in the current
     git-tracked driver and `tasks.md`'s own recorded T013 evidence — not asserted from memory.
+    **Re-executed live in RUN D (2026-09-15)**: scenario 5 ×3 and scenarios 7, 14, 17 ×1 — all
+    `[PASS]` against the live database, fixtures cleaned to zero residue afterwards.
 
 - [x] T028 Write DB-BLOCK-07 concurrency tests: two competing shipment requests cannot both win
   beyond available quantity; cancellation restores exactly once; repeated/duplicate cancellation does
@@ -1177,28 +1196,93 @@ application-side workaround.
 
 ## Phase 7 — Final verification, stability, and closure
 
-- [ ] T035 Run Feature 009/product application lint scope, `npm run typecheck`, full `npm test`,
+- [x] T035 Run Feature 009/product application lint scope, `npm run typecheck`, full `npm test`,
   `npm run build`, and `git diff --check`.
   - Req: SC-006 | Depends: all implemented in-scope tasks
   - Verify: product scope exits 0; typecheck/tests/build/diff-check pass.
   - Recommended: Codex — Medium | Why: mechanical, evidence-driven closure.
+  - **Done (2026-09-15, RUN D)**: product-scope lint `npx eslint src lib components tests` → exit 0
+    (1 pre-existing warning, `tests/listings/manage-page.test.tsx` unused import, Feature 006 commit
+    `9a926f3`, part of the recorded baseline); `npx tsc --noEmit` → exit 0; `npm run build` → exit 0
+    (`/dashboard/deliveries`, `/dashboard/deliveries/[shipmentId]`, `/dashboard/deliveries/new` all
+    dynamic — never prerendered); `git diff --check` → exit 0; full `npx vitest run` → **exit 0 — 127 files passed / 2 skipped (the two `*_LIVE_PROOF`-gated files, run separately), 1425 tests passed / 6 skipped / 0 failed (975 s)**, the second full pass of this run, after the corrections listed next.
+    The FIRST full-suite pass of this run surfaced 6 failures in 5 files, every one investigated to
+    root cause and none a Feature 009 product defect: (1) `tests/orders/error-mapping.test.ts` —
+    Feature 007's INSERT-based `only_warehouse_can_record_delivery` probe was made stale by Feature
+    009's own applied migration (`validate_shipment_item`'s INSERT branch refuses any non-zero
+    `delivered_quantity_kg` with `delivery_reservation_requires_settled_order` first); corrected to
+    assert that live fact and to prove `only_warehouse_can_record_delivery` on the path where it
+    genuinely fires (a buyer UPDATE of an existing DRAFT item); (2)/(3)
+    `tests/inventory/isolation.test.ts` — the seeded 2026-09-12 fixture ownership events are no
+    longer within `getOwnershipEvents`'s first default page for Org A (47 events now; retained,
+    deliberately-kept `SALE` history from Features 007/008/009's live settlement proofs is newer);
+    the test now pages through the SAME production read function until `hasMore` is false —
+    visibility, not first-page recency, is the property under test; (4)
+    `tests/design/uif-f.test.tsx` UIF-036 — Feature 002's `/dashboard/*` directory allow-list did
+    not yet include `deliveries` (added by Feature 009 RUN B/C); corrected to the true current list
+    and `delivery` removed from its "still unbuilt" set; (5)/(6) `tests/listings/browse.test.ts` +
+    `tests/listings/detail-page.test.ts` — the Feature 006 published fixture listing carried
+    `reserved_quantity_kg` 19.5 instead of the seeded 15.5: traced via `audit_logs` to two Feature
+    009 RUN B (2026-09-14 15:08/15:09Z) test HOLD orders (`ORD-20260914-0001231`/`-0001232`, 2 kg
+    each, an earlier iteration of `warehouse.test.ts` that checked out) whose reservations expired
+    the same day but were never lazily released (no scheduler exists — Feature 007's recorded open
+    decision). NOT drift: two ACTIVE-but-expired reservations exactly explained the +4 kg. Released
+    through the authoritative production path only — the owning buyer's own authenticated session
+    calling `expire_order_hold(p_order_id)` twice (no service-role write, no direct table edit) —
+    after which the mirror read exactly 15.5 again and both orders read `EXPIRED`. A seventh
+    correction outside the suite: `src/app/dashboard/not-found.tsx` (Feature 005) rendered
+    `<Button render={<Link/>}>` without `nativeButton={false}`, producing a Base UI dev console
+    error on Feature 009's cross-organization not-found path — the one-prop fix Feature 007/009
+    pages already apply. All corrections are reported here, none silent.
 
-- [ ] T036 Run repository-wide `npm run lint` and report its REAL exit code/count, compared against
+- [x] T036 Run repository-wide `npm run lint` and report its REAL exit code/count, compared against
   the established historical `docs/claude-design/**` baseline (the same precedent Feature 007/008
   already set) — never claim a literal repo-wide exit-0 that does not exist.
   - Req: SC-006 | Depends: T035
   - Verify: repo-wide lint result is reported honestly; zero new non-baseline finding is confirmed by
     diffing the file list against the recorded baseline.
   - Recommended: Codex — Medium | Why: corrects the old task list's stale literal-exit-0 assumption.
+  - **Done (2026-09-15, RUN D)**: `npm run lint` → **exit 1, 273 problems (124 errors, 149
+    warnings)** — an EXACT match to the recorded baseline (Feature 007 handoff §18.3.1: 273/124/149).
+    File list diffed: 43 files with findings = 42 `docs/claude-design/**` design-export files (all
+    `PageHead is not defined`-class errors and their warnings) + the one pre-existing
+    `tests/listings/manage-page.test.tsx` unused-import warning already named in that baseline. Zero
+    findings in any Feature 009 file (`lib/delivery/**`, `components/delivery/**`,
+    `src/app/dashboard/deliveries/**`, `tests/delivery/**`, `tests/browser/feature009-*`). No ESLint
+    configuration was changed.
 
-- [ ] T037 Confirm no application-side inventory reservation was introduced for deliveries outside
+- [x] T037 Confirm no application-side inventory reservation was introduced for deliveries outside
   the approved Phase 2 database call path (DB-BLOCK-07 respected end to end).
   - Req: spec Open items, Constitution IX/X | Depends: T035
   - Verify: `grep -rn "reserved_quantity_kg\|available_quantity_kg" lib/delivery
     src/app/dashboard/deliveries` shows reads and approved-function calls only, never a direct write.
   - Recommended: Codex — High | Why: the single most important restraint in this feature.
+  - **Done (2026-09-15, RUN D)**: the literal grep returns exactly 3 matches, all doc comments in
+    `lib/delivery/warehouse.ts` (lines 28, 29, 175) stating that the application never writes these
+    columns — zero reads-into-writes, zero direct assignment. A broader sweep of every `.insert(`/
+    `.update(`/`.upsert(`/`.delete(`/`.rpc(` in `lib/delivery`, `src/app/dashboard/deliveries` and
+    `components/delivery` finds only: the shipment insert and the `planned_quantity_kg` item insert
+    (`buyer.ts`), the two buyer DRAFT status literals `REQUESTED`/`CANCELLED` (`buyer.ts`), the single
+    named-operation `status: toStatus` update and `delivered_quantity_kg` update (`warehouse.ts`),
+    and the `is_warehouse_operator` RPC — never `inventory_positions`, never `storage_allocations`,
+    never `shipment_items.reserved_quantity_kg`, never `settlement_verified_at`. Every reservation/
+    release/delivery-arithmetic effect happens inside the applied triggers/functions.
+    **Stability evidence (RUN D, same day, all against the live database)**: `npx vitest run
+    tests/delivery` ×3 consecutive → 207 passed / 6 skipped (the two `*_LIVE_PROOF`-gated files) /
+    0 failed each time (88 s, 94 s, 81 s); `T024_LIVE_PROOF=1` ×2 → 3/3 each;
+    `T017_LIVE_PROOF=1` ×2 → 3/3 each; `scripts/t013-delivery-live-proof.ts 5 9 10-11 16` ×3 →
+    8/8 scenarios each (pre-payment READY, settlement-time reservation with exact quantities,
+    exact-once retry, cancel/release arithmetic, full + partial delivery arithmetic, and the
+    settlement-vs-transition concurrency race with 10 real concurrent attempts per run — 30 attempts
+    in total, `deadlockSeen: false` every time, `allConsistent: true` every time; SQLSTATE 40P01 was
+    therefore NOT observed in 30 attempts — not claimed impossible). Every gated run ended with
+    `businessFixtureResidue: "zero"` and `activeAdminPrivilege: false`, independently re-checked
+    read-only afterwards: the disposable `delivery-admin+t013-test@example.com` identity has no
+    `platform_admins` row, `profiles.is_blocked = true`, and is Auth-banned to 2126; FINANCE remains
+    `FINANCE`-only; the only active `ADMIN` row is the project owner's own pre-existing account;
+    zero `T013-` orders remain.
 
-- [ ] T038 Reconcile the roadmap and `docs/architecture/DATABASE-CAPABILITY-MAP.md`: mark
+- [x] T038 Reconcile the roadmap and `docs/architecture/DATABASE-CAPABILITY-MAP.md`: mark
   **DB-BLOCK-07 RESOLVED** (both halves) with its migration evidence if Phase 2 genuinely landed and
   is live-proven; otherwise record its exact remaining state honestly — never mark it resolved
   without live evidence, and never leave it silently open while claiming feature closure. State
@@ -1209,13 +1293,70 @@ application-side workaround.
   - Verify: every open item has an owner/classification; the capability map and this feature's status
     line agree; no cross-feature scope is claimed complete that was not actually implemented here.
   - Recommended: Codex — Medium | Why: multi-agent continuity — this is the honest go/no-go record.
+  - **Done (2026-09-15, RUN D)**: `docs/architecture/DATABASE-CAPABILITY-MAP.md` — DB-BLOCK-07 row
+    marked **RESOLVED — BOTH HALVES — 2026-09-14** with the migration, approval/apply/postflight
+    (22/22) and live-proof (T013 18/18, T017, T024, `tests/delivery/*`) evidence, the applied
+    mechanism, and the three recorded live consequences (CAPACITY_CONFIRMED inside the gate,
+    `settlement_verified_at` re-stamp without a second reservation, the INSERT-branch guard);
+    DB-OPEN-18 row marked RESOLVED (both halves, same migration); `admin_review_payment` §1 row now
+    names the `reserve_ready_deliveries_for_settlement` hook. `IMPLEMENTATION-ROADMAP.md` — 009
+    feature row rewritten to CLOSED with evidence, ownership-matrix row (§ per-feature ownership),
+    journey row ("Delivery (if requested)") and the DB-BLOCK-07 blocker row all reconciled. `spec.md`
+    and `plan.md` status lines rewritten; spec open items re-classified (DB-BLOCK-07 → RESOLVED /
+    CLOSED BY 009; buyer-cancel-from-DRAFT → RESOLVED / CLOSED BY 009; DB-OPEN-09 extension →
+    DEFERRED 010/012, unchanged; DB-BLOCK-01 delivery-proof bytes → BLOCKS PROOF ATTACHMENT ONLY,
+    unchanged, no bucket created; suspended-mid-shipment policy → DEFERRED 010/compliance,
+    unchanged). **Plain statement**: Feature 009's own implementation is COMPLETE and CLOSED. What
+    remains gated is platform-level, owned elsewhere — Feature 008's real-payment/trusted-funding
+    readiness decides whether a `PAID` order can be trusted to mean real money moved (009 gates only
+    on `orders.status`, which is producible today through the current manual FINANCE approval path);
+    Feature 010 owns the warehouse/admin console screens and warehouse process configuration;
+    Feature 012 owns the FAILED/DISPUTED recovery + dispute workflow (DB-level fail-closed today,
+    `delivery_recovery_requires_dedicated_workflow`), notifications and audit expansion; product-wide
+    legal/tax/licensing/security-review/backup-restore/UAT/release approvals are not any feature's
+    task list. No cross-feature scope was implemented here.
 
-- [ ] T039 Perform a final independent scope/constitution/security review before closing Feature 009.
+- [x] T039 Perform a final independent scope/constitution/security review before closing Feature 009.
   - Req: all FR/SEC/SC | Depends: T038
   - Verify: no application-side inventory/settlement workaround exists, all guards/tests are
     evidenced, DB-BLOCK-07's true resolution state is accurately recorded, and remaining
     production-trading gates (Feature 008's own completion) are explicitly listed, not implied.
   - Recommended: Codex strongest | Why: final architecture review before closure.
+  - **Done (2026-09-15, RUN D — fresh review of spec, plan, all 39 tasks, the Feature 009 git
+    history `0ebda9c..HEAD` + this run's working tree, the applied migration text, `lib/delivery/*`,
+    the three pages, the tests, and the reconciled docs)**: (1) every T001–T039 checkbox carries a
+    dated "Done" evidence block naming the artefact that proves it; (2) no task was closed on
+    mocked/static proof where its own Verify demanded live proof — T017/T024 were held open until
+    their settlement-gated legs were live-proven under explicit human authorization, and
+    T026–T030's "evidence-location" tests point at live evidence that this run re-executed live
+    again (T037 stability table); (3) no delivery inventory authority exists outside PostgreSQL —
+    T037's literal grep and the broader write-site sweep are clean; (4) cross-org/anonymous leakage —
+    real-browser proof this run: anonymous visitors to both routes land on `/sign-in/` with no
+    shipment code/order code/address in the DOM; another organization's authorized buyer visiting a
+    foreign shipment id gets the not-found page with nothing leaked; domain-layer proofs in
+    `tests/delivery/isolation.test.ts`, `buyer-role-negatives.test.ts`, T013 scenario 14; `robots.ts`
+    disallows `/dashboard`, `dashboard/layout.tsx` sets `robots: { index: false, follow: false }`,
+    `sitemap.ts` excludes the dashboard; (5) zero `SERVICE_ROLE`/`service_role`/`supabase-js` direct
+    client construction in `lib/delivery`, `components/delivery`, `src/app/dashboard/deliveries`,
+    `lib/dashboard/registry.tsx` (the only hit is a doc comment in `read.ts` asserting the absence);
+    (6) zero `unstable_cache`/`"use cache"`/`cacheTag`/`revalidateTag` in the delivery path; every
+    delivery route is dynamic (`ƒ`) in the build; (7) no DB workaround — RUN D made NO schema/RLS/
+    grant/function/trigger change, no migration rerun, no rollback; the only live writes this run
+    were ordinary test fixtures through RLS-respecting sessions, the authorized gated proofs with
+    their proven cleanup, and two `expire_order_hold` calls by the owning buyer to release RUN B's
+    own stale test holds; (8)/(9) FAILED/DISPUTED remain honest and DISPUTED remains FREEZE —
+    `SHIPMENT_TRANSITIONS.FAILED/DISPUTED = []` in the application, `delivery_recovery_requires_
+    dedicated_workflow` at the database, the detail page renders the honest "no reason recorded"/
+    dispute note; (10) Feature 007 checkout intact — `tests/orders/*` green in the full suite,
+    `checkout_order`/`expire_order_hold` untouched by 009's migration (only `admin_review_payment`
+    gained the settlement hook); (11) Feature 005 custody authority intact — `lib/delivery/custody.ts`
+    is a read-only composition over `getStorageAllocations`, and `storage_allocations` is written
+    only inside the applied trigger's delivery arithmetic; (12) boundaries recorded per T038; (13)
+    fixtures cleaned/revoked and independently re-verified read-only (T037 block); (14) stability —
+    three identical consecutive delivery-suite runs, two identical runs of each gated proof, three
+    identical T013 scenario runs (30 concurrency attempts), and a second full-suite run after the
+    corrections; (15) documentation matches the working tree and the live database as inspected
+    this run. **No Feature 009 defect found. FEATURE 009 CLOSED — 39/39.**
 
 ---
 

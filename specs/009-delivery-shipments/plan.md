@@ -1,7 +1,7 @@
 # Implementation Plan: Delivery & Shipments
 
 **Feature**: `009-delivery-shipments` | **Created**: 2026-09-08 | **Reconciled**: 2026-09-14 (RUN 0 / Phase 0)
-**Spec**: [spec.md](./spec.md) | **Status**: Planning reconciled — implementation NOT started
+**Spec**: [spec.md](./spec.md) | **Status**: **IMPLEMENTED / VERIFIED / CLOSED — 39/39 (2026-09-15)**; DB-BLOCK-07 resolved and live-proven 2026-09-14 (see [tasks.md](./tasks.md) status block and [DB-BLOCK-07-DESIGN.md](./DB-BLOCK-07-DESIGN.md) §20/§21 — the design of record, superseding this plan's earlier draft below)
 
 ## Summary
 
