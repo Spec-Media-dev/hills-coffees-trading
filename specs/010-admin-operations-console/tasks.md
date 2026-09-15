@@ -3,11 +3,13 @@
 **Input**: [spec.md](./spec.md), [plan.md](./plan.md), `docs/architecture/DATABASE-CAPABILITY-MAP.md`,
 `.specify/memory/constitution.md` (v2.0.0), SRS §14 (OPS-01, OPS-02), §3.1, §13.5.
 
-**Status**: all tasks unchecked — implementation NOT started.
-**Prerequisite**: 001 plus the domain layers from 003, 005, 006, 008, 009, 012.
+**Status**: Run 0 reconciled (2026-09-15); all tasks remain unchecked — implementation NOT started.
+**Prerequisite**: 001 plus the applicable current domain capability: 003 is closed; 005 is partial;
+006 supplies listing states; 008 supplies only Phase-1 finance reads; 009 is closed; 012 is not started.
 
 > **Standing rules**: (1) every area authorizes independently server-side; (2) the console owns no
-> transactional logic — settlement via 008's `decidePayment`, fulfilment via 009's warehouse layer;
+> transactional logic — settlement via 008's `decidePayment` only once 008 provides it, fulfilment
+> via 009's warehouse layer;
 > (3) no hard deletes of commercial/inventory/title/payment/audit records; (4) where a recorded
 > blocker limits a capability, state it honestly rather than simulating it.
 
@@ -81,10 +83,12 @@
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — Medium
   - Why: queue list over an existing domain layer.
 
-- [ ] T008 [PS2] Implement the application detail view: evidence list, document expiry, history, and
-  honest statement where documents cannot be opened (DB-BLOCK-01).
+- [ ] T008 [PS2] Implement the application detail view: evidence list, document expiry and history,
+  using 003's live KYB-document seam for Compliance reads. State honestly that non-KYB evidence bytes
+  remain outside that seam.
   - Req: FR-006, FR-017, PS2 | Depends: T007
-  - Verify: expired documents are flagged; unavailable document bytes are explained, not silently broken
+  - Verify: an authorized Compliance reviewer can use the approved KYB-document path; a non-KYB
+    evidence limitation is explained rather than silently broken
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — High
   - Why: reviewer-facing accuracy plus honest handling of a blocked capability.
 
@@ -112,10 +116,11 @@
   - Codex: GPT-5.6 Sol — High · Claude: Opus — Medium
   - Why: controls what is tradable in the marketplace; must cooperate with the offer-transition trigger.
 
-- [ ] T012 [P] Implement the dispute review surface (queue + status transitions) using 012's domain
-  layer.
+- [ ] T012 [P] **BLOCKED — 012 domain layer absent.** Implement the dispute review surface (queue +
+  status transitions) only by composing 012's domain layer.
   - Req: FR-006 | Depends: T004, 012's layer
-  - Verify: dispute status changes record reason and actor; only compliance-permitted roles may act
+  - Verify: dispute status changes record reason and actor; only compliance-permitted roles may act;
+    no parallel 010 dispute engine or freeze path exists
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — High
   - Why: composition over 012's layer with an authorization constraint.
 
@@ -123,21 +128,22 @@
 
 ## Phase 5 — Finance
 
-- [ ] T013 [PS3] Implement the payment review queue with order, amount, currency, proof reference and
-  hold status.
+- [ ] T013 [PS3] **BLOCKED — 008 Phase 1 has no queue read.** Implement the payment review queue with
+  order, amount, currency, proof reference and hold status through 008's finance layer.
   - Req: FR-002, PS3 | Depends: T004, 008's layer
   - Verify: only finance-permitted roles reach it; amounts match `order_financials` exactly
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — High
   - Why: money-facing queue where display fidelity matters.
 
-- [ ] T014 [PS3] Implement the settlement decision UI calling **008's `decidePayment`** — never
+- [ ] T014 [PS3] **BLOCKED — 008 has not supplied `decidePayment`.** Implement the settlement decision UI calling **008's `decidePayment`** — never
   `admin_review_payment` directly — with confirmation and reason capture.
   - Req: FR-004, SC-002, PS3 | Depends: T013
   - Verify: `grep -rn "admin_review_payment" src/app/dashboard-admin lib/admin` returns nothing; approval completes settlement exactly once; expired-reservation approval fails clearly
   - Codex: GPT-5.6 Sol — High · Claude: Opus — High
   - Why: the console's most consequential action; routing around 008's guards would defeat AC-03 protections.
 
-- [ ] T015 [P] Implement payout management and tax invoice recording surfaces (finance-only).
+- [ ] T015 [P] **BLOCKED — 008 has not supplied payout management or invoice recording.** Implement
+  payout management and tax invoice recording surfaces (finance-only).
   - Req: FR-002, FR-006 | Depends: T004, 008's layer
   - Verify: payout status changes and invoice records are finance-only; no member path exists
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — High
@@ -168,14 +174,16 @@
   - Why: irreversible custody reduction.
 
 - [ ] T019 [PS4] Implement custody/inventory oversight views (cross-organization, warehouse-only),
-  stating honestly where DB-BLOCK-07 makes "reserved for delivery" unavailable.
+  rendering the live, database-owned delivery-reservation facts without recomputation.
   - Req: FR-017, PS4 | Depends: T004, 005's layer
-  - Verify: positions render for warehouse roles only; no substitute reservation figure is computed
+  - Verify: positions render for warehouse roles only; delivery-reserved quantity comes from the
+    approved 009/database contract; no substitute figure or arithmetic is computed
   - Codex: GPT-5.6 Sol — Medium · Claude: Opus — High
   - Why: the honest-capability judgment plus a cross-tenant read surface that only warehouse may have.
 
-- [ ] T020 Confirm the variance/reconciliation model before building any reconciliation screen; if the
-  approved schema has no representation, record it rather than inventing one.
+- [ ] T020 Confirm the variance/reconciliation model before building any reconciliation screen; the
+  current authoritative finding is that no variance/reconciliation/HOLD/QUARANTINE representation
+  exists, so retain an honest capability-gap record rather than inventing one.
   - Req: FR-017, spec Open items | Depends: T019
   - Verify: either screens are built on real fields, or the gap is recorded in the capability map and spec
   - Codex: GPT-5.6 Sol — Medium · Claude: Opus — High
@@ -215,8 +223,9 @@
 
 ## Phase 8 — Audit area
 
-- [ ] T025 [PS7] Implement read-only auditor views using dedicated read-only components (no disabled
-  buttons — the affordance never exists).
+- [ ] T025 [PS7] **BLOCKED — 012 audit/history domain layer absent.** Implement read-only auditor views
+  by composing that layer with dedicated read-only components (no disabled buttons — the affordance
+  never exists).
   - Req: FR-009, SC-007, PS7 | Depends: T004
   - Verify: auditor fixture sees data with zero mutation controls; every mutation attempt is refused
   - Codex: GPT-5.6 Sol — High · Claude: Opus — High
@@ -277,7 +286,7 @@
   action — button, bulk operation, or menu item — that recalculates, restates or re-snapshots
   historical orders, commission amounts, seller net amounts or payouts.
   - Req: FR-002, PS8 | Depends: T042
-  - Verify: the copy is present on both policy and tier mutations; `grep -rniE "recalculat|re-?snapshot|restate|backfill" src/app/dashboard-admin` returns nothing that acts on historical financial records; changing a policy after an order's checkout leaves that order's `order_financials` unchanged (cross-checked with 008's T032)
+  - Verify: the copy is present on both policy and tier mutations; `grep -rniE "recalculat|re-?snapshot|restate|backfill" src/app/dashboard-admin` returns nothing that acts on historical financial records. The current 008 Phase-1 foundation has no T032 evidence, so historical-snapshot integration verification remains an explicit 008 dependency rather than an unsatisfied claim in 010; 010 verifies its own UI has no restatement action.
   - Codex: GPT-5.6 Sol — Medium · Claude: Opus — High
   - Why: the one place a well-meaning "fix historical commissions" feature would plausibly be added — its absence must be deliberate and visible.
 
@@ -387,8 +396,9 @@
   - Codex: GPT-5.6 Sol — Low · Claude: Sonnet — Low
   - Why: mechanical constitutional checks.
 
-- [ ] T041 Update the roadmap for 010 and confirm OPS-01 dual control, DB-OPEN-06, DB-BLOCK-01/07 and
-  the variance-model question all remain open and honestly represented in-product.
+- [ ] T041 Update the roadmap for 010 and confirm OPS-01 dual control, DB-OPEN-06, DB-OPEN-09,
+  evidence-byte scope, the suspended-operation policy, and the variance-model question all remain
+  accurately classified. Confirm DB-BLOCK-07 remains recorded as resolved by 009.
   - Req: spec Open items | Depends: T038
   - Verify: roadmap accurate; every unresolved item is visible both in the capability map and to operators where relevant
   - Codex: GPT-5.6 Sol — Medium · Claude: Opus — High
@@ -406,7 +416,10 @@
 - Phase 10's tests: T031–T035 parallel; T030 must follow the areas it iterates.
 - Phase 12 depends on everything.
 
-**Parallel-safe tasks**: T012, T015, T022, T024, T028, T029, T031, T032, T033, T034 (10 of 45).
+**Structurally parallel-safe tasks once their prerequisites exist**: T012, T015, T022, T024, T028,
+T029, T031, T032, T033, T034 (10 of 45). **Current availability supersedes this marker**: T012 and
+T015 are blocked by 012 and 008 respectively, and downstream test tasks remain blocked until their
+surfaces exist.
 
 **Commission ownership note**: this feature owns the **Admin management UI** for the existing
 `commission_policies`/`commission_tiers` tables inside the existing `/dashboard-admin` surface

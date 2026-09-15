@@ -2,7 +2,7 @@
 
 **Feature Directory**: `specs/010-admin-operations-console`
 **Created**: 2026-09-08
-**Status**: Planning prepared — implementation NOT started
+**Status**: Run 0 reconciled (2026-09-15) — implementation NOT started; delivery dependency is live, finance/dispute dependencies remain partial or absent.
 **Primary surface**: Operations Console (`/dashboard-admin`)
 **Depends on**: 001 (independent admin guard), 003, 005, 006, 008, 009, 012 (domain layers)
 
@@ -25,7 +25,9 @@ access, and operations access never implies member trading capability.
 - **Compliance**: KYB review queue and decisions, organization status/suspension, document expiry
   visibility, listing review/suspension, dispute review.
 - **Warehouse**: inventory positions and custody oversight, shipment queues and operational
-  transitions, delivered-quantity recording, variance/reconciliation surfacing.
+  transitions, delivered-quantity recording, and honest variance/reconciliation capability-gap
+  surfacing. Delivery-reservation facts are database-owned and must be consumed through 009's
+  warehouse layer; this console never calculates or writes a reservation itself.
 - **Finance**: payment review queue, settlement decisions (via 008's layer), payouts, tax invoices,
   financial reconciliation views.
 - **Catalogue**: coffees, lots, origins, regions, taxonomy, warehouses, media — the content the
@@ -116,8 +118,10 @@ and confirm the full settlement effects and the rejection path.
 
 1. Given payments in the review states, when the queue renders, then each shows order, amount,
    currency, proof reference and hold status.
-2. Given approval, when recorded, then 008's `decidePayment` is called (never
-   `admin_review_payment` directly from the console) and settlement completes exactly once.
+2. Given approval, when 008 supplies its `decidePayment` layer, then that layer is called (never
+   `admin_review_payment` directly from the console) and settlement completes exactly once. The
+   current 008 Phase-1 foundation does **not** yet supply this action, so this scenario is blocked
+   rather than implemented through a console substitute.
 3. Given a payment whose reservation expired, when approval is attempted, then it fails with a clear
    explanation and no title moves.
 4. Given rejection with a reason, when recorded, then the payment is `REJECTED` and the order returns
@@ -129,7 +133,9 @@ A warehouse operator progresses shipments, records deliveries, and oversees cust
 
 **Why P1**: physical operations must be executable or nothing ships.
 **Independent test**: progress a shipment through the permitted operational states via 009's
-warehouse layer and record a partial delivery.
+warehouse layer and record a partial delivery. The live layer already enforces settlement-gated
+progression and its database-owned delivery reservation; `DISPUTED` holds that reservation (FREEZE)
+and `FAILED`/`DISPUTED` have no recovery transition until 012 owns one.
 
 **Acceptance scenarios**
 
@@ -178,8 +184,9 @@ it and confirm it 404s.
 An auditor reads the evidence they are entitled to, and can mutate nothing.
 
 **Why P3**: important for governance, constrained by DB-OPEN-06.
-**Independent test**: as an auditor fixture, confirm read access to permitted areas and refusal of
-every mutation.
+**Independent test**: once 012 supplies its audit/history domain layer, as an auditor fixture,
+confirm read access to permitted areas and refusal of every mutation. The console may compose that
+layer read-only; it must not build a parallel audit domain.
 
 **Acceptance scenarios**
 
@@ -227,12 +234,14 @@ succeeds.
 - **FR-003**: The console MUST NOT introduce a universal "admin" capability that bypasses role
   separation; where the database's role hierarchy already grants ADMIN/SUPER_ADMIN broader rights,
   the console reflects that hierarchy rather than inventing a new one.
-- **FR-004**: Settlement decisions MUST be executed through 008's `decidePayment`; the console MUST
-  NOT call `admin_review_payment` directly.
+- **FR-004**: Settlement decisions, when 008 supplies `decidePayment`, MUST be executed through that
+  layer; the console MUST NOT call `admin_review_payment` directly. Until then, no settlement
+  decision control is offered.
 - **FR-005**: Shipment operations MUST be executed through 009's warehouse layer; the console MUST NOT
   perform raw shipment updates.
-- **FR-006**: KYB, listing and dispute decisions MUST record reviewer, decision and reason through the
-  approved tables (`kyb_reviews`, `listing_reviews`, `disputes`).
+- **FR-006**: KYB and listing decisions MUST record reviewer, decision and reason through the approved
+  tables (`kyb_reviews`, `listing_reviews`). Dispute decisions are composed only through 012's domain
+  layer once it exists; this console MUST NOT create a parallel dispute transition path.
 - **FR-007**: Catalogue mutations MUST revalidate 002's public cache tags for the affected content.
 - **FR-008**: The console MUST NOT hard-delete commercial, inventory, title, payment or audit records;
   only approved state transitions and retention/redaction paths may be offered (SRS OPS-02).
@@ -278,6 +287,9 @@ succeeds.
   no stale content persists indefinitely.
 - An auditor opens an area whose data they cannot read (DB-OPEN-06) → honest explanation, not an error.
 - A warehouse operator attempts a commercial action (settlement) → refused by the function.
+- An organization is suspended while it has an in-flight shipment → the current database safely
+  preserves existing records, but the warehouse-action policy is not yet decided; the console must
+  not silently choose continuation, cancellation, or release semantics.
 - A queue is empty → honest empty state, never fabricated rows.
 
 ## Success Criteria
@@ -314,12 +326,26 @@ succeeds.
   access). The approved schema records a single reviewer per decision and has no maker-checker
   construct. Dual control therefore cannot be implemented today — record the decision rather than
   simulating it in application code.
-- **DB-BLOCK-01** (KYB documents, payment proof, dispute evidence) limits what reviewers can actually
-  open; the console must state this honestly.
-- **DB-BLOCK-07** (delivery does not reserve inventory) affects warehouse oversight accuracy.
-- **Reconciliation/variance workflows** (SRS LOT-04, AC-05): the approved schema has no explicit
-  variance/reconciliation entity. What warehouse operators can actually reconcile must be confirmed
-  before building screens that imply capability the data model does not support.
+- **DB-BLOCK-01 — SUPERSEDED for KYB, CURRENT elsewhere**: 003's private `kyb-evidence` bucket,
+  `attach_kyb_document`, and Compliance read access are live, so KYB reviewers may use that approved
+  seam. It does **not** supply payment-proof, delivery-proof, dispute-evidence, or public-media bytes;
+  those remain owned by 008/009/012 or the media capability decision. The console must state the
+  relevant limitation rather than treating all evidence as unavailable.
+- **DB-BLOCK-07 — RESOLVED / CLOSED BY 009**: delivery reservation, settlement-time reservation, and
+  settlement-gated warehouse progression are live. Warehouse screens must delegate to 009 and render
+  stored reservation facts; they must not issue raw shipment updates or invent reservation arithmetic.
+- **DB-OPEN-06 — CURRENT / OWNED ELSEWHERE**: an `AUDITOR` cannot read `audit_logs`; the audit area
+  must explain this policy gap until the approved process changes it.
+- **DB-OPEN-09 — CURRENT / OWNED BY 012 + approved DB process**: no compliance dispute-freeze path
+  exists for orders or shipments. 010 must not simulate one.
+- **OPS-01 dual control — CURRENT business/security decision**: no maker-checker representation exists
+  in the approved schema. Record and surface the limitation; do not simulate it in application code.
+- **Variance/reconciliation (LOT-04, AC-05) — CURRENT capability gap**: the approved schema has no
+  explicit variance, reconciliation, HOLD, or QUARANTINE entity/status. T020 remains an honest gap
+  task; it must not invent a model.
+- **Suspended-organization mid-operation policy — CURRENT / Feature 010 compliance ownership**:
+  009 safely exposes existing shipments but deliberately does not decide whether warehouse work may
+  continue, cancel, or require escalation after suspension.
 
 ## Dependencies
 
@@ -327,9 +353,9 @@ succeeds.
 |---|---|
 | 001 | `/dashboard-admin` guard and identity/operational-role resolution |
 | 003 | KYB/organization domain the compliance area acts on |
-| 005 | Inventory/custody read layer for warehouse oversight |
+| 005 | Current inventory/custody read facts; cross-organization warehouse composition must preserve its approved RLS boundary |
 | 006 | Listing domain for compliance review |
-| 008 | `decidePayment` — the only settlement path |
-| 009 | Warehouse shipment layer — the only fulfilment path |
-| 012 | Dispute domain and audit/notification surfaces |
+| 008 | Provider-neutral read foundation exists (6/39); `decidePayment`, payment-review queue, payout management and invoice recording do not yet exist |
+| 009 | Closed warehouse shipment layer — the only fulfilment path; delivery reservation is live |
+| 012 | Dispute domain and reusable audit/history/notification surfaces — not started, so dispute/audit composition remains blocked |
 | 002 | Public cache tags revalidated by catalogue changes |
