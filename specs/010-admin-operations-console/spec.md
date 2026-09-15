@@ -2,7 +2,7 @@
 
 **Feature Directory**: `specs/010-admin-operations-console`
 **Created**: 2026-09-08
-**Status**: Run 0 reconciled (2026-09-15) — implementation NOT started; delivery dependency is live, finance/dispute dependencies remain partial or absent.
+**Status**: RUN A complete (2026-09-15) — Phase 1 (access matrix, live guards, shell, per-area route-group guards, non-indexable surface) + Phase 2 (real role-shaped overview) + the RUN A-added operator self-account page (T046) are implemented and verified: 7 / 48 tasks. Phases 3–12 NOT started; delivery dependency is live, finance/dispute dependencies remain partial or absent (see tasks.md status).
 **Primary surface**: Operations Console (`/dashboard-admin`)
 **Depends on**: 001 (independent admin guard), 003, 005, 006, 008, 009, 012 (domain layers)
 
@@ -36,6 +36,11 @@ access, and operations access never implies member trading capability.
 - **Audit**: read-oriented evidence views for auditors (subject to DB-OPEN-06).
 - **System (SUPER_ADMIN)**: platform admin roles, commission tiers, tax rules, shipping rules,
   payment accounts.
+- **Operator self-account (added RUN A, 2026-09-15)**: the signed-in operator's own profile,
+  sign-in email (display), password (via the existing reset flow), two-factor status/enrolment and
+  sign-out — composed ONLY from Feature 003's existing authority, because operators without a
+  member organization have no other account surface. Email change and platform branding are
+  recorded gaps (T047/T048), not simulated.
 
 ### Out of scope
 
@@ -346,6 +351,21 @@ succeeds.
 - **Suspended-organization mid-operation policy — CURRENT / Feature 010 compliance ownership**:
   009 safely exposes existing shipments but deliberately does not decide whether warehouse work may
   continue, cancel, or require escalation after suspension.
+- **Platform branding / settings (T047) — BLOCKED, NO AUTHORITATIVE MODEL (found RUN A,
+  2026-09-15)**: no approved settings/branding table, config source or brand-asset bucket exists;
+  logo, favicon and platform name are static build assets. Requires a human decision before any
+  management screen is built; the console must not fake one.
+- **Operator email change (T048) — BLOCKED, requires an approved auth-flow decision (RUN A)**:
+  no approved path exists; the account page displays the current email and states the gap.
+- **`organizations` has no SELECT policy for COMPLIANCE (found RUN A, 2026-09-15) — candidate DB
+  open item for Phase 3 (T007)**: the live policy set grants `organizations` reads to
+  `is_org_member(id)`/`is_platform_admin()` only, while `kyb_applications` is compliance-readable.
+  A pure COMPLIANCE operator can therefore see KYB applications but not the organization names
+  behind them through RLS. Recorded, not worked around; the overview shows no organization-level
+  compliance figure for that reason.
+- **"Trading oversight" scope has no owning task (found RUN A)**: the In-scope list names
+  listing states / order-trade monitor / settlement-title visibility, but no T0NN task covers it.
+  Flagged for RUN B planning rather than silently added to the matrix.
 
 ## Dependencies
 

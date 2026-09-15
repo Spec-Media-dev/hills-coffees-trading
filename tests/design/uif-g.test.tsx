@@ -51,14 +51,19 @@ describe("Phase 5.5 UIF-039 — admin shell applied at /dashboard-admin", () => 
   it("shows honest overview content with no invented KPI, queue count or activity row", () => {
     const page = source("src/app/dashboard-admin/page.tsx");
     expect(page).not.toMatch(/\$\d|€\d|AED|USD|\d+ (?:orders|members|organizations|disputes|pending)/i);
-    expect(page).toContain("modulesArriveLater");
+    // Feature 010 RUN A (T006) replaced the "modules arrive later" placeholder with real, role-shaped
+    // counts read under the operator's own session (`lib/admin/read.ts`) — still no invented figure.
+    expect(page).toContain("getAdminOverview(identity.operationalRoles)");
   });
 
-  it("implements no admin business module and creates no new /dashboard-admin/* route", () => {
+  it("the shell layout itself still reads no business data; every /dashboard-admin/* route group is a guarded Feature 010 area", () => {
     const layout = source("src/app/dashboard-admin/layout.tsx");
     expect(layout).not.toMatch(/createClient|\.from\(["'`]/);
+    // Feature 010 RUN A (T004): six route groups + the operator's own account route now exist, each
+    // behind its own server-side guard — proven in `tests/admin/access-matrix.test.tsx`.
     const entries = readdirSync(path.join(root, "src", "app", "dashboard-admin"), { withFileTypes: true });
-    expect(entries.filter((e) => e.isDirectory())).toHaveLength(0);
+    const dirs = entries.filter((e) => e.isDirectory()).map((e) => e.name).sort();
+    expect(dirs).toEqual(["(audit)", "(catalogue)", "(compliance)", "(finance)", "(system)", "(warehouse)", "account"]);
   });
 
   it("uses the same AppShell as /dashboard — one shell architecture, two densities", () => {
@@ -143,28 +148,33 @@ describe("Phase 5.5 UIF-041 — role-scalable admin navigation structure", () =>
     expect(src).not.toMatch(/getRequestIdentity|supabase|\.rpc\(/);
   });
 
-  it("Overview is role-agnostic — an empty role set still renders it, matching the live route", () => {
+  // Feature 010 RUN A (T001/T003): the structure is now DERIVED from the single access matrix
+  // (`lib/admin/areas.ts`) — groups are the console's six areas plus Overview and Account, and a
+  // role sees exactly the areas its attested role function unlocks.
+  it("Overview and Account are role-agnostic shell routes — an empty role set still renders them, matching the live route", () => {
     const groups = buildAdminNavGroups([]);
-    expect(groups).toHaveLength(1);
-    expect(groups[0]?.key).toBe("overview");
+    expect(groups.map((g) => g.key)).toEqual(["overview", "account"]);
   });
 
-  it("renders for an arbitrary supplied role set — WAREHOUSE sees catalogue and logistics only", () => {
+  it("renders for an arbitrary supplied role set — WAREHOUSE sees the warehouse group only", () => {
     const groups = buildAdminNavGroups(["WAREHOUSE"]);
-    expect(groups.map((g) => g.key).sort()).toEqual(["catalogue", "logistics", "overview"].sort());
+    expect(groups.map((g) => g.key).sort()).toEqual(["account", "overview", "warehouse"].sort());
   });
 
   it("renders for an arbitrary supplied role set — a mixed AUDITOR + FINANCE set unions correctly", () => {
     const groups = buildAdminNavGroups(["AUDITOR", "FINANCE"]);
     const keys = groups.map((g) => g.key).sort();
-    expect(keys).toEqual(["audit", "commercial", "overview"].sort());
+    expect(keys).toEqual(["account", "audit", "finance", "overview"].sort());
   });
 
-  it("SUPER_ADMIN's real hierarchical attestation sees every group — a database fact, not an invented permission", () => {
-    const groups = buildAdminNavGroups(["SUPER_ADMIN"]);
+  it("the DAL's real hierarchical attestation for SUPER_ADMIN sees every group — a database fact, not an invented permission", () => {
+    // `lib/auth/dal.ts` lists every role whose function returns true; for a SUPER_ADMIN that is all six.
+    const groups = buildAdminNavGroups(["SUPER_ADMIN", "ADMIN", "COMPLIANCE", "WAREHOUSE", "FINANCE", "AUDITOR"]);
     expect(groups.map((g) => g.key).sort()).toEqual(
-      ["audit", "catalogue", "commercial", "compliance", "logistics", "organizations", "overview"].sort(),
+      ["account", "audit", "catalogue", "compliance", "finance", "overview", "system", "warehouse"].sort(),
     );
+    // A bare "SUPER_ADMIN" string alone unlocks only the super-admin areas — no hierarchy is invented here.
+    expect(buildAdminNavGroups(["SUPER_ADMIN"]).map((g) => g.key)).toEqual(["overview", "system", "account"]);
   });
 
   it("the structure renders through Sidebar without a client island or a live route existing for any module", () => {
@@ -178,8 +188,11 @@ describe("Phase 5.5 UIF-041 — role-scalable admin navigation structure", () =>
     );
     expect(screen.getAllByText("Overview").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Organizations").length).toBeGreaterThan(0);
-    for (const href of ["/dashboard-admin/organizations", "/dashboard-admin/members", "/dashboard-admin/kyb"]) {
-      expect(() => readFileSync(path.join(root, "src", "app", href.slice(1), "page.tsx"))).toThrow();
+    // Feature 010 RUN A: these routes now exist as GUARDED, honest "not yet available" destinations
+    // under their route group (`(compliance)/…`) — never under a bare, unguarded folder.
+    for (const segment of ["organizations", "kyb"]) {
+      expect(() => readFileSync(path.join(root, "src", "app", "dashboard-admin", segment, "page.tsx"))).toThrow();
+      expect(readFileSync(path.join(root, "src", "app", "dashboard-admin", "(compliance)", segment, "page.tsx"), "utf8")).toContain("AdminAreaPlaceholder");
     }
   });
 
@@ -189,9 +202,9 @@ describe("Phase 5.5 UIF-041 — role-scalable admin navigation structure", () =>
     expect(src).toMatch(/never a security boundary/);
   });
 
-  it("is never called with the real operationalRoles on the live route", () => {
+  it("Feature 010 RUN A — the live route now shapes navigation from the real, DB-attested operationalRoles (presentation only; every route re-verifies server-side)", () => {
     const layout = source("src/app/dashboard-admin/layout.tsx");
-    expect(layout).toContain("buildAdminNavGroups([])");
-    expect(layout).not.toContain("buildAdminNavGroups(identity.operationalRoles)");
+    expect(layout).toContain("buildAdminNavGroups(identity.operationalRoles)");
+    expect(layout).not.toContain("buildAdminNavGroups([])");
   });
 });

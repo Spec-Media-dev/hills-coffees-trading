@@ -3,7 +3,20 @@
 **Input**: [spec.md](./spec.md), [plan.md](./plan.md), `docs/architecture/DATABASE-CAPABILITY-MAP.md`,
 `.specify/memory/constitution.md` (v2.0.0), SRS §14 (OPS-01, OPS-02), §3.1, §13.5.
 
-**Status**: Run 0 reconciled (2026-09-15); all tasks remain unchecked — implementation NOT started.
+**Status**: **RUN A complete (2026-09-15) — Phase 1 (T001–T005) + Phase 2 (T006) RECORDED, plus the
+RUN A-added admin-global task T046 RECORDED; T047/T048 added and honestly BLOCKED. 7 / 48
+(original planned count 45; authoritative count now 48).** Phases 3–12 remain unstarted; their
+blockers are unchanged (see the Run 0 reconciliation in plan.md). RUN A evidence: the single access
+matrix (`lib/admin/areas.ts`) + live guards (`lib/admin/guards.ts`) + six guarded route groups
+(`(compliance)`/`(warehouse)`/`(finance)`/`(catalogue)`/`(audit)`/`(system)` with a nested
+`(super)` slice) + the role-shaped shell and account menu + the real-count overview + the operator
+self-account page; `tests/admin/*` (37 tests, live WAREHOUSE/FINANCE/member/anonymous sessions) and a
+real Chrome + axe pass (`tests/browser/feature010-runa.browser.mjs`: 20 surfaces × EN/AR × light/dark
+× 390/1366/1920, zero violations, keyboard focus ring, mobile drawer, direct-URL refusals). No
+database change, no service role, no fabricated figure. Two live-DB findings recorded (not fixed):
+`organizations` has no SELECT policy for COMPLIANCE (Phase 3's KYB queue cannot show organization
+names through RLS as-is — a candidate DB open item for T007), and the spec's "Trading oversight"
+scope has no owning task (flagged for RUN B planning, not silently added).
 **Prerequisite**: 001 plus the applicable current domain capability: 003 is closed; 005 is partial;
 006 supplies listing states; 008 supplies only Phase-1 finance reads; 009 is closed; 012 is not started.
 
@@ -27,50 +40,129 @@
 
 ## Phase 1 — Access matrix & guards
 
-- [ ] T001 [PS1] Create `lib/admin/areas.ts` — the single declarative access matrix mapping every
+- [x] T001 [PS1] Create `lib/admin/areas.ts` — the single declarative access matrix mapping every
   console area to its required role check.
   - Req: FR-002, FR-003, SC-001 | Depends: —
   - Verify: every area appears exactly once with an explicit role; no "any staff" catch-all exists
   - Codex: GPT-5.6 Sol — Medium · Claude: Opus — High
   - Why: this single file defines least privilege for the entire operations surface; an over-broad entry here silently grants cross-role power.
+  - **Done (2026-09-15, RUN A)**: `ADMIN_AREAS` declares 21 areas across the six groups (compliance:
+    kyb/organizations/listings/disputes; warehouse: shipments/inventory; finance: payments/payouts/
+    invoices; catalogue: coffees/origins/regions/taxonomy/warehouses/media; audit: audit; system:
+    roles/commission/tax/shipping/paymentAccounts), each with exactly ONE `roleFunction` drawn from
+    the closed union `ADMIN_ROLE_FUNCTIONS` (the six approved SECURITY DEFINER functions) and an
+    honest `availability` (`planned` phase N / `blocked` with the named dependency — none is `live`
+    because RUN A built no workflow). `ROLE_FUNCTION_ATTESTS` mirrors `lib/auth/dal.ts` exactly (no
+    invented hierarchy); `payment_accounts` is `is_platform_admin()` while roles/commission/tax/
+    shipping are `is_super_admin()` — the RLS truth. Overview/Account are `ADMIN_SHELL_ROUTES`,
+    kept OUT of the matrix. Proof: `tests/admin/access-matrix.test.tsx` "T001" (unique key/href,
+    every function approved, no `isStaff`/`anyRole`/membership token in the file, DAL mapping
+    cross-checked, visibility shaping from attested roles only).
 
-- [ ] T002 [PS1] Implement `lib/admin/guards.ts` — per-area server-side verification helpers reading
+- [x] T002 [PS1] Implement `lib/admin/guards.ts` — per-area server-side verification helpers reading
   the matrix and calling the approved role functions.
   - Req: FR-002, SEC-001 | Depends: T001
   - Verify: each guard calls the specific role function (not a generic staff check); a member with no operational role is refused everywhere
   - Codex: GPT-5.6 Sol — High · Claude: Opus — High
   - Why: the enforcement half of the least-privilege model; must not drift from the declaration.
+  - **Done (2026-09-15, RUN A)**: `verifyRoleFunction(fn)` issues `supabase.rpc(fn)` for the named
+    approved function under the operator's own session and fails closed; `checkConsoleShellAccess`
+    (anonymous → MFA step-up → no operational role, Feature 001's predicate restated) runs BEFORE
+    the function call; `checkGroupAccess(group)` / `checkAreaAccess(key)` /
+    `checkRoleFunctionAccess(fn)` return a typed `AdminAccess` (`forbidden` for a staff member with
+    the wrong role). Never reads a membership. LIVE proof (`tests/admin/access-matrix.test.tsx`):
+    the WAREHOUSE fixture is permitted in the warehouse group only and `forbidden` in the other five
+    and in every non-warehouse area; the FINANCE fixture mirrors that; the approved trading member
+    (`buyer-only`) is `no-operational-role` at the shell, every group and every area; an anonymous
+    session is `anonymous` before any function is consulted; the WAREHOUSE operator's identity has
+    `organization === null`, `organizations === []`, `isAuthorizedMember === false` (operator ≠
+    member). COMPLIANCE/AUDITOR/ADMIN/SUPER_ADMIN legs are proven structurally only — no such
+    fixture exists (Phase 10 T030 owns the full six-role live matrix).
 
-- [ ] T003 [PS1] Extend `src/app/dashboard-admin/layout.tsx` into the console shell (dark sidebar,
+- [x] T003 [PS1] Extend `src/app/dashboard-admin/layout.tsx` into the console shell (dark sidebar,
   sticky topbar, role-shaped navigation) while preserving 001's guard exactly.
   - Req: FR-001, FR-015 | Depends: T002
   - Verify: 001's guard behaviour is unchanged; navigation shows only the areas the operator's roles permit
   - Codex: GPT-5.6 Sol — Medium · Claude: Opus — High
   - Why: edits the file enforcing the console's security boundary; chrome must not weaken it.
+  - **Done (2026-09-15, RUN A)**: the three guard statements are byte-identical (`git diff
+    --unified=0` touches none of them; `tests/design/uif-g.test.tsx` and `tests/auth/admin-auth.test.ts`
+    still assert this); only the markup past the guard changed. The shell reuses the SAME `AppShell`
+    (dark forest sidebar, sticky topbar, `MobileAppNav` drawer) — no second design system — now fed
+    `buildAdminNavGroups(identity.operationalRoles)` (rewritten to derive groups/areas from the
+    matrix), role badges in the topbar (`components/admin/role-badges.tsx`, text + dot), and an
+    account menu (`components/admin/topbar.tsx`: avatar, name, roles, "My account" →
+    `/dashboard-admin/account`, sign-out via the existing `LogoutConfirmDialog`/`signOut` action).
+    Breadcrumbs/page-title use the existing `PageHeader`; the toast host is already global. The
+    layout still never reads a membership. EN/AR copy added together (`lib/app/copy/{en,ar}.ts`
+    `admin.*`). Real-browser proof: `tests/browser/feature010-runa.browser.mjs` — WAREHOUSE operator
+    sees Overview/Warehouse/Account only, drawer at 390 px lists shipments/inventory/account and no
+    finance/compliance entry, zero axe violations on every surface, Tab reaches the Shipments link
+    with a visible 2 px focus ring, no console/page/request errors.
 
-- [ ] T004 Add per-area route-group layouts, each invoking its own guard.
+- [x] T004 Add per-area route-group layouts, each invoking its own guard.
   - Req: FR-002, SC-001 | Depends: T002, T003
   - Verify: a direct URL into a forbidden area is refused by that area's own layout, not merely absent from navigation
   - Codex: GPT-5.6 Sol — High · Claude: Opus — High
   - Why: defence in depth per area; the most likely place for a missing check to hide.
+  - **Done (2026-09-15, RUN A)**: `src/app/dashboard-admin/(compliance|warehouse|finance|catalogue|
+    audit|system)/layout.tsx` each call `checkGroupAccess("<group>")` (its own function, live) and
+    render `AdminAccessDenied` (forbidden state naming the required role; anonymous →
+    `/admin/sign-in/`; step-up → `/mfa/`) instead of `children`; `(system)/(super)/layout.tsx`
+    additionally calls `is_super_admin()` for roles/commission/tax/shipping while
+    `(system)/payment-accounts` stays `is_platform_admin()`. Every declared area has a page under
+    its group rendering `AdminAreaPlaceholder`, which re-verifies the AREA's own function and states
+    honestly "not available yet (phase N)" or "waiting on a dependency (Feature 008 / Feature 012 +
+    DB-OPEN-09 / DB-OPEN-06)" with no controls. Proof: `tests/admin/access-matrix.test.tsx` "T004"
+    (one guarded group per matrix group; every href → a page under its group; direct invocation of
+    the `(finance)` layout with the live WAREHOUSE session renders the forbidden state and never
+    its children, the `(warehouse)` layout admits them; the anonymous branch redirects to the
+    operator sign-in) + browser proof (WAREHOUSE at `/dashboard-admin/payments/` → forbidden;
+    FINANCE at `/dashboard-admin/shipments/` and `/roles/` → forbidden; member at
+    `/dashboard-admin/shipments/` → operations-access-required). `npm run build` lists all 23 console
+    routes as dynamic (`ƒ`).
 
-- [ ] T005 Add non-indexable metadata for all `/dashboard-admin` routes and confirm exclusion from
+- [x] T005 Add non-indexable metadata for all `/dashboard-admin` routes and confirm exclusion from
   002's sitemap.
   - Req: FR-012 | Depends: T003
   - Verify: console routes are non-indexable; 002's sitemap contains none of them
   - Codex: GPT-5.6 Sol — Low · Claude: Sonnet — Low
   - Why: small, mechanical.
+  - **Done (2026-09-15, RUN A)**: the root console layout's `robots: { index: false, follow: false }`
+    is inherited by every nested segment — no nested layout/page exports metadata or overrides
+    robots; `robots.ts` disallows `/dashboard-admin`; `sitemap.ts` contains no console route; no
+    public copy or public component links an operational route (only the authenticated account
+    menus link the console root); every console page/layout reads the request identity (dynamic,
+    never prerendered) and uses no cache API. Proof: `tests/admin/noindex.test.ts` (5 tests) plus
+    the existing `tests/public/seo-boundary.test.ts` (still green).
 
 ---
 
 ## Phase 2 — Console overview
 
-- [ ] T006 Implement `src/app/dashboard-admin/page.tsx` — a role-shaped operations overview built from
+- [x] T006 Implement `src/app/dashboard-admin/page.tsx` — a role-shaped operations overview built from
   real queries only (no sample or estimated figures).
   - Req: FR-016, SC-008 | Depends: T004
   - Verify: every figure traces to a real query; an empty system renders empty states, not zeros presented as data
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — High
   - Why: the design system's explicit "no seeded or sample figures" rule requires judgment about what to show when there is nothing.
+  - **Done (2026-09-15, RUN A)**: `lib/admin/read.ts#getAdminOverview(roles)` — each figure is one
+    `select("id", { count: "exact", head: true })` under the operator's own session against a table
+    whose RLS grants the SECTION's role a read (compliance: kyb_applications/coffee_offers/disputes;
+    warehouse: order_shipments/inventory_positions; finance: payments/payouts; catalogue: coffees/
+    origins/warehouses; audit: audit_logs — ADMIN only, DB-OPEN-06 stated for a pure AUDITOR;
+    system: platform_admins — SUPER_ADMIN). Sections the roles do not unlock are absent (RLS filters
+    silently, so a role without a policy would otherwise read a misleading 0). `0` renders as an
+    explicit "None" tile + section empty message (`data-metric-state="empty"`), a failed read as
+    "Unavailable", and money is NOT summed: Feature 008's contract defines per-order snapshots, not
+    platform aggregates, so the Finance section shows counts and states that monetary totals arrive
+    with Feature 008. Proof: `tests/admin/overview.test.tsx` — every metric's table/policy
+    cross-checked against `database-schema-report.json`; counts only, no cache/service role; no
+    sample/hardcoded figure in page or tiles; render states; LIVE: WAREHOUSE identity → warehouse
+    section only with real numbers, one tile equal to a direct count under the same session;
+    FINANCE → finance section only + deferred-money note; member → no section. Browser: five
+    warehouse tiles (3 real values, 2 honest empties) across the appearance matrix, no money figure,
+    no foreign section.
 
 ---
 
@@ -403,6 +495,57 @@
   - Verify: roadmap accurate; every unresolved item is visible both in the capability map and to operators where relevant
   - Codex: GPT-5.6 Sol — Medium · Claude: Opus — High
   - Why: the console is where operators would otherwise assume capabilities exist; honest representation is a governance requirement.
+
+---
+
+## Phase 13 — Admin-global account & platform identity (ADDED in RUN A, 2026-09-15)
+
+> Added because the product owner's admin-global requirements (operator self-account, avatar,
+> email/password change, platform branding) were not covered by T001–T045. Scope is appended,
+> never hidden inside T001–T006. Original planned count 45 → authoritative count 48.
+
+- [x] T046 Operator self-account page (`/dashboard-admin/account`) composed ONLY from existing
+  Feature 003 authority: profile name/phone/company via the SAME `ProfileSettingsForm` +
+  `updateMyProfile` (`update_my_profile()` RPC, which needs no organization); sign-in email
+  DISPLAYED from the server-verified user; password change LINKED to the existing reset flow
+  (`/reset-password/` → emailed link); two-factor status from `auth.mfa.listFactors()` linking the
+  existing `/mfa/` enrol/verify page; profile image = initials (no approved upload path); sign-out
+  via the shared confirm dialog + real `signOut` action. Reachable from the shell's account menu.
+  - Req: FR-001, FR-010, FR-015 | Depends: T003
+  - Verify: an operator with no organization can read/save their own profile and see their real
+    email + MFA status; no password value is accepted on the page; no new table, bucket, RPC or
+    auth flow exists; the page never reads `identity.organization`
+  - Codex: GPT-5.6 Sol — Medium · Claude: Opus — Medium
+  - Why: operators without a member organization had NO self-account surface (`/dashboard/settings`
+    is membership-gated); composing the existing authority closes that without inventing any.
+  - **Done (2026-09-15, RUN A)**: `src/app/dashboard-admin/account/page.tsx` +
+    `components/admin/sign-out-button.tsx`; browser proof (WAREHOUSE operator, no organization):
+    real email rendered, `data-totp-enrolled="false"` read live, zero `input[type=password]`, zero
+    axe violations across EN/AR × light/dark × 390/1366/1920; `tests/admin/noindex.test.ts` covers
+    the route's dynamic/non-indexable status.
+
+- [ ] T047 **BLOCKED — NO AUTHORITATIVE MODEL.** Platform identity / branding management (logo,
+  favicon, platform display name, admin branding assets, platform contact/settings values). The
+  approved schema has NO settings/branding table and no approved bucket for brand assets; the
+  current logo/favicon/name are static build assets (`components/app/sidebar.tsx` wordmark,
+  `src/app/favicon.ico`, `lib/public/copy`). RUN A renders those static assets and does not imply
+  they are configurable. Requires a human decision (approved schema/config source + bucket policy)
+  before any screen is built.
+  - Req: spec Open items (new) | Depends: human decision
+  - Verify: no settings table, branding table, bucket or hardcoded workaround exists in the diff;
+    the gap is recorded in spec.md Open items and the capability map
+  - Codex: GPT-5.6 Sol — Low · Claude: Sonnet — Low
+  - Why: a fake branding manager would be worse than an honest gap.
+
+- [ ] T048 **BLOCKED — requires an approved auth flow decision.** Operator sign-in email change.
+  No approved path exists today (Supabase Auth's `updateUser({ email })` double-confirmation flow
+  is not part of the approved auth surface; Feature 003 implemented sign-up/sign-in/reset/MFA
+  only). RUN A displays the current email and states the gap on the account page.
+  - Req: spec Open items (new) | Depends: human decision on the auth flow
+  - Verify: once approved, the change uses the authentication provider's own flow, never a profile
+    table; until then no email mutation control exists in the console
+  - Codex: GPT-5.6 Sol — Medium · Claude: Opus — Medium
+  - Why: "Do NOT invent new auth flows" — the owner's request is recorded, not improvised.
 
 ---
 

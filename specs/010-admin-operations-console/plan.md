@@ -1,7 +1,7 @@
 # Implementation Plan: Operations / Admin Console
 
 **Feature**: `010-admin-operations-console` | **Date**: 2026-09-08 | **Spec**: [spec.md](./spec.md)
-**Status**: Run 0 reconciled (2026-09-15) — implementation NOT started. See the dependency and run grouping below before starting T001.
+**Status**: RUN A complete (2026-09-15) — Phases 1–2 + T046 implemented and verified (7 / 48); Phases 3–12 NOT started. See the dependency and run grouping below before starting RUN B.
 
 ## Summary
 
@@ -114,14 +114,27 @@ src/app/dashboard-admin/
 └── (system)/roles|fees|tax|shipping|payment-accounts/… # NEW — SUPER_ADMIN configuration
 
 lib/admin/
-├── areas.ts        # NEW — the access matrix (area → required role)
-├── guards.ts       # NEW — per-area server-side verification helpers
-├── catalogue.ts    # NEW — catalogue mutations + public cache revalidation
-├── decisions.ts    # NEW — KYB/listing/dispute decision recording
-└── read.ts         # NEW — operational read DTOs (queues, oversight)
+├── areas.ts        # RUN A — the access matrix (area → required role), shell routes, visibility shaping
+├── guards.ts       # RUN A — per-area server-side verification (live role-function calls)
+├── read.ts         # RUN A — overview counts (role-shaped, RLS-readable tables only); queues/oversight DTOs later
+├── catalogue.ts    # LATER — catalogue mutations + public cache revalidation
+└── decisions.ts    # LATER — KYB/listing/dispute decision recording
 
-components/admin/   # NEW — console shell, KPI tiles, queue tables, decision panels,
-                    #       read-only auditor variants, activity/audit tables
+components/admin/   # RUN A — access-denied resolver, state card, role badges, topbar account menu,
+                    #         area placeholder (planned/blocked), overview tiles, sign-out button;
+                    #         LATER — queue tables, decision panels, read-only auditor variants
+
+src/app/dashboard-admin/
+├── layout.tsx                       # RUN A — shell atop 001's untouched guard
+├── page.tsx                         # RUN A — real role-shaped overview
+├── account/page.tsx                 # RUN A (T046) — operator self-account (Feature 003 authority only)
+├── (compliance)/layout.tsx + kyb|organizations|listings|disputes/page.tsx   # RUN A guards + honest placeholders
+├── (warehouse)/layout.tsx + shipments|inventory/page.tsx
+├── (finance)/layout.tsx + payments|payouts|invoices/page.tsx
+├── (catalogue)/layout.tsx + coffees|origins|regions|taxonomy|warehouses|media/page.tsx
+├── (audit)/layout.tsx + audit/page.tsx
+└── (system)/layout.tsx [is_platform_admin] + payment-accounts/page.tsx
+    └── (super)/layout.tsx [is_super_admin] + roles|commission|tax|shipping/page.tsx
 
 tests/admin/        # NEW — access matrix, decision recording, no-hard-delete, revalidation
 ```

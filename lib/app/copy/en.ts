@@ -183,37 +183,157 @@ export const en = {
     roleVisibilityNote:
       "Navigation visibility is never authorization. Each real module re-verifies its own role requirement server-side once it exists.",
     /**
-     * Operations console module names (Phase 5.5, UIF-041). NAMES ONLY — module labels, not module
-     * content. These feed the role-scalable navigation STRUCTURE (`admin-navigation.tsx`); none is
-     * wired to a live `/dashboard-admin/*` route in this phase (§29 of the run's directive — "do
-     * not create dead pages"), and none carries a count, KPI or record.
+     * Feature 010 — Operations Console copy. `groups`/`areas` label the access matrix declared in
+     * `lib/admin/areas.ts` (labels only — authorization lives in `lib/admin/guards.ts`). `states`
+     * are the honest per-area conditions (forbidden / planned / blocked), `overview` is the real-data
+     * cockpit, and `account` is the operator's own self-account surface composed from existing
+     * Feature 003 authority only.
      */
     admin: {
       groups: {
-        organizations: "Organizations",
-        catalogue: "Catalogue",
-        commercial: "Orders & finance",
-        logistics: "Logistics",
         compliance: "Compliance",
-        audit: "Audit",
-      },
-      modules: {
-        organizations: "Organizations",
-        members: "Members",
-        kyb: "KYB",
-        catalogue: "Catalogue",
-        inventory: "Inventory",
-        listings: "Listings",
-        orders: "Orders",
-        paymentProofs: "Payment proofs",
+        warehouse: "Warehouse",
         finance: "Finance",
-        settlement: "Settlement",
-        payouts: "Payouts",
-        pricing: "Pricing",
-        commission: "Commission",
-        delivery: "Delivery",
-        disputes: "Disputes",
+        catalogue: "Catalogue",
         audit: "Audit",
+        system: "System",
+        account: "Account",
+      },
+      areas: {
+        kyb: "KYB review",
+        organizations: "Organizations",
+        listings: "Listing review",
+        disputes: "Disputes",
+        shipments: "Shipments",
+        inventory: "Custody & inventory",
+        payments: "Payments",
+        payouts: "Payouts",
+        invoices: "Tax invoices",
+        coffees: "Coffees",
+        origins: "Origins",
+        regions: "Regions",
+        taxonomy: "Taxonomy",
+        warehouses: "Warehouses",
+        media: "Media",
+        audit: "Audit evidence",
+        roles: "Platform admins",
+        commission: "Commission",
+        tax: "Tax rules",
+        shipping: "Shipping rules",
+        paymentAccounts: "Payment accounts",
+      },
+      roles: {
+        SUPER_ADMIN: "Super admin",
+        ADMIN: "Admin",
+        COMPLIANCE: "Compliance",
+        WAREHOUSE: "Warehouse",
+        FINANCE: "Finance",
+        AUDITOR: "Auditor",
+      },
+      shell: {
+        operatorRoles: "Operator roles",
+        accountMenuLabel: "Operator account",
+        account: "My account",
+        signOut: "Sign out",
+        navigationNote: "You see only the areas your operational roles permit. Every area re-verifies your role on the server.",
+      },
+      states: {
+        forbidden: {
+          title: "Not permitted for your role",
+          description: "Your account holds an operational role, but not the one this area requires. Access is verified on the server for every request.",
+          requiredRole: "Required role: {role}",
+        },
+        planned: {
+          title: "Not available yet",
+          description: "This area is part of Feature 010 phase {phase}. Its workflow has not been built, so nothing here is simulated.",
+        },
+        blocked: {
+          title: "Waiting on a dependency",
+          description: "This area cannot be built yet. The reason is recorded below — no substitute workflow is offered.",
+        },
+        blockers: {
+          "feature-008-finance-layer": "Feature 008 has not yet supplied its finance decision layer (payment review queue, settlement decision, payout management, invoice recording). The console never calls settlement directly.",
+          "feature-012-dispute-layer": "Feature 012 has not yet supplied the dispute domain layer, and no compliance freeze path exists in the database (DB-OPEN-09). The console will compose that layer, never a parallel dispute engine.",
+          "feature-012-audit-layer": "Feature 012 has not yet supplied the audit/history layer, and the audit log is not readable by the Auditor role (DB-OPEN-06). The console will compose that layer read-only.",
+        },
+        backToOverview: "Back to overview",
+      },
+      overview: {
+        title: "Operations overview",
+        description: "Live figures from the areas your roles permit. Every number is a real query under your own authorization — nothing here is estimated or sampled.",
+        none: "None",
+        unavailable: "Unavailable",
+        unavailableHint: "This figure could not be read under your role right now.",
+        emptySection: "Nothing is waiting in this area right now.",
+        openArea: "Open {area}",
+        sections: {
+          compliance: "Compliance",
+          warehouse: "Warehouse",
+          finance: "Finance",
+          catalogue: "Catalogue",
+          audit: "Audit",
+          system: "System",
+        },
+        metrics: {
+          kybSubmitted: "KYB applications submitted",
+          kybUnderReview: "KYB applications under review",
+          kybResubmissionRequired: "KYB awaiting resubmission",
+          listingsPendingReview: "Listings pending review",
+          disputesOpen: "Disputes open or under review",
+          shipmentsRequested: "Shipments requested",
+          shipmentsInProgress: "Shipments in progress",
+          shipmentsDispatched: "Shipments dispatched",
+          shipmentsDisputed: "Shipments disputed (frozen)",
+          inventoryPositions: "Custody positions held",
+          paymentsProofSubmitted: "Payment proofs submitted",
+          paymentsUnderReview: "Payments under review",
+          payoutsPending: "Payouts pending",
+          coffeesPublished: "Coffees published",
+          coffeesDraft: "Coffees in draft",
+          originsActive: "Origins active",
+          warehousesActive: "Warehouses active",
+          auditEvents24h: "Audit events in the last 24 hours",
+          platformAdminsActive: "Active platform admins",
+        },
+        notes: {
+          financeMoneyDeferred: "Monetary totals (settled value, amounts awaiting review, commission) are shown only once Feature 008 defines those metrics. Counts above are real; no amount is estimated.",
+          auditOpen06: "The audit log is not readable by the Auditor role (DB-OPEN-06). This figure will appear once the approved policy change lands.",
+          systemNote: "Role changes are recorded in Phase 9. This count is read from platform_admins under your own authorization.",
+        },
+      },
+      account: {
+        title: "My account",
+        description: "Your operator profile and sign-in security. Everything here uses the same account authority as the member portal — nothing is stored in a separate admin profile.",
+        profile: {
+          title: "Profile",
+          lead: "Your display name and contact details, saved through the approved profile update.",
+        },
+        email: {
+          title: "Sign-in email",
+          current: "Current email",
+          unavailableTitle: "Email change is not available yet",
+          unavailableDescription: "No approved flow exists for changing a sign-in email. It is recorded as a Feature 010 capability gap for a later decision — nothing is simulated here.",
+        },
+        password: {
+          title: "Password",
+          description: "Passwords are changed through the existing reset flow: a reset link is emailed to your sign-in address and the new password is set on that page.",
+          action: "Request a password reset link",
+        },
+        security: {
+          title: "Two-factor authentication",
+          enrolled: "An authenticator app is enrolled on this account.",
+          notEnrolled: "No authenticator app is enrolled yet.",
+          unknown: "Enrolment status could not be read right now.",
+          action: "Manage authenticator app",
+        },
+        avatar: {
+          title: "Profile image",
+          note: "No approved image upload exists yet; your initials are shown instead.",
+        },
+        signOut: {
+          title: "Sign out",
+          description: "Ends this session on the server. You will need to sign in again to return.",
+        },
       },
     },
 

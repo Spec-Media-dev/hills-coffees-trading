@@ -30,8 +30,11 @@ describe("Phase 5.5 UIF-H — protected overview convergence", () => {
     expect(component).not.toMatch(/\b(?:AED|USD|EUR)\b|\$\d|\d+\s+(?:orders|shipments)/i)
   })
 
-  it("Operations (010's future scope, untouched) still mounts the honest visual foundation", () => {
-    expect(source("src", "app", "dashboard-admin", "page.tsx")).toContain('<FoundationOverview surface="admin" />')
+  it("Feature 010 RUN A — the Operations Console now mounts its own real, role-shaped overview instead of the foundation placeholder", () => {
+    const page = source("src", "app", "dashboard-admin", "page.tsx")
+    expect(page).not.toContain("<FoundationOverview")
+    expect(page).toContain("getAdminOverview(identity.operationalRoles)")
+    expect(page).toContain("AdminOverviewSections")
   })
 
   it("Feature 004 RUN B — the Member Portal now mounts its own real, composed overview instead of the foundation placeholder", () => {

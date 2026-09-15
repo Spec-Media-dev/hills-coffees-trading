@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 
+import { AdminRoleBadges } from "@/components/admin/role-badges";
+import { AdminTopbarActions } from "@/components/admin/topbar";
 import { AppShell } from "@/components/app/app-shell";
 import { buildAdminNavGroups } from "@/components/app/admin-navigation";
 import { AppBilingual } from "@/components/locale/app-bilingual";
@@ -28,19 +30,23 @@ import { getRequestIdentity } from "@/lib/auth/dal";
  *   area inside the console must additionally verify the specific role it requires (010's scope) —
  *   this guard is the outer boundary, not a universal admin capability.
  *
- * ── WHAT UIF-039 CHANGED ─────────────────────────────────────────────────────────────────────────
+ * ── WHAT UIF-039 CHANGED (Phase 5.5) ─────────────────────────────────────────────────────────────
  *
  * Only the markup past the guard: the ad-hoc `<header>/<main>` pair is replaced by the SAME
  * `AppShell` UIF-035 built for `/dashboard` — the two surfaces share one shell architecture at
- * different navigation density, never a second design system (contract §1, §27 of this run's
- * directive).
+ * different navigation density, never a second design system.
  *
- * `buildAdminNavGroups([])` — an EMPTY role array, not `identity.operationalRoles`. Reading the
- * real roles here to filter navigation would be exactly the "read a role" UIF-041 forbids; an empty
- * array is the honest neutral default for "no role information is available to this phase", and it
- * happens to also be the correct answer today, because `Overview` — the only real route this phase
- * ships — is role-agnostic and renders regardless (see `admin-navigation.tsx`). No dead module link
- * is ever rendered on this live route (contract §29 of this run's directive).
+ * ── WHAT FEATURE 010 RUN A (T003) CHANGED ────────────────────────────────────────────────────────
+ *
+ * Still only the markup past the guard — the three guard statements above are byte-identical.
+ * Navigation is now shaped from `identity.operationalRoles` through `buildAdminNavGroups()`, which
+ * reads the single access matrix (`lib/admin/areas.ts`): an operator sees only the groups/areas
+ * their attested roles permit. That shaping is PRESENTATION ONLY — every `/dashboard-admin/*` route
+ * group carries its own server-side layout guard that calls the area's specific role function live
+ * (`lib/admin/guards.ts`, T002/T004); hiding or showing an entry here grants nothing. The topbar
+ * carries the operator's role badges, and an account menu (`components/admin/topbar.tsx`) with the
+ * self-account route and the real sign-out action. This layout still never inspects a membership
+ * object (FR-001 — operations access never implies member capability, and vice versa).
  */
 
 export const metadata: Metadata = {
@@ -89,11 +95,12 @@ export default async function DashboardAdminLayout({
 
   return (
     <AppShell
-      navGroups={buildAdminNavGroups([])}
+      navGroups={buildAdminNavGroups(identity.operationalRoles)}
       workspaceLabel={<AppBilingual pick={(c) => c.adminWorkspace} />}
-      identitySubtitle={identity.operationalRoles.join(" · ")}
+      identitySubtitle={<AdminRoleBadges roles={identity.operationalRoles} />}
       logoHref="/dashboard-admin"
       footerNote={appCopy.roleVisibilityNote}
+      topbarActions={<AdminTopbarActions displayName={identity.profile.fullName} roles={identity.operationalRoles} />}
     >
       {children}
     </AppShell>
