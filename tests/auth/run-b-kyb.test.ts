@@ -243,7 +243,9 @@ describe("T019 — all seven KYB states + the implicit no-application state", ()
 
   it("no fake ETA, no fake reviewer identity anywhere in the status copy", () => {
     const en = readFileSync("lib/app/copy/en.ts", "utf8");
-    const kybSection = en.slice(en.indexOf("kyb: {"));
+    // The member-facing section is the top-level `kyb` key (4-space indent); Feature 010 later added
+    // an `admin.compliance.statuses.kyb` map that must not be mistaken for it.
+    const kybSection = en.slice(en.indexOf("\n    kyb: {"));
     expect(kybSection).not.toMatch(/\d+\s*(hours?|days?|business days?)/i);
     expect(kybSection).not.toMatch(/reviewer:\s*"(?!Hills Compliance)/);
   });

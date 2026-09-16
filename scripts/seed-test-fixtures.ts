@@ -138,11 +138,11 @@ type FixtureOrganization = {
 };
 
 type Fixture = {
-  label: "buyer-only" | "buyer-and-seller" | "warehouse-admin" | "finance-admin" | "delivery-admin";
+  label: "buyer-only" | "buyer-and-seller" | "warehouse-admin" | "finance-admin" | "delivery-admin" | "compliance-reviewer";
   email: string;
   fullName: string;
   organization: FixtureOrganization | null;
-  platformAdminRole: "WAREHOUSE" | "FINANCE" | "ADMIN" | null;
+  platformAdminRole: "WAREHOUSE" | "FINANCE" | "ADMIN" | "COMPLIANCE" | null;
 };
 
 /**
@@ -215,6 +215,23 @@ const T013_DELIVERY_ADMIN_FIXTURE: Fixture = {
   fullName: "Feature 009 Test — Delivery Admin",
   organization: null,
   platformAdminRole: "ADMIN",
+};
+
+/**
+ * Feature 010 RUN B's human-authorized, disposable COMPLIANCE proof identity — the SAME shape and
+ * lifecycle as `T013_DELIVERY_ADMIN_FIXTURE` (never part of `FIXTURES`, so `npm run test:seed` never
+ * creates it; only `--prepare-compliance-fixture` creates/reactivates it, and
+ * `--cleanup-compliance-fixture` removes the capability and deletes or blocks+bans the principal).
+ * Role is exactly `COMPLIANCE` — never ADMIN, never SUPER_ADMIN — with no organization membership,
+ * so every Feature 010 compliance proof runs as a genuinely narrow operator, and the standing
+ * FINANCE/WAREHOUSE fixtures are never broadened.
+ */
+const RUN_B_COMPLIANCE_FIXTURE: Fixture = {
+  label: "compliance-reviewer",
+  email: "compliance-reviewer+t010-test@example.com",
+  fullName: "Feature 010 Test — Compliance Reviewer",
+  organization: null,
+  platformAdminRole: "COMPLIANCE",
 };
 
 // ---------------------------------------------------------------------------
@@ -1019,16 +1036,39 @@ async function setSuspendedOrganizationStatus(admin: SupabaseClient, status: "AC
 async function resetCompleteDraftApplication(admin: SupabaseClient): Promise<void> {
   // `submitted_by` is NOT NULL (`kyb_applications` schema) — it is the fixture owner both before and
   // after submission (`create_kyb_draft` sets it at DRAFT creation, `transition_kyb_application`
-  // re-asserts it at SUBMITTED), so only `status`/`submitted_at` need resetting here.
+  // re-asserts it at SUBMITTED), so only `status`/`submitted_at` need resetting here. Feature 010
+  // RUN B: a compliance DECISION also stamps `decided_at`/`decided_by`/`rejection_reason` and may
+  // move the ORGANIZATION (PENDING_KYB → ACTIVE/REJECTED), so those are restored to canonical too.
+  // History rows (`kyb_reviews`, `account_status_history`, `audit_logs`) are never deleted.
   const { data, error } = await admin
     .from("kyb_applications")
-    .update({ status: "DRAFT", submitted_at: null })
+    .update({ status: "DRAFT", submitted_at: null, decided_at: null, decided_by: null, rejection_reason: null })
     .eq("id", PHASE89_KYB_APPLICATION_IDS.completeDraft)
     .select("id")
     .maybeSingle();
 
   if (error) throw new SafeFixtureError("fixture application reset failed.");
   if (!data) throw new Error("complete-draft fixture is missing; run npm run test:seed first");
+
+  const { error: organizationError } = await admin
+    .from("organizations")
+    .update({ status: "PENDING_KYB" })
+    .eq("id", PHASE89_ORGANIZATION_IDS.completeDraft);
+  if (organizationError) throw new SafeFixtureError("fixture organization reset failed.");
+}
+
+/**
+ * Feature 010 RUN B (T010) restore control: the `suspended` fixture's canonical state is
+ * organization `SUSPENDED` with an `APPROVED` application. A compliance suspension/reinstatement
+ * proof moves both; this restores both (history rows retained).
+ */
+async function resetSuspendedFixture(admin: SupabaseClient): Promise<void> {
+  const { error: applicationError } = await admin
+    .from("kyb_applications")
+    .update({ status: "APPROVED", rejection_reason: null })
+    .eq("id", PHASE89_KYB_APPLICATION_IDS.suspended);
+  if (applicationError) throw new SafeFixtureError("suspended fixture application reset failed.");
+  await setSuspendedOrganizationStatus(admin, "SUSPENDED");
 }
 
 // ---------------------------------------------------------------------------
@@ -1596,6 +1636,20 @@ const LISTING_FIXTURE_IDS = {
    */
   lotC: "06000000-0000-4000-8000-000000000009",
   hillsPositionC: "06000000-0000-4000-8000-00000000000a",
+  /**
+   * Feature 010 RUN B (T011) — compliance listing-review fixtures. Each is a HILLS-owned listing on
+   * its OWN dedicated lot (the `uq_active_offer_per_lot_owner` partial index allows only one active
+   * offer per lot+owner, and `lotC` is already taken by `offerPublished`). `offerPendingReview` is
+   * the queue row a compliance operator decides (APPROVED/REJECTED); `offerReviewLive` is the
+   * PUBLISHED row a compliance operator suspends. `--reset-listing-review-fixtures` walks each back
+   * to its canonical status through the trigger-permitted graph (history rows are retained).
+   */
+  lotE: "06000000-0000-4000-8000-00000000000b",
+  hillsPositionE: "06000000-0000-4000-8000-00000000000c",
+  offerPendingReview: "06000000-0000-4000-8000-00000000000d",
+  lotF: "06000000-0000-4000-8000-00000000000e",
+  hillsPositionF: "06000000-0000-4000-8000-00000000000f",
+  offerReviewLive: "06000000-0000-4000-8000-000000000010",
 } as const;
 
 async function seedListingFixtures(admin: SupabaseClient): Promise<void> {
@@ -1717,10 +1771,106 @@ async function seedListingFixtures(admin: SupabaseClient): Promise<void> {
     created_by: buyerAndSellerUserId,
   });
 
+  // Feature 010 RUN B (T011) — two more HILLS listings for compliance review, each on its own lot.
+  for (const [lotId, positionId] of [
+    [LISTING_FIXTURE_IDS.lotE, LISTING_FIXTURE_IDS.hillsPositionE],
+    [LISTING_FIXTURE_IDS.lotF, LISTING_FIXTURE_IDS.hillsPositionF],
+  ] as const) {
+    await upsert("coffee_lots", {
+      id: lotId,
+      coffee_id: INVENTORY_FIXTURE_COFFEE_ID,
+      lot_code: `F010-REVIEW-${lotId.slice(-2)}`,
+      total_quantity_kg: 100,
+      status: "AVAILABLE",
+      source_organization_id: INVENTORY_FIXTURE_IDS.hillsOrg,
+    });
+    await upsert("inventory_positions", {
+      id: positionId,
+      lot_id: lotId,
+      owner_organization_id: INVENTORY_FIXTURE_IDS.hillsOrg,
+      warehouse_id: INVENTORY_FIXTURE_IDS.warehouse,
+      available_quantity_kg: 100,
+      reserved_quantity_kg: 0,
+    });
+  }
+  await insertIfAbsent("coffee_offers", {
+    id: LISTING_FIXTURE_IDS.offerPendingReview,
+    coffee_id: INVENTORY_FIXTURE_COFFEE_ID,
+    lot_id: LISTING_FIXTURE_IDS.lotE,
+    seller_organization_id: INVENTORY_FIXTURE_IDS.hillsOrg,
+    seller_type: "HILLS",
+    warehouse_id: INVENTORY_FIXTURE_IDS.warehouse,
+    title: "Feature 010 Fixture — Listing Awaiting Review",
+    quantity_kg: 10,
+    reserved_quantity_kg: 0,
+    filled_quantity_kg: 0,
+    price_per_kg: 11,
+    currency: "USD",
+    status: "PENDING_REVIEW",
+    created_by: buyerAndSellerUserId,
+  });
+  await insertIfAbsent("coffee_offers", {
+    id: LISTING_FIXTURE_IDS.offerReviewLive,
+    coffee_id: INVENTORY_FIXTURE_COFFEE_ID,
+    lot_id: LISTING_FIXTURE_IDS.lotF,
+    seller_organization_id: INVENTORY_FIXTURE_IDS.hillsOrg,
+    seller_type: "HILLS",
+    warehouse_id: INVENTORY_FIXTURE_IDS.warehouse,
+    title: "Feature 010 Fixture — Live Listing For Suspension",
+    quantity_kg: 10,
+    reserved_quantity_kg: 0,
+    filled_quantity_kg: 0,
+    price_per_kg: 11,
+    currency: "USD",
+    status: "PUBLISHED",
+    created_by: buyerAndSellerUserId,
+  });
+
   console.log(
     `  seeded 1 inactive warehouse, 2 extra Org B positions, 1 dedicated lot+position, ` +
-      `${createdPublished ? "1 published listing (new)" : "published listing (reused)"}, 1 sold-out listing.`
+      `${createdPublished ? "1 published listing (new)" : "published listing (reused)"}, 1 sold-out listing, ` +
+      `2 compliance-review listings (Feature 010).`
   );
+}
+
+/**
+ * Feature 010 RUN B (T011) restore control: walks the two compliance-review listing fixtures back to
+ * their canonical statuses through `validate_offer_transition`'s own permitted graph (never a raw
+ * status overwrite the trigger would refuse), clearing `rejection_reason`. `listing_reviews` and
+ * `listing_status_history` rows are never deleted (retained synthetic history, like every other
+ * ledger in this file).
+ */
+async function resetListingReviewFixtures(admin: SupabaseClient): Promise<void> {
+  const step = async (offerId: string, status: string): Promise<void> => {
+    const { error } = await admin.from("coffee_offers").update({ status, rejection_reason: null }).eq("id", offerId);
+    if (error) throw new SafeFixtureError(`listing review fixture reset failed (${status}): ${error.message}`);
+  };
+  const current = async (offerId: string): Promise<string> => {
+    const { data, error } = await admin.from("coffee_offers").select("status").eq("id", offerId).maybeSingle();
+    if (error || !data) throw new SafeFixtureError("listing review fixture is missing; run npm run test:seed first.");
+    return data.status as string;
+  };
+
+  // offerPendingReview → PENDING_REVIEW. Permitted paths: REJECTED→DRAFT, APPROVED→ARCHIVED, and any
+  // status with no trigger branch (SUSPENDED/ARCHIVED) → DRAFT; then DRAFT→PENDING_REVIEW.
+  {
+    const status = await current(LISTING_FIXTURE_IDS.offerPendingReview);
+    if (status !== "PENDING_REVIEW") {
+      if (status === "APPROVED") await step(LISTING_FIXTURE_IDS.offerPendingReview, "ARCHIVED");
+      if (status !== "DRAFT") await step(LISTING_FIXTURE_IDS.offerPendingReview, "DRAFT");
+      await step(LISTING_FIXTURE_IDS.offerPendingReview, "PENDING_REVIEW");
+    } else {
+      await step(LISTING_FIXTURE_IDS.offerPendingReview, "PENDING_REVIEW");
+    }
+  }
+  // offerReviewLive → PUBLISHED. `validate_offer_transition` gates every UPDATE INTO
+  // APPROVED/REJECTED/PUBLISHED/SUSPENDED on `is_compliance_operator()` (confirmed live:
+  // `compliance_required_for_listing_state`), which a service-role session never satisfies — so this
+  // privileged script deliberately does NOT force the row back to PUBLISHED. The compliance test
+  // restores it through the real COMPLIANCE session (SUSPENDED→PUBLISHED has no trigger branch);
+  // this command only reports the current status honestly.
+  const liveStatus = await current(LISTING_FIXTURE_IDS.offerReviewLive);
+  console.log(JSON.stringify({ listingReviewFixtures: "reset", offerPendingReview: "PENDING_REVIEW", offerReviewLive: liveStatus, offerReviewLiveRestoredByCompliance: liveStatus !== "PUBLISHED" }));
 }
 
 /**
@@ -1739,13 +1889,15 @@ async function teardownListingFixtures(admin: SupabaseClient): Promise<void> {
     if (error) throw new SafeFixtureError(`${table} delete failed (Feature 006): ${error.message}`);
   };
 
-  await deleteByIds("coffee_offers", [LISTING_FIXTURE_IDS.offerPublished, LISTING_FIXTURE_IDS.offerSoldOut]);
+  await deleteByIds("coffee_offers", [LISTING_FIXTURE_IDS.offerPublished, LISTING_FIXTURE_IDS.offerSoldOut, LISTING_FIXTURE_IDS.offerPendingReview, LISTING_FIXTURE_IDS.offerReviewLive]);
   await deleteByIds("inventory_positions", [
     LISTING_FIXTURE_IDS.positionOrgBOnLotA,
     LISTING_FIXTURE_IDS.positionOrgBInactiveWarehouse,
     LISTING_FIXTURE_IDS.hillsPositionC,
+    LISTING_FIXTURE_IDS.hillsPositionE,
+    LISTING_FIXTURE_IDS.hillsPositionF,
   ]);
-  await deleteByIds("coffee_lots", [LISTING_FIXTURE_IDS.lotC]);
+  await deleteByIds("coffee_lots", [LISTING_FIXTURE_IDS.lotC, LISTING_FIXTURE_IDS.lotE, LISTING_FIXTURE_IDS.lotF]);
   await deleteByIds("warehouses", [LISTING_FIXTURE_IDS.warehouseInactive]);
 
   console.log("  removed 2 listings (cascading their own status history), 3 positions, 1 lot, 1 warehouse.");
@@ -2662,7 +2814,25 @@ async function assertT013FinanceFixtureIsNarrow(admin: SupabaseClient): Promise<
  */
 async function createT013DeliveryAdminFixture(admin: SupabaseClient, password: string): Promise<void> {
   await assertT013FinanceFixtureIsNarrow(admin);
-  const existingUserId = await findAuthUserIdByEmail(admin, T013_DELIVERY_ADMIN_FIXTURE.email);
+  await createDisposableOperatorFixture(admin, password, T013_DELIVERY_ADMIN_FIXTURE, "feature-009-t013-delivery-admin");
+}
+
+/**
+ * Feature 010 RUN B — the generic form of the T013 disposable-operator lifecycle, parameterised by
+ * the fixture (and therefore its exact `platform_admins.role`). Identical semantics: an existing
+ * identity is reused ONLY in the exact retained-blocked-and-banned shape its own cleanup leaves;
+ * any other pre-existing shape is refused, never altered.
+ */
+async function createDisposableOperatorFixture(
+  admin: SupabaseClient,
+  password: string,
+  fixture: Fixture,
+  metadataTag: string,
+  options: { reuseIfActive: boolean } = { reuseIfActive: false }
+): Promise<void> {
+  const role = fixture.platformAdminRole;
+  if (role === null) throw new SafeFixtureError("A disposable operator fixture must declare its exact platform_admins.role.");
+  const existingUserId = await findAuthUserIdByEmail(admin, fixture.email);
   if (existingUserId) {
     const [{ count: membershipCount, error: membershipError }, { data: capability, error: capabilityError }, { data: profile, error: profileError }] = await Promise.all([
       admin.from("organization_members").select("organization_id", { count: "exact", head: true }).eq("user_id", existingUserId),
@@ -2670,33 +2840,39 @@ async function createT013DeliveryAdminFixture(admin: SupabaseClient, password: s
       admin.from("profiles").select("is_blocked").eq("id", existingUserId).maybeSingle(),
     ]);
     if (membershipError || capabilityError || profileError || membershipCount !== 0) {
-      throw new SafeFixtureError("Existing T013 ADMIN fixture is not the exact approved disposable identity; refusing to alter it.");
+      throw new SafeFixtureError(`Existing ${role} fixture is not the exact approved disposable identity; refusing to alter it.`);
     }
-    const isActiveAdmin = capability?.role === "ADMIN" && capability?.is_active === true;
+    const isActiveAdmin = capability?.role === role && capability?.is_active === true;
     const isRetainedBlockedShape = !capability && profile?.is_blocked === true;
     if (isActiveAdmin) {
-      throw new SafeFixtureError("T013 ADMIN fixture already exists; run --cleanup-t013-live-fixtures before a new live proof.");
+      // T013 (ADMIN) keeps the strict "clean up first" rule. The COMPLIANCE fixture (a narrow role,
+      // no membership — re-verified above) may be reused across test files in one run.
+      if (!options.reuseIfActive) {
+        throw new SafeFixtureError(`${role} fixture already exists; run its cleanup command before a new live proof.`);
+      }
+      console.log(JSON.stringify({ userId: existingUserId, role, organizationMemberships: 0, disposable: true, reused: true }));
+      return;
     }
     if (!isRetainedBlockedShape) {
-      throw new SafeFixtureError("Existing T013 ADMIN fixture is not the exact approved disposable identity; refusing to alter it.");
+      throw new SafeFixtureError(`Existing ${role} fixture is not the exact approved disposable identity; refusing to alter it.`);
     }
     const { error: unbanError } = await admin.auth.admin.updateUserById(existingUserId, { ban_duration: "none", password, email_confirm: true });
-    if (unbanError) throw new SafeFixtureError("T013 ADMIN fixture reactivation (unban) failed.");
+    if (unbanError) throw new SafeFixtureError(`${role} fixture reactivation (unban) failed.`);
     const { error: unblockError } = await admin.from("profiles").update({ is_blocked: false, block_reason: null }).eq("id", existingUserId);
-    if (unblockError) throw new SafeFixtureError("T013 ADMIN fixture reactivation (unblock) failed.");
-    const { error: capabilityInsertError } = await admin.from("platform_admins").insert({ user_id: existingUserId, role: "ADMIN", is_active: true });
-    if (capabilityInsertError) throw new SafeFixtureError("T013 ADMIN fixture reactivation (capability grant) failed.");
-    console.log(JSON.stringify({ userId: existingUserId, role: "ADMIN", organizationMemberships: 0, disposable: true, reactivated: true }));
+    if (unblockError) throw new SafeFixtureError(`${role} fixture reactivation (unblock) failed.`);
+    const { error: capabilityInsertError } = await admin.from("platform_admins").insert({ user_id: existingUserId, role, is_active: true });
+    if (capabilityInsertError) throw new SafeFixtureError(`${role} fixture reactivation (capability grant) failed.`);
+    console.log(JSON.stringify({ userId: existingUserId, role, organizationMemberships: 0, disposable: true, reactivated: true }));
     return;
   }
 
   const { data: createdUser, error: createUserError } = await admin.auth.admin.createUser({
-    email: T013_DELIVERY_ADMIN_FIXTURE.email,
+    email: fixture.email,
     password,
     email_confirm: true,
-    user_metadata: { fixture: "feature-009-t013-delivery-admin" },
+    user_metadata: { fixture: metadataTag },
   });
-  if (createUserError || !createdUser.user) throw new SafeFixtureError("T013 ADMIN fixture auth creation failed.");
+  if (createUserError || !createdUser.user) throw new SafeFixtureError(`${role} fixture auth creation failed.`);
   const userId = createdUser.user.id;
 
   try {
@@ -2708,25 +2884,25 @@ async function createT013DeliveryAdminFixture(admin: SupabaseClient, password: s
     const { error: profileError } = await admin.from("profiles").upsert(
       {
         id: userId,
-        full_name: T013_DELIVERY_ADMIN_FIXTURE.fullName,
+        full_name: fixture.fullName,
         company_name: null,
         is_blocked: false,
       },
       { onConflict: "id" }
     );
-    if (profileError) throw new SafeFixtureError("T013 ADMIN fixture profile creation failed.");
+    if (profileError) throw new SafeFixtureError(`${role} fixture profile creation failed.`);
     const { error: capabilityError } = await admin.from("platform_admins").insert({
       user_id: userId,
-      role: "ADMIN",
+      role,
       is_active: true,
     });
-    if (capabilityError) throw new SafeFixtureError("T013 ADMIN fixture capability creation failed.");
+    if (capabilityError) throw new SafeFixtureError(`${role} fixture capability creation failed.`);
   } catch (error) {
     await admin.auth.admin.deleteUser(userId);
     throw error;
   }
 
-  console.log(JSON.stringify({ userId, role: "ADMIN", organizationMemberships: 0, disposable: true }));
+  console.log(JSON.stringify({ userId, role, organizationMemberships: 0, disposable: true }));
 }
 
 /**
@@ -2735,31 +2911,38 @@ async function createT013DeliveryAdminFixture(admin: SupabaseClient, password: s
  * ADMIN principal. No audit/history row is deleted.
  */
 async function cleanupT013DeliveryAdminFixture(admin: SupabaseClient): Promise<Record<string, unknown>> {
-  const userId = await findAuthUserIdByEmail(admin, T013_DELIVERY_ADMIN_FIXTURE.email);
-  if (!userId) return { adminFixture: "absent", activeAdminPrivilege: false };
+  return cleanupDisposableOperatorFixture(admin, T013_DELIVERY_ADMIN_FIXTURE);
+}
+
+/** Feature 010 RUN B — generic form of the T013 cleanup (role read from the fixture, never assumed). */
+async function cleanupDisposableOperatorFixture(admin: SupabaseClient, fixture: Fixture): Promise<Record<string, unknown>> {
+  const role = fixture.platformAdminRole;
+  if (role === null) throw new SafeFixtureError("A disposable operator fixture must declare its exact platform_admins.role.");
+  const userId = await findAuthUserIdByEmail(admin, fixture.email);
+  if (!userId) return { adminFixture: "absent", activeAdminPrivilege: false, role };
 
   const [{ data: capability, error: capabilityError }, { count: membershipCount, error: membershipError }, { count: auditCount, error: auditError }] = await Promise.all([
     admin.from("platform_admins").select("role, is_active").eq("user_id", userId).maybeSingle(),
     admin.from("organization_members").select("organization_id", { count: "exact", head: true }).eq("user_id", userId),
     admin.from("audit_logs").select("id", { count: "exact", head: true }).eq("actor_user_id", userId),
   ]);
-  if (capabilityError || membershipError || auditError || membershipCount !== 0 || !capability || capability.role !== "ADMIN") {
-    throw new SafeFixtureError("T013 ADMIN fixture cleanup scope mismatch; refusing to alter the principal.");
+  if (capabilityError || membershipError || auditError || membershipCount !== 0 || !capability || capability.role !== role) {
+    throw new SafeFixtureError(`${role} fixture cleanup scope mismatch; refusing to alter the principal.`);
   }
 
   const { data: removedCapability, error: removeCapabilityError } = await admin
     .from("platform_admins")
     .delete()
     .eq("user_id", userId)
-    .eq("role", "ADMIN")
+    .eq("role", role)
     .select("user_id");
   if (removeCapabilityError || removedCapability?.length !== 1) {
-    throw new SafeFixtureError("T013 ADMIN fixture capability removal failed.");
+    throw new SafeFixtureError(`${role} fixture capability removal failed.`);
   }
 
   const { error: deleteError } = await admin.auth.admin.deleteUser(userId);
   if (!deleteError) {
-    return { adminFixture: "deleted", activeAdminPrivilege: false, auditReferenceCount: auditCount ?? 0 };
+    return { adminFixture: "deleted", activeAdminPrivilege: false, role, auditReferenceCount: auditCount ?? 0 };
   }
 
   const [{ error: blockError }, { error: banError }] = await Promise.all([
@@ -2767,13 +2950,34 @@ async function cleanupT013DeliveryAdminFixture(admin: SupabaseClient): Promise<R
     admin.auth.admin.updateUserById(userId, { ban_duration: "876000h" }),
   ]);
   if (blockError || banError) {
-    throw new SafeFixtureError("T013 ADMIN fixture was de-privileged but could not be safely disabled after Auth deletion was blocked.");
+    throw new SafeFixtureError(`${role} fixture was de-privileged but could not be safely disabled after Auth deletion was blocked.`);
   }
   return {
     adminFixture: "retained-blocked-and-banned",
     activeAdminPrivilege: false,
+    role,
     auditReferenceCount: auditCount ?? 0,
     retentionReason: "Auth deletion was refused by an existing immutable reference; no audit/history row was deleted.",
+  };
+}
+
+/** Read-only: the disposable operator fixture's current capability state (for post-cleanup proof). */
+async function inspectDisposableOperatorFixture(admin: SupabaseClient, fixture: Fixture): Promise<Record<string, unknown>> {
+  const userId = await findAuthUserIdByEmail(admin, fixture.email);
+  if (!userId) return { present: false, activeCapability: false, role: fixture.platformAdminRole };
+  const [{ data: capability }, { count: membershipCount }, { data: profile }] = await Promise.all([
+    admin.from("platform_admins").select("role, is_active").eq("user_id", userId).maybeSingle(),
+    admin.from("organization_members").select("organization_id", { count: "exact", head: true }).eq("user_id", userId),
+    admin.from("profiles").select("is_blocked").eq("id", userId).maybeSingle(),
+  ]);
+  return {
+    present: true,
+    userId,
+    role: fixture.platformAdminRole,
+    activeCapability: capability?.is_active === true,
+    capabilityRole: capability?.role ?? null,
+    organizationMemberships: membershipCount ?? 0,
+    isBlocked: profile?.is_blocked ?? null,
   };
 }
 
@@ -3114,6 +3318,11 @@ async function main(): Promise<void> {
   const isCleanupT013Residue = process.argv.includes("--cleanup-t013-residue");
   const isPrepareT013LiveFixtures = process.argv.includes("--prepare-t013-live-fixtures");
   const isCleanupT013LiveFixtures = process.argv.includes("--cleanup-t013-live-fixtures");
+  const isPrepareComplianceFixture = process.argv.includes("--prepare-compliance-fixture");
+  const isCleanupComplianceFixture = process.argv.includes("--cleanup-compliance-fixture");
+  const isInspectComplianceFixture = process.argv.includes("--inspect-compliance-fixture");
+  const isResetSuspendedFixture = process.argv.includes("--reset-suspended-fixture");
+  const isResetListingReviewFixtures = process.argv.includes("--reset-listing-review-fixtures");
   const createT013PaymentProofPrefix = "--create-t013-payment-proof-metadata=";
   const createT013PaymentProofArgument = process.argv.find((argument) => argument.startsWith(createT013PaymentProofPrefix));
   const inspectDeliveryPositionPrefix = "--inspect-delivery-position=";
@@ -3165,6 +3374,31 @@ async function main(): Promise<void> {
     const business = await cleanupT013BusinessResidue(admin);
     const adminFixture = await cleanupT013DeliveryAdminFixture(admin);
     console.log(JSON.stringify({ business, adminFixture }));
+    return;
+  }
+
+  if (isPrepareComplianceFixture) {
+    await createDisposableOperatorFixture(admin, requireEnv("TEST_FIXTURE_PASSWORD"), RUN_B_COMPLIANCE_FIXTURE, "feature-010-run-b-compliance-reviewer", { reuseIfActive: true });
+    return;
+  }
+
+  if (isCleanupComplianceFixture) {
+    console.log(JSON.stringify(await cleanupDisposableOperatorFixture(admin, RUN_B_COMPLIANCE_FIXTURE)));
+    return;
+  }
+
+  if (isInspectComplianceFixture) {
+    console.log(JSON.stringify(await inspectDisposableOperatorFixture(admin, RUN_B_COMPLIANCE_FIXTURE)));
+    return;
+  }
+
+  if (isResetSuspendedFixture) {
+    await resetSuspendedFixture(admin);
+    return;
+  }
+
+  if (isResetListingReviewFixtures) {
+    await resetListingReviewFixtures(admin);
     return;
   }
 

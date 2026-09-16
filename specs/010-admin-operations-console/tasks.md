@@ -3,9 +3,29 @@
 **Input**: [spec.md](./spec.md), [plan.md](./plan.md), `docs/architecture/DATABASE-CAPABILITY-MAP.md`,
 `.specify/memory/constitution.md` (v2.0.0), SRS §14 (OPS-01, OPS-02), §3.1, §13.5.
 
-**Status**: **RUN A complete (2026-09-15) — Phase 1 (T001–T005) + Phase 2 (T006) RECORDED, plus the
-RUN A-added admin-global task T046 RECORDED; T047/T048 added and honestly BLOCKED. 7 / 48
-(original planned count 45; authoritative count now 48).** Phases 3–12 remain unstarted; their
+**Status**: **RUN B complete (2026-09-16) — Phase 3 T007/T008/T009 RECORDED, Phase 4 T011
+RECORDED; T010 implemented but NOT closable (organization read/update policy gap for COMPLIANCE —
+recorded, needs a database decision); T012 BLOCKED (Feature 012 absent). 11 / 48.** RUN A
+(2026-09-15): Phase 1 (T001–T005) + Phase 2 (T006) + T046 RECORDED; T047/T048 BLOCKED (original
+planned count 45; authoritative count 48). RUN B evidence: `lib/admin/{compliance,decisions,
+validation}.ts`, `components/admin/compliance/*`, the `(compliance)/kyb|organizations|listings`
+routes; `tests/admin/compliance-decisions.test.ts` (13 live tests incl. a two-session race) +
+`tests/admin/compliance-pages.test.tsx` (12 live page tests) + `tests/browser/feature010-runb.browser.mjs`
+(25 surfaces × EN/AR × light/dark × 390/1366/1920, zero axe violations, inline validation,
+confirmation dialog, keyboard focus ring, direct-URL refusal). One disposable COMPLIANCE fixture
+(role exactly COMPLIANCE, no membership) was human-authorized, used, and de-privileged after every
+run (`activeCapability: false`, blocked + Auth-banned; immutable audit references prevented deletion).
+**RUN B live-DB findings (recorded, not fixed):** (1) `organizations` has NO SELECT policy for `is_compliance_operator()` (only `organizations_member_select`: `is_org_member(id) OR is_platform_admin()`), and because an UPDATE whose WHERE references existing columns is also subject to SELECT policies, the existing `organizations_compliance_update` policy affects ZERO rows for a pure COMPLIANCE operator (verified live 2026-09-15 with an affected-row count of 0 on a no-op status write; `kyb_applications` writes affect 1). The same shape blocks `file_assets` (`catalog_admin_files`) and `account_status_history` (`account_status_history_view`) for that role. (2) `validate_offer_transition`
+gates every UPDATE into APPROVED/REJECTED/PUBLISHED/SUSPENDED on `is_compliance_operator()`
+(`compliance_required_for_listing_state`) — so even the privileged seed script cannot restore a
+suspended fixture to PUBLISHED; the compliance session does it. (3) The trigger has no branch for
+`old.status = 'SUSPENDED'`/`'ARCHIVED'`, so a suspended listing has no DB-enforced forward limit —
+a seller's own ARCHIVE from SUSPENDED is not refused by the database (code reading of the live
+trigger text; not exercised live). (4) A shared-primitive accessibility defect surfaced by the real
+Chrome focus check: `outline-none` + `focus-visible:outline-2` under Tailwind v4 leaves
+`outline-style: none` (no visible ring) on `Button`/`Input`/`Textarea`/`Checkbox`/`RadioGroup`/
+`Select`/`Switch`/`Tabs` — fixed by adding `focus-visible:outline-solid` (one utility, eight files;
+computed ring now `solid 2px`). Phases 3–12 remain unstarted; their
 blockers are unchanged (see the Run 0 reconciliation in plan.md). RUN A evidence: the single access
 matrix (`lib/admin/areas.ts`) + live guards (`lib/admin/guards.ts`) + six guarded route groups
 (`(compliance)`/`(warehouse)`/`(finance)`/`(catalogue)`/`(audit)`/`(system)` with a nested
@@ -168,14 +188,29 @@ scope has no owning task (flagged for RUN B planning, not silently added).
 
 ## Phase 3 — Compliance: KYB
 
-- [ ] T007 [PS2] Implement the KYB queue (`(compliance)/kyb/page.tsx`) with status, organization,
+- [x] T007 [PS2] Implement the KYB queue (`(compliance)/kyb/page.tsx`) with status, organization,
   submission time and outstanding items.
   - Req: FR-002, PS2 | Depends: T004
   - Verify: only compliance-permitted roles reach it; queue reflects real application states
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — Medium
   - Why: queue list over an existing domain layer.
+  - **Done (2026-09-16, RUN B)**: `lib/admin/compliance.ts#listKybApplications` (real
+    `kyb_applications` rows under the operator's session; "awaiting action" = SUBMITTED /
+    UNDER_REVIEW / RESUBMISSION_REQUIRED, or all statuses via `?view=all`; oldest submission first;
+    outstanding items from Feature 003's own `checkKybCompleteness` over the readable
+    `kyb_documents`; expired-document count) rendered by `(compliance)/kyb/page.tsx` through the
+    server-safe `TableCardList` (desktop table + 390 px cards). **Organization column**: the
+    organization id always, the display name only when the operator's role can read `organizations`
+    — for a pure COMPLIANCE operator it is stated as unavailable with the recorded gap note, never
+    fabricated (see the RUN B findings above; this is the DB decision the queue needs before names
+    can appear for that role). Live proof (`tests/admin/compliance-pages.test.tsx`): the COMPLIANCE
+    fixture sees the real UNDER_REVIEW fixture row, real status badges, the gap note and no invented
+    name; the actionable view contains only actionable statuses; WAREHOUSE by direct URL → forbidden
+    naming `Required role: Compliance`; anonymous → `/admin/sign-in/`; FINANCE/member refused at
+    the guard (`access-matrix` + `compliance-decisions`). Browser: zero axe violations across the
+    five appearances, loading/empty/error states wired (`AdminStateCard`).
 
-- [ ] T008 [PS2] Implement the application detail view: evidence list, document expiry and history,
+- [x] T008 [PS2] Implement the application detail view: evidence list, document expiry and history,
   using 003's live KYB-document seam for Compliance reads. State honestly that non-KYB evidence bytes
   remain outside that seam.
   - Req: FR-006, FR-017, PS2 | Depends: T007
@@ -183,30 +218,106 @@ scope has no owning task (flagged for RUN B planning, not silently added).
     evidence limitation is explained rather than silently broken
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — High
   - Why: reviewer-facing accuracy plus honest handling of a blocked capability.
+  - **Done (2026-09-16, RUN B)**: `(compliance)/kyb/[applicationId]/page.tsx` over
+    `getKybApplicationDetail`: application identity/status/timestamps/fields, documents through
+    003's approved seam (`kyb_documents_member_select` includes `is_compliance_operator()`) with
+    type, status, version, expiry (expired ones flagged `data-document-expired="true"` + a text
+    badge via the shared `isDocumentExpired` rule), outstanding items, application-level decisions
+    (`kyb_reviews`), document-level decisions (`kyb_review_items`, 003's append-only ledger),
+    organization status history, and the decision panel. **Honest limits stated in-product**: file
+    name/MIME/size are unavailable to a pure COMPLIANCE role (`file_assets` has no compliance read
+    path), so document bytes are NOT openable from this console and NO download control is rendered
+    (`data-document-bytes-note`); payment/delivery/dispute evidence is stated to be outside the KYB
+    seam (Features 008/009/012); the organization row and its status history are stated
+    unavailable for that role (`data-organization-gap`, `data-history-unavailable`). Live proof:
+    the COMPLIANCE fixture renders the seeded APPROVED application with its real document row and
+    every section; no `a[download]`/storage link exists; unknown id → not-found state. Browser: zero
+    axe violations, EN/AR/RTL, 390/1366/1920.
 
-- [ ] T009 [PS2] Implement KYB decision actions (`APPROVED`, `REJECTED`, `RESUBMISSION_REQUIRED`,
+- [x] T009 [PS2] Implement KYB decision actions (`APPROVED`, `REJECTED`, `RESUBMISSION_REQUIRED`,
   `SUSPENDED`) recording `kyb_reviews` (reviewer, decision, reason) and the application status change.
   - Req: FR-006, SEC-003, SC-003 | Depends: T008
   - Verify: each decision records a review row and changes status once; a decision requiring a reason is refused without one; non-compliance roles refused
   - Codex: GPT-5.6 Sol — High · Claude: Opus — High
   - Why: the decision that unlocks trading for an organization — attribution and correctness are compliance-critical.
+  - **Done (2026-09-16, RUN B)**: `lib/admin/decisions.ts#decideKybApplication` (+ `startKybReview`
+    for SUBMITTED → UNDER_REVIEW, no review row) behind the live `is_compliance_operator()` guard:
+    zod-validated input (reason mandatory for REJECTED / RESUBMISSION_REQUIRED / SUSPENDED, 5–2000
+    chars, inline `fieldErrors.reason`), a compare-and-set UPDATE on `kyb_applications`
+    (`status IN <permitted sources>`, stamping `decided_by`/`decided_at`/`rejection_reason`), then
+    the `kyb_reviews` row with the server-derived reviewer id, then the organization follow-through
+    reported honestly as `applied | unavailable | not-required`. Server Actions
+    (`(compliance)/kyb/actions.ts`) + `KybDecisionPanel` (radio options shaped by current status,
+    reason field beside the action, `AlertDialog` confirmation for REJECTED/SUSPENDED, Sonner
+    outcome, no raw DB text). LIVE proof with the COMPLIANCE fixture
+    (`tests/admin/compliance-decisions.test.ts`): RESUBMISSION_REQUIRED, REJECTED (after
+    startReview) and APPROVED each change status exactly once with a `kyb_reviews` row carrying the
+    reviewer, decision and reason; a repeat is `kyb_decision_stale` with no second row; every
+    reason-required decision without a reason is refused before any write; a TWO-SESSION race on the
+    same SUBMITTED application yields exactly one effect, exactly one review row and one STALE loser;
+    prior history rows are untouched. WAREHOUSE / FINANCE / member → `compliance_not_capable` and, at
+    the database layer, their direct writes affect 0 rows / are refused; anonymous → unauthenticated.
+    **Recorded**: for a pure COMPLIANCE operator the APPROVED decision's organization activation is
+    `unavailable` (the organizations policy gap), so `organization_can_buy()` stays false until a
+    platform admin activates the organization — stated in-product, never bypassed. Concurrency
+    beyond the two-session race remains T032's.
 
 - [ ] T010 [PS2] Implement organization status/suspension actions with reason capture.
   - Req: FR-006, PS2 | Depends: T009
   - Verify: suspension is reflected for the member on their next request (003/004); reason recorded
   - Codex: GPT-5.6 Sol — High · Claude: Opus — High
   - Why: immediate suspension (AUTH-02) must take effect platform-wide without destroying history.
+  - **Implemented but NOT closable (2026-09-16, RUN B) — BLOCKED on a database decision.**
+    `lib/admin/decisions.ts#setOrganizationStatus` (suspend ACTIVE→SUSPENDED / reinstate
+    SUSPENDED→ACTIVE through the approved `organizations_compliance_update` policy, mandatory reason
+    recorded as a `kyb_reviews` row against the current application — the only reason-bearing
+    compliance record the schema offers; `account_status_history` is written by the trigger with no
+    reason), `(compliance)/organizations/{page,[organizationId]/page}.tsx` + `OrganizationStatusPanel`
+    (confirmation always, the undecided in-flight-operations policy stated, never simulated).
+    **Why unchecked**: the literal Verify needs a real suspension to land and be felt by the member
+    on their next request. `organizations` has NO SELECT policy for `is_compliance_operator()` (only `organizations_member_select`: `is_org_member(id) OR is_platform_admin()`), and because an UPDATE whose WHERE references existing columns is also subject to SELECT policies, the existing `organizations_compliance_update` policy affects ZERO rows for a pure COMPLIANCE operator (verified live 2026-09-15 with an affected-row count of 0 on a no-op status write; `kyb_applications` writes affect 1). The same shape blocks `file_assets` (`catalog_admin_files`) and `account_status_history` (`account_status_history_view`) for that role. The only role that can drive this path today is
+    ADMIN/SUPER_ADMIN, for which no fixture is authorized in RUN B; the pure COMPLIANCE fixture is
+    refused up front with `organization_access_unavailable` and NOTHING is written (live-proven,
+    including that the member's `organization_can_buy` is unchanged). **Exact DB decision needed**:
+    grant `is_compliance_operator()` a SELECT path on `organizations` (e.g. extend
+    `organizations_member_select`'s USING with `OR is_compliance_operator()`), which also makes the
+    existing UPDATE policy effective; optionally the same for KYB-linked `file_assets` and
+    `account_status_history`. Security effect: COMPLIANCE would read every organization row
+    (legal/tax/contact fields) — consistent with the SRS compliance role; no write widening beyond
+    the UPDATE policy that already exists. Until then this surface renders the recorded gap for
+    COMPLIANCE (`data-admin-state="capability-gap"`) and is expected to work for a platform admin.
 
 ---
 
 ## Phase 4 — Compliance: listings & disputes
 
-- [ ] T011 [PS5] Implement the listing review queue and decision actions (`APPROVED`, `REJECTED`,
+- [x] T011 [PS5] Implement the listing review queue and decision actions (`APPROVED`, `REJECTED`,
   `SUSPENDED`) recording `listing_reviews` and the status change.
   - Req: FR-006, PS5, SC-003 | Depends: T004, 006's layer
   - Verify: decisions record reviewer/decision/reason; suspension stops member actionability (006); non-compliance roles refused
   - Codex: GPT-5.6 Sol — High · Claude: Opus — Medium
   - Why: controls what is tradable in the marketplace; must cooperate with the offer-transition trigger.
+  - **Done (2026-09-16, RUN B)**: `listListingsForReview` / `getListingReviewDetail` (PENDING_REVIEW +
+    live + suspended `coffee_offers` under `offers_compliance_read`, the persisted `listing_reviews`
+    and trigger-written `listing_status_history`), `(compliance)/listings/{page,[offerId]/page}.tsx`
+    (Feature 006's `ListingStatusBadge`, quantities always in kg, prices always with currency) and
+    `decideListing` (compare-and-set on `coffee_offers` — APPROVED/REJECTED from PENDING_REVIEW,
+    SUSPENDED from PUBLISHED/PARTIALLY_FILLED; `rejection_reason` set so the DB trigger copies the
+    reason into `listing_status_history`; then the `listing_reviews` row). The database's own
+    `validate_offer_transition` remains the authority (it independently requires
+    `is_compliance_operator()` for these targets — live-confirmed). Two HILLS listing fixtures were
+    added to the seed script for this (`offerPendingReview`, `offerReviewLive`, each on its own lot)
+    with a restore command. LIVE proof: APPROVED changes status once + review row (repeat →
+    `listing_decision_stale`); REJECTED without a reason is refused, with one the reason lands on
+    the listing AND in `listing_status_history` with `changed_by` = the reviewer; SUSPENDED from
+    PUBLISHED sets `is_visible=false`, the listing disappears from a real buyer's RLS read, and a
+    real buyer's `addOrderItem` against it is refused by Feature 007's own path — member
+    non-actionability proven at the domain/DB layer, not by hiding a button. WAREHOUSE/FINANCE/member
+    → `compliance_not_capable`; WAREHOUSE's direct status write affects 0 rows. **Recorded**: no
+    approved compliance vocabulary lifts a suspension (`listing_reviews.decision` has no
+    "reinstated"), so a suspended listing stays suspended — stated in-product; and the trigger's
+    missing SUSPENDED branch (findings above) means the DB does not refuse a seller ARCHIVE from
+    SUSPENDED (code reading, not exercised).
 
 - [ ] T012 [P] **BLOCKED — 012 domain layer absent.** Implement the dispute review surface (queue +
   status transitions) only by composing 012's domain layer.
@@ -215,6 +326,13 @@ scope has no owning task (flagged for RUN B planning, not silently added).
     no parallel 010 dispute engine or freeze path exists
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — High
   - Why: composition over 012's layer with an authorization constraint.
+  - **Re-checked 2026-09-16 (RUN B): still BLOCKED.** Feature 012 is 0/28 with no `lib/disputes`
+    domain layer, no dispute status-transition function and no compliance freeze path (DB-OPEN-09).
+    The console keeps the honest blocked placeholder at `/dashboard-admin/disputes` (guarded by the
+    compliance group + area guard) and contains no dispute mutation (`tests/admin/compliance-pages
+    .test.tsx` asserts no `from("disputes")` write exists in `lib/admin`). **Feature 012 must supply**
+    a dispute read DTO + a reviewed transition function that records actor and reason, and the
+    approved freeze mechanism, before T012 can be composed.
 
 ---
 

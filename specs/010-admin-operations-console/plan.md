@@ -1,7 +1,7 @@
 # Implementation Plan: Operations / Admin Console
 
 **Feature**: `010-admin-operations-console` | **Date**: 2026-09-08 | **Spec**: [spec.md](./spec.md)
-**Status**: RUN A complete (2026-09-15) — Phases 1–2 + T046 implemented and verified (7 / 48); Phases 3–12 NOT started. See the dependency and run grouping below before starting RUN B.
+**Status**: RUN B complete (2026-09-16) — Phases 3–4: T007/T008/T009/T011 implemented and live-verified; T010 implemented but blocked on the `organizations` compliance read/update policy gap; T012 blocked on Feature 012 (11 / 48). RUN A (2026-09-15): Phases 1–2 + T046. Phases 5–12 NOT started.
 
 ## Summary
 
@@ -27,7 +27,7 @@ no-hard-delete verification.
 
 | Area | Role check | Approved write surface |
 |---|---|---|
-| Compliance — KYB | `is_compliance_operator()` | `kyb_applications` ALL, `kyb_reviews` ALL, `organizations` UPDATE, `profiles` UPDATE |
+| Compliance — KYB | `is_compliance_operator()` | `kyb_applications` ALL, `kyb_reviews` ALL, `organizations` UPDATE (**live finding, RUN B**: effectively unusable for a pure COMPLIANCE operator — no SELECT policy, so the UPDATE matches zero rows; a platform admin succeeds), `profiles` UPDATE |
 | Compliance — listings | `is_compliance_operator()` | `coffee_offers` UPDATE, `listing_reviews` (via policy) |
 | Compliance — disputes | `is_compliance_operator()` | `disputes` UPDATE |
 | Warehouse | `is_warehouse_operator()` | Stored inventory/custody reads; `order_shipments` / `shipment_items` operational changes **only via 009's live warehouse layer**. Delivery reservations are DB-owned and live. |
@@ -116,9 +116,11 @@ src/app/dashboard-admin/
 lib/admin/
 ├── areas.ts        # RUN A — the access matrix (area → required role), shell routes, visibility shaping
 ├── guards.ts       # RUN A — per-area server-side verification (live role-function calls)
-├── read.ts         # RUN A — overview counts (role-shaped, RLS-readable tables only); queues/oversight DTOs later
-├── catalogue.ts    # LATER — catalogue mutations + public cache revalidation
-└── decisions.ts    # LATER — KYB/listing/dispute decision recording
+├── read.ts         # RUN A — overview counts (role-shaped, RLS-readable tables only)
+├── compliance.ts   # RUN B — KYB queue/detail, organizations, listing review DTOs (honest nulls for unreadable rows)
+├── decisions.ts    # RUN B — KYB decisions, organization status, listing decisions (compare-and-set + review rows)
+├── validation.ts   # RUN B — decision input contracts (DB vocabularies verbatim, reason rules)
+└── catalogue.ts    # LATER — catalogue mutations + public cache revalidation
 
 components/admin/   # RUN A — access-denied resolver, state card, role badges, topbar account menu,
                     #         area placeholder (planned/blocked), overview tiles, sign-out button;

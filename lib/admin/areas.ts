@@ -100,9 +100,9 @@ export const ADMIN_GROUP_ROLE_FUNCTIONS: Readonly<Record<AdminAreaGroupKey, Admi
 
 export const ADMIN_AREAS: readonly AdminArea[] = [
   // ── Compliance ────────────────────────────────────────────────────────────────────────────────
-  { key: "kyb", group: "compliance", href: "/dashboard-admin/kyb", roleFunction: "is_compliance_operator", icon: "badge-check", availability: "planned", phase: 3 },
-  { key: "organizations", group: "compliance", href: "/dashboard-admin/organizations", roleFunction: "is_compliance_operator", icon: "building-2", availability: "planned", phase: 3 },
-  { key: "listings", group: "compliance", href: "/dashboard-admin/listings", roleFunction: "is_compliance_operator", icon: "tag", availability: "planned", phase: 4 },
+  { key: "kyb", group: "compliance", href: "/dashboard-admin/kyb", roleFunction: "is_compliance_operator", icon: "badge-check", availability: "live", phase: 3 },
+  { key: "organizations", group: "compliance", href: "/dashboard-admin/organizations", roleFunction: "is_compliance_operator", icon: "building-2", availability: "live", phase: 3 },
+  { key: "listings", group: "compliance", href: "/dashboard-admin/listings", roleFunction: "is_compliance_operator", icon: "tag", availability: "live", phase: 4 },
   { key: "disputes", group: "compliance", href: "/dashboard-admin/disputes", roleFunction: "is_compliance_operator", icon: "shield", availability: "blocked", phase: 4, blocker: "feature-012-dispute-layer" },
 
   // ── Warehouse ─────────────────────────────────────────────────────────────────────────────────

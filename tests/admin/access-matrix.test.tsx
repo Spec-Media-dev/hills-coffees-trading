@@ -127,9 +127,11 @@ describe("T001 — lib/admin/areas.ts is the single declarative access matrix", 
     expect(ADMIN_GROUP_ROLE_FUNCTIONS.system).toBe("is_platform_admin");
   });
 
-  it("every later-phase or blocked area says so — nothing is marked live that this run did not build", () => {
+  it("availability is honest — only the areas with a real workflow are `live` (RUN B: kyb, organizations, listings); every other area is planned or blocked", () => {
+    const live = ADMIN_AREAS.filter((area) => area.availability === "live").map((area) => area.key).sort();
+    expect(live).toEqual(["kyb", "listings", "organizations"]);
     for (const area of ADMIN_AREAS) {
-      expect(["planned", "blocked"]).toContain(area.availability);
+      expect(["live", "planned", "blocked"]).toContain(area.availability);
       if (area.availability === "blocked") expect(area.blocker).toBeTruthy();
     }
   });
@@ -215,7 +217,14 @@ describe("T004 — every route group carries its own server-side guard; every de
       ];
       const found = candidates.find((candidate) => existsSync(candidate));
       expect(found, `${area.key} has no page under (${area.group})`).toBeTruthy();
-      expect(readFileSync(found!, "utf8")).toContain(`<AdminAreaPlaceholder areaKey="${area.key}" />`);
+      const page = readFileSync(found!, "utf8");
+      if (area.availability === "live") {
+        // A live area's page performs its OWN area guard (the same function the group layout uses).
+        expect(page).toContain(`checkAreaAccess("${area.key}")`);
+        expect(page).toContain("<AdminAccessDenied");
+      } else {
+        expect(page).toContain(`<AdminAreaPlaceholder areaKey="${area.key}" />`);
+      }
     }
     // No page exists outside a guarded group except the shell routes (overview, account).
     const topLevelPages = readdirSync(ADMIN_APP, { withFileTypes: true })

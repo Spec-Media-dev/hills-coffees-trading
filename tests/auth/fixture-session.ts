@@ -43,6 +43,14 @@ export const FOUNDATION_FIXTURES = {
   deliveryAdmin: {
     email: "delivery-admin+t013-test@example.com",
   },
+  /**
+   * Feature 010 RUN B's human-authorized, disposable COMPLIANCE proof identity (role exactly
+   * `COMPLIANCE`, no organization membership). Absent from normal `npm run test:seed`; created only
+   * by `prepareComplianceFixture()` and de-privileged by `cleanupComplianceFixture()`.
+   */
+  complianceReviewer: {
+    email: "compliance-reviewer+t010-test@example.com",
+  },
 } as const;
 
 /**
@@ -194,6 +202,10 @@ export const LISTING_FIXTURES = {
    * empirically (a direct id lookup must return null), not to assert buyer-readability.
    */
   offerSoldOut: "06000000-0000-4000-8000-000000000007",
+  /** Feature 010 RUN B (T011) — HILLS listing seeded in PENDING_REVIEW for compliance decisions. */
+  offerPendingReview: "06000000-0000-4000-8000-00000000000d",
+  /** Feature 010 RUN B (T011) — HILLS listing seeded PUBLISHED for compliance suspension. */
+  offerReviewLive: "06000000-0000-4000-8000-000000000010",
 } as const;
 
 /**
@@ -406,6 +418,35 @@ export function setSuspendedOrganizationStatus(status: "ACTIVE" | "SUSPENDED"): 
 /** T032 restore control — resets `completeDraft`'s application back to `DRAFT` after a test transitions it. */
 export function resetCompleteDraftApplication(): void {
   runFixtureScript(["--reset-complete-draft-application"]);
+}
+
+/** Feature 010 RUN B — creates/reactivates the disposable COMPLIANCE operator (role exactly COMPLIANCE). */
+export function prepareComplianceFixture(): void {
+  runFixtureScript(["--prepare-compliance-fixture"]);
+}
+
+/** Feature 010 RUN B — removes the COMPLIANCE capability and deletes or blocks+bans the principal. */
+export function cleanupComplianceFixture(): Record<string, unknown> {
+  const output = runFixtureScript(["--cleanup-compliance-fixture"], { captureOutput: true });
+  const line = output.trim().split(/\r?\n/).find((candidate) => candidate.startsWith("{"));
+  return line ? (JSON.parse(line) as Record<string, unknown>) : {};
+}
+
+/** Feature 010 RUN B — read-only capability state of the disposable COMPLIANCE operator. */
+export function inspectComplianceFixture(): Record<string, unknown> {
+  const output = runFixtureScript(["--inspect-compliance-fixture"], { captureOutput: true });
+  const line = output.trim().split(/\r?\n/).find((candidate) => candidate.startsWith("{"));
+  return line ? (JSON.parse(line) as Record<string, unknown>) : {};
+}
+
+/** Feature 010 RUN B (T010) — restores the `suspended` fixture (organization SUSPENDED, application APPROVED). */
+export function resetSuspendedFixture(): void {
+  runFixtureScript(["--reset-suspended-fixture"]);
+}
+
+/** Feature 010 RUN B (T011) — restores the two compliance-review listings to PENDING_REVIEW / PUBLISHED. */
+export function resetListingReviewFixtures(): void {
+  runFixtureScript(["--reset-listing-review-fixtures"]);
 }
 
 /**

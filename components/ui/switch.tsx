@@ -15,7 +15,7 @@ function Switch({
       data-slot="switch"
       data-size={size}
       className={cn(
-        "peer group/switch relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border border-transparent outline-none transition-[background-color,box-shadow,transform] duration-[var(--dur-fast)] after:absolute after:-inset-y-2.5 after:inset-x-0 hover:ring-1 hover:ring-[var(--border-strong)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus-ring)] active:translate-y-px aria-invalid:border-destructive data-[state=loading]:cursor-progress data-[state=loading]:opacity-75 data-[state=success]:ring-1 data-[state=success]:ring-[var(--success)] data-checked:bg-primary data-unchecked:bg-input data-disabled:cursor-not-allowed data-disabled:opacity-[0.45] motion-reduce:transform-none",
+        "peer group/switch relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border border-transparent outline-none transition-[background-color,box-shadow,transform] duration-[var(--dur-fast)] after:absolute after:-inset-y-2.5 after:inset-x-0 hover:ring-1 hover:ring-[var(--border-strong)] focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-offset-2 focus-visible:outline-[var(--focus-ring)] active:translate-y-px aria-invalid:border-destructive data-[state=loading]:cursor-progress data-[state=loading]:opacity-75 data-[state=success]:ring-1 data-[state=success]:ring-[var(--success)] data-checked:bg-primary data-unchecked:bg-input data-disabled:cursor-not-allowed data-disabled:opacity-[0.45] motion-reduce:transform-none",
         className
       )}
       {...props}

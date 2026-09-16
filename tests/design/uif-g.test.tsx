@@ -188,11 +188,12 @@ describe("Phase 5.5 UIF-041 — role-scalable admin navigation structure", () =>
     );
     expect(screen.getAllByText("Overview").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Organizations").length).toBeGreaterThan(0);
-    // Feature 010 RUN A: these routes now exist as GUARDED, honest "not yet available" destinations
-    // under their route group (`(compliance)/…`) — never under a bare, unguarded folder.
+    // Feature 010 RUN A/RUN B: these routes now exist as GUARDED destinations under their route
+    // group (`(compliance)/…`) — never under a bare, unguarded folder — and each live page performs
+    // its own area guard (RUN B made kyb/organizations/listings real workflows).
     for (const segment of ["organizations", "kyb"]) {
       expect(() => readFileSync(path.join(root, "src", "app", "dashboard-admin", segment, "page.tsx"))).toThrow();
-      expect(readFileSync(path.join(root, "src", "app", "dashboard-admin", "(compliance)", segment, "page.tsx"), "utf8")).toContain("AdminAreaPlaceholder");
+      expect(readFileSync(path.join(root, "src", "app", "dashboard-admin", "(compliance)", segment, "page.tsx"), "utf8")).toContain(`checkAreaAccess("${segment}")`);
     }
   });
 

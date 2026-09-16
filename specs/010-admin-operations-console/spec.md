@@ -2,7 +2,7 @@
 
 **Feature Directory**: `specs/010-admin-operations-console`
 **Created**: 2026-09-08
-**Status**: RUN A complete (2026-09-15) — Phase 1 (access matrix, live guards, shell, per-area route-group guards, non-indexable surface) + Phase 2 (real role-shaped overview) + the RUN A-added operator self-account page (T046) are implemented and verified: 7 / 48 tasks. Phases 3–12 NOT started; delivery dependency is live, finance/dispute dependencies remain partial or absent (see tasks.md status).
+**Status**: RUN B complete (2026-09-16) — Phase 3 T007/T008/T009 + Phase 4 T011 implemented and live-verified with a disposable COMPLIANCE fixture; T010 implemented but blocked on the organizations policy gap (below); T012 blocked on Feature 012: 11 / 48 tasks. RUN A (2026-09-15) delivered Phases 1–2 + T046. Phases 5–12 NOT started (see tasks.md status).
 **Primary surface**: Operations Console (`/dashboard-admin`)
 **Depends on**: 001 (independent admin guard), 003, 005, 006, 008, 009, 012 (domain layers)
 
@@ -357,12 +357,19 @@ succeeds.
   management screen is built; the console must not fake one.
 - **Operator email change (T048) — BLOCKED, requires an approved auth-flow decision (RUN A)**:
   no approved path exists; the account page displays the current email and states the gap.
-- **`organizations` has no SELECT policy for COMPLIANCE (found RUN A, 2026-09-15) — candidate DB
-  open item for Phase 3 (T007)**: the live policy set grants `organizations` reads to
-  `is_org_member(id)`/`is_platform_admin()` only, while `kyb_applications` is compliance-readable.
-  A pure COMPLIANCE operator can therefore see KYB applications but not the organization names
-  behind them through RLS. Recorded, not worked around; the overview shows no organization-level
-  compliance figure for that reason.
+- **`organizations` has no SELECT path for COMPLIANCE — CONFIRMED LIVE, RUN B 2026-09-16; BLOCKS
+  T010 and the organization-name column of T007 for that role; needs a database decision**: the
+  live policy set grants `organizations` reads to `is_org_member(id)`/`is_platform_admin()` only,
+  and because PostgreSQL applies SELECT policies to an UPDATE whose WHERE references existing
+  columns, the existing `organizations_compliance_update` policy affects ZERO rows for a pure
+  COMPLIANCE operator (affected-row count 0 on a no-op status write, versus 1 on
+  `kyb_applications`). The same shape blocks `file_assets` (document file name/MIME/size/path — so
+  KYB evidence bytes cannot be opened from the console by that role even though the storage policy
+  itself would allow it) and `account_status_history`. The console states each gap in-product and
+  never bypasses it. Minimal option: extend `organizations_member_select` USING with
+  `OR is_compliance_operator()` (and, if wanted, a KYB-scoped `file_assets` read + an
+  `account_status_history` read for compliance); security effect: COMPLIANCE reads all organization
+  rows, consistent with the SRS compliance role; no new write authority.
 - **"Trading oversight" scope has no owning task (found RUN A)**: the In-scope list names
   listing states / order-trade monitor / settlement-title visibility, but no T0NN task covers it.
   Flagged for RUN B planning rather than silently added to the matrix.

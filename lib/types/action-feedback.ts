@@ -140,6 +140,29 @@ export const ACTION_FEEDBACK = {
    * "you don't have this role at all" apart from "this specific transition isn't valid right now."
    */
   WAREHOUSE_NOT_CAPABLE: "warehouse_not_capable",
+
+  /**
+   * Feature 010 RUN B — Compliance console decisions (KYB, organization status, listing review).
+   * `*_STALE` = the target is no longer in a state this decision applies to (e.g. another operator
+   * decided first — the compare-and-set update affected zero rows); `*_HISTORY_INCOMPLETE` = the
+   * state changed but the review row could not be recorded (surfaced, never hidden);
+   * `ORGANIZATION_ACCESS_UNAVAILABLE` = the operator's role has no read/update path to
+   * `organizations` under the current policy set (a recorded capability gap, never bypassed).
+   */
+  COMPLIANCE_NOT_CAPABLE: "compliance_not_capable",
+  KYB_DECISION_RECORDED: "kyb_decision_recorded",
+  KYB_DECISION_STALE: "kyb_decision_stale",
+  KYB_DECISION_FAILED: "kyb_decision_failed",
+  KYB_DECISION_HISTORY_INCOMPLETE: "kyb_decision_history_incomplete",
+  KYB_REVIEW_STARTED: "kyb_review_started",
+  ORGANIZATION_ACCESS_UNAVAILABLE: "organization_access_unavailable",
+  ORGANIZATION_STATUS_CHANGED: "organization_status_changed",
+  ORGANIZATION_STATUS_STALE: "organization_status_stale",
+  ORGANIZATION_STATUS_FAILED: "organization_status_failed",
+  LISTING_DECISION_RECORDED: "listing_decision_recorded",
+  LISTING_DECISION_STALE: "listing_decision_stale",
+  LISTING_DECISION_FAILED: "listing_decision_failed",
+  LISTING_DECISION_HISTORY_INCOMPLETE: "listing_decision_history_incomplete",
 } as const;
 
 export type ActionFeedbackCode = (typeof ACTION_FEEDBACK)[keyof typeof ACTION_FEEDBACK];

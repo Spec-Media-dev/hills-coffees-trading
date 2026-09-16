@@ -19,7 +19,7 @@ function RadioGroupItem({ className, ...props }: RadioPrimitive.Root.Props) {
     <RadioPrimitive.Root
       data-slot="radio-group-item"
       className={cn(
-        "group/radio-group-item peer relative flex aspect-square size-5 shrink-0 rounded-full border border-input bg-[var(--surface-card)] outline-none transition-[border-color,background-color,box-shadow,transform] duration-[var(--dur-fast)] after:absolute after:-inset-3 hover:border-[var(--border-strong)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus-ring)] active:translate-y-px disabled:cursor-not-allowed disabled:opacity-[0.45] aria-invalid:border-destructive data-[state=loading]:cursor-progress data-[state=loading]:opacity-75 data-[state=success]:border-[var(--success)] data-checked:border-primary data-checked:bg-primary data-checked:text-primary-foreground motion-reduce:transform-none dark:bg-input/30",
+        "group/radio-group-item peer relative flex aspect-square size-5 shrink-0 rounded-full border border-input bg-[var(--surface-card)] outline-none transition-[border-color,background-color,box-shadow,transform] duration-[var(--dur-fast)] after:absolute after:-inset-3 hover:border-[var(--border-strong)] focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-offset-2 focus-visible:outline-[var(--focus-ring)] active:translate-y-px disabled:cursor-not-allowed disabled:opacity-[0.45] aria-invalid:border-destructive data-[state=loading]:cursor-progress data-[state=loading]:opacity-75 data-[state=success]:border-[var(--success)] data-checked:border-primary data-checked:bg-primary data-checked:text-primary-foreground motion-reduce:transform-none dark:bg-input/30",
         className
       )}
       {...props}
