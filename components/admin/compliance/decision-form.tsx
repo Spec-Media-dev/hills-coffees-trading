@@ -40,6 +40,18 @@ export type DecisionOption<TDecision extends string> = {
   description: string;
   reasonRequired: boolean;
   destructive: boolean;
+  /** Optional neutral tag rendered beside the label (e.g. the warehouse "Settlement-gated" marker). */
+  badge?: string;
+};
+
+/** Reason-field copy/limits — defaults to the compliance vocabulary; the warehouse console supplies Feature 009's. */
+export type DecisionReasonConfig = {
+  label: string;
+  hint: string;
+  required: string;
+  tooLong: string;
+  minLength: number;
+  maxLength: number;
 };
 
 export type DecisionFormProps<TDecision extends string, TOutcome> = {
@@ -59,6 +71,10 @@ export type DecisionFormProps<TDecision extends string, TOutcome> = {
   confirmDescription: string;
   /** Rendered after a successful submission (e.g. the organization follow-through statement). */
   renderOutcome?: (result: ActionFeedbackResult<TOutcome>) => React.ReactNode;
+  /** Overrides the reason field's copy and limits (Feature 010 RUN D — warehouse operations reuse this form). */
+  reason?: DecisionReasonConfig;
+  /** `data-decision-form` attribute value; defaults to `decisionFieldName`. */
+  formKey?: string;
 };
 
 export function DecisionForm<TDecision extends string, TOutcome>({
@@ -73,9 +89,19 @@ export function DecisionForm<TDecision extends string, TOutcome>({
   confirmTitle,
   confirmDescription,
   renderOutcome,
+  reason: reasonConfig,
+  formKey,
 }: DecisionFormProps<TDecision, TOutcome>) {
   const { tApp } = useLocale();
   const copy = tApp.admin.compliance.common;
+  const reasonCopy: DecisionReasonConfig = reasonConfig ?? {
+    label: copy.reason,
+    hint: copy.reasonHint,
+    required: copy.reasonRequired,
+    tooLong: copy.reasonTooLong,
+    minLength: REASON_MIN_LENGTH,
+    maxLength: REASON_MAX_LENGTH,
+  };
   const [state, dispatch, isPending] = useActionState(action, undefined);
   const [decision, setDecision] = useState<TDecision | null>(null);
   const [reason, setReason] = useState("");
@@ -88,7 +114,7 @@ export function DecisionForm<TDecision extends string, TOutcome>({
 
   const selected = options.find((option) => option.value === decision) ?? null;
   const serverReasonError = state?.ok === false && state.code === ACTION_FEEDBACK.VALIDATION_ERROR ? state.fieldErrors?.reason?.[0] : undefined;
-  const reasonError = clientReasonError ?? (serverReasonError === "REASON_REQUIRED" ? copy.reasonRequired : serverReasonError === "REASON_TOO_LONG" ? copy.reasonTooLong : undefined);
+  const reasonError = clientReasonError ?? (serverReasonError === "REASON_REQUIRED" ? reasonCopy.required : serverReasonError === "REASON_TOO_LONG" ? reasonCopy.tooLong : serverReasonError ? reasonCopy.required : undefined);
 
   const submit = () => {
     if (!selected) return;
@@ -105,12 +131,12 @@ export function DecisionForm<TDecision extends string, TOutcome>({
     event.preventDefault();
     if (!selected || isPending) return;
     const trimmed = reason.trim();
-    if (selected.reasonRequired && trimmed.length < REASON_MIN_LENGTH) {
-      setClientReasonError(copy.reasonRequired);
+    if (selected.reasonRequired && trimmed.length < reasonCopy.minLength) {
+      setClientReasonError(reasonCopy.required);
       return;
     }
-    if (trimmed.length > REASON_MAX_LENGTH) {
-      setClientReasonError(copy.reasonTooLong);
+    if (trimmed.length > reasonCopy.maxLength) {
+      setClientReasonError(reasonCopy.tooLong);
       return;
     }
     setClientReasonError(null);
@@ -122,7 +148,7 @@ export function DecisionForm<TDecision extends string, TOutcome>({
   };
 
   return (
-    <section className="flex flex-col gap-4 rounded-[var(--radius-lg)] border border-border bg-[var(--surface-card)] p-5" data-decision-form={decisionFieldName}>
+    <section className="flex flex-col gap-4 rounded-[var(--radius-lg)] border border-border bg-[var(--surface-card)] p-5" data-decision-form={formKey ?? decisionFieldName}>
       <div className="flex flex-col gap-1">
         <h2 className="font-heading text-[length:var(--text-h4)] font-semibold text-foreground">{heading}</h2>
         <p className="text-[length:var(--text-small)] leading-[var(--lh-body)] text-muted-foreground">{lead}</p>
@@ -157,6 +183,11 @@ export function DecisionForm<TDecision extends string, TOutcome>({
                           {tApp.admin.compliance.kyb.detail.decision.destructive}
                         </span>
                       ) : null}
+                      {option.badge ? (
+                        <span data-option-badge className="rounded-[var(--radius-pill)] bg-[var(--status-review-surface)] px-2 py-0.5 text-[length:var(--text-micro)] font-semibold text-[var(--status-review)]">
+                          {option.badge}
+                        </span>
+                      ) : null}
                     </span>
                     <span className="text-[length:var(--text-micro)] leading-[var(--lh-body)] text-muted-foreground">{option.description}</span>
                   </span>
@@ -171,7 +202,7 @@ export function DecisionForm<TDecision extends string, TOutcome>({
             id={reasonId}
             label={
               <>
-                {copy.reason}
+                {reasonCopy.label}
                 {selected?.reasonRequired ? (
                   <span aria-hidden="true" className="text-[length:var(--text-micro)] text-[var(--status-danger)]">
                     *
@@ -179,7 +210,7 @@ export function DecisionForm<TDecision extends string, TOutcome>({
                 ) : null}
               </>
             }
-            hint={copy.reasonHint}
+            hint={reasonCopy.hint}
             error={reasonError}
             control={
               <Textarea
@@ -191,7 +222,7 @@ export function DecisionForm<TDecision extends string, TOutcome>({
                   if (clientReasonError) setClientReasonError(null);
                 }}
                 rows={4}
-                maxLength={REASON_MAX_LENGTH}
+                maxLength={reasonCopy.maxLength}
                 required={selected?.reasonRequired ?? false}
                 aria-required={selected?.reasonRequired ?? false}
               />

@@ -3,8 +3,45 @@
 **Input**: [spec.md](./spec.md), [plan.md](./plan.md), `docs/architecture/DATABASE-CAPABILITY-MAP.md`,
 `.specify/memory/constitution.md` (v2.0.0), SRS §14 (OPS-01, OPS-02), §3.1, §13.5.
 
-**Status**: **RUN C evaluated (2026-09-16) — Phase 5 T013/T014/T015 BLOCKED BY FEATURE 008; still
-11 / 48.** RUN C re-audited CURRENT Feature 008 (its `spec/plan/tasks.md`, `lib/finance/*`, Server
+**Status**: **RUN D complete (2026-09-16) — Phase 6 T016–T020 RECORDED; 16 / 48.** RUN D built the
+Warehouse console as a pure orchestration layer: `lib/admin/warehouse.ts` (queues over Feature 009's
+`getShipmentsForWarehouseQueue`; an operation map pinned byte-for-byte to `lib/delivery/warehouse.ts`'s
+own `fromStatuses`/targets and to `SHIPMENT_TRANSITIONS`; `executeWarehouseOperation` /
+`recordWarehouseDelivery` = console guard → Feature 009 input contract → the SAME-named Feature 009
+function → re-read), Feature 005 read-model warehouse-oversight variants (`lib/inventory/positions.ts`,
+`lib/inventory/allocations.ts` — same DTOs/mappers, cross-org by RLS), the `(warehouse)/shipments`
+queue + `[shipmentId]` detail (operations panel via RUN B's `DecisionForm`, delivered-quantity form)
+and `(warehouse)/inventory` + `[positionId]` (positions / allocations, "On hand (gross)" / "Reserved",
+no computed third figure, T020 gap notice). Zero raw shipment/inventory writes in the console
+(test-pinned), no DB change, no service role, no cache. T020 closed on its recorded-gap branch:
+NO variance / reconciliation / HOLD / QUARANTINE model exists (DB-OPEN-19, AC-05 stays release-
+blocking). Two RUN D live-read findings recorded (not fixed): a pure WAREHOUSE role has no read path
+to `orders`/`order_items`/`organizations`/`coffee_lots` (order code, item names, owner names and lot
+codes degrade to identifiers with an in-product note — DB-OPEN-20); and `inventory_warehouse_write`
+would permit a raw warehouse UPDATE of `inventory_positions` that no approved domain operation owns
+(deliberately unused). Proof: `tests/admin/warehouse-operations.test.ts` (18 structural/delegation
+tests) + `tests/admin/warehouse-pages.test.tsx` (live WAREHOUSE/FINANCE/member/anonymous sessions
+through the console's own Server Actions, 15/15 live) + `tests/browser/feature010-rund.browser.mjs`
+(real Chrome + axe against the production build: 6 warehouse surfaces × EN/AR × light/dark ×
+390/1366/1920 = 30 surfaces, zero axe violations, no horizontal overflow, one `<main>`, correct
+lang/dir/theme, every status badge textual, no raw DB error text, kg on every quantity; FINANCE
+direct-URL refusal on all three warehouse routes; operations form inline missing-reason error →
+`aria-invalid` → confirmation dialog → cancelled with status unchanged; keyboard Tab reaches a queue
+link with a `solid 2px` focus ring; zero console/page/request errors — run twice, identical). One
+browser-found defect was fixed before closure: UUID cells used `truncate` (nowrap) inside the auto-
+layout table and overflowed 1366 px (`scrollWidth 1463 > 1351`); they now wrap (`break-all`).
+Regressions (live, this machine, after `npm run test:seed` with the rotated password): `tests/admin`
++ `tests/inventory` + `tests/delivery` = 402 tests → 395 passed, 6 skipped (env-gated T017/T024
+PAID-order proofs), 1 failed = the PRE-EXISTING static assertion in
+`tests/delivery/t013-live-proof.test.ts` (expects the seed script to contain `role: "ADMIN"`; RUN B's
+`createDisposableOperatorFixture` refactor changed that literal to `platformAdminRole: "ADMIN"` —
+fails identically on the untouched tree; recorded, not patched — Feature 009 test ownership). A first
+full-suite reading also saw 4 transient sign-in failures (`fixture-session.ts:346`, GoTrue password-
+grant limit during the 5-minute sequential run); both files pass 30/30 in isolation and the second
+full reading had none. Suspended-organization mid-operation policy remains undecided; no clause of
+T016–T020's literal Verify depends on it, and the console neither blocks nor continues on that basis.
+Feature 005 warehouse-oversight reads are additive; Feature 009 is untouched.
+**RUN C evaluated (2026-09-16) — Phase 5 T013/T014/T015 BLOCKED BY FEATURE 008.** RUN C re-audited CURRENT Feature 008 (its `spec/plan/tasks.md`, `lib/finance/*`, Server
 Actions, RPC contracts, `tests/finance/*`, DTOs): 008 is at 6/39 (Phase 1 only) and its application
 layer is `lib/finance/read.ts` (per-order `getPayment/getOrderFinancials/getProforma/getTaxInvoice/
 getPayoutsForOrder/getPayoutsForOrganization`), `types.ts` (snapshot DTOs), `validation.ts`
@@ -430,41 +467,158 @@ scope has no owning task (flagged for RUN B planning, not silently added).
 
 ## Phase 6 — Warehouse
 
-- [ ] T016 [PS4] Implement shipment queues (requested / in-progress / dispatched) for warehouse roles.
+- [x] T016 [PS4] Implement shipment queues (requested / in-progress / dispatched) for warehouse roles.
   - Req: FR-002, PS4 | Depends: T004, 009's layer
   - Verify: only warehouse-permitted roles reach it; queues reflect real shipment states
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — Medium
   - Why: operational queue over an existing layer.
+  - **Done (2026-09-16, RUN D)**: `lib/admin/warehouse.ts#WAREHOUSE_QUEUES` declares five queues over
+    Feature 009's live 13-value vocabulary, each non-DRAFT status exactly once — `requested`
+    (`REQUESTED`), `inProgress` (`CAPACITY_CONFIRMED`/`READY`/`RESERVED`/`PICKING`/`BOOKED`),
+    `dispatched` (`DISPATCHED`/`PARTIALLY_DELIVERED`), `held` (`DISPUTED` = FREEZE, `FAILED` — no
+    forward transition, DB-OPEN-18/Feature 012) and `closed` (`DELIVERED`/`CANCELLED`); `DRAFT` is
+    the buyer's unsubmitted plan and is never a warehouse queue. `listWarehouseQueue` reads through
+    Feature 009's own `getShipmentsForWarehouseQueue` (RLS `shipments_view`'s
+    `is_warehouse_operator()` branch is the boundary) plus ONE batched read-only `shipment_items`
+    read for per-shipment planned/delivered kg totals (presentation sums of the items' own stored
+    plan/progress values — not an inventory figure). `(warehouse)/shipments/page.tsx` re-verifies
+    `checkAreaAccess("shipments")` itself, renders code / order / status badge / method / destination
+    / planned kg / delivered kg / updated / open, 50 rows per page, `TableCardList` (table ≥ lg,
+    cards below). **Honest read gap (recorded, not bypassed)**: a PURE `WAREHOUSE` role has no read
+    path to `orders` (`orders_view` = `can_view_order(id)`), `order_items` or `organizations`
+    (`organizations_member_select`), so the order reference / item names / buyer name degrade to
+    identifiers with an in-product note (ADMIN/SUPER_ADMIN see them) — the same shape RUN B recorded
+    for COMPLIANCE. Proof: `tests/admin/warehouse-operations.test.ts` (queue definition ↔ vocabulary,
+    read delegation) + `tests/admin/warehouse-pages.test.tsx` (LIVE: a freshly requested shipment of
+    another organization renders in `requested` and not in `dispatched`; FINANCE → `forbidden`,
+    plain member → `no-operational-role`, anonymous → `/admin/sign-in/` redirect on the queue AND the
+    detail route, no shipment code/contact leaks). COMPLIANCE refusal is the RUN A/B matrix proof
+    (`tests/admin/access-matrix.test.tsx`; live COMPLIANCE fixture → warehouse group `forbidden`).
 
-- [ ] T017 [PS4] Implement operational transition controls calling **009's warehouse layer** — never
+- [x] T017 [PS4] Implement operational transition controls calling **009's warehouse layer** — never
   raw shipment updates — with the affordances driven by the documented transition map.
   - Req: FR-005, SC-002, PS4 | Depends: T016
   - Verify: `grep -rn "order_shipments" src/app/dashboard-admin lib/admin` shows reads only; each transition succeeds/refuses per the database's map
   - Codex: GPT-5.6 Sol — High · Claude: Opus — High
   - Why: physical-goods authority; a raw update path would bypass the role split and state machine.
+  - **Done (2026-09-16, RUN D)**: `lib/admin/warehouse.ts#WAREHOUSE_OPERATIONS` maps the eight named
+    Feature 009 transitions (`confirmCapacity`/`markReady`/`reserve`/`startPicking`/`book`/
+    `dispatch`/`fail`/`cancel`) to EXACTLY the `fromStatuses`/target literals each
+    `lib/delivery/warehouse.ts` function attempts (test-pinned by parsing that file) and cross-checks
+    every pair against Feature 009's `SHIPMENT_TRANSITIONS`; `displayableOperations(status)` is the
+    UI hint only (empty for `DRAFT`/`FAILED`/`DISPUTED`/`DELIVERED`/`CANCELLED`).
+    `executeWarehouseOperation` runs the console's own live `is_warehouse_operator()` guard, validates
+    through Feature 009's `ShipmentIdInput`/`FailShipmentInput`/`CancelShipmentInput` (mandatory
+    reason for `fail`/`cancel` — validated, never written: `order_shipments` has no reason column,
+    Feature 009's recorded gap), then calls the SAME-named Feature 009 function with the shipment id
+    only; no caller-supplied status exists anywhere. UI: `ShipmentOperationsPanel` reuses RUN B's
+    `DecisionForm` (one radio choice, irreversible ops need reason + `AlertDialog`, Sonner outcome per
+    Feature 009 code — `WAREHOUSE_NOT_CAPABLE`/`SHIPMENT_ORDER_NOT_SETTLED`/`SHIPMENT_NOT_EDITABLE`/
+    `SHIPMENT_RESERVATION_UNAVAILABLE`/`SHIPMENT_SAVE_FAILED`; no console vocabulary). **Raw-write
+    audit**: `grep -rn "order_shipments" src/app/dashboard-admin lib/admin` → reads/comments only
+    (`lib/admin/read.ts` counts, `lib/admin/warehouse.ts` comments); the warehouse slice issues no
+    `.update/.insert/.delete/.upsert` at all (test-pinned). **Live** (`tests/admin/warehouse-pages.test.tsx`,
+    through the console's Server Action): `markReady` REQUESTED → READY succeeds pre-payment with
+    trigger-set `ready_at`; `confirmCapacity` and `reserve` on an unsettled order are refused by the
+    database with `SHIPMENT_ORDER_NOT_SETTLED` (settlement gate intact, pre-payment READY intact);
+    `dispatch` from REQUESTED refused; unknown operation / reason-less cancel refused at validation;
+    `cancel` with reason REQUESTED → CANCELLED then any further operation refused; FINANCE and plain
+    member → `WAREHOUSE_NOT_CAPABLE`, anonymous → `PROFILE_AUTH_REQUIRED`; the warehouse-oversight
+    inventory snapshot is byte-identical before/after every attempt (no drift, no duplicate
+    reservation). Settlement-gated positive edges (`reserve`/`startPicking`/`book`/`dispatch` on a
+    PAID order) are Feature 009's own recorded live evidence (`t024-transition-matrix-live`, T013
+    18/18) — reused, not re-derived. **Suspended-organization policy**: not required by this Verify;
+    the live trigger consults no organization status and no approved policy exists — the console
+    neither blocks nor auto-continues (in-product note; spec Open items).
 
-- [ ] T018 [PS4] Implement delivered-quantity recording through 009's layer (warehouse-only,
+- [x] T018 [PS4] Implement delivered-quantity recording through 009's layer (warehouse-only,
   monotonic).
   - Req: FR-005, PS4 | Depends: T017
   - Verify: recording works for warehouse; decrease attempts and non-warehouse attempts are refused
   - Codex: GPT-5.6 Sol — High · Claude: Opus — High
   - Why: irreversible custody reduction.
+  - **Done (2026-09-16, RUN D)**: `lib/admin/warehouse.ts#recordWarehouseDelivery` → console guard →
+    Feature 009's `RecordDeliveryInput` (absolute per-item totals, never a delta) → Feature 009's
+    `recordDelivery` ONLY (which issues the guarded `shipment_items` write the database's
+    `validate_shipment_item` decides: `only_warehouse_can_record_delivery`,
+    `delivered_quantity_cannot_decrease`, `delivered_quantity_exceeds_plan`,
+    `delivery_reservation_requires_settled_order`, and performs the position/allocation decrement
+    itself), then RE-READS items + status so the UI shows exactly what persisted. Server Action
+    `recordShipmentDelivery` forwards only `items[<id>]` rows the operator filled in (blank =
+    untouched). UI: `RecordDeliveryForm` (one input per item, inline validation for shape / below
+    current delivered / above plan, `AlertDialog` confirmation, Sonner per Feature 009 code incl.
+    `SHIPMENT_ITEM_QUANTITY_INVALID`; rendered only for `DISPATCHED`/`PARTIALLY_DELIVERED`, an honest
+    not-applicable statement otherwise). No console file writes `shipment_items`,
+    `inventory_positions`, `inventory_reservations` or `storage_allocations` (test-pinned).
+    **Live** (ordinary fixtures): member and FINANCE → `WAREHOUSE_NOT_CAPABLE`; WAREHOUSE on a
+    not-yet-dispatched shipment → `SHIPMENT_NOT_EDITABLE`; negative/empty → `VALIDATION_ERROR`;
+    delivered stays 0 and no position moves. **Reused Feature 009 live evidence** for the PAID-order
+    legs (the literal decrease/over-plan refusals, partial stays partial, full → `DELIVERED` with zero
+    stranded reservation): `tests/delivery/t017-record-delivery-live.test.ts` and
+    `scripts/t013-delivery-live-proof.ts` scenarios 9–10 (recorded in DB-BLOCK-07's resolution) — the
+    console adds no arithmetic that would need re-proving; delegation is pinned by
+    `tests/admin/warehouse-operations.test.ts` (mocked Feature 009: exact parsed call, refusal codes
+    pass through unchanged).
 
-- [ ] T019 [PS4] Implement custody/inventory oversight views (cross-organization, warehouse-only),
+- [x] T019 [PS4] Implement custody/inventory oversight views (cross-organization, warehouse-only),
   rendering the live, database-owned delivery-reservation facts without recomputation.
   - Req: FR-017, PS4 | Depends: T004, 005's layer
   - Verify: positions render for warehouse roles only; delivery-reserved quantity comes from the
     approved 009/database contract; no substitute figure or arithmetic is computed
   - Codex: GPT-5.6 Sol — Medium · Claude: Opus — High
   - Why: the honest-capability judgment plus a cross-tenant read surface that only warehouse may have.
+  - **Done (2026-09-16, RUN D)**: Feature 005's read model gained two WAREHOUSE-OVERSIGHT variants in
+    its own files — `lib/inventory/positions.ts#getInventoryPositionsForWarehouseOversight` /
+    `getInventoryPositionForWarehouseOversight` and
+    `lib/inventory/allocations.ts#getStorageAllocationsForWarehouseOversight` — same DTOs, same
+    lot/warehouse/order-context mappers, same pagination, no org filter (RLS `inventory_owner_read` /
+    `storage_owner_read`'s `is_warehouse_operator()` branch is the boundary; a member calling them
+    gets only its own rows — live-proven). Feature 005's own structural guards still hold (no
+    quantity arithmetic, no third quantity, no write). `(warehouse)/inventory/page.tsx` (positions /
+    allocations views, 50/page) and `inventory/[positionId]/page.tsx` re-verify
+    `checkAreaAccess("inventory")`, label `available_quantity_kg` **"On hand (gross)"** and
+    `reserved_quantity_kg` **"Reserved"** (the stored subset, which now includes Feature 009's live
+    delivery reservation — DB-BLOCK-07 resolved; no stale copy), state that the free-to-trade figure
+    is computed by the database at checkout and is deliberately NOT recomputed, show
+    `storage_allocations` with the approved `STORED`/`RELEASED`/`DELIVERED` vocabulary, and are
+    read-only (no adjustment control exists — no approved operation owns such a write, although
+    `inventory_warehouse_write` would technically permit a raw UPDATE; deliberately not used).
+    **Honest read gaps**: pure `WAREHOUSE` has no read path to `organizations` (owner name),
+    `coffee_lots` (`catalog_admin_lots` = platform admin; `member_read_trade_lots` = authorized member
+    + DB-OPEN-05) or `orders`/`order_items` (order code) — identifiers + in-product note; ADMIN sees
+    the values. **Live** (`tests/admin/warehouse-pages.test.tsx`): WAREHOUSE (member of no
+    organization) renders Org A's and Org B's seeded positions with `743.271 kg` on hand / `88.654 kg`
+    reserved exactly as stored, no `654.617 kg` difference anywhere, both stored allocation quantities
+    and statuses; the warehouse read returns byte-identical quantities to the member's own org-scoped
+    read and spans >1 organization; FINANCE → `forbidden`, member → `no-operational-role`, anonymous →
+    redirect; the member's call of the cross-org read never returns Org A's position (RLS).
 
-- [ ] T020 Confirm the variance/reconciliation model before building any reconciliation screen; the
+- [x] T020 Confirm the variance/reconciliation model before building any reconciliation screen; the
   current authoritative finding is that no variance/reconciliation/HOLD/QUARANTINE representation
   exists, so retain an honest capability-gap record rather than inventing one.
   - Req: FR-017, spec Open items | Depends: T019
   - Verify: either screens are built on real fields, or the gap is recorded in the capability map and spec
   - Codex: GPT-5.6 Sol — Medium · Claude: Opus — High
   - Why: AC-05 reconciliation is release-blocking; pretending to support it would be worse than recording the gap.
+  - **Done (2026-09-16, RUN D) — GAP CONFIRMED AND RECORDED; NO SCREEN BUILT.** Exact investigation
+    (test-pinned in `tests/admin/warehouse-operations.test.ts`): the live schema report
+    (`docs/database/database-schema-report.json`, 68 tables, 0 views, 0 enums) has NO table, column,
+    constraint or function matching variance / discrepancy / reconciliation / quarantine / stock- or
+    cycle-count / write-off / shrinkage / warehouse-hold / inventory-adjustment (the only "variant"
+    is `order_items.variant_name_snapshot`); `storage_allocations.status` is exactly
+    `STORED`/`RELEASED`/`DELIVERED`; `inventory_positions` has only `available_quantity_kg` /
+    `reserved_quantity_kg`; the only `HOLD` is `orders.status` (a payment hold) and the only `FROZEN`
+    is `disputes.status`; `inventory_ownership_events.event_type` lists `ADJUSTMENT`, but the table
+    has no INSERT policy for `is_warehouse_operator()` (`ownership_admin` is SELECT-only; the
+    `prevent_ownership_event_mutation` trigger makes it append-only) and the ONLY writer is
+    `admin_review_payment` — so no warehouse adjustment path exists; every applied migration
+    (2026-09-09 → 2026-09-14) adds none of these. Recorded as **DB-OPEN-19** in the capability map,
+    in spec.md Open items and in-product (`ReconciliationGapNotice` on the inventory area: no form,
+    button or input). **AC-05 (reconciliation) remains release-blocking.** Minimum future capability:
+    an approved, append-only inventory adjustment/variance record (position, warehouse, counted vs.
+    recorded quantity, reason, actor, correlation) plus a warehouse-only decision path applied by the
+    database, through the Constitution's database-change process. Closed on the Verify's second
+    branch ("the gap is recorded in the capability map and spec").
 
 ---
 

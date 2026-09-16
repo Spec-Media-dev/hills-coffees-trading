@@ -1,7 +1,7 @@
 # Implementation Plan: Operations / Admin Console
 
 **Feature**: `010-admin-operations-console` | **Date**: 2026-09-08 | **Spec**: [spec.md](./spec.md)
-**Status**: RUN C evaluated (2026-09-16) — Phase 5 T013–T015 BLOCKED BY FEATURE 008 after a fresh audit of its current layer (6/39; per-order reads only); `tests/admin/finance-delegation.test.tsx` pins the delegation boundary; still 11 / 48. RUN B complete (2026-09-16) — Phases 3–4: T007/T008/T009/T011 implemented and live-verified; T010 implemented but blocked on the `organizations` compliance read/update policy gap; T012 blocked on Feature 012 (11 / 48). RUN A (2026-09-15): Phases 1–2 + T046. Phases 6–12 NOT started.
+**Status**: RUN D complete (2026-09-16) — Phase 6 T016–T020 implemented and live-verified as a pure orchestration layer over Feature 009 (shipments) and Feature 005 (custody); T020 closed on its recorded-gap branch (DB-OPEN-19 — no variance/reconciliation model; AC-05 stays release-blocking); 16 / 48. RUN C evaluated (2026-09-16) — Phase 5 T013–T015 BLOCKED BY FEATURE 008 after a fresh audit of its current layer (6/39; per-order reads only); `tests/admin/finance-delegation.test.tsx` pins the delegation boundary. RUN B complete (2026-09-16) — Phases 3–4: T007/T008/T009/T011 implemented and live-verified; T010 implemented but blocked on the `organizations` compliance read/update policy gap; T012 blocked on Feature 012. RUN A (2026-09-15): Phases 1–2 + T046. Phases 7–12 NOT started.
 
 ## Summary
 
@@ -30,7 +30,7 @@ no-hard-delete verification.
 | Compliance — KYB | `is_compliance_operator()` | `kyb_applications` ALL, `kyb_reviews` ALL, `organizations` UPDATE (**live finding, RUN B**: effectively unusable for a pure COMPLIANCE operator — no SELECT policy, so the UPDATE matches zero rows; a platform admin succeeds), `profiles` UPDATE |
 | Compliance — listings | `is_compliance_operator()` | `coffee_offers` UPDATE, `listing_reviews` (via policy) |
 | Compliance — disputes | `is_compliance_operator()` | `disputes` UPDATE |
-| Warehouse | `is_warehouse_operator()` | Stored inventory/custody reads; `order_shipments` / `shipment_items` operational changes **only via 009's live warehouse layer**. Delivery reservations are DB-owned and live. |
+| Warehouse | `is_warehouse_operator()` | Stored inventory/custody reads (RUN D: Feature 005's warehouse-oversight read variants, cross-org by RLS); `order_shipments` / `shipment_items` operational changes **only via 009's live warehouse layer** (RUN D: `lib/admin/warehouse.ts` delegates to the SAME-named Feature 009 functions; zero raw writes, test-pinned). Delivery reservations are DB-owned and live. **RUN D live findings**: a pure WAREHOUSE role has no read path to `orders`/`order_items`/`organizations`/`coffee_lots` (DB-OPEN-20 — identifiers shown, gap stated); `inventory_warehouse_write` (ALL) would permit a raw `inventory_positions` UPDATE that no approved domain operation owns — deliberately unused (no adjustment/variance model, DB-OPEN-19). |
 | Finance | `is_finance_operator()` | Current 008 Phase-1 reads are provider-neutral only (re-verified RUN C, 2026-09-16: `lib/finance/read.ts` per-order reads, `funding.ts` controlled-unavailable, nothing else). `decidePayment`, review-queue reads, payout management and tax-invoice recording are not yet supplied; no direct `admin_review_payment()` call is permitted — pinned by `tests/admin/finance-delegation.test.tsx`. |
 | Catalogue | `is_platform_admin()` | `coffees`, `coffee_lots`, `origins`, `regions`, taxonomy, `warehouses`, media, price tables |
 | Audit | `is_auditor()` | Console-only read composition once 012 supplies its audit/history layer; `audit_logs` remains unavailable to a pure AUDITOR (DB-OPEN-06) |
@@ -94,6 +94,12 @@ reference is
    non-KYB evidence bytes, DB-OPEN-06, DB-OPEN-09, OPS-01, the variance model, and the
    suspended-organization mid-operation policy remain explicit limits. DB-BLOCK-07 is resolved:
    warehouse views show stored reservation facts and delegate operations to 009.
+9. **RUN D — the Warehouse console composes, never computes (2026-09-16).** `lib/admin/warehouse.ts`
+   owns queue keys, an operation map pinned to `lib/delivery/warehouse.ts`'s own literals, and two
+   guarded delegators; Feature 005's read model gained warehouse-oversight variants in its own files
+   (one DTO, one mapper set) rather than a second custody read in `lib/admin`. Inventory quantities
+   are labelled "On hand (gross)" / "Reserved" and the free-to-trade difference is never rendered
+   (LOT-02). No reconciliation screen exists because no approved model exists (DB-OPEN-19).
 
 ## Project structure (files this feature adds)
 
@@ -105,8 +111,8 @@ src/app/dashboard-admin/
 ├── (compliance)/organizations/…      # NEW — status/suspension actions
 ├── (compliance)/listings/…           # NEW — listing review queue + decisions
 ├── (compliance)/disputes/…           # NEW — dispute review (with 012)
-├── (warehouse)/inventory/…           # NEW — positions/custody oversight
-├── (warehouse)/shipments/…           # NEW — queues + operational transitions (via 009)
+├── (warehouse)/inventory/…           # RUN D — positions/allocations oversight + [positionId] detail (005 read model, read-only) + T020 gap notice
+├── (warehouse)/shipments/…           # RUN D — queues + [shipmentId] detail + actions.ts (operations + delivered quantity, via 009)
 ├── (finance)/payments/…              # NEW — review queue + decisions (via 008)
 ├── (finance)/payouts/… + invoices/…  # NEW
 ├── (catalogue)/coffees|origins|taxonomy|warehouses/…   # NEW — content management + revalidation
@@ -120,11 +126,14 @@ lib/admin/
 ├── compliance.ts   # RUN B — KYB queue/detail, organizations, listing review DTOs (honest nulls for unreadable rows)
 ├── decisions.ts    # RUN B — KYB decisions, organization status, listing decisions (compare-and-set + review rows)
 ├── validation.ts   # RUN B — decision input contracts (DB vocabularies verbatim, reason rules)
+├── warehouse.ts    # RUN D — queues, operation map (pinned to 009), guarded delegation to 009's named operations
 └── catalogue.ts    # LATER — catalogue mutations + public cache revalidation
 
 components/admin/   # RUN A — access-denied resolver, state card, role badges, topbar account menu,
                     #         area placeholder (planned/blocked), overview tiles, sign-out button;
-                    #         LATER — queue tables, decision panels, read-only auditor variants
+                    #         RUN B — compliance/* (decision form, panels, badges);
+                    #         RUN D — warehouse/* (operations panel, delivered-quantity form, reconciliation gap notice);
+                    #         LATER — read-only auditor variants
 
 src/app/dashboard-admin/
 ├── layout.tsx                       # RUN A — shell atop 001's untouched guard
@@ -163,9 +172,9 @@ tests/admin/        # NEW — access matrix, decision recording, no-hard-delete,
 | **DB-OPEN-06** | Auditors cannot read `audit_logs` | State honestly in the audit area; escalate the policy decision |
 | **Evidence-byte capability** | KYB access is live; payment, delivery, dispute and public-media bytes have no approved seam | Use only 003's KYB seam; state the owning-feature limitation elsewhere |
 | **DB-BLOCK-07 — resolved** | Delivery reservation and settlement gate are live through 009 | Render stored facts; delegate every shipment mutation to 009; no substitute arithmetic |
-| **No variance/reconciliation entity** | AC-05 reconciliation screens may not be buildable | Confirm the model first; do not invent a status |
+| **No variance/reconciliation entity — CONFIRMED, RUN D (DB-OPEN-19)** | AC-05 reconciliation screens are NOT buildable today | Confirmed against the live schema report + every applied migration; gap recorded in-product, in spec and in the capability map; no status invented |
 | **DB-OPEN-09 / no 012 domain layer** | No compliant dispute-freeze action or dispute domain seam | Block T012; do not build a parallel dispute engine |
-| **Suspended organization mid-operation policy** | Existing shipments are visible but continuation/cancellation/escalation is undecided | Resolve policy before warehouse mutations are released |
+| **Suspended organization mid-operation policy** | Existing shipments are visible but continuation/cancellation/escalation is undecided | Still undecided after RUN D: the live trigger consults no organization status and the console neither blocks nor auto-continues (in-product note). No T016–T020 Verify clause depends on it; the business/compliance decision is recorded, not simulated |
 | Role separation eroding over time | Least-privilege regression | Matrix declared once (`areas.ts`) and tested from the same source |
 | Console becoming a second transactional engine | Integrity divergence | FR-004/FR-005 + delegation grep in closure |
 
@@ -183,7 +192,7 @@ tests/admin/        # NEW — access matrix, decision recording, no-hard-delete,
 | A | 1–2: T001–T006 | 001, 002 shell/cache tags, 003 identity | None requiring a DB change | Yes | Opus — High | GPT-5.6 Sol — High | Codex |
 | B | 3–4: T007–T012 | Run A; 003 KYB; 006 listing model | T012 needs 012; DB-OPEN-09 blocks freeze semantics | No — T007–T011 can close, T012 cannot | Opus — High | GPT-5.6 Sol — High | Codex |
 | C | 5: T013–T015 | Run A; 008 finance layer | **RUN C 2026-09-16: evaluated, all three BLOCKED BY FEATURE 008** — 008 lacks `decidePayment`, queue reads, payout management and invoice recording (exact minimum contracts on T013–T015 in tasks.md) | No | Opus — High | GPT-5.6 Sol — High | Codex |
-| D | 6: T016–T020 | Run A; 005 facts; 009 layer | Mid-operation suspension policy; no variance model | No — T019/T020 can proceed honestly; release of T017/T018 awaits policy | Opus — High | GPT-5.6 Sol — High | Codex |
+| D | 6: T016–T020 | Run A; 005 facts; 009 layer | Mid-operation suspension policy (recorded, not required by any Verify); no variance model (DB-OPEN-19) | **RUN D 2026-09-16: CLOSED 5/5** — T016–T019 live-verified through the console's own actions; T020 closed on its recorded-gap branch | Opus — High | GPT-5.6 Sol — High | Codex |
 | E | 7–8: T021–T026 | Run A; 002 tags | Media bytes unavailable beyond approved seams; 012 audit/history absent; DB-OPEN-06 | No — T021–T024 can proceed within limits | Opus — High | GPT-5.6 Sol — High | Codex |
 | F | 9: T027–T029, T042–T045 | Run A; existing configuration tables | OPS-01; T044's financial-history integration evidence belongs to unfinished 008 | No | Opus — High | GPT-5.6 Sol — High | Codex |
 | G | 10–11: T030–T037 | All implemented applicable areas | Inherits all blocked areas; test fixtures for FINANCE/AUDITOR/SUPER_ADMIN are incomplete | No | Opus — High | GPT-5.6 Sol — High | Codex |

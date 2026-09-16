@@ -133,6 +133,114 @@ export async function getInventoryPositionById({
 }
 
 /**
+ * Feature 010 RUN D (T019) — the WAREHOUSE OVERSIGHT read: every organization's positions, through
+ * the caller's own session, relying on `inventory_owner_read`'s `is_warehouse_operator()` branch
+ * (`is_org_member(owner_organization_id) OR is_warehouse_operator() OR is_auditor()`) as the REAL
+ * boundary. Deliberately NOT org-scoped — that is the whole point of the warehouse console's
+ * cross-organization custody view (Feature 005 spec.md: the warehouse operator "reads the same
+ * domain layer"). A member session calling this gets ONLY its own organizations' rows back from RLS
+ * (never an error, never another tenant's row); the Feature 010 route refuses non-warehouse callers
+ * before this read is ever issued. Same DTO, same lot/warehouse mappers, same pagination and the
+ * same DB-OPEN-05 degradation as `getInventoryPositions` — one read model, one shape. Nothing here
+ * computes a third quantity: `availableQuantityKg` (gross/on-hand) and `reservedQuantityKg` (the
+ * reserved subset, now including Feature 009's live delivery reservation) are passed through verbatim.
+ *
+ * Lot detail for a PURE `WAREHOUSE` role: `coffee_lots` has no warehouse-operator read policy
+ * (`catalog_admin_lots` is `is_platform_admin()`; `member_read_trade_lots` requires an authorized
+ * member AND carries the DB-OPEN-05 predicate), so `lot` degrades to `null` for that role exactly
+ * as it does for members — the id is still shown; ADMIN/SUPER_ADMIN see the lot code.
+ */
+export async function getInventoryPositionsForWarehouseOversight({
+  page = 0,
+  pageSize = DEFAULT_PAGE_SIZE,
+  warehouseId,
+}: {
+  page?: number;
+  pageSize?: number;
+  /** Optional narrowing to one warehouse (a query-shape convenience, never authorization). */
+  warehouseId?: string;
+} = {}): Promise<PaginatedResult<InventoryPosition>> {
+  const boundedPageSize = Math.max(1, Math.min(pageSize, MAX_PAGE_SIZE));
+  const from = Math.max(0, page) * boundedPageSize;
+  const to = from + boundedPageSize;
+
+  const supabase = await createClient();
+  let query = supabase
+    .from("inventory_positions")
+    .select("id, lot_id, owner_organization_id, warehouse_id, warehouse_location_id, available_quantity_kg, reserved_quantity_kg, created_at, updated_at")
+    .order("updated_at", { ascending: false })
+    .order("id", { ascending: false })
+    .range(from, to);
+  if (warehouseId) query = query.eq("warehouse_id", warehouseId);
+  const { data: positionRows } = await query;
+
+  const rows = positionRows ?? [];
+  const hasMore = rows.length > boundedPageSize;
+  const pageRows = hasMore ? rows.slice(0, boundedPageSize) : rows;
+  if (pageRows.length === 0) return { rows: [], hasMore: false };
+
+  const [lotDetailByLotId, warehouseContextByCompositeKey] = await Promise.all([
+    getLotDetailByLotId(supabase, [...new Set(pageRows.map((row) => row.lot_id))]),
+    getWarehouseContext(
+      supabase,
+      [...new Set(pageRows.map((row) => row.warehouse_id))],
+      [...new Set(pageRows.map((row) => row.warehouse_location_id).filter((id): id is string => id !== null))]
+    ),
+  ]);
+
+  return {
+    rows: pageRows.map((row) => ({
+      id: row.id,
+      lotId: row.lot_id,
+      ownerOrganizationId: row.owner_organization_id,
+      warehouseId: row.warehouse_id,
+      warehouseLocationId: row.warehouse_location_id,
+      availableQuantityKg: Number(row.available_quantity_kg),
+      reservedQuantityKg: Number(row.reserved_quantity_kg),
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+      lot: lotDetailByLotId.get(row.lot_id) ?? null,
+      warehouse: warehouseContextByCompositeKey.get(warehouseKey(row.warehouse_id, row.warehouse_location_id)) ?? null,
+    })),
+    hasMore,
+  };
+}
+
+/**
+ * Feature 010 RUN D (T019) — single-position warehouse-oversight lookup by id alone (no owner
+ * filter: the warehouse console is cross-organization by design). RLS decides visibility; `null` for
+ * "does not exist" and "not readable by this session" alike.
+ */
+export async function getInventoryPositionForWarehouseOversight({ positionId }: { positionId: string }): Promise<InventoryPosition | null> {
+  const supabase = await createClient();
+  const { data: row } = await supabase
+    .from("inventory_positions")
+    .select("id, lot_id, owner_organization_id, warehouse_id, warehouse_location_id, available_quantity_kg, reserved_quantity_kg, created_at, updated_at")
+    .eq("id", positionId)
+    .maybeSingle();
+  if (!row) return null;
+
+  const [lotDetailByLotId, warehouseContextByCompositeKey] = await Promise.all([
+    getLotDetailByLotId(supabase, [row.lot_id]),
+    getWarehouseContext(supabase, [row.warehouse_id], row.warehouse_location_id ? [row.warehouse_location_id] : []),
+  ]);
+
+  return {
+    id: row.id,
+    lotId: row.lot_id,
+    ownerOrganizationId: row.owner_organization_id,
+    warehouseId: row.warehouse_id,
+    warehouseLocationId: row.warehouse_location_id,
+    availableQuantityKg: Number(row.available_quantity_kg),
+    reservedQuantityKg: Number(row.reserved_quantity_kg),
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    lot: lotDetailByLotId.get(row.lot_id) ?? null,
+    warehouse: warehouseContextByCompositeKey.get(warehouseKey(row.warehouse_id, row.warehouse_location_id)) ?? null,
+  };
+}
+
+/**
  * Feature 005 RUN B (T015) — a bounded COUNT-only read for the dashboard overview's "what did I buy"
  * contribution. `{ count: "exact", head: true }` issues a single Postgres count aggregate with no row
  * data returned — never a full scan of the organization's positions merely to size a summary card.

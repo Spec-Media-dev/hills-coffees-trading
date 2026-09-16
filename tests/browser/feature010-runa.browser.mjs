@@ -139,15 +139,20 @@ try {
     assert(tiles.every((t) => t.state !== "empty" || !/\b0\b/.test(t.text)), `${appearance.label} an empty tile renders a bare 0`, tiles);
     report.overview.push({ ...appearance, url: overview.url, tiles: tiles.map((t) => `${t.key}:${t.state}`), violations: overview.violations.length, sectionOk: expectSection.test(overview.body), noForeignSection: !forbidSection.test(overview.body.replace(/(Operations console|وحدة تشغيل)[^\n]*/g, "")) });
 
-    // Planned area (warehouse-permitted): honest "not available yet", no controls.
+    // RUN A: the warehouse-permitted area was an honest "not available yet" placeholder with no controls.
+    // RUN D (2026-09-16) replaced it with the real shipment queue, so this leg now accepts EITHER the
+    // historical placeholder OR the live queue page (real rows or an honest empty state, never sample data).
     await goto(client, `${baseUrl}/dashboard-admin/shipments/`);
     const placeholder = await evaluateSurface();
-    assertClean(`${appearance.label} shipments placeholder`, placeholder, appearance);
+    assertClean(`${appearance.label} shipments area`, placeholder, appearance);
     const plannedText = appearance.locale === "ar" ? /غير متاح بعد/ : /Not available yet/;
-    assert(plannedText.test(placeholder.body), `${appearance.label} shipments placeholder is not honest`, {});
-    const controls = await client.evaluate(`document.querySelectorAll("main form, main table, main input, main select, main button:not([aria-haspopup])").length`);
-    assert(controls === 0, `${appearance.label} placeholder renders controls`, { controls });
-    report.placeholder.push({ label: appearance.label, url: placeholder.url, violations: placeholder.violations.length });
+    const liveQueue = appearance.locale === "ar" ? /الشحنات/ : /Shipments/;
+    assert(plannedText.test(placeholder.body) || liveQueue.test(placeholder.body), `${appearance.label} shipments area is neither the honest placeholder nor the live queue`, {});
+    if (plannedText.test(placeholder.body)) {
+      const controls = await client.evaluate(`document.querySelectorAll("main form, main table, main input, main select, main button:not([aria-haspopup])").length`);
+      assert(controls === 0, `${appearance.label} placeholder renders controls`, { controls });
+    }
+    report.placeholder.push({ label: appearance.label, url: placeholder.url, violations: placeholder.violations.length, live: liveQueue.test(placeholder.body) && !plannedText.test(placeholder.body) });
 
     // Forbidden area by direct URL (finance, not warehouse): the forbidden state names the role.
     await goto(client, `${baseUrl}/dashboard-admin/payments/`);

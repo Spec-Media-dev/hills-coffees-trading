@@ -345,12 +345,44 @@ succeeds.
   exists for orders or shipments. 010 must not simulate one.
 - **OPS-01 dual control — CURRENT business/security decision**: no maker-checker representation exists
   in the approved schema. Record and surface the limitation; do not simulate it in application code.
-- **Variance/reconciliation (LOT-04, AC-05) — CURRENT capability gap**: the approved schema has no
-  explicit variance, reconciliation, HOLD, or QUARANTINE entity/status. T020 remains an honest gap
-  task; it must not invent a model.
+- **Variance/reconciliation (LOT-04, AC-05) — CONFIRMED CAPABILITY GAP, RUN D 2026-09-16
+  (DB-OPEN-19); RELEASE-BLOCKING**: re-verified against the live schema report (68 tables, 0 views,
+  0 enums) and every applied migration (2026-09-09 → 2026-09-14): NO table, column, constraint or
+  function represents variance, discrepancy, reconciliation, quarantine, warehouse hold, stock/cycle
+  count, write-off or inventory adjustment. `storage_allocations.status` is exactly
+  `STORED`/`RELEASED`/`DELIVERED`; `inventory_positions` carries only `available_quantity_kg` /
+  `reserved_quantity_kg`; the only `HOLD` is `orders.status` (payment hold) and the only `FROZEN` is
+  `disputes.status`; `inventory_ownership_events.event_type` lists `ADJUSTMENT` but the table has no
+  INSERT policy for `is_warehouse_operator()` and is append-only — its only writer is
+  `admin_review_payment`. T020 is therefore closed on its recorded-gap branch: the inventory area
+  states the gap in-product (no form, button or input), no reconciliation screen exists, and AC-05
+  remains release-blocking until the approved database-change process adds, at minimum, an
+  append-only inventory adjustment/variance record (position, warehouse, counted vs. recorded
+  quantity, reason, actor, correlation) with a warehouse-only decision path applied by the database.
+- **Pure WAREHOUSE role has no read path to `orders` / `order_items` / `organizations` /
+  `coffee_lots` — CONFIRMED, RUN D 2026-09-16 (DB-OPEN-20)**: `orders_view` and `order_items_view`
+  are `can_view_order(...)` (platform admin, buyer member, seller-of-record — no warehouse branch);
+  `organizations_member_select` is `is_org_member(id) OR is_platform_admin()`; `coffee_lots` has
+  `catalog_admin_lots` (platform admin) and `member_read_trade_lots` (authorized member + the
+  DB-OPEN-05 predicate). The warehouse console therefore shows shipment/lot/owner IDENTIFIERS with
+  an in-product statement instead of order codes, item names, owner names and lot codes for that
+  role (ADMIN/SUPER_ADMIN see them); Feature 009's reads already degrade to empty context the same
+  way. Nothing is bypassed. Minimal option if wanted: a warehouse-operator SELECT branch on
+  `orders`/`order_items` scoped to orders with a shipment, plus `organizations` display-name and
+  `coffee_lots` reads for `is_warehouse_operator()` — a database decision, not this console's.
+- **`inventory_warehouse_write` permits a raw warehouse UPDATE that no approved operation owns —
+  RECORDED, RUN D**: RLS grants `is_warehouse_operator()` ALL on `inventory_positions` and
+  `storage_allocations`, but no approved domain operation (Feature 005 is read-only; Feature 009
+  moves quantities only inside its triggers) defines a warehouse adjustment. The console deliberately
+  issues no such write (test-pinned); the permissive policy is noted for the DB-OPEN-19 decision.
 - **Suspended-organization mid-operation policy — CURRENT / Feature 010 compliance ownership**:
   009 safely exposes existing shipments but deliberately does not decide whether warehouse work may
-  continue, cancel, or require escalation after suspension.
+  continue, cancel, or require escalation after suspension. **RUN D (2026-09-16)**: still undecided.
+  The live `validate_shipment_transition` consults no organization status, so the database neither
+  blocks nor releases on suspension; the warehouse console therefore neither blocks nor auto-continues
+  (an in-product note directs the operator to escalate to Compliance) and a pure WAREHOUSE role cannot
+  even read the owner organization's status (DB-OPEN-20). No clause of T016–T020's literal Verify
+  depends on this decision; it remains a business/compliance decision to record, not simulate.
 - **Platform branding / settings (T047) — BLOCKED, NO AUTHORITATIVE MODEL (found RUN A,
   2026-09-15)**: no approved settings/branding table, config source or brand-asset bucket exists;
   logo, favicon and platform name are static build assets. Requires a human decision before any

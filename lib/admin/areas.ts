@@ -106,8 +106,8 @@ export const ADMIN_AREAS: readonly AdminArea[] = [
   { key: "disputes", group: "compliance", href: "/dashboard-admin/disputes", roleFunction: "is_compliance_operator", icon: "shield", availability: "blocked", phase: 4, blocker: "feature-012-dispute-layer" },
 
   // ── Warehouse ─────────────────────────────────────────────────────────────────────────────────
-  { key: "shipments", group: "warehouse", href: "/dashboard-admin/shipments", roleFunction: "is_warehouse_operator", icon: "truck", availability: "planned", phase: 6 },
-  { key: "inventory", group: "warehouse", href: "/dashboard-admin/inventory", roleFunction: "is_warehouse_operator", icon: "package", availability: "planned", phase: 6 },
+  { key: "shipments", group: "warehouse", href: "/dashboard-admin/shipments", roleFunction: "is_warehouse_operator", icon: "truck", availability: "live", phase: 6 },
+  { key: "inventory", group: "warehouse", href: "/dashboard-admin/inventory", roleFunction: "is_warehouse_operator", icon: "package", availability: "live", phase: 6 },
 
   // ── Finance ───────────────────────────────────────────────────────────────────────────────────
   { key: "payments", group: "finance", href: "/dashboard-admin/payments", roleFunction: "is_finance_operator", icon: "wallet", availability: "blocked", phase: 5, blocker: "feature-008-finance-layer" },

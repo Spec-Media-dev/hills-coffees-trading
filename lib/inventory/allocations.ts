@@ -78,6 +78,77 @@ export async function getStorageAllocations({
 }
 
 /**
+ * Feature 010 RUN D (T019) — the WAREHOUSE OVERSIGHT allocation read: cross-organization, relying on
+ * `storage_owner_read`'s `is_warehouse_operator()` branch as the real boundary (a member session gets
+ * only its own rows back from RLS; the Feature 010 route refuses non-warehouse callers first). Same
+ * DTO, same status vocabulary (`STORED`/`RELEASED`/`DELIVERED`, verbatim), same pass-through of the
+ * two stored quantities and the same `resolveOrderContext` degradation as `getStorageAllocations` —
+ * for a PURE `WAREHOUSE` role `order_items`/`orders` are unreadable (`can_view_order`), so `order`
+ * is `null` while `orderItemId` still identifies the link. Optional filters are query-shape
+ * conveniences only (a position's lot/owner/warehouse, or a shipment's order items), never
+ * authorization. Read-only, like every function in this file.
+ */
+export async function getStorageAllocationsForWarehouseOversight({
+  page = 0,
+  pageSize = DEFAULT_PAGE_SIZE,
+  lotId,
+  ownerOrganizationId,
+  warehouseId,
+  orderItemIds,
+}: {
+  page?: number;
+  pageSize?: number;
+  lotId?: string;
+  ownerOrganizationId?: string;
+  warehouseId?: string;
+  orderItemIds?: readonly string[];
+} = {}): Promise<PaginatedResult<StorageAllocation>> {
+  if (orderItemIds !== undefined && orderItemIds.length === 0) return { rows: [], hasMore: false };
+
+  const boundedPageSize = Math.max(1, Math.min(pageSize, MAX_PAGE_SIZE));
+  const from = Math.max(0, page) * boundedPageSize;
+  const to = from + boundedPageSize;
+
+  const supabase = await createClient();
+  let query = supabase
+    .from("storage_allocations")
+    .select("id, order_item_id, owner_organization_id, lot_id, warehouse_id, warehouse_location_id, quantity_kg, released_quantity_kg, status, started_at, released_at")
+    .order("started_at", { ascending: false })
+    .order("id", { ascending: false })
+    .range(from, to);
+  if (lotId) query = query.eq("lot_id", lotId);
+  if (ownerOrganizationId) query = query.eq("owner_organization_id", ownerOrganizationId);
+  if (warehouseId) query = query.eq("warehouse_id", warehouseId);
+  if (orderItemIds) query = query.in("order_item_id", [...orderItemIds]);
+  const { data: rows } = await query;
+
+  const allRows = rows ?? [];
+  const hasMore = allRows.length > boundedPageSize;
+  const pageRows = hasMore ? allRows.slice(0, boundedPageSize) : allRows;
+
+  const resolvableOrderItemIds = [...new Set(pageRows.map((row) => row.order_item_id).filter((id): id is string => id !== null))];
+  const orderContextByOrderItemId = await resolveOrderContext(supabase, resolvableOrderItemIds);
+
+  return {
+    rows: pageRows.map((row) => ({
+      id: row.id,
+      orderItemId: row.order_item_id,
+      ownerOrganizationId: row.owner_organization_id,
+      lotId: row.lot_id,
+      warehouseId: row.warehouse_id,
+      warehouseLocationId: row.warehouse_location_id,
+      quantityKg: Number(row.quantity_kg),
+      releasedQuantityKg: Number(row.released_quantity_kg),
+      status: row.status as StorageAllocation["status"],
+      startedAt: row.started_at,
+      releasedAt: row.released_at,
+      order: row.order_item_id ? (orderContextByOrderItemId.get(row.order_item_id) ?? null) : null,
+    })),
+    hasMore,
+  };
+}
+
+/**
  * Attempts `order_items` (by id, via `order_items_view`'s `can_view_order(order_id)`) → `orders` (by
  * the resolved `order_id`, via `orders_view`'s `can_view_order(id)`) through the caller's own
  * ordinary session — never a privileged path. Both reads are plain, RLS-respecting selects; an empty
