@@ -49,12 +49,12 @@ export function AdminAccessDenied({
     <AdminStateCard
       kind="forbidden"
       icon="shield"
-      title={<AppBilingual pick={(c) => c.admin.states.forbidden.title} />}
-      description={<AppBilingual pick={(c) => c.admin.states.forbidden.description} />}
+      title={<AppBilingual pick={(c) => c.admin.states.roleMismatch.title} />}
+      description={<AppBilingual pick={(c) => c.admin.states.roleMismatch.description} />}
     >
       {requiredRole ? (
         <p className="text-[length:var(--text-small)] font-medium text-foreground">
-          <AppBilingual pick={(c) => c.admin.states.forbidden.requiredRole.replace("{role}", c.admin.roles[requiredRole])} />
+          <AppBilingual pick={(c) => c.admin.states.roleMismatch.requiredRole.replace("{role}", c.admin.roles[requiredRole])} />
         </p>
       ) : null}
       <Button variant="outline" nativeButton={false} render={<Link href="/dashboard-admin" />}>

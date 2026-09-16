@@ -186,7 +186,7 @@ export const ar: DeepPartial<AppCopy> = {
         navigationNote: "ترى فقط المناطق التي تسمح بها أدوارك التشغيلية. تُعاد التحقق من دورك على الخادم في كل منطقة.",
       },
       states: {
-        forbidden: {
+        roleMismatch: {
           title: "غير مسموح لدورك",
           description: "يحمل حسابك دورًا تشغيليًا، لكنه ليس الدور الذي تتطلبه هذه المنطقة. يُتحقق من الصلاحية على الخادم مع كل طلب.",
           requiredRole: "الدور المطلوب: {role}",

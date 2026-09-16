@@ -238,7 +238,7 @@ export const en = {
         navigationNote: "You see only the areas your operational roles permit. Every area re-verifies your role on the server.",
       },
       states: {
-        forbidden: {
+        roleMismatch: {
           title: "Not permitted for your role",
           description: "Your account holds an operational role, but not the one this area requires. Access is verified on the server for every request.",
           requiredRole: "Required role: {role}",

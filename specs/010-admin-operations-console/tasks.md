@@ -3,7 +3,29 @@
 **Input**: [spec.md](./spec.md), [plan.md](./plan.md), `docs/architecture/DATABASE-CAPABILITY-MAP.md`,
 `.specify/memory/constitution.md` (v2.0.0), SRS §14 (OPS-01, OPS-02), §3.1, §13.5.
 
-**Status**: **RUN B complete (2026-09-16) — Phase 3 T007/T008/T009 RECORDED, Phase 4 T011
+**Status**: **RUN C evaluated (2026-09-16) — Phase 5 T013/T014/T015 BLOCKED BY FEATURE 008; still
+11 / 48.** RUN C re-audited CURRENT Feature 008 (its `spec/plan/tasks.md`, `lib/finance/*`, Server
+Actions, RPC contracts, `tests/finance/*`, DTOs): 008 is at 6/39 (Phase 1 only) and its application
+layer is `lib/finance/read.ts` (per-order `getPayment/getOrderFinancials/getProforma/getTaxInvoice/
+getPayoutsForOrder/getPayoutsForOrganization`), `types.ts` (snapshot DTOs), `validation.ts`
+(vocabularies), `errors.ts` (`mapFinanceError`) and `funding.ts` (`requestFunding` → always
+`FINANCE_FUNDING_UNAVAILABLE`). There is NO payment-review queue read, NO proof-reference DTO
+(`payment_proofs` is not read anywhere), NO `decidePayment` (`grep -rn decidePayment lib src
+components` → nothing; 008 T017–T020 unchecked and T017 itself needs an approved DB change — 008
+plan decision 4 classifies `admin_review_payment()` as B), NO payout-status write and NO tax-invoice
+recording write (008 T023/T025 unchecked; invoice recording also depends on the unresolved private
+Storage design, DB-BLOCK-01). Everything Phase 5 needs exists only as database tables/RLS/one
+SECURITY DEFINER primitive, which is not permission for this console to own the business layer.
+RUN C therefore built NO finance screen, NO second payment read domain, NO `admin_review_payment`
+wrapper and NO table CRUD; it added `tests/admin/finance-delegation.test.tsx` (14 tests: static
+delegation proof over `src/app/dashboard-admin`, `lib/admin`, `components/admin` — no runtime
+`admin_review_payment`/`submit_payment_proof`, no finance-table write, no RPC other than the six
+role attests, no money column, no service role/cache, no `.delete(`; the three finance areas stay
+`blocked` on `feature-008-finance-layer` with no duplicate destination; no member Finance route;
+and live direct-URL proof with real sessions — FINANCE reaches payments/payouts/invoices (blocked
+state, no amount), COMPLIANCE and WAREHOUSE get `forbidden`, a plain member `no-operational-role`,
+anonymous is redirected to `/admin/sign-in/`). Exact minimum 008 contracts are recorded on T013–T015.
+**RUN B complete (2026-09-16) — Phase 3 T007/T008/T009 RECORDED, Phase 4 T011
 RECORDED; T010 implemented but NOT closable (organization read/update policy gap for COMPLIANCE —
 recorded, needs a database decision); T012 BLOCKED (Feature 012 absent). 11 / 48.** RUN A
 (2026-09-15): Phase 1 (T001–T005) + Phase 2 (T006) + T046 RECORDED; T047/T048 BLOCKED (original
@@ -338,10 +360,22 @@ scope has no owning task (flagged for RUN B planning, not silently added).
 
 ## Phase 5 — Finance
 
-- [ ] T013 [PS3] **BLOCKED — 008 Phase 1 has no queue read.** Implement the payment review queue with
+- [ ] T013 [PS3] **BLOCKED — 008 Phase 1 has no queue read (re-checked RUN C, 2026-09-16).** Implement the payment review queue with
   order, amount, currency, proof reference and hold status through 008's finance layer.
   - Req: FR-002, PS3 | Depends: T004, 008's layer
   - Verify: only finance-permitted roles reach it; amounts match `order_financials` exactly
+  - RUN C audit: `lib/finance/read.ts` reads ONE order at a time by `orderId` (`getPayment`,
+    `getOrderFinancials`); nothing lists payments awaiting review across orders, nothing reads
+    `payment_proofs`, and no DTO carries a proof reference or the order's hold status. Building
+    that list in `lib/admin` would be a second payment read domain, which this task forbids, so
+    the `payments` route keeps the honest `blocked` placeholder (`AdminAreaPlaceholder`) and the
+    overview keeps RUN A's count-only figures. **Minimum 008 contract to unblock**:
+    `listPaymentsForReview({ statusIn?, page? })` (FINANCE-scoped, `payments_finance_read` +
+    `payment_proofs_finance_read` via RLS, no service role) returning
+    `{ paymentId, orderId, orderCode, amount, currency, paymentStatus, orderStatus (hold status),
+    proof: { reference, submittedAt, fileAssetId } | null, buyerTotalAmount (from
+    `order_financials.buyer_total_amount`, currency) }`, plus `getPaymentReviewContext({ paymentId })`
+    for the detail. Values must be the stored snapshots — 008 must not compute them.
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — High
   - Why: money-facing queue where display fidelity matters.
 
@@ -349,6 +383,22 @@ scope has no owning task (flagged for RUN B planning, not silently added).
   `admin_review_payment` directly — with confirmation and reason capture.
   - Req: FR-004, SC-002, PS3 | Depends: T013
   - Verify: `grep -rn "admin_review_payment" src/app/dashboard-admin lib/admin` returns nothing; approval completes settlement exactly once; expired-reservation approval fails clearly
+  - RUN C audit (2026-09-16): **FEATURE 008 BLOCKER — `decidePayment()` missing.** `grep -rn
+    decidePayment lib src components` returns nothing; 008 T017 (approved post-funding settlement DB
+    contract — requires a DB change, 008 plan decision 4), T018 (`lib/finance/settlement.ts` as the
+    only caller), T019 (error mapping) and T020 (typed guarded interface for 010) are all unchecked.
+    The first Verify clause is satisfied and pinned by `tests/admin/finance-delegation.test.tsx`
+    (runtime grep over `src/app/dashboard-admin`, `lib/admin`, `components/admin`, comments
+    stripped), but the task is NOT closable from that alone: no decision UI was built, no
+    `admin_review_payment` wrapper, compatibility shim or copied settlement logic exists in 010.
+    **Minimum 008 contract to unblock**: `decidePayment({ paymentId, decision: "APPROVED" |
+    "REJECTED", reason, expectedStatus })` in `lib/finance/settlement.ts` (server-only, session
+    identity, `is_finance_operator()` re-verified in the DB), returning `ActionFeedbackResult` with
+    controlled codes for `FINANCE_NOT_CAPABLE`, `PAYMENT_STALE` (compare-and-set on the current
+    payment status), `PAYMENT_ALREADY_DECIDED` (idempotent, exactly-once effects),
+    `RESERVATION_EXPIRED` (approval refused clearly), `FUNDING_NOT_TRUSTED` (the DB-enforced
+    precondition from T017), `VALIDATION_ERROR` (reason required on rejection); never a raw
+    Postgres/RLS/provider message; audit attribution recorded by 008.
   - Codex: GPT-5.6 Sol — High · Claude: Opus — High
   - Why: the console's most consequential action; routing around 008's guards would defeat AC-03 protections.
 
@@ -356,6 +406,23 @@ scope has no owning task (flagged for RUN B planning, not silently added).
   payout management and tax invoice recording surfaces (finance-only).
   - Req: FR-002, FR-006 | Depends: T004, 008's layer
   - Verify: payout status changes and invoice records are finance-only; no member path exists
+  - RUN C audit (2026-09-16), reported separately:
+    **PAYOUT GAP** — 008 exposes only `getPayoutsForOrder`/`getPayoutsForOrganization` (per
+    order/organization reads); there is no finance-wide payout list and no status-transition
+    write (`PENDING_PAYOUT → PROCESSING → PAID`, `VOID`) — 008 T023/T025 unchecked, and plan
+    decision 7 says a payout record must never claim money movement without provider evidence
+    (provider-dependent). Minimum contract: `listPayouts({ statusIn?, page? })` (FINANCE) and
+    `transitionPayout({ payoutId, to, paymentReference?, expectedStatus })` with the approved
+    vocabulary, compare-and-set, attribution and controlled codes; no amount edit, no delete.
+    **TAX INVOICE GAP** — 008 exposes only `getTaxInvoice({ orderId })`; there is no
+    `recordTaxInvoice` write, and `tax_invoices.file_asset_id` requires a private document that the
+    unresolved Storage design (DB-BLOCK-01) does not yet provide, so a reference-only record would
+    be a fake. Minimum contract: `recordTaxInvoice({ orderId, invoiceNumber, fileAssetId, issuedAt })`
+    (FINANCE, one per order, immutable once recorded, attribution) after the Storage decision.
+    Neither portion was implemented as raw table CRUD in 010; `payouts` and `invoices` keep the
+    `blocked` placeholder. The "no member path" clause is pinned now (`finance-delegation` test:
+    no `src/app/dashboard/{payments,payouts,invoices,settlement,finance}` segment and no member-side
+    finance-table write), but the task stays open until the write surfaces exist.
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — High
   - Why: finance-only write surfaces with clear scoping.
 

@@ -2,7 +2,7 @@
 
 **Feature Directory**: `specs/010-admin-operations-console`
 **Created**: 2026-09-08
-**Status**: RUN B complete (2026-09-16) — Phase 3 T007/T008/T009 + Phase 4 T011 implemented and live-verified with a disposable COMPLIANCE fixture; T010 implemented but blocked on the organizations policy gap (below); T012 blocked on Feature 012: 11 / 48 tasks. RUN A (2026-09-15) delivered Phases 1–2 + T046. Phases 5–12 NOT started (see tasks.md status).
+**Status**: RUN C evaluated (2026-09-16) — Phase 5 T013/T014/T015 BLOCKED BY FEATURE 008 (fresh audit: no review-queue read, no `decidePayment`, no payout write, no invoice recording; only a structural delegation test was added — see tasks.md); still 11 / 48. RUN B complete (2026-09-16) — Phase 3 T007/T008/T009 + Phase 4 T011 implemented and live-verified with a disposable COMPLIANCE fixture; T010 implemented but blocked on the organizations policy gap (below); T012 blocked on Feature 012: 11 / 48 tasks. RUN A (2026-09-15) delivered Phases 1–2 + T046. Phase 5 blocked by 008; Phases 6–12 NOT started (see tasks.md status).
 **Primary surface**: Operations Console (`/dashboard-admin`)
 **Depends on**: 001 (independent admin guard), 003, 005, 006, 008, 009, 012 (domain layers)
 

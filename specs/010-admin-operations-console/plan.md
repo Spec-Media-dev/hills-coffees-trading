@@ -1,7 +1,7 @@
 # Implementation Plan: Operations / Admin Console
 
 **Feature**: `010-admin-operations-console` | **Date**: 2026-09-08 | **Spec**: [spec.md](./spec.md)
-**Status**: RUN B complete (2026-09-16) — Phases 3–4: T007/T008/T009/T011 implemented and live-verified; T010 implemented but blocked on the `organizations` compliance read/update policy gap; T012 blocked on Feature 012 (11 / 48). RUN A (2026-09-15): Phases 1–2 + T046. Phases 5–12 NOT started.
+**Status**: RUN C evaluated (2026-09-16) — Phase 5 T013–T015 BLOCKED BY FEATURE 008 after a fresh audit of its current layer (6/39; per-order reads only); `tests/admin/finance-delegation.test.tsx` pins the delegation boundary; still 11 / 48. RUN B complete (2026-09-16) — Phases 3–4: T007/T008/T009/T011 implemented and live-verified; T010 implemented but blocked on the `organizations` compliance read/update policy gap; T012 blocked on Feature 012 (11 / 48). RUN A (2026-09-15): Phases 1–2 + T046. Phases 6–12 NOT started.
 
 ## Summary
 
@@ -31,7 +31,7 @@ no-hard-delete verification.
 | Compliance — listings | `is_compliance_operator()` | `coffee_offers` UPDATE, `listing_reviews` (via policy) |
 | Compliance — disputes | `is_compliance_operator()` | `disputes` UPDATE |
 | Warehouse | `is_warehouse_operator()` | Stored inventory/custody reads; `order_shipments` / `shipment_items` operational changes **only via 009's live warehouse layer**. Delivery reservations are DB-owned and live. |
-| Finance | `is_finance_operator()` | Current 008 Phase-1 reads are provider-neutral only. `decidePayment`, review-queue reads, payout management and tax-invoice recording are not yet supplied; no direct `admin_review_payment()` call is permitted. |
+| Finance | `is_finance_operator()` | Current 008 Phase-1 reads are provider-neutral only (re-verified RUN C, 2026-09-16: `lib/finance/read.ts` per-order reads, `funding.ts` controlled-unavailable, nothing else). `decidePayment`, review-queue reads, payout management and tax-invoice recording are not yet supplied; no direct `admin_review_payment()` call is permitted — pinned by `tests/admin/finance-delegation.test.tsx`. |
 | Catalogue | `is_platform_admin()` | `coffees`, `coffee_lots`, `origins`, `regions`, taxonomy, `warehouses`, media, price tables |
 | Audit | `is_auditor()` | Console-only read composition once 012 supplies its audit/history layer; `audit_logs` remains unavailable to a pure AUDITOR (DB-OPEN-06) |
 | System | `is_super_admin()` | `platform_admins`, **`commission_policies` + `commission_tiers`**, `tax_rules`, `shipping_rules`; `payment_accounts` is `is_platform_admin()` |
@@ -182,7 +182,7 @@ tests/admin/        # NEW — access matrix, decision recording, no-hard-delete,
 |---|---|---|---|---|---|---|---|
 | A | 1–2: T001–T006 | 001, 002 shell/cache tags, 003 identity | None requiring a DB change | Yes | Opus — High | GPT-5.6 Sol — High | Codex |
 | B | 3–4: T007–T012 | Run A; 003 KYB; 006 listing model | T012 needs 012; DB-OPEN-09 blocks freeze semantics | No — T007–T011 can close, T012 cannot | Opus — High | GPT-5.6 Sol — High | Codex |
-| C | 5: T013–T015 | Run A; 008 finance layer | 008 lacks `decidePayment`, queue reads, payout management and invoice recording | No | Opus — High | GPT-5.6 Sol — High | Codex |
+| C | 5: T013–T015 | Run A; 008 finance layer | **RUN C 2026-09-16: evaluated, all three BLOCKED BY FEATURE 008** — 008 lacks `decidePayment`, queue reads, payout management and invoice recording (exact minimum contracts on T013–T015 in tasks.md) | No | Opus — High | GPT-5.6 Sol — High | Codex |
 | D | 6: T016–T020 | Run A; 005 facts; 009 layer | Mid-operation suspension policy; no variance model | No — T019/T020 can proceed honestly; release of T017/T018 awaits policy | Opus — High | GPT-5.6 Sol — High | Codex |
 | E | 7–8: T021–T026 | Run A; 002 tags | Media bytes unavailable beyond approved seams; 012 audit/history absent; DB-OPEN-06 | No — T021–T024 can proceed within limits | Opus — High | GPT-5.6 Sol — High | Codex |
 | F | 9: T027–T029, T042–T045 | Run A; existing configuration tables | OPS-01; T044's financial-history integration evidence belongs to unfinished 008 | No | Opus — High | GPT-5.6 Sol — High | Codex |
