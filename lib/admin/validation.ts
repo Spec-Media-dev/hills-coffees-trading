@@ -58,3 +58,20 @@ export const OrganizationStatusInput = z
     }
   });
 export type OrganizationStatusInput = z.infer<typeof OrganizationStatusInput>;
+
+/**
+ * Feature 010 RUN E — document-level review through Feature 003's `create_kyb_review` RPC. The
+ * decision vocabulary is `kyb_review_items.decision`'s own CHECK (`ACCEPTED` / `REJECTED`); a
+ * rejection requires a reason (the RPC itself raises `reason_required_for_rejection` otherwise).
+ */
+export const KYB_DOCUMENT_DECISIONS = ["ACCEPTED", "REJECTED"] as const;
+export type KybDocumentDecision = (typeof KYB_DOCUMENT_DECISIONS)[number];
+
+export const KybDocumentReviewInput = z
+  .object({ applicationId: uuid, documentId: uuid, decision: z.enum(KYB_DOCUMENT_DECISIONS), reason })
+  .superRefine((input, ctx) => {
+    if (input.decision === "REJECTED" && (!input.reason || input.reason.length < REASON_MIN_LENGTH)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["reason"], message: "REASON_REQUIRED" });
+    }
+  });
+export type KybDocumentReviewInput = z.infer<typeof KybDocumentReviewInput>;

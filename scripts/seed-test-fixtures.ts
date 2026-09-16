@@ -138,11 +138,11 @@ type FixtureOrganization = {
 };
 
 type Fixture = {
-  label: "buyer-only" | "buyer-and-seller" | "warehouse-admin" | "finance-admin" | "delivery-admin" | "compliance-reviewer";
+  label: "buyer-only" | "buyer-and-seller" | "warehouse-admin" | "finance-admin" | "delivery-admin" | "compliance-reviewer" | "catalogue-admin" | "auditor";
   email: string;
   fullName: string;
   organization: FixtureOrganization | null;
-  platformAdminRole: "WAREHOUSE" | "FINANCE" | "ADMIN" | "COMPLIANCE" | null;
+  platformAdminRole: "WAREHOUSE" | "FINANCE" | "ADMIN" | "COMPLIANCE" | "AUDITOR" | null;
 };
 
 /**
@@ -234,6 +234,35 @@ const RUN_B_COMPLIANCE_FIXTURE: Fixture = {
   platformAdminRole: "COMPLIANCE",
 };
 
+/**
+ * Feature 010 RUN E's human-authorized (2026-09-16), disposable platform-ADMIN identity for the
+ * catalogue proofs (T021–T024: catalogue RLS is `is_platform_admin()` only, and no standing ADMIN
+ * fixture exists). SAME shape and lifecycle as the two disposable fixtures above: never part of
+ * `FIXTURES`; created/reactivated only by `--prepare-catalogue-admin-fixture`; de-privileged
+ * (capability row removed, principal deleted or blocked+banned) by `--cleanup-catalogue-admin-fixture`.
+ * Role is exactly `ADMIN` — never SUPER_ADMIN — with no organization membership.
+ */
+const RUN_E_CATALOGUE_ADMIN_FIXTURE: Fixture = {
+  label: "catalogue-admin",
+  email: "catalogue-admin+t021-test@example.com",
+  fullName: "Feature 010 Test — Catalogue Admin",
+  organization: null,
+  platformAdminRole: "ADMIN",
+};
+
+/**
+ * Feature 010 RUN E's human-authorized (2026-09-16), disposable AUDITOR identity for the read-only
+ * audit proofs (T025/T026). Role is exactly `AUDITOR` — never ADMIN, never SUPER_ADMIN — no
+ * organization membership; same prepare/cleanup lifecycle as the COMPLIANCE fixture.
+ */
+const RUN_E_AUDITOR_FIXTURE: Fixture = {
+  label: "auditor",
+  email: "auditor+t025-test@example.com",
+  fullName: "Feature 010 Test — Auditor",
+  organization: null,
+  platformAdminRole: "AUDITOR",
+};
+
 // ---------------------------------------------------------------------------
 // Catalogue fixtures — Feature 002 (T006a)
 // ---------------------------------------------------------------------------
@@ -278,6 +307,8 @@ const CATALOGUE_IDS = {
   coffeePublished: "f0000000-0000-4000-8000-000000000041",
   coffeeDraft: "f0000000-0000-4000-8000-000000000042",
   coffeeArchived: "f0000000-0000-4000-8000-000000000043",
+  /** Feature 010 RUN E (T023) — the ONE coffee the admin console may publish/unpublish in a live proof. */
+  coffeeRunEProof: "f0000000-0000-4000-8000-000000000044",
   certification: "f0000000-0000-4000-8000-000000000051",
 } as const;
 
@@ -295,6 +326,7 @@ const CATALOGUE_SLUGS = {
   coffeePublished: "public-test-coffee-published",
   coffeeDraft: "public-test-coffee-draft",
   coffeeArchived: "public-test-coffee-archived",
+  coffeeRunEProof: "public-test-coffee-run-e-proof",
 } as const;
 
 /**
@@ -441,6 +473,18 @@ async function seedCatalogue(admin: SupabaseClient): Promise<void> {
     description: CATALOGUE_CANARIES.coffeeArchived,
     status: "ARCHIVED",
   });
+  // Feature 010 RUN E (T023): a dedicated DRAFT coffee the admin console publishes and unpublishes in
+  // its live public-cache proof. It deliberately carries NO canary description (it is meant to be
+  // publicly visible while published) and is restored to DRAFT by `--reset-run-e-catalogue-fixture`.
+  await upsert("coffees", {
+    id: CATALOGUE_IDS.coffeeRunEProof,
+    origin_id: CATALOGUE_IDS.originActive,
+    coffee_type_id: CATALOGUE_IDS.coffeeType,
+    name: "Public Test Coffee — Run E Proof",
+    slug: CATALOGUE_SLUGS.coffeeRunEProof,
+    description: "Feature 010 RUN E publish/unpublish proof coffee. Safe to publish transiently.",
+    status: "DRAFT",
+  });
 
   // 4. One tag link on the published coffee. Composite primary key, so that is the conflict target.
   const { error: linkError } = await admin
@@ -487,6 +531,7 @@ async function teardownCatalogue(admin: SupabaseClient): Promise<void> {
     CATALOGUE_IDS.coffeePublished,
     CATALOGUE_IDS.coffeeDraft,
     CATALOGUE_IDS.coffeeArchived,
+    CATALOGUE_IDS.coffeeRunEProof,
   ];
   const originIds = [
     CATALOGUE_IDS.originActive,
@@ -2961,6 +3006,18 @@ async function cleanupDisposableOperatorFixture(admin: SupabaseClient, fixture: 
   };
 }
 
+/**
+ * Feature 010 RUN E (T023) — restores the RUN E proof coffee to `DRAFT` (exact fixed id, status column
+ * only) so a failed live proof can never leave Feature 002's public catalogue with a stray published
+ * fixture. Test-only service-role restore, the same convention as `--reset-listing-review-fixtures`.
+ */
+async function resetRunECatalogueFixture(admin: SupabaseClient): Promise<void> {
+  const { data, error } = await admin.from("coffees").update({ status: "DRAFT" }).eq("id", CATALOGUE_IDS.coffeeRunEProof).select("id").maybeSingle();
+  if (error) throw new SafeFixtureError("RUN E catalogue fixture reset failed.");
+  if (!data) throw new Error("RUN E proof coffee fixture is missing; run npm run test:seed first");
+  console.log(JSON.stringify({ coffeeId: CATALOGUE_IDS.coffeeRunEProof, slug: CATALOGUE_SLUGS.coffeeRunEProof, status: "DRAFT" }));
+}
+
 /** Read-only: the disposable operator fixture's current capability state (for post-cleanup proof). */
 async function inspectDisposableOperatorFixture(admin: SupabaseClient, fixture: Fixture): Promise<Record<string, unknown>> {
   const userId = await findAuthUserIdByEmail(admin, fixture.email);
@@ -3374,6 +3431,35 @@ async function main(): Promise<void> {
     const business = await cleanupT013BusinessResidue(admin);
     const adminFixture = await cleanupT013DeliveryAdminFixture(admin);
     console.log(JSON.stringify({ business, adminFixture }));
+    return;
+  }
+
+  if (process.argv.includes("--prepare-catalogue-admin-fixture")) {
+    await createDisposableOperatorFixture(admin, requireEnv("TEST_FIXTURE_PASSWORD"), RUN_E_CATALOGUE_ADMIN_FIXTURE, "feature-010-run-e-catalogue-admin", { reuseIfActive: true });
+    return;
+  }
+  if (process.argv.includes("--cleanup-catalogue-admin-fixture")) {
+    console.log(JSON.stringify(await cleanupDisposableOperatorFixture(admin, RUN_E_CATALOGUE_ADMIN_FIXTURE)));
+    return;
+  }
+  if (process.argv.includes("--inspect-catalogue-admin-fixture")) {
+    console.log(JSON.stringify(await inspectDisposableOperatorFixture(admin, RUN_E_CATALOGUE_ADMIN_FIXTURE)));
+    return;
+  }
+  if (process.argv.includes("--prepare-auditor-fixture")) {
+    await createDisposableOperatorFixture(admin, requireEnv("TEST_FIXTURE_PASSWORD"), RUN_E_AUDITOR_FIXTURE, "feature-010-run-e-auditor", { reuseIfActive: true });
+    return;
+  }
+  if (process.argv.includes("--cleanup-auditor-fixture")) {
+    console.log(JSON.stringify(await cleanupDisposableOperatorFixture(admin, RUN_E_AUDITOR_FIXTURE)));
+    return;
+  }
+  if (process.argv.includes("--inspect-auditor-fixture")) {
+    console.log(JSON.stringify(await inspectDisposableOperatorFixture(admin, RUN_E_AUDITOR_FIXTURE)));
+    return;
+  }
+  if (process.argv.includes("--reset-run-e-catalogue-fixture")) {
+    await resetRunECatalogueFixture(admin);
     return;
   }
 

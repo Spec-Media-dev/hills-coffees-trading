@@ -115,15 +115,15 @@ export const ADMIN_AREAS: readonly AdminArea[] = [
   { key: "invoices", group: "finance", href: "/dashboard-admin/invoices", roleFunction: "is_finance_operator", icon: "file-text", availability: "blocked", phase: 5, blocker: "feature-008-finance-layer" },
 
   // ── Catalogue ─────────────────────────────────────────────────────────────────────────────────
-  { key: "coffees", group: "catalogue", href: "/dashboard-admin/coffees", roleFunction: "is_platform_admin", icon: "package", availability: "planned", phase: 7 },
-  { key: "origins", group: "catalogue", href: "/dashboard-admin/origins", roleFunction: "is_platform_admin", icon: "globe", availability: "planned", phase: 7 },
-  { key: "regions", group: "catalogue", href: "/dashboard-admin/regions", roleFunction: "is_platform_admin", icon: "map-pin", availability: "planned", phase: 7 },
-  { key: "taxonomy", group: "catalogue", href: "/dashboard-admin/taxonomy", roleFunction: "is_platform_admin", icon: "tag", availability: "planned", phase: 7 },
-  { key: "warehouses", group: "catalogue", href: "/dashboard-admin/warehouses", roleFunction: "is_platform_admin", icon: "building-2", availability: "planned", phase: 7 },
-  { key: "media", group: "catalogue", href: "/dashboard-admin/media", roleFunction: "is_platform_admin", icon: "file", availability: "planned", phase: 7 },
+  { key: "coffees", group: "catalogue", href: "/dashboard-admin/coffees", roleFunction: "is_platform_admin", icon: "package", availability: "live", phase: 7 },
+  { key: "origins", group: "catalogue", href: "/dashboard-admin/origins", roleFunction: "is_platform_admin", icon: "globe", availability: "live", phase: 7 },
+  { key: "regions", group: "catalogue", href: "/dashboard-admin/regions", roleFunction: "is_platform_admin", icon: "map-pin", availability: "live", phase: 7 },
+  { key: "taxonomy", group: "catalogue", href: "/dashboard-admin/taxonomy", roleFunction: "is_platform_admin", icon: "tag", availability: "live", phase: 7 },
+  { key: "warehouses", group: "catalogue", href: "/dashboard-admin/warehouses", roleFunction: "is_platform_admin", icon: "building-2", availability: "live", phase: 7 },
+  { key: "media", group: "catalogue", href: "/dashboard-admin/media", roleFunction: "is_platform_admin", icon: "file", availability: "live", phase: 7 },
 
   // ── Audit ─────────────────────────────────────────────────────────────────────────────────────
-  { key: "audit", group: "audit", href: "/dashboard-admin/audit", roleFunction: "is_auditor", icon: "clipboard-list", availability: "blocked", phase: 8, blocker: "feature-012-audit-layer" },
+  { key: "audit", group: "audit", href: "/dashboard-admin/audit", roleFunction: "is_auditor", icon: "clipboard-list", availability: "live", phase: 8 },
 
   // ── System ────────────────────────────────────────────────────────────────────────────────────
   { key: "roles", group: "system", href: "/dashboard-admin/roles", roleFunction: "is_super_admin", icon: "users", availability: "planned", phase: 9 },

@@ -1,13 +1,17 @@
 import { checkRoleFunctionAccess } from "@/lib/admin/guards";
+import { evaluateKybApprovalReadiness, KYB_DOCUMENT_REVIEWABLE_APPLICATION_STATUSES } from "@/lib/admin/kyb-readiness";
 import {
   KybDecisionInput,
+  KybDocumentReviewInput,
   KybStartReviewInput,
   ListingDecisionInput,
   OrganizationStatusInput,
   type KybDecision,
+  type KybDocumentDecision,
   type ListingDecision,
 } from "@/lib/admin/validation";
-import type { KybApplicationStatus } from "@/lib/kyb/status-types";
+import { createKybReview } from "@/lib/kyb/review-items";
+import type { KybApplicationStatus, KybDocumentSummary } from "@/lib/kyb/status-types";
 import type { ListingStatus } from "@/lib/listings/types";
 import { createClient } from "@/lib/supabase/server";
 import { ACTION_FEEDBACK, type ActionFeedbackCode, type ActionFeedbackResult } from "@/lib/types/action-feedback";
@@ -122,10 +126,20 @@ export async function decideKybApplication(input: unknown): Promise<ActionFeedba
 
   // 1. The application must be readable and in a decidable state (an unreadable/nonexistent id is
   //    indistinguishable, by design — nothing is enumerated).
-  const { data: before } = await supabase.from("kyb_applications").select("id, organization_id, status").eq("id", applicationId).maybeSingle();
+  const { data: before } = await supabase.from("kyb_applications").select("id, organization_id, status, registered_address, business_activity").eq("id", applicationId).maybeSingle();
   if (!before) return { ok: false, code: ACTION_FEEDBACK.KYB_DECISION_STALE };
   const sources = KYB_DECISION_SOURCES[decision];
   if (!sources.includes(before.status as KybApplicationStatus)) return { ok: false, code: ACTION_FEEDBACK.KYB_DECISION_STALE };
+
+  // 1b. RUN E — APPROVED is refused while any REQUIRED evidence is missing, awaiting review, rejected
+  //     or expired (or an application field is missing). Re-read from the persisted rows HERE, on the
+  //     server, regardless of what the page showed — never a client-side gate.
+  if (decision === "APPROVED") {
+    const readiness = evaluateKybApprovalReadiness({ registeredAddress: before.registered_address, businessActivity: before.business_activity }, await readCurrentDocuments(supabase, applicationId));
+    if (!readiness.approvable) {
+      return { ok: false, code: ACTION_FEEDBACK.KYB_APPROVAL_BLOCKED, fieldErrors: { decision: readiness.blockers.map((blocker) => `${blocker.state}:${blocker.key}`) } };
+    }
+  }
 
   // 2. Compare-and-set the application status (the exactly-once lock).
   const { data: updated, error: updateError } = await supabase
@@ -165,6 +179,58 @@ export async function decideKybApplication(input: unknown): Promise<ActionFeedba
   };
   if (reviewError || !review) return { ok: true, data: outcome, code: ACTION_FEEDBACK.KYB_DECISION_HISTORY_INCOMPLETE };
   return { ok: true, data: outcome, code: ACTION_FEEDBACK.KYB_DECISION_RECORDED };
+}
+
+async function readCurrentDocuments(supabase: SupabaseServerClient, applicationId: string): Promise<KybDocumentSummary[]> {
+  const { data } = await supabase.from("kyb_documents").select("id, document_type, status, version, supersedes_document_id, expires_at, created_at").eq("application_id", applicationId);
+  return (data ?? []).map((row) => ({
+    id: row.id,
+    documentType: row.document_type,
+    status: row.status as KybDocumentSummary["status"],
+    version: row.version,
+    supersedesDocumentId: row.supersedes_document_id ?? null,
+    originalName: null,
+    mimeType: null,
+    sizeBytes: null,
+    expiresAt: row.expires_at ?? null,
+    createdAt: row.created_at,
+  }));
+}
+
+export type KybDocumentReviewOutcome = { applicationId: string; documentId: string; decision: KybDocumentDecision; reviewId: string; documentStatus: KybDocumentSummary["status"] };
+
+/**
+ * RUN E — a document-level outcome, recorded through Feature 003's own `create_kyb_review` RPC
+ * (`lib/kyb/review-items.ts`): reviewer identity and timestamp are derived inside the database,
+ * the row is appended to the immutable `kyb_review_items` ledger, and the database's trigger sets
+ * `kyb_documents.status` to the decision. The console adds only its state discipline: the document
+ * must currently be `PENDING` (a decided or superseded version is `KYB_DOCUMENT_REVIEW_STALE`) and
+ * the application must still be under review. The persisted status is re-read after the write.
+ */
+export async function reviewKybDocument(input: unknown): Promise<ActionFeedbackResult<KybDocumentReviewOutcome>> {
+  const parsed = KybDocumentReviewInput.safeParse(input);
+  if (!parsed.success) return { ok: false, code: ACTION_FEEDBACK.VALIDATION_ERROR, fieldErrors: fieldErrorsOf(parsed.error) };
+  const access = await requireCompliance();
+  if (!access.ok) return { ok: false, code: access.code };
+
+  const supabase = await createClient();
+  const [{ data: application }, { data: document }] = await Promise.all([
+    supabase.from("kyb_applications").select("id, status").eq("id", parsed.data.applicationId).maybeSingle(),
+    supabase.from("kyb_documents").select("id, application_id, status").eq("id", parsed.data.documentId).eq("application_id", parsed.data.applicationId).maybeSingle(),
+  ]);
+  if (!application || !document) return { ok: false, code: ACTION_FEEDBACK.KYB_DOCUMENT_REVIEW_STALE };
+  if (!KYB_DOCUMENT_REVIEWABLE_APPLICATION_STATUSES.includes(application.status as KybApplicationStatus)) return { ok: false, code: ACTION_FEEDBACK.KYB_DOCUMENT_REVIEW_STALE };
+  if (document.status !== "PENDING") return { ok: false, code: ACTION_FEEDBACK.KYB_DOCUMENT_REVIEW_STALE };
+
+  const created = await createKybReview({ applicationId: parsed.data.applicationId, documentId: parsed.data.documentId, decision: parsed.data.decision, reason: parsed.data.reason });
+  if (!created.ok) return { ok: false, code: ACTION_FEEDBACK.KYB_DOCUMENT_REVIEW_FAILED };
+
+  const { data: after } = await supabase.from("kyb_documents").select("status").eq("id", parsed.data.documentId).maybeSingle();
+  return {
+    ok: true,
+    data: { applicationId: parsed.data.applicationId, documentId: parsed.data.documentId, decision: parsed.data.decision, reviewId: created.reviewId, documentStatus: (after?.status as KybDocumentSummary["status"]) ?? parsed.data.decision },
+    code: ACTION_FEEDBACK.KYB_DOCUMENT_REVIEW_RECORDED,
+  };
 }
 
 /** SUBMITTED → UNDER_REVIEW: a status step, not a decision — no `kyb_reviews` row is written. */

@@ -51,6 +51,25 @@ export const FOUNDATION_FIXTURES = {
   complianceReviewer: {
     email: "compliance-reviewer+t010-test@example.com",
   },
+  /** Feature 010 RUN E — human-authorized disposable platform ADMIN (role exactly ADMIN, no membership) for catalogue proofs. */
+  catalogueAdmin: {
+    email: "catalogue-admin+t021-test@example.com",
+  },
+  /** Feature 010 RUN E — human-authorized disposable AUDITOR (role exactly AUDITOR, no membership). */
+  auditor: {
+    email: "auditor+t025-test@example.com",
+  },
+} as const;
+
+/** Feature 010 RUN E (T023) — the fixed-id DRAFT coffee the console publishes/unpublishes in its live public proof. */
+export const RUN_E_CATALOGUE_FIXTURES = {
+  proofCoffeeId: "f0000000-0000-4000-8000-000000000044",
+  proofCoffeeSlug: "public-test-coffee-run-e-proof",
+  /** Feature 002's own fixed reference rows the proof coffee links to. */
+  originActiveId: "f0000000-0000-4000-8000-000000000031",
+  coffeeTypeId: "f0000000-0000-4000-8000-000000000022",
+  regionId: "f0000000-0000-4000-8000-000000000021",
+  warehouseId: "05000000-0000-4000-8000-000000000002",
 } as const;
 
 /**
@@ -437,6 +456,39 @@ export function inspectComplianceFixture(): Record<string, unknown> {
   const output = runFixtureScript(["--inspect-compliance-fixture"], { captureOutput: true });
   const line = output.trim().split(/\r?\n/).find((candidate) => candidate.startsWith("{"));
   return line ? (JSON.parse(line) as Record<string, unknown>) : {};
+}
+
+function runJsonFixtureCommand(flag: string): Record<string, unknown> {
+  const output = runFixtureScript([flag], { captureOutput: true });
+  const line = output.trim().split(/\r?\n/).find((candidate) => candidate.startsWith("{"));
+  return line ? (JSON.parse(line) as Record<string, unknown>) : {};
+}
+
+/** Feature 010 RUN E — creates/reactivates the disposable platform ADMIN (role exactly ADMIN). */
+export function prepareCatalogueAdminFixture(): void {
+  runFixtureScript(["--prepare-catalogue-admin-fixture"]);
+}
+export function cleanupCatalogueAdminFixture(): Record<string, unknown> {
+  return runJsonFixtureCommand("--cleanup-catalogue-admin-fixture");
+}
+export function inspectCatalogueAdminFixture(): Record<string, unknown> {
+  return runJsonFixtureCommand("--inspect-catalogue-admin-fixture");
+}
+
+/** Feature 010 RUN E — creates/reactivates the disposable AUDITOR (role exactly AUDITOR). */
+export function prepareAuditorFixture(): void {
+  runFixtureScript(["--prepare-auditor-fixture"]);
+}
+export function cleanupAuditorFixture(): Record<string, unknown> {
+  return runJsonFixtureCommand("--cleanup-auditor-fixture");
+}
+export function inspectAuditorFixture(): Record<string, unknown> {
+  return runJsonFixtureCommand("--inspect-auditor-fixture");
+}
+
+/** Feature 010 RUN E (T023) — restores the RUN E proof coffee to DRAFT. */
+export function resetRunECatalogueFixture(): void {
+  runFixtureScript(["--reset-run-e-catalogue-fixture"]);
 }
 
 /** Feature 010 RUN B (T010) — restores the `suspended` fixture (organization SUSPENDED, application APPROVED). */

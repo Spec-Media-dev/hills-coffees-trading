@@ -163,6 +163,28 @@ export const ACTION_FEEDBACK = {
   LISTING_DECISION_STALE: "listing_decision_stale",
   LISTING_DECISION_FAILED: "listing_decision_failed",
   LISTING_DECISION_HISTORY_INCOMPLETE: "listing_decision_history_incomplete",
+
+  /**
+   * Feature 010 RUN E — Catalogue management (Phase 7) and the KYB review-coherence correction.
+   * `CATALOGUE_*` are `lib/admin/catalogue.ts`'s only result codes; the SQLSTATE→code mapping lives
+   * there (23505 unique → `SLUG_TAKEN`, 23503 FK → `REFERENCE_INVALID`, 23514 CHECK → `STATUS_INVALID`,
+   * compare-and-set miss → `STALE`, RLS-filtered/nonexistent → `NOT_FOUND`), never a raw message.
+   * `KYB_APPROVAL_BLOCKED` = the server re-read the application's required evidence and refused
+   * `APPROVED` because a required document is missing, awaiting review, rejected or expired;
+   * `KYB_DOCUMENT_REVIEW_*` = the per-document review (Feature 003's `create_kyb_review` RPC).
+   */
+  CATALOGUE_NOT_CAPABLE: "catalogue_not_capable",
+  CATALOGUE_SAVED: "catalogue_saved",
+  CATALOGUE_SLUG_TAKEN: "catalogue_slug_taken",
+  CATALOGUE_REFERENCE_INVALID: "catalogue_reference_invalid",
+  CATALOGUE_STATUS_INVALID: "catalogue_status_invalid",
+  CATALOGUE_STALE: "catalogue_stale",
+  CATALOGUE_NOT_FOUND: "catalogue_not_found",
+  CATALOGUE_SAVE_FAILED: "catalogue_save_failed",
+  KYB_APPROVAL_BLOCKED: "kyb_approval_blocked",
+  KYB_DOCUMENT_REVIEW_RECORDED: "kyb_document_review_recorded",
+  KYB_DOCUMENT_REVIEW_STALE: "kyb_document_review_stale",
+  KYB_DOCUMENT_REVIEW_FAILED: "kyb_document_review_failed",
 } as const;
 
 export type ActionFeedbackCode = (typeof ACTION_FEEDBACK)[keyof typeof ACTION_FEEDBACK];

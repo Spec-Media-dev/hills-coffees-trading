@@ -75,6 +75,10 @@ export type DecisionFormProps<TDecision extends string, TOutcome> = {
   reason?: DecisionReasonConfig;
   /** `data-decision-form` attribute value; defaults to `decisionFieldName`. */
   formKey?: string;
+  /** Feature 010 RUN E — omit the reason field entirely (e.g. catalogue publication, which records no reason). */
+  hideReason?: boolean;
+  /** Extra content rendered between the options and the submit row (e.g. a live decision summary). */
+  children?: React.ReactNode;
 };
 
 export function DecisionForm<TDecision extends string, TOutcome>({
@@ -91,6 +95,8 @@ export function DecisionForm<TDecision extends string, TOutcome>({
   renderOutcome,
   reason: reasonConfig,
   formKey,
+  hideReason = false,
+  children,
 }: DecisionFormProps<TDecision, TOutcome>) {
   const { tApp } = useLocale();
   const copy = tApp.admin.compliance.common;
@@ -131,11 +137,11 @@ export function DecisionForm<TDecision extends string, TOutcome>({
     event.preventDefault();
     if (!selected || isPending) return;
     const trimmed = reason.trim();
-    if (selected.reasonRequired && trimmed.length < reasonCopy.minLength) {
+    if (!hideReason && selected.reasonRequired && trimmed.length < reasonCopy.minLength) {
       setClientReasonError(reasonCopy.required);
       return;
     }
-    if (trimmed.length > reasonCopy.maxLength) {
+    if (!hideReason && trimmed.length > reasonCopy.maxLength) {
       setClientReasonError(reasonCopy.tooLong);
       return;
     }
@@ -197,7 +203,10 @@ export function DecisionForm<TDecision extends string, TOutcome>({
           </RadioGroup>
         </fieldset>
 
-        <FieldGroup className="md:grid-cols-1">
+        {children}
+
+        {hideReason ? null : (
+          <FieldGroup className="md:grid-cols-1">
           <Field
             id={reasonId}
             label={
@@ -228,7 +237,8 @@ export function DecisionForm<TDecision extends string, TOutcome>({
               />
             }
           />
-        </FieldGroup>
+          </FieldGroup>
+        )}
 
         <div className="flex flex-wrap items-center gap-3">
           <Button type="submit" disabled={!selected || isPending} variant={selected?.destructive ? "destructive" : "primary"}>
