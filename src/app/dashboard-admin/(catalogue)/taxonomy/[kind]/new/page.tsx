@@ -27,7 +27,7 @@ export default async function NewTaxonomyEntryPage({ params }: { params: Promise
   return (
     <div className="flex flex-col gap-6">
       <PageHeader title={<AppBilingual pick={(c) => c.admin.catalogue.taxonomy.kinds[kind]} />} description={<AppBilingual pick={(c) => c.admin.catalogue.taxonomy.form.createTitle} />} trail={trail} />
-      <RecordForm resource="taxonomy" mode="create" formKey={`taxonomy-${kind}`} fields={taxonomyFields(kind, null, coffeeTypes)} hiddenFields={{ kind }} action={saveTaxonomyEntry} successHref={(id) => `/dashboard-admin/taxonomy/${kind}/${id}`} />
+      <RecordForm resource="taxonomy" mode="create" formKey={`taxonomy-${kind}`} fields={taxonomyFields(kind, null, coffeeTypes)} hiddenFields={{ kind }} action={saveTaxonomyEntry} successHrefTemplate={`/dashboard-admin/taxonomy/${kind}/{id}`} />
     </div>
   );
 }

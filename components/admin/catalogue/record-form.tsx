@@ -51,13 +51,16 @@ export type RecordFormProps = {
   /** Which resource copy block supplies heading/lead (resolved client-side in the viewer's locale). */
   resource: "coffees" | "origins" | "regions" | "taxonomy" | "warehouses" | "locations";
   mode: "create" | "edit";
-  /** Called with the created/updated id on success; typically returns the detail route to navigate to (create only). */
-  successHref?: (id: string) => string;
+  /**
+   * Detail route to navigate to after a successful CREATE, with `{id}` standing for the new record's
+   * id — a plain string because a server page cannot hand a function to this client component.
+   */
+  successHrefTemplate?: string;
   /** `data-record-form` attribute for tests. */
   formKey: string;
 };
 
-export function RecordForm({ fields, hiddenFields, action, resource, mode, successHref, formKey }: RecordFormProps) {
+export function RecordForm({ fields, hiddenFields, action, resource, mode, successHrefTemplate, formKey }: RecordFormProps) {
   const { tApp } = useLocale();
   const copy = tApp.admin.catalogue;
   const formCopy =
@@ -100,11 +103,11 @@ export function RecordForm({ fields, hiddenFields, action, resource, mode, succe
   useActionToast(state, state ? feedbackFor(state) : null);
 
   useEffect(() => {
-    if (state?.ok && successHref && navigated.current !== state) {
+    if (state?.ok && successHrefTemplate && navigated.current !== state) {
       navigated.current = state;
-      router.push(successHref(state.data.id));
+      router.push(successHrefTemplate.replace("{id}", encodeURIComponent(state.data.id)));
     }
-  }, [state, successHref, router]);
+  }, [state, successHrefTemplate, router]);
 
   const serverErrors = state?.ok === false && state.code === ACTION_FEEDBACK.VALIDATION_ERROR ? (state.fieldErrors ?? {}) : {};
   const validationCopy = copy.common.validation as Record<string, string>;

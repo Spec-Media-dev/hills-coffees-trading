@@ -316,7 +316,8 @@ export type WarehouseRow = {
   id: string;
   code: string;
   name: string;
-  countryCode: string;
+  /** `warehouses.country_code` is nullable in the approved schema. */
+  countryCode: string | null;
   city: string | null;
   address: string | null;
   isActive: boolean;
@@ -330,12 +331,12 @@ export type OrganizationOption = { id: string; displayName: string };
 export async function listWarehouses(): Promise<readonly WarehouseRow[]> {
   const supabase = await createClient();
   const { data } = await supabase.from("warehouses").select("id, code, name, country_code, city, address, is_active, owner_organization_id, updated_at, organizations(display_name)").order("code").limit(500);
-  type Row = { id: string; code: string; name: string; country_code: string; city: string | null; address: string | null; is_active: boolean; owner_organization_id: string | null; updated_at: string; organizations: { display_name: string } | { display_name: string }[] | null };
+  type Row = { id: string; code: string; name: string; country_code: string | null; city: string | null; address: string | null; is_active: boolean; owner_organization_id: string | null; updated_at: string; organizations: { display_name: string } | { display_name: string }[] | null };
   return ((data ?? []) as unknown as Row[]).map((row) => ({
     id: row.id,
     code: row.code,
     name: row.name,
-    countryCode: row.country_code.trim(),
+    countryCode: row.country_code?.trim() ?? null,
     city: row.city,
     address: row.address,
     isActive: row.is_active,

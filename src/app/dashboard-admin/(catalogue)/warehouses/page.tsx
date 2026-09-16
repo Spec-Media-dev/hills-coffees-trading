@@ -40,7 +40,7 @@ export default async function WarehousesPage() {
         </span>
       ),
     },
-    { key: "location", header: <AppBilingual pick={(c) => c.admin.catalogue.warehouses.columns.location} />, render: (row: WarehouseRow) => <span>{row.city ? `${row.city}, ` : ""}<span dir="ltr">{row.countryCode}</span></span> },
+    { key: "location", header: <AppBilingual pick={(c) => c.admin.catalogue.warehouses.columns.location} />, render: (row: WarehouseRow) => row.city || row.countryCode ? <span>{row.city ? `${row.city}${row.countryCode ? ", " : ""}` : ""}<span dir="ltr">{row.countryCode ?? ""}</span></span> : <span className="text-muted-foreground"><AppBilingual pick={(c) => c.admin.catalogue.common.notSet} /></span> },
     { key: "owner", header: <AppBilingual pick={(c) => c.admin.catalogue.warehouses.columns.owner} />, render: (row: WarehouseRow) => row.ownerOrganizationName ?? <span className="text-muted-foreground"><AppBilingual pick={(c) => c.admin.catalogue.warehouses.form.ownerNone} /></span> },
     { key: "active", header: <AppBilingual pick={(c) => c.admin.catalogue.warehouses.columns.active} />, render: (row: WarehouseRow) => <WarehouseActiveBadge isActive={row.isActive} /> },
     { key: "updated", header: <AppBilingual pick={(c) => c.admin.catalogue.warehouses.columns.updated} />, render: (row: WarehouseRow) => <AdminDateTime value={row.updatedAt} fallback="—" /> },

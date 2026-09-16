@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 
-import { decideKybApplication, startKybReview, type KybDecisionOutcome, type OrganizationFollowThrough } from "@/lib/admin/decisions";
+import { decideKybApplication, reviewKybDocument, startKybReview, type KybDecisionOutcome, type KybDocumentReviewOutcome, type OrganizationFollowThrough } from "@/lib/admin/decisions";
 import type { ActionFeedbackResult } from "@/lib/types/action-feedback";
 
 /**
@@ -34,6 +34,23 @@ export async function beginKybReview(
 ): Promise<ActionFeedbackResult<{ applicationId: string; organizationFollowThrough: OrganizationFollowThrough }>> {
   const applicationId = text(formData, "applicationId");
   const result = await startKybReview({ applicationId });
+  if (result.ok) {
+    revalidatePath("/dashboard-admin/kyb");
+    revalidatePath(`/dashboard-admin/kyb/${applicationId}`);
+    revalidatePath("/dashboard-admin");
+  }
+  return result;
+}
+
+/**
+ * Feature 010 RUN E — one document-level outcome (ACCEPTED / REJECTED) through Feature 003's
+ * `create_kyb_review` RPC (`lib/admin/decisions.ts#reviewKybDocument`). The detail page is
+ * revalidated so the document status, the review ledger and the approval-readiness summary refresh
+ * from the persisted rows.
+ */
+export async function recordKybDocumentOutcome(_prev: ActionFeedbackResult<KybDocumentReviewOutcome> | undefined, formData: FormData): Promise<ActionFeedbackResult<KybDocumentReviewOutcome>> {
+  const applicationId = text(formData, "applicationId");
+  const result = await reviewKybDocument({ applicationId, documentId: text(formData, "documentId"), decision: text(formData, "decision"), reason: text(formData, "reason") });
   if (result.ok) {
     revalidatePath("/dashboard-admin/kyb");
     revalidatePath(`/dashboard-admin/kyb/${applicationId}`);

@@ -25,7 +25,10 @@ import { ACTION_FEEDBACK } from "@/lib/types/action-feedback";
  */
 
 const root = process.cwd();
-const read = (path: string) => readFileSync(join(root, path), "utf8");
+// Paths are normalised to forward slashes so the same regexes and `replace(`${root}/`)` calls work on
+// Windows (where `join`/`cwd` yield backslashes) exactly as on POSIX; absolute paths are read as-is.
+const posix = (path: string) => path.split("\\").join("/");
+const read = (path: string) => readFileSync(/^[A-Za-z]:\/|^\//.test(path) ? path : join(root, path), "utf8");
 
 function listTsFiles(dir: string): string[] {
   const out: string[] = [];
@@ -33,7 +36,7 @@ function listTsFiles(dir: string): string[] {
   for (const entry of readdirSync(dir)) {
     const full = join(dir, entry);
     if (statSync(full).isDirectory()) out.push(...listTsFiles(full));
-    else if (/\.(ts|tsx)$/.test(entry)) out.push(full);
+    else if (/\.(ts|tsx)$/.test(entry)) out.push(posix(full));
   }
   return out;
 }
@@ -130,7 +133,7 @@ describe("T017 — the operation map mirrors lib/delivery/warehouse.ts exactly a
 
   it("T017 Verify: `order_shipments` appears in the console only as reads — no update/insert/delete/upsert on order_shipments or shipment_items anywhere in lib/admin, src/app/dashboard-admin, components/admin", () => {
     for (const file of CONSOLE_FILES) {
-      const source = read(file.replace(`${root}/`, ""));
+      const source = read(file.replace(`${posix(root)}/`, ""));
       for (const table of ["order_shipments", "shipment_items"]) {
         const pattern = new RegExp(`from\\("${table}"\\)[\\s\\S]{0,120}?\\.(update|insert|delete|upsert)\\(`);
         expect(source, `${file} writes ${table}`).not.toMatch(pattern);
@@ -139,10 +142,10 @@ describe("T017 — the operation map mirrors lib/delivery/warehouse.ts exactly a
     }
     // The warehouse slice itself issues NO table write of any kind — every mutation is a Feature 009 call.
     for (const file of WAREHOUSE_FILES) {
-      expect(read(file.replace(`${root}/`, "")), file).not.toMatch(/\.(update|insert|delete|upsert)\(/);
+      expect(read(file.replace(`${posix(root)}/`, "")), file).not.toMatch(/\.(update|insert|delete|upsert)\(/);
     }
     // `grep -rn "order_shipments" src/app/dashboard-admin lib/admin` — every hit is a read/comment.
-    const hits = CONSOLE_FILES.filter((file) => read(file.replace(`${root}/`, "")).includes("order_shipments"));
+    const hits = CONSOLE_FILES.filter((file) => read(file.replace(`${posix(root)}/`, "")).includes("order_shipments"));
     expect(hits.length).toBeGreaterThan(0);
   });
 
@@ -258,7 +261,7 @@ describe("T019/T020 — no inventory mutation, no arithmetic on inventory truth,
   it("no console file writes inventory_positions / inventory_reservations / storage_allocations / shipment_items, assigns reserved/available quantities, uses a service role, or caches operational data", () => {
     for (const file of CONSOLE_FILES) {
       // Comments legitimately NAME the forbidden APIs to say they are absent; strip them before matching.
-      const source = read(file.replace(`${root}/`, "")).replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/[^\n]*/gm, "");
+      const source = read(file.replace(`${posix(root)}/`, "")).replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/[^\n]*/gm, "");
       for (const table of ["inventory_positions", "inventory_reservations", "inventory_reservation_items", "storage_allocations", "inventory_ownership_events"]) {
         expect(source, `${file} writes ${table}`).not.toMatch(new RegExp(`from\\("${table}"\\)[\\s\\S]{0,120}?\\.(update|insert|delete|upsert)\\(`));
       }
@@ -282,7 +285,7 @@ describe("T019/T020 — no inventory mutation, no arithmetic on inventory truth,
     expect(inventoryBlock).toContain('onHand: "On hand (gross)"');
     expect(inventoryBlock).not.toMatch(/available to sell|available to trade|Available quantity/i);
     for (const file of WAREHOUSE_FILES) {
-      const source = read(file.replace(`${root}/`, ""));
+      const source = read(file.replace(`${posix(root)}/`, ""));
       expect(source, file).not.toMatch(/DB-BLOCK-07[^.\n]*(unresolved|open|blocked|not yet)/i);
       expect(source, file).not.toMatch(/delivery reservation[^.\n]{0,60}(not (yet )?(implemented|live|exist)|does not exist)/i);
     }
@@ -326,7 +329,7 @@ describe("T019/T020 — no inventory mutation, no arithmetic on inventory truth,
     expect(notice).not.toMatch(/<form|<button|<input|useActionState|"use client"|"use server"|action=/);
     expect(read("src/app/dashboard-admin/(warehouse)/inventory/page.tsx")).toContain("<ReconciliationGapNotice />");
     for (const file of WAREHOUSE_FILES) {
-      const source = read(file.replace(`${root}/`, "")).replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
+      const source = read(file.replace(`${posix(root)}/`, "")).replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
       expect(source, file).not.toMatch(/"(HOLD|QUARANTINE|QUARANTINED|VARIANCE|ON_HOLD|RECONCILED|ADJUSTED)"/);
       expect(source, file).not.toMatch(/\b(adjustInventory|reconcilePosition|recordVariance|quarantine|releaseHold)\s*\(/);
       expect(source, file).not.toMatch(/event_type\s*:\s*["']ADJUSTMENT["']/);

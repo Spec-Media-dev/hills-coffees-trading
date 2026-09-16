@@ -12,7 +12,16 @@ import type { KybApplicationStatus } from "@/lib/kyb/status-types";
 import { ACTION_FEEDBACK, type ActionFeedbackResult } from "@/lib/types/action-feedback";
 import { beginKybReview, recordKybDecision } from "@/src/app/dashboard-admin/(compliance)/kyb/actions";
 
-/** Feature 010 RUN B (T009) — the KYB detail page's decision panel: options + copy + feedback wiring. */
+/**
+ * Feature 010 RUN B (T009) — the KYB detail page's decision panel: options + copy + feedback wiring.
+ * RUN E: the panel receives the server-derived approval readiness (`lib/admin/kyb-readiness.ts`,
+ * computed by the page from persisted rows). While required evidence is missing / awaiting review /
+ * rejected / expired, APPROVED is not offered and the reason is stated; the server re-reads the same
+ * rule inside `decideKybApplication` regardless (`KYB_APPROVAL_BLOCKED`), so this is a courtesy, not
+ * the gate.
+ */
+
+export type KybDecisionReadiness = { approvable: boolean; blockerCount: number };
 
 const DESTRUCTIVE: readonly KybDecision[] = ["REJECTED", "SUSPENDED"];
 
@@ -31,11 +40,14 @@ function applicableDecisions(status: KybApplicationStatus): readonly KybDecision
   }
 }
 
-export function KybDecisionPanel({ applicationId, status }: { applicationId: string; status: KybApplicationStatus }) {
+export function KybDecisionPanel({ applicationId, status, readiness }: { applicationId: string; status: KybApplicationStatus; readiness: KybDecisionReadiness }) {
   const { tApp } = useLocale();
   const copy = tApp.admin.compliance;
   const decisionCopy = copy.kyb.detail.decision;
-  const applicable = applicableDecisions(status);
+  // APPROVED from an under-review state requires every required evidence item to be accepted and
+  // current; re-approving a SUSPENDED (previously approved) application follows the same rule.
+  const approvalBlocked = !readiness.approvable;
+  const applicable = applicableDecisions(status).filter((decision) => !(decision === "APPROVED" && approvalBlocked));
 
   const options: DecisionOption<KybDecision>[] = KYB_DECISIONS.filter((decision) => applicable.includes(decision)).map((decision) => ({
     value: decision,
@@ -56,6 +68,8 @@ export function KybDecisionPanel({ applicationId, status }: { applicationId: str
         return { tone: "error", message: copy.feedback.validationError };
       case ACTION_FEEDBACK.KYB_DECISION_STALE:
         return { tone: "warning", message: copy.feedback.kybDecisionStale };
+      case ACTION_FEEDBACK.KYB_APPROVAL_BLOCKED:
+        return { tone: "error", message: copy.feedback.kybApprovalBlocked };
       case ACTION_FEEDBACK.COMPLIANCE_NOT_CAPABLE:
         return { tone: "error", message: copy.feedback.complianceNotCapable };
       case ACTION_FEEDBACK.PROFILE_AUTH_REQUIRED:
@@ -65,6 +79,12 @@ export function KybDecisionPanel({ applicationId, status }: { applicationId: str
     }
   };
 
+  const blockedHint = approvalBlocked && applicableDecisions(status).includes("APPROVED") ? (
+    <p data-approval-blocked={readiness.blockerCount} className="rounded-[var(--radius-md)] border border-[var(--status-pending)] bg-[var(--status-pending-surface)] px-4 py-3 text-[length:var(--text-small)] leading-[var(--lh-body)] text-foreground">
+      {decisionCopy.blockedHint.replace("{count}", String(readiness.blockerCount))}
+    </p>
+  ) : null;
+
   const followThroughText = (value: OrganizationFollowThrough) => decisionCopy.followThrough[value === "not-required" ? "notRequired" : value];
 
   if (options.length === 0) {
@@ -72,6 +92,7 @@ export function KybDecisionPanel({ applicationId, status }: { applicationId: str
       <section className="rounded-[var(--radius-lg)] border border-dashed border-border bg-[var(--surface-subtle)] p-5" data-decision-form="decision" data-decision-state="not-decidable">
         <h2 className="font-heading text-[length:var(--text-h4)] font-semibold text-foreground">{decisionCopy.heading}</h2>
         <p className="mt-1 text-[length:var(--text-small)] text-muted-foreground">{decisionCopy.notDecidable.replace("{status}", copy.statuses.kyb[status])}</p>
+        {blockedHint}
       </section>
     );
   }
@@ -79,6 +100,7 @@ export function KybDecisionPanel({ applicationId, status }: { applicationId: str
   return (
     <div className="flex flex-col gap-4">
       {status === "SUBMITTED" ? <StartReviewButton applicationId={applicationId} /> : null}
+      {blockedHint}
       <DecisionForm<KybDecision, KybDecisionOutcome>
         hiddenFields={{ applicationId }}
         decisionFieldName="decision"

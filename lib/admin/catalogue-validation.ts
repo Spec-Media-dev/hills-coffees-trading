@@ -65,7 +65,6 @@ const description = z
   .optional()
   .transform((value) => (value && value.length > 0 ? value : null));
 /** ISO 3166-1 alpha-2, upper-cased — the `character(2)` columns' shape. */
-const countryCode = z.string().trim().toUpperCase().regex(/^[A-Z]{2}$/, "COUNTRY_CODE_INVALID");
 const optionalCountryCode = z
   .string()
   .trim()
@@ -140,7 +139,8 @@ const checkbox = z.union([z.literal("on"), z.literal("true"), z.literal("false")
 export const WarehouseFieldsInput = z.object({
   code: warehouseCode,
   name,
-  countryCode,
+  /** Nullable in the approved schema (`warehouses.country_code`), like origins/regions. */
+  countryCode: optionalCountryCode,
   city: z
     .string()
     .trim()
@@ -153,7 +153,8 @@ export const WarehouseFieldsInput = z.object({
     .max(500, "ADDRESS_TOO_LONG")
     .optional()
     .transform((value) => (value && value.length > 0 ? value : null)),
-  ownerOrganizationId: optionalUuid,
+  /** `warehouses.owner_organization_id` is NOT NULL in the approved schema — every warehouse has an owner organization. */
+  ownerOrganizationId: uuid,
   isActive: checkbox,
 });
 export type WarehouseFieldsInput = z.infer<typeof WarehouseFieldsInput>;

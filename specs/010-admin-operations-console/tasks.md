@@ -3,7 +3,80 @@
 **Input**: [spec.md](./spec.md), [plan.md](./plan.md), `docs/architecture/DATABASE-CAPABILITY-MAP.md`,
 `.specify/memory/constitution.md` (v2.0.0), SRS §14 (OPS-01, OPS-02), §3.1, §13.5.
 
-**Status**: **RUN D complete (2026-09-16) — Phase 6 T016–T020 RECORDED; 16 / 48.** RUN D built the
+**Status**: **RUN E complete (2026-09-16) — Phases 7–8 T021–T026 RECORDED; 22 / 48.** The RUN E WIP
+checkpoint (`9afaecb`, interrupted mid-implementation on another machine) was audited file-by-file
+on a second machine, its defects fixed, the missing KYB reviewer wiring finished, and everything
+then LIVE- and BROWSER-proven. **Defects inherited from the WIP and fixed:** (1) all five catalogue
+CREATE pages handed the client `RecordForm` a FUNCTION prop (`successHref={(id) => …}` — the RUN B
+runtime-crash class) → serialisable `successHrefTemplate`; (2) the KYB reviewer UI was NOT wired
+(copy/helpers only) → `recordKybDocumentOutcome` action, `KybDocumentReviewPanel`
+(ACCEPTED/REJECTED through `create_kyb_review`, reason required on rejection, bytes-not-opened
+warning), review-progress summary (counts/blockers/next action from `evaluateKybApprovalReadiness`
+on persisted rows), version/replacement/superseded statements, "View document" only when THIS role
+can locate the file record, decision panel drops APPROVED while blocked and maps
+`KYB_APPROVAL_BLOCKED`; (3) the document byte route was left mid-edit on its CSP → completed
+(`default-src 'none'; frame-ancestors 'self'; form-action 'none'; base-uri 'none'`, nosniff,
+no-referrer, same-origin CORP, X-Frame-Options, private no-store, empty 404 on every refusal; no
+`sandbox`, which breaks Chrome's PDF viewer); (4) `warehouses.owner_organization_id` is NOT NULL
+in the approved schema but the WIP contract had it optional (a create without owner would have been
+a 23502 → generic failure) → required; (5) `warehouses.country_code` is NULLABLE but the WIP read
+did `.trim()` on it unguarded → the warehouses list rendered "Could not load this view" for a real
+row (caught by the browser proof) → nullable end-to-end; (6) useless regex escape in
+`kyb-documents.ts`; (7) the RUN E proof coffee (`…0044`) had never been seeded and no media record
+existed → `--reset-run-e-catalogue-fixture` is an idempotent upsert of the proof coffee + ONE
+metadata-only `file_assets`/`coffee_media` record (`…0045`/`…0046`, no bytes, no bucket claimed);
+(8) the disposable catalogue-ADMIN and AUDITOR fixtures had been left ACTIVE by the interrupted
+session → de-privileged; (9) RUN D's `warehouse-operations.test.ts` used POSIX-only paths (scanned
+zero files / ENOENT on Windows) → normalised (18/18, now really scanning). **Environment blocker
+resolved on this machine (no reseed):** the shared `TEST_FIXTURE_PASSWORD` had been rotated on the
+unavailable machine; the 12 standing `+foundation-test` Auth users were re-pointed at this
+machine's `.env.local` value through a one-off, password-only `auth.admin.updateUserById` script
+(deleted afterwards) — no table, schema, policy or business row touched; `npm run test:seed` NOT
+run. **Evidence:** `tests/admin/run-e-static.test.tsx` (25 green), `tests/admin/run-e-live.test.tsx`
+(13 green with REAL sessions: disposable ADMIN creates/edits/publishes/unpublishes/archives/
+restores; WAREHOUSE/FINANCE/COMPLIANCE/AUDITOR/member/anonymous refused by action AND by URL;
+publish → Feature 002 public read returns the coffee and the anonymous RLS read sees it, second
+publish STALE, unpublish → null; exact tags `public-coffees` + `public-coffee:<slug>` with
+`{ expire: 0 }`; region → origin (bad status refused, INACTIVE not public, ACTIVE public,
+self-parent refused) → tag → warehouse + location → deactivated warehouse hidden from member reads;
+media record set primary / reordered on a real row, FINANCE refused; AUDITOR reads listings +
+positions, refused by `decideListing`/`decideKybApplication`/`transitionCoffee` and a direct
+`coffee_offers` write affects zero rows, audit pages render zero mutation controls, `audit_logs`
+live zero-row read → DB-OPEN-06 statement, member/anonymous refused; KYB: missing evidence blocks
+APPROVED with no status change/no review row, staged PENDING/REJECTED/EXPIRED TRADE_LICENSE each
+block APPROVED and the page shows the same blocker while APPROVED is not offered, ACCEPTED current
+evidence → APPROVED recorded; rejection without reason = field error, already-ACCEPTED document =
+STALE with no ledger write, a staged PENDING document ACCEPTED through `create_kyb_review` with the
+reviewer's identity appended and prior rows intact, FINANCE refused; COMPLIANCE `unlocatable` →
+empty 404, FINANCE `forbidden` → empty 404, page shows the gap statement and no View link) and
+`tests/browser/feature010-rune.browser.mjs` (real Chrome + axe: 70 surfaces = 14 pages × EN/AR ×
+light/dark × 390/1366/1920, ZERO axe violations, one <main>, no overflow, no raw error; FINANCE
+refused by direct URL on 7 catalogue/audit routes; inline validation on the exact field; publication
+confirmation cancelled with no write; keyboard focus ring `solid 2px`; AUDITOR pages 0 mutation
+controls; KYB detail readiness summary + 5 gap statements + 0 View links for pure COMPLIANCE;
+**public-cache round trip against the running server: 404 → publish → 200 → unpublish → 404**).
+All three disposable fixtures de-privileged after every run (`activeCapability: false`). **KYB
+REVIEWABILITY GAP (unchanged, restated from the CURRENT policy set):** `kyb_documents` is readable by
+COMPLIANCE and ADMIN; the bytes' location is `file_assets.object_path`, whose only policy
+(`catalog_admin_files`: `is_platform_admin() OR uploaded_by = auth.uid() OR is_org_member(...)`)
+excludes a pure COMPLIANCE role, while `storage.objects` (`kyb_storage_object_authorized`) would
+admit it — so a platform ADMIN can locate and stream a file, a pure COMPLIANCE operator cannot
+(live-proven: `readKybDocumentFile` → `unlocatable` → empty 404; the page shows the gap statement,
+never a broken View button). Final KYB decisions REMAIN possible for COMPLIANCE while bytes are
+inaccessible (the panel warns the reviewer to record an outcome only if the evidence was reviewed
+through another approved channel). Minimum safe option (NOT applied — no policy change in this
+run): a SELECT-only policy on `file_assets` for `is_compliance_operator()` scoped to rows referenced
+by `kyb_documents.file_asset_id` (or a SECURITY DEFINER read model returning bucket/path for a
+`kyb_documents.id` under the same guard). **REJECTED vs RESUBMISSION_REQUIRED:** the current domain
+contract defines only the transitions and the reason requirement; no further business criterion
+separates them — recorded as a business decision gap (the panel copy says so; nothing inferred).
+**T025 note:** the "BLOCKED — 012 audit/history domain layer absent" prefix is superseded for the
+read-only views (composed from auditor-readable listings/status-history/custody reads); no unified
+timeline and no Feature 012 substitute was built. **T026 closed on its honest-gap branch:** DB-OPEN-06
+stays open (`audit_admin_read = is_platform_admin()` only, re-checked). Test-only seed helpers added:
+`--cleanup-run-e-created-rows`, `--stage-complete-draft-document=PENDING|REJECTED|EXPIRED|ACCEPTED`
+(restored by `--reset-complete-draft-application`).
+**RUN D complete (2026-09-16) — Phase 6 T016–T020 RECORDED; 16 / 48.** RUN D built the
 Warehouse console as a pure orchestration layer: `lib/admin/warehouse.ts` (queues over Feature 009's
 `getShipmentsForWarehouseQueue`; an operation map pinned byte-for-byte to `lib/delivery/warehouse.ts`'s
 own `fromStatuses`/targets and to `SHIPMENT_TRANSITIONS`; `executeWarehouseOperation` /
@@ -624,29 +697,62 @@ scope has no owning task (flagged for RUN B planning, not silently added).
 
 ## Phase 7 — Catalogue management
 
-- [ ] T021 [PS6] Implement coffee management (create/edit/publish/unpublish) with
+- [x] T021 [PS6] Implement coffee management (create/edit/publish/unpublish) with
   `is_platform_admin()` enforcement.
   - Req: FR-002, PS6 | Depends: T004
   - Verify: non-admin roles refused; status transitions respect `coffees_status_check`
+  - RUN E continuation (2026-09-16): implemented (list/create/edit + the four named operations
+    publish/unpublish/archive/restore, compare-and-set, DRAFT-only create, no status field on the
+    form, no delete path, `is_platform_admin()` re-verified per write and per page). Static proof
+    GREEN (`run-e-static`: vocabulary = `coffees_status_check`, non-admin refusal path, no generic
+    setter). LIVE proof (disposable ADMIN allowed; WAREHOUSE/FINANCE/COMPLIANCE/AUDITOR/member/
+    anonymous refused by action and URL; create/edit/publish/unpublish against real rows) is written
+    in `run-e-live.test.tsx` — EXECUTED 2026-09-16, green (13/13) after the fixture-password rotation; browser
+    proof green. **RECORDED.**
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — Medium
   - Why: CRUD over an admin-scoped table.
 
-- [ ] T022 [P] [PS6] Implement origin, region, taxonomy and warehouse management surfaces.
+- [x] T022 [P] [PS6] Implement origin, region, taxonomy and warehouse management surfaces.
   - Req: FR-002, PS6 | Depends: T004
   - Verify: each respects its status vocabulary; non-admin refused
+  - RUN E continuation (2026-09-16): origins (ACTIVE/INACTIVE/ARCHIVED = `origins_status_check`),
+    regions (no status), taxonomy (five explicit kinds → fixed tables, varieties bound to a coffee
+    type, no generic table editor), warehouses (code/name/country/city/address/owner/is_active —
+    reference fields only, no inventory/custody/shipment write) + named locations. Static proof
+    GREEN; live proof EXECUTED green (region/origin/tag/warehouse+location created, edited, attributed;
+    bad origin status refused; owner NOT NULL and nullable country_code corrected from the schema).
+    **RECORDED.**
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — Medium
   - Why: repetitive CRUD across several small tables.
 
-- [ ] T023 [PS6] Implement `lib/admin/catalogue.ts` — every catalogue mutation revalidates the
+- [x] T023 [PS6] Implement `lib/admin/catalogue.ts` — every catalogue mutation revalidates the
   corresponding 002 public cache tag.
   - Req: FR-007, SC-005 | Depends: T021, T022
   - Verify: publishing a coffee makes it publicly visible after revalidation; unpublishing 404s it
+  - RUN E continuation (2026-09-16): `lib/admin/catalogue.ts` re-verified against CURRENT Feature
+    002 — `lib/public/cache.ts` tags reused verbatim (`public-coffees`, `public-coffee:<slug>`,
+    `public-origins`, `public-origin:<slug>`, `public-taxonomy`), `revalidateTag(tag, { expire: 0 })`
+    (Feature 001's pinned call), old AND new slug on rename, no `revalidatePath` of any public
+    route, warehouses revalidate nothing public; `lib/public/coffees.ts` still caches with exactly
+    those tags and filters `status = PUBLISHED`. Static proof GREEN. The END-TO-END proof this Verify
+    requires (publish through the console → public route 404→200; unpublish → 404, against a
+    running server, plus the anonymous RLS read and `__fetchCoffeeDetailUncached`) is written in
+    `run-e-live.test.tsx` + `feature010-rune.browser.mjs` — EXECUTED: unit (public read null → coffee →
+    null, anonymous RLS read, exact tags) and REAL server round trip 404 → 200 → 404. **RECORDED.**
   - Codex: GPT-5.6 Sol — High · Claude: Sonnet — High
   - Why: the one place the console touches the public surface; a missed tag leaves the public site stale.
 
-- [ ] T024 [P] Implement media management for published content (subject to DB-BLOCK-01 for uploads).
+- [x] T024 [P] Implement media management for published content (subject to DB-BLOCK-01 for uploads).
   - Req: FR-017 | Depends: T021
   - Verify: media records manageable; upload path remains inert with an honest explanation
+  - RUN E continuation (2026-09-16): `coffee_media` records readable per coffee and across the
+    catalogue; primary flag + sort order manageable (no insert, no delete, `file_assets` never
+    written); `CATALOGUE_MEDIA_UPLOAD_AVAILABLE = false` — the only Storage bucket in the approved
+    schema is the private `kyb-evidence` one, no catalogue bucket/policy/seam exists (DB-BLOCK-01 for
+    public media); the panel states this with no file input and no fake success. No avatar/logo/
+    favicon/branding (T047 + account-avatar gap remain separate). Static proof GREEN; live proof
+    EXECUTED on the seeded metadata-only record (set primary, reorder, FINANCE refused, missing
+    record NOT_FOUND, page shows the upload gap with no file input). **RECORDED.**
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — Medium
   - Why: bounded surface with a known blocked seam.
 
@@ -654,18 +760,35 @@ scope has no owning task (flagged for RUN B planning, not silently added).
 
 ## Phase 8 — Audit area
 
-- [ ] T025 [PS7] **BLOCKED — 012 audit/history domain layer absent.** Implement read-only auditor views
+- [x] T025 [PS7] **RUN E: read-only views CLOSED without a 012 layer (see status).** Implement read-only auditor views
   by composing that layer with dedicated read-only components (no disabled buttons — the affordance
   never exists).
   - Req: FR-009, SC-007, PS7 | Depends: T004
   - Verify: auditor fixture sees data with zero mutation controls; every mutation attempt is refused
+  - RUN E continuation (2026-09-16): the blocker note above is superseded for the READ-ONLY views
+    (no Feature 012 substitute was built — no unified timeline, no dispute/history logic):
+    `lib/admin/audit.ts` composes only auditor-readable reads (`coffee_offers`,
+    `listing_status_history`, `inventory_positions`, `storage_allocations` — verified against the
+    schema report's `is_auditor()` branches) through the existing RUN B/RUN D read functions;
+    `(audit)/audit` + `audit/listings/[offerId]` import no Server Action, no decision/record form,
+    no mutation hook (test-pinned); `audit` area is `live` on `is_auditor`. Static proof GREEN.
+    The Verify's AUDITOR-fixture proof (reads succeed; direct `decideListing`/`decideKybApplication`/
+    `transitionCoffee` refused; direct table write affects zero rows; member/anonymous refused) EXECUTED
+    green; browser: 3 audit surfaces × 5 appearances with 0 mutation controls. **RECORDED.**
   - Codex: GPT-5.6 Sol — High · Claude: Opus — High
   - Why: "read-only by construction" is a stronger guarantee than "disabled in the UI" and must be built that way.
 
-- [ ] T026 [PS7] Handle `audit_logs` access honestly per DB-OPEN-06 (auditors may be unable to read
+- [x] T026 [PS7] Handle `audit_logs` access honestly per DB-OPEN-06 (auditors may be unable to read
   it) — explain rather than error.
   - Req: FR-017, spec Open items | Depends: T025
   - Verify: with an auditor fixture, the audit-log area explains the limitation and cites the open item
+  - RUN E continuation (2026-09-16): DB-OPEN-06 re-checked against the CURRENT schema report —
+    `audit_logs` has exactly one policy, `audit_admin_read` = `is_platform_admin()`; no auditor
+    branch → still OPEN, no policy change made. `probeAuditLog` reads under the caller's own session
+    (zero rows / permission error → the honest gap; no service role); `AuditLogPanel` renders the
+    DB-OPEN-06 statement (`data-capability-gap="db-open-06"`) with no raw RLS/Postgres text —
+    render-proven statically AND live with the AUDITOR fixture (zero-row `audit_logs` read → the
+    DB-OPEN-06 statement, no raw policy text) and in Chrome. **RECORDED on the honest-gap branch.**
   - Codex: GPT-5.6 Sol — Medium · Claude: Opus — Medium
   - Why: honest capability reporting on a policy gap the SRS expects to be closed.
 

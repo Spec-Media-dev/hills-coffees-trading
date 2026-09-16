@@ -65,6 +65,8 @@ export const FOUNDATION_FIXTURES = {
 export const RUN_E_CATALOGUE_FIXTURES = {
   proofCoffeeId: "f0000000-0000-4000-8000-000000000044",
   proofCoffeeSlug: "public-test-coffee-run-e-proof",
+  /** T024 — the ONE metadata-only media record on the proof coffee (restored to sort 0 / not primary by the reset). */
+  proofMediaId: "f0000000-0000-4000-8000-000000000046",
   /** Feature 002's own fixed reference rows the proof coffee links to. */
   originActiveId: "f0000000-0000-4000-8000-000000000031",
   coffeeTypeId: "f0000000-0000-4000-8000-000000000022",
@@ -490,6 +492,24 @@ export function inspectAuditorFixture(): Record<string, unknown> {
 export function resetRunECatalogueFixture(): void {
   runFixtureScript(["--reset-run-e-catalogue-fixture"]);
 }
+
+/** Feature 010 RUN E (T021/T022) — the fixed slugs/codes the live suite creates through the console, and their removal. */
+export const RUN_E_CREATED_ROWS = {
+  coffeeSlug: "run-e-created-coffee-proof",
+  originSlug: "run-e-origin-proof",
+  regionSlug: "run-e-region-proof",
+  tagSlug: "run-e-tag-proof",
+  warehouseCode: "RUN-E-PROOF",
+} as const;
+export function cleanupRunECreatedRows(): Record<string, unknown> {
+  return runJsonFixtureCommand("--cleanup-run-e-created-rows");
+}
+
+/** Feature 010 RUN E (KYB coherence) — stages the complete-draft TRADE_LICENSE document (restored by `resetCompleteDraftApplication`). */
+export function stageCompleteDraftDocument(mode: "PENDING" | "REJECTED" | "EXPIRED" | "ACCEPTED"): Record<string, unknown> {
+  return runJsonFixtureCommand(`--stage-complete-draft-document=${mode}`);
+}
+export const COMPLETE_DRAFT_TRADE_LICENSE_DOCUMENT_ID = "f0000000-0000-4000-8000-000000000091";
 
 /** Feature 010 RUN B (T010) — restores the `suspended` fixture (organization SUSPENDED, application APPROVED). */
 export function resetSuspendedFixture(): void {

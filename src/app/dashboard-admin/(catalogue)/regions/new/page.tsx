@@ -13,7 +13,7 @@ export default async function NewRegionPage() {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader title={<AppBilingual pick={(c) => c.admin.catalogue.regions.form.createTitle} />} trail={[{ label: <AppBilingual pick={(c) => c.overview} />, href: "/dashboard-admin" }, { label: <AppBilingual pick={(c) => c.admin.catalogue.regions.breadcrumb} />, href: "/dashboard-admin/regions" }, { label: <AppBilingual pick={(c) => c.admin.catalogue.regions.form.createTitle} /> }]} />
-      <RecordForm resource="regions" mode="create" formKey="region" fields={regionFields(null)} hiddenFields={{}} action={saveRegion} successHref={(id) => `/dashboard-admin/regions/${id}`} />
+      <RecordForm resource="regions" mode="create" formKey="region" fields={regionFields(null)} hiddenFields={{}} action={saveRegion} successHrefTemplate="/dashboard-admin/regions/{id}" />
     </div>
   );
 }

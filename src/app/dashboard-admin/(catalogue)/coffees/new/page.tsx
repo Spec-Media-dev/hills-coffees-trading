@@ -22,7 +22,7 @@ export default async function NewCoffeePage() {
           { label: <AppBilingual pick={(c) => c.admin.catalogue.coffees.form.createTitle} /> },
         ]}
       />
-      <RecordForm resource="coffees" mode="create" formKey="coffee" fields={coffeeFields(options, null)} hiddenFields={{}} action={saveCoffee} successHref={(id) => `/dashboard-admin/coffees/${id}`} />
+      <RecordForm resource="coffees" mode="create" formKey="coffee" fields={coffeeFields(options, null)} hiddenFields={{}} action={saveCoffee} successHrefTemplate="/dashboard-admin/coffees/{id}" />
     </div>
   );
 }

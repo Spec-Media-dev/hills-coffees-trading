@@ -48,6 +48,6 @@ export async function readKybDocumentFile({ applicationId, documentId }: { appli
 
 /** RFC 5987 filename parameter — never lets a stored name break the header. */
 export function contentDispositionInline(fileName: string): string {
-  const ascii = fileName.replace(/[^\x20-\x7E]/g, "_").replace(/["\;]/g, "_").slice(0, 120) || "document";
+  const ascii = fileName.replace(/[^\x20-\x7E]/g, "_").replace(/[";]/g, "_").slice(0, 120) || "document";
   return `inline; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(fileName.slice(0, 120))}`;
 }

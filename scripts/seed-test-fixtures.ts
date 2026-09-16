@@ -309,6 +309,9 @@ const CATALOGUE_IDS = {
   coffeeArchived: "f0000000-0000-4000-8000-000000000043",
   /** Feature 010 RUN E (T023) — the ONE coffee the admin console may publish/unpublish in a live proof. */
   coffeeRunEProof: "f0000000-0000-4000-8000-000000000044",
+  /** Feature 010 RUN E (T024) — ONE metadata-only media record on the proof coffee (no bytes, no bucket exists). */
+  coffeeRunEProofFileAsset: "f0000000-0000-4000-8000-000000000045",
+  coffeeRunEProofMedia: "f0000000-0000-4000-8000-000000000046",
   certification: "f0000000-0000-4000-8000-000000000051",
 } as const;
 
@@ -552,7 +555,9 @@ async function teardownCatalogue(admin: SupabaseClient): Promise<void> {
   // Children first, then the rows they reference.
   await deleteByIds("coffee_certifications", "id", [CATALOGUE_IDS.certification]);
   await deleteByIds("coffee_tags", "coffee_id", coffeeIds);
+  await deleteByIds("coffee_media", "id", [CATALOGUE_IDS.coffeeRunEProofMedia]);
   await deleteByIds("coffees", "id", coffeeIds);
+  await deleteByIds("file_assets", "id", [CATALOGUE_IDS.coffeeRunEProofFileAsset]);
   await deleteByIds("origins", "id", originIds);
   await deleteByIds("tags", "id", [CATALOGUE_IDS.tag]);
   await deleteByIds("packaging_types", "id", [CATALOGUE_IDS.packagingType]);
@@ -1094,6 +1099,11 @@ async function resetCompleteDraftApplication(admin: SupabaseClient): Promise<voi
 
   if (error) throw new SafeFixtureError("fixture application reset failed.");
   if (!data) throw new Error("complete-draft fixture is missing; run npm run test:seed first");
+
+  // Feature 010 RUN E: a live test may have staged one required document (see
+  // `stageCompleteDraftDocument`); restore its canonical ACCEPTED / no-expiry state.
+  const { error: documentError } = await admin.from("kyb_documents").update({ status: "ACCEPTED", expires_at: null }).eq("id", COMPLETE_DRAFT_DOCUMENT_IDS.TRADE_LICENSE.documentId).neq("status", "SUPERSEDED");
+  if (documentError) throw new SafeFixtureError("fixture document reset failed.");
 
   const { error: organizationError } = await admin
     .from("organizations")
@@ -3012,10 +3022,85 @@ async function cleanupDisposableOperatorFixture(admin: SupabaseClient, fixture: 
  * fixture. Test-only service-role restore, the same convention as `--reset-listing-review-fixtures`.
  */
 async function resetRunECatalogueFixture(admin: SupabaseClient): Promise<void> {
-  const { data, error } = await admin.from("coffees").update({ status: "DRAFT" }).eq("id", CATALOGUE_IDS.coffeeRunEProof).select("id").maybeSingle();
+  // Idempotent: (re)creates the fixed-id row when absent (the full `seedCatalogue` also writes it) and
+  // resets it to DRAFT otherwise — the row's content is a constant, so an upsert IS the reset.
+  const { data, error } = await admin
+    .from("coffees")
+    .upsert(
+      {
+        id: CATALOGUE_IDS.coffeeRunEProof,
+        origin_id: CATALOGUE_IDS.originActive,
+        coffee_type_id: CATALOGUE_IDS.coffeeType,
+        name: "Public Test Coffee — Run E Proof",
+        slug: CATALOGUE_SLUGS.coffeeRunEProof,
+        description: "Feature 010 RUN E publish/unpublish proof coffee. Safe to publish transiently.",
+        status: "DRAFT",
+      },
+      { onConflict: "id" },
+    )
+    .select("id")
+    .maybeSingle();
   if (error) throw new SafeFixtureError("RUN E catalogue fixture reset failed.");
-  if (!data) throw new Error("RUN E proof coffee fixture is missing; run npm run test:seed first");
-  console.log(JSON.stringify({ coffeeId: CATALOGUE_IDS.coffeeRunEProof, slug: CATALOGUE_SLUGS.coffeeRunEProof, status: "DRAFT" }));
+  if (!data) throw new Error("RUN E proof coffee fixture could not be written; run npm run test:seed first (Feature 002 origin/type rows are required)");
+  // T024: one metadata-only media record (same convention as the Phase 8/9 `file_assets` rows — no
+  // Storage object exists behind it; no catalogue bucket exists at all) so the console's record
+  // management (primary flag, sort order) has a REAL row to act on; canonical state restored here.
+  const { error: fileAssetError } = await admin
+    .from("file_assets")
+    .upsert({ id: CATALOGUE_IDS.coffeeRunEProofFileAsset, bucket_name: "catalogue-media-fixture-no-bucket", object_path: "fixtures/run-e/proof-media.jpg", original_name: "run-e-proof-media.jpg", mime_type: "image/jpeg", size_bytes: 2048, is_private: false }, { onConflict: "id" });
+  if (fileAssetError) throw new SafeFixtureError("RUN E media fixture (file_assets) reset failed.");
+  const { error: mediaError } = await admin
+    .from("coffee_media")
+    .upsert({ id: CATALOGUE_IDS.coffeeRunEProofMedia, coffee_id: CATALOGUE_IDS.coffeeRunEProof, file_asset_id: CATALOGUE_IDS.coffeeRunEProofFileAsset, sort_order: 0, is_primary: false }, { onConflict: "id" });
+  if (mediaError) throw new SafeFixtureError("RUN E media fixture (coffee_media) reset failed.");
+  console.log(JSON.stringify({ coffeeId: CATALOGUE_IDS.coffeeRunEProof, slug: CATALOGUE_SLUGS.coffeeRunEProof, status: "DRAFT", mediaId: CATALOGUE_IDS.coffeeRunEProofMedia }));
+}
+
+/**
+ * Feature 010 RUN E (T021/T022) — the ONLY rows the RUN E live suite CREATES through the console's
+ * own `create*` functions carry these fixed slugs/codes; this removes exactly those rows again
+ * (test-only service-role delete of test-created reference rows — the console itself has no delete
+ * path, by design). Nothing seeded by Feature 002 is touched.
+ */
+const RUN_E_CREATED_ROWS = {
+  coffeeSlug: "run-e-created-coffee-proof",
+  originSlug: "run-e-origin-proof",
+  regionSlug: "run-e-region-proof",
+  tagSlug: "run-e-tag-proof",
+  warehouseCode: "RUN-E-PROOF",
+} as const;
+
+async function cleanupRunECreatedRows(admin: SupabaseClient): Promise<void> {
+  const removed: Record<string, number> = {};
+  const count = async (label: string, promise: PromiseLike<{ data: { id: string }[] | null; error: unknown }>) => {
+    const { data, error } = await promise;
+    if (error) throw new SafeFixtureError(`RUN E created-row cleanup failed (${label}).`);
+    removed[label] = data?.length ?? 0;
+  };
+  await count("coffees", admin.from("coffees").delete().eq("slug", RUN_E_CREATED_ROWS.coffeeSlug).select("id"));
+  const { data: warehouses } = await admin.from("warehouses").select("id").eq("code", RUN_E_CREATED_ROWS.warehouseCode);
+  for (const warehouse of warehouses ?? []) await count("warehouse_locations", admin.from("warehouse_locations").delete().eq("warehouse_id", warehouse.id).select("id"));
+  await count("warehouses", admin.from("warehouses").delete().eq("code", RUN_E_CREATED_ROWS.warehouseCode).select("id"));
+  await count("origins", admin.from("origins").delete().eq("slug", RUN_E_CREATED_ROWS.originSlug).select("id"));
+  await count("regions", admin.from("regions").delete().eq("slug", RUN_E_CREATED_ROWS.regionSlug).select("id"));
+  await count("tags", admin.from("tags").delete().eq("slug", RUN_E_CREATED_ROWS.tagSlug).select("id"));
+  console.log(JSON.stringify({ removed }));
+}
+
+/**
+ * Feature 010 RUN E (KYB review coherence) — stages `completeDraft`'s TRADE_LICENSE document into a
+ * given persisted state so the live suite can prove the server-side approval gate against a REAL
+ * row (PENDING / REJECTED / an expired ACCEPTED document). `kyb_documents` has no RLS-granted update
+ * path for anyone (Feature 003 REVIEW FIX #2), so only this privileged script can stage it; the
+ * canonical state (`ACCEPTED`, no expiry) is restored by `--reset-complete-draft-application`.
+ * The append-only `kyb_review_items` ledger is never touched.
+ */
+async function stageCompleteDraftDocument(admin: SupabaseClient, mode: "PENDING" | "REJECTED" | "EXPIRED" | "ACCEPTED"): Promise<void> {
+  const patch = mode === "EXPIRED" ? { status: "ACCEPTED", expires_at: "2020-01-01" } : { status: mode, expires_at: null };
+  const { data, error } = await admin.from("kyb_documents").update(patch).eq("id", COMPLETE_DRAFT_DOCUMENT_IDS.TRADE_LICENSE.documentId).select("id, status, expires_at").maybeSingle();
+  if (error) throw new SafeFixtureError("fixture document staging failed.");
+  if (!data) throw new Error("complete-draft TRADE_LICENSE fixture document is missing; run npm run test:seed first");
+  console.log(JSON.stringify({ documentId: data.id, status: data.status, expiresAt: data.expires_at }));
 }
 
 /** Read-only: the disposable operator fixture's current capability state (for post-cleanup proof). */
@@ -3460,6 +3545,17 @@ async function main(): Promise<void> {
   }
   if (process.argv.includes("--reset-run-e-catalogue-fixture")) {
     await resetRunECatalogueFixture(admin);
+    return;
+  }
+  if (process.argv.includes("--cleanup-run-e-created-rows")) {
+    await cleanupRunECreatedRows(admin);
+    return;
+  }
+  const stageDocument = process.argv.find((argument) => argument.startsWith("--stage-complete-draft-document="));
+  if (stageDocument) {
+    const mode = stageDocument.split("=")[1];
+    if (mode !== "PENDING" && mode !== "REJECTED" && mode !== "EXPIRED" && mode !== "ACCEPTED") throw new Error("--stage-complete-draft-document expects PENDING | REJECTED | EXPIRED | ACCEPTED");
+    await stageCompleteDraftDocument(admin, mode);
     return;
   }
 

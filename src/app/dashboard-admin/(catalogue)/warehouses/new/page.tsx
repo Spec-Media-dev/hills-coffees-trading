@@ -15,7 +15,7 @@ export default async function NewWarehousePage() {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader title={<AppBilingual pick={(c) => c.admin.catalogue.warehouses.form.createTitle} />} trail={[{ label: <AppBilingual pick={(c) => c.overview} />, href: "/dashboard-admin" }, { label: <AppBilingual pick={(c) => c.admin.catalogue.warehouses.breadcrumb} />, href: "/dashboard-admin/warehouses" }, { label: <AppBilingual pick={(c) => c.admin.catalogue.warehouses.form.createTitle} /> }]} />
-      <RecordForm resource="warehouses" mode="create" formKey="warehouse" fields={warehouseFields(null, organizations)} hiddenFields={{}} action={saveWarehouse} successHref={(id) => `/dashboard-admin/warehouses/${id}`} />
+      <RecordForm resource="warehouses" mode="create" formKey="warehouse" fields={warehouseFields(null, organizations)} hiddenFields={{}} action={saveWarehouse} successHrefTemplate="/dashboard-admin/warehouses/{id}" />
     </div>
   );
 }

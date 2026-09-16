@@ -3,13 +3,15 @@ import type { ReactNode } from "react";
 import { AdminAccessDenied } from "@/components/admin/access-denied";
 import { AdminDateTime } from "@/components/admin/compliance/date-time";
 import { KybDecisionPanel } from "@/components/admin/compliance/kyb-decision-panel";
+import { KybDocumentReviewPanel } from "@/components/admin/compliance/kyb-document-review-panel";
 import { AdminStatusBadge, DOCUMENT_STATUS_TONE, KYB_STATUS_TONE, ORGANIZATION_STATUS_TONE } from "@/components/admin/compliance/status-badge";
 import { AdminStateCard } from "@/components/admin/state-card";
 import { PageHeader } from "@/components/app/page-header";
 import { AppBilingual, type AppCopySelector } from "@/components/locale/app-bilingual";
 import { getKybApplicationDetail } from "@/lib/admin/compliance";
 import { checkAreaAccess } from "@/lib/admin/guards";
-import type { KybDocumentType } from "@/lib/validation/kyb-application";
+import { evaluateKybApprovalReadiness, KYB_DOCUMENT_REVIEWABLE_APPLICATION_STATUSES, type KybRequiredEvidenceState } from "@/lib/admin/kyb-readiness";
+import { KYB_DOCUMENT_TYPES, type KybDocumentType } from "@/lib/validation/kyb-application";
 
 /**
  * Feature 010 RUN B (T008/T009) — the reviewer-facing KYB application detail: identity, status,
@@ -17,8 +19,14 @@ import type { KybDocumentType } from "@/lib/validation/kyb-application";
  * application-level and document-level review history, organization status history, and the
  * decision panel. Everything rendered is a persisted record read under the operator's own session;
  * unreadable data for this role is STATED (organization row, file metadata, status history — the
- * recorded policy gaps), never fabricated. No download control is rendered because document bytes
- * cannot be opened from this console today (see `lib/admin/compliance.ts`).
+ * recorded policy gaps), never fabricated.
+ *
+ * RUN E (reviewer coherence): the page now derives the approval-readiness summary from the same pure
+ * rule the server enforces (`lib/admin/kyb-readiness.ts`), shows each current document's version /
+ * replacement lineage and review state, offers the document-outcome control only for a current
+ * `PENDING` document of an application still under review, links "View document" only when the file
+ * record that locates the bytes is readable by THIS role (a platform admin — a pure COMPLIANCE role
+ * cannot read `file_assets`; recorded gap), and tells the reviewer what to do next.
  */
 
 const DOCUMENT_TYPE_KEYS: readonly KybDocumentType[] = ["TRADE_LICENSE", "PROOF_OF_INCORPORATION", "AUTHORIZED_SIGNATORY_ID", "UBO_DECLARATION", "BANKING_EVIDENCE"];
@@ -66,6 +74,28 @@ export default async function KybApplicationPage({ params }: { params: Promise<{
   }
 
   const { application, organization, documents, outstanding, reviews, documentReviews, organizationStatusHistory } = detail;
+  const readiness = evaluateKybApprovalReadiness(application, documents);
+  const documentsReviewable = KYB_DOCUMENT_REVIEWABLE_APPLICATION_STATUSES.includes(application.status);
+  const requiredTypes = new Set(KYB_DOCUMENT_TYPES.filter((type) => type.required).map((type) => type.type as string));
+  const evidenceStateLabel: Record<KybRequiredEvidenceState, AppCopySelector> = {
+    accepted: (c) => c.admin.compliance.kyb.detail.summary.accepted,
+    awaiting: (c) => c.admin.compliance.kyb.detail.summary.awaiting,
+    rejected: (c) => c.admin.compliance.kyb.detail.summary.rejected,
+    expired: (c) => c.admin.compliance.kyb.detail.summary.expired,
+    missing: (c) => c.admin.compliance.kyb.detail.summary.missing,
+  };
+  const nextAction: AppCopySelector =
+    application.status === "DRAFT"
+      ? (c) => c.admin.compliance.kyb.detail.summary.nextAction.notSubmitted
+      : application.status === "SUBMITTED"
+        ? (c) => c.admin.compliance.kyb.detail.summary.nextAction.startReview
+        : !documentsReviewable
+          ? (c) => c.admin.compliance.kyb.detail.summary.nextAction.decided
+          : readiness.approvable
+            ? (c) => c.admin.compliance.kyb.detail.summary.nextAction.readyToApprove
+            : readiness.counts.awaiting > 0
+              ? (c) => c.admin.compliance.kyb.detail.summary.nextAction.awaiting.replace("{count}", String(readiness.counts.awaiting))
+              : (c) => c.admin.compliance.kyb.detail.summary.nextAction.fixBlockers;
   const viewerId = access.identity.userId;
   const reviewerLabel = (userId: string) =>
     userId === viewerId ? <AppBilingual pick={(c) => c.admin.compliance.common.you} /> : <span className="font-mono text-[length:var(--text-micro)]">{userId}</span>;
@@ -148,8 +178,13 @@ export default async function KybApplicationPage({ params }: { params: Promise<{
               <ul className="flex flex-col divide-y divide-border">
                 {documents.map((document) => (
                   <li key={document.id} data-document={document.id} data-document-expired={document.expired ? "true" : "false"} className="flex flex-col gap-2 py-3">
-                    <div className="flex flex-wrap items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2" data-document-required={requiredTypes.has(document.documentType) ? "true" : "false"}>
                       <span className="font-medium text-foreground">{documentTypeLabel(document.documentType)}</span>
+                      {requiredTypes.has(document.documentType) ? (
+                        <span className="text-[length:var(--text-micro)] text-muted-foreground">
+                          (<AppBilingual pick={(c) => c.admin.compliance.kyb.detail.summary.required} />)
+                        </span>
+                      ) : null}
                       <AdminStatusBadge status={document.status} tone={DOCUMENT_STATUS_TONE[document.status] ?? "draft"} pick={(c) => c.admin.compliance.statuses.document[document.status]} />
                       {document.expired ? (
                         <span className="inline-flex items-center gap-1 rounded-[var(--radius-pill)] bg-[var(--status-danger-surface)] px-2.5 py-1 text-[length:var(--text-micro)] font-semibold text-[var(--status-danger)]">
@@ -191,6 +226,42 @@ export default async function KybApplicationPage({ params }: { params: Promise<{
                         <AppBilingual pick={(c) => c.admin.compliance.kyb.detail.documents.fileUnavailable} />
                       )}
                     </p>
+                    {document.supersedesDocumentId ? (
+                      <p className="text-[length:var(--text-micro)] text-muted-foreground" data-document-replaces={document.supersedesDocumentId}>
+                        <AppBilingual pick={(c) => c.admin.compliance.kyb.detail.documents.replaces.replace("{version}", String(document.version - 1))} />
+                      </p>
+                    ) : null}
+                    {document.status === "SUPERSEDED" ? (
+                      <p className="text-[length:var(--text-micro)] text-muted-foreground" data-document-superseded>
+                        <AppBilingual pick={(c) => c.admin.compliance.kyb.detail.documents.superseded} />
+                      </p>
+                    ) : document.fileMetadataReadable ? (
+                      <p className="flex flex-wrap items-center gap-2">
+                        <a
+                          href={`/dashboard-admin/kyb/${application.id}/documents/${document.id}/file`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          data-document-view={document.id}
+                          className="inline-flex h-9 items-center rounded-[var(--radius-sm)] border border-input bg-[var(--surface-card)] px-3 text-[length:var(--text-small)] font-medium text-foreground focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-offset-2 focus-visible:outline-[var(--focus-ring)]"
+                        >
+                          <AppBilingual pick={(c) => c.admin.compliance.kyb.detail.documents.view} />
+                        </a>
+                        <span className="text-[length:var(--text-micro)] text-muted-foreground">
+                          <AppBilingual pick={(c) => c.admin.compliance.kyb.detail.documents.viewHint} />
+                        </span>
+                      </p>
+                    ) : (
+                      <p className="rounded-[var(--radius-md)] border border-dashed border-border bg-[var(--surface-subtle)] px-3 py-2 text-[length:var(--text-micro)] leading-[var(--lh-body)] text-muted-foreground" data-document-view-unavailable={document.id}>
+                        <AppBilingual pick={(c) => c.admin.compliance.kyb.detail.documents.viewUnavailable} />
+                      </p>
+                    )}
+                    {document.status === "PENDING" && documentsReviewable ? (
+                      <KybDocumentReviewPanel applicationId={application.id} documentId={document.id} bytesOpenable={document.fileMetadataReadable} />
+                    ) : document.status !== "SUPERSEDED" ? (
+                      <p className="text-[length:var(--text-micro)] text-muted-foreground" data-document-not-reviewable={document.status}>
+                        <AppBilingual pick={(c) => (document.status === "PENDING" ? c.admin.compliance.kyb.detail.documents.review.notReviewable.replace("{status}", c.admin.compliance.statuses.kyb[application.status]) : c.admin.compliance.kyb.detail.documents.review.decided.replace("{decision}", c.admin.compliance.statuses.document[document.status]))} />
+                      </p>
+                    ) : null}
                   </li>
                 ))}
               </ul>
@@ -216,7 +287,80 @@ export default async function KybApplicationPage({ params }: { params: Promise<{
         </div>
 
         <div className="flex min-w-0 flex-col gap-6">
-          <KybDecisionPanel applicationId={application.id} status={application.status} />
+          <Section dataKey="summary" heading={<AppBilingual pick={(c) => c.admin.compliance.kyb.detail.summary.heading} />}>
+            <p className="text-[length:var(--text-micro)] text-muted-foreground">
+              <AppBilingual pick={(c) => c.admin.compliance.kyb.detail.summary.lead} />
+            </p>
+            <dl
+              className="grid grid-cols-2 gap-x-4 gap-y-1 text-[length:var(--text-small)] sm:grid-cols-3"
+              data-readiness-required={readiness.counts.required}
+              data-readiness-accepted={readiness.counts.accepted}
+              data-readiness-awaiting={readiness.counts.awaiting}
+              data-readiness-rejected={readiness.counts.rejected}
+              data-readiness-expired={readiness.counts.expired}
+              data-readiness-missing={readiness.counts.missing}
+              data-readiness-fields-missing={readiness.fieldGaps.length}
+            >
+              {(["required", "accepted", "awaiting", "rejected", "expired", "missing"] as const).map((key) => (
+                <div key={key} className="flex flex-col">
+                  <dt className="text-[length:var(--text-micro)] text-muted-foreground">
+                    <AppBilingual pick={(c) => c.admin.compliance.kyb.detail.summary[key]} />
+                  </dt>
+                  <dd className="font-heading text-[length:var(--text-h4)] tabular-nums text-foreground">{readiness.counts[key]}</dd>
+                </div>
+              ))}
+              <div className="flex flex-col">
+                <dt className="text-[length:var(--text-micro)] text-muted-foreground">
+                  <AppBilingual pick={(c) => c.admin.compliance.kyb.detail.summary.fieldsMissing} />
+                </dt>
+                <dd className="font-heading text-[length:var(--text-h4)] tabular-nums text-foreground">{readiness.fieldGaps.length}</dd>
+              </div>
+            </dl>
+            <p
+              data-approval-readiness={readiness.approvable ? "ready" : "blocked"}
+              className={
+                "rounded-[var(--radius-md)] border px-4 py-3 text-[length:var(--text-small)] leading-[var(--lh-body)] " +
+                (readiness.approvable ? "border-[var(--status-paid)] bg-[var(--status-paid-surface)] text-foreground" : "border-[var(--status-pending)] bg-[var(--status-pending-surface)] text-foreground")
+              }
+            >
+              <AppBilingual pick={(c) => (readiness.approvable ? c.admin.compliance.kyb.detail.summary.approvalReady : c.admin.compliance.kyb.detail.summary.approvalBlocked.replace("{count}", String(readiness.blockers.length)))} />
+            </p>
+            {readiness.blockers.length > 0 ? (
+              <div className="flex flex-col gap-1">
+                <h3 className="text-[length:var(--text-small)] font-semibold text-foreground">
+                  <AppBilingual pick={(c) => c.admin.compliance.kyb.detail.summary.blockersHeading} />
+                </h3>
+                <ul className="list-disc ps-5 text-[length:var(--text-small)] text-foreground">
+                  {readiness.blockers.map((blocker) => (
+                    <li key={`${blocker.state}:${blocker.key}`} data-approval-blocker={`${blocker.state}:${blocker.key}`}>
+                      {blocker.state === "field" ? (
+                        outstanding.find((item) => item.key === blocker.key)?.label ?? blocker.key
+                      ) : (
+                        <>
+                          {documentTypeLabel(blocker.key)} — <AppBilingual pick={evidenceStateLabel[blocker.state]} />
+                        </>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+            <div className="flex flex-col gap-1 border-t border-border pt-3" data-next-action>
+              <h3 className="text-[length:var(--text-small)] font-semibold text-foreground">
+                <AppBilingual pick={(c) => c.admin.compliance.kyb.detail.summary.nextAction.heading} />
+              </h3>
+              <p className="text-[length:var(--text-small)] leading-[var(--lh-body)] text-muted-foreground">
+                <AppBilingual pick={nextAction} />
+              </p>
+              {documentsReviewable && readiness.counts.awaiting > 0 ? (
+                <p className="text-[length:var(--text-small)] leading-[var(--lh-body)] text-muted-foreground">
+                  <AppBilingual pick={(c) => c.admin.compliance.kyb.detail.summary.nextAction.openDocuments} />
+                </p>
+              ) : null}
+            </div>
+          </Section>
+
+          <KybDecisionPanel applicationId={application.id} status={application.status} readiness={{ approvable: readiness.approvable, blockerCount: readiness.blockers.length }} />
 
           <Section dataKey="reviews" heading={<AppBilingual pick={(c) => c.admin.compliance.kyb.detail.reviews.heading} />}>
             {reviews.length === 0 ? (
@@ -261,6 +405,15 @@ export default async function KybApplicationPage({ params }: { params: Promise<{
                           <AdminDateTime value={review.createdAt} fallback={<AppBilingual pick={notRecorded} />} />
                         </span>
                       </div>
+                      <p className="text-muted-foreground">
+                        <AppBilingual pick={(c) => c.admin.compliance.common.reviewer} />: {reviewerLabel(review.reviewerUserId)}
+                        {document ? (
+                          <>
+                            {" · "}
+                            <AppBilingual pick={(c) => c.admin.compliance.kyb.detail.documents.version} /> {document.version}
+                          </>
+                        ) : null}
+                      </p>
                       {review.reason ? <p className="whitespace-pre-wrap [overflow-wrap:anywhere] text-foreground">{review.reason}</p> : null}
                     </li>
                   );

@@ -15,7 +15,7 @@ export default async function NewOriginPage() {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader title={<AppBilingual pick={(c) => c.admin.catalogue.origins.form.createTitle} />} trail={[{ label: <AppBilingual pick={(c) => c.overview} />, href: "/dashboard-admin" }, { label: <AppBilingual pick={(c) => c.admin.catalogue.origins.breadcrumb} />, href: "/dashboard-admin/origins" }, { label: <AppBilingual pick={(c) => c.admin.catalogue.origins.form.createTitle} /> }]} />
-      <RecordForm resource="origins" mode="create" formKey="origin" fields={originFields(null, regions, parents)} hiddenFields={{}} action={saveOrigin} successHref={(id) => `/dashboard-admin/origins/${id}`} />
+      <RecordForm resource="origins" mode="create" formKey="origin" fields={originFields(null, regions, parents)} hiddenFields={{}} action={saveOrigin} successHrefTemplate="/dashboard-admin/origins/{id}" />
     </div>
   );
 }

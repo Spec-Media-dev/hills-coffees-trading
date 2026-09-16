@@ -43,9 +43,9 @@ export function warehouseFields(warehouse: WarehouseRow | null, organizations: r
   return [
     { name: "code", labelKey: "code", hintKey: "codeHint", kind: "text", required: true, ltr: true, maxLength: 32, defaultValue: warehouse?.code ?? "" },
     { name: "name", labelKey: "name", kind: "text", required: true, maxLength: NAME_MAX_LENGTH, defaultValue: warehouse?.name ?? "" },
-    { name: "countryCode", labelKey: "countryCode", hintKey: "countryCodeHint", kind: "text", required: true, ltr: true, maxLength: 2, defaultValue: warehouse?.countryCode ?? "" },
+    { name: "countryCode", labelKey: "countryCode", hintKey: "countryCodeHint", kind: "text", ltr: true, maxLength: 2, defaultValue: warehouse?.countryCode ?? "" },
     { name: "city", labelKey: "city", kind: "text", maxLength: 120, defaultValue: warehouse?.city ?? "" },
-    { name: "ownerOrganizationId", labelKey: "owner", kind: "select", allowEmpty: true, options: organizations.map((row) => ({ value: row.id, label: row.displayName })), defaultValue: warehouse?.ownerOrganizationId ?? "" },
+    { name: "ownerOrganizationId", labelKey: "owner", kind: "select", required: true, allowEmpty: !warehouse, options: organizations.map((row) => ({ value: row.id, label: row.displayName })), defaultValue: warehouse?.ownerOrganizationId ?? "" },
     { name: "address", labelKey: "address", kind: "textarea", maxLength: 500, defaultValue: warehouse?.address ?? "" },
     { name: "isActive", labelKey: "isActive", hintKey: "isActiveHint", kind: "checkbox", defaultValue: warehouse ? warehouse.isActive : true },
   ];
