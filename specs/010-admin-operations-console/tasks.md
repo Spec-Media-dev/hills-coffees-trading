@@ -3,7 +3,111 @@
 **Input**: [spec.md](./spec.md), [plan.md](./plan.md), `docs/architecture/DATABASE-CAPABILITY-MAP.md`,
 `.specify/memory/constitution.md` (v2.0.0), SRS §14 (OPS-01, OPS-02), §3.1, §13.5.
 
-**Status**: **RUN E complete (2026-09-16) — Phases 7–8 T021–T026 RECORDED; 22 / 48.** The RUN E WIP
+**Status**: **RUN G complete (2026-09-17) — Phase 10: T030, T034, T035 RECORDED; T031, T032, T033
+PARTIAL/BLOCKED on their literal dependencies; 30 / 48.** Six new dedicated Phase 10 test files (66
+live/static tests, all green): `tests/admin/access-matrix.test.tsx` (T030 — extended from two live
+role fixtures to ALL SIX, full `ADMIN_AREAS` iteration per role incl. the DB's own hierarchy
+(`is_compliance_operator`/`is_warehouse_operator`/`is_finance_operator`/`is_auditor` true for their
+own role AND ADMIN/SUPER_ADMIN, `is_platform_admin` true for ADMIN/SUPER_ADMIN, `is_super_admin`
+SUPER_ADMIN only — verified against the live function bodies), a "missing matrix entry" meta-test,
+and a live cross-role "direct action invocation" block proving four representative mutating domain
+functions refuse every non-owning role — not merely the page guard), `tests/admin/delegation.test.ts`
+(T031 — no `admin_review_payment`/`submit_payment_proof` reference and no raw shipment/inventory
+write anywhere in the console; confirms `decidePayment()` is still absent from Feature 008),
+`tests/admin/decisions.test.ts` (T032 — KYB and listing decisions proven live incl. a two-operator
+concurrency race for each; payment/dispute decisions proven HONESTLY ABSENT, not fabricated),
+`tests/admin/no-hard-delete.test.ts` (T033 — zero `.delete()` calls in the current console; every
+table the console's own code references carries no DELETE grant for `authenticated`/`anon`, derived
+dynamically from the code, not a hand-maintained list; explicitly records that T010/T012/T013–T015/
+T027/T029 remain open so full Phase 3–9 coverage is not claimed), `tests/admin/
+catalogue-revalidation.test.tsx` (T034 — independently re-proves the T023 public-cache contract:
+DRAFT not public → publish → Feature 002 public read + anonymous RLS row both flip → second publish
+STALE → unpublish → both flip back → a raw anonymous write is refused → no path-purge substitute, no
+shared cache), `tests/admin/auditor-readonly.test.tsx` (T035 — independently re-proves T025/T026:
+zero mutation affordances render, six distinct domain mutation paths refuse AUDITOR live, a raw
+table write affects zero rows, DB-OPEN-06 is honestly stated and its policy is unchanged in every
+migration). **T031 stays BLOCKED** — its literal `Depends: T014` is unmet (Feature 008 still has no
+`decidePayment()`, re-confirmed this run); the structural guarantee is proven and strengthened, but a
+currently-empty settlement surface is not a proven delegation. **T032 stays BLOCKED** — its literal
+`Depends: T014` is unmet, and dispute decisions have no domain to test (T012/Feature 012 not
+started); KYB and listing halves are fully proven, payment and dispute halves are proven absent, no
+fabrication occurred. **T033 stays PARTIAL** — its literal `Depends: Phases 3–9` is not fully
+satisfied (T010, T012, T013–T015, T027, T029 remain open/blocked/partial), so exhaustive Phase 3–9
+coverage cannot be honestly claimed even though the current-console proof (the only proof possible
+today) passes cleanly. No delete path was introduced anywhere merely to give a test something to
+check. **RUN F complete (2026-09-17) — Phase 9: T028, T042, T043, T044, T045 RECORDED; T027 and
+T029 PARTIAL (decision D2 ii — UPDATE actor attribution is not persisted by the approved schema);
+27 / 48.** Approved decisions: D1 (Feature 008's `tests/finance/rls-policy.test.ts` T005 narrowed so
+Feature 010's admin-only payment-account owners — `lib/admin/payment-accounts.ts`,
+`lib/admin/system-validation.ts`, `(system)/payment-accounts/**`, `components/admin/system/fields.ts`,
+the copy files — are the ONLY permitted callers; every member/public/finance root stays audited and
+`lib/finance` is pinned to contain no `payment_accounts` operation), D2 option (ii), H1 (disposable
+`super-admin+t027-test@example.com`, role exactly SUPER_ADMIN, seed-script lifecycle, de-privileged
+after every run — it is the only identity that can pass `is_super_admin()`: none existed live and
+`platform_admins` is writable solely by a super admin, so the seed-time service-role creation is the
+bootstrap, never a product path). **Built (no schema/RLS/grant/trigger/migration change; no service
+role in product code):** `lib/admin/system-validation.ts` (CHECK vocabularies verbatim — roles,
+DRAFT/ACTIVE/ARCHIVED, taxable bases, USD-only currency; tier/rate/fee bounds), `system-errors.ts`
+(`requireSuperAdmin` / `requirePlatformAdmin` BEFORE `createClient()` on every path; SQLSTATE-only
+mapping), `roles.ts` (T027: list/grant/change/activity, compare-and-set, self-change refused,
+`created_by` on grant), `commission.ts` (T042–T045: reads/writes ONLY `commission_policies` /
+`commission_tiers`; new policy = DRAFT; status only via activate/deactivate/archive/restore;
+`evaluateTierCoverage` = `checkout_order`'s `min <= qty < max`, NULL open-ended; `resolveInForce`
+= latest `effective_from` wins), `pricing-rules.ts` (T028: tax + shipping; `resolveInForceTaxRule`
+mirrors checkout; `SHIPPING_RULES_CONSUMED_BY_CHECKOUT = false` — no function or app path reads
+`shipping_rules`, verified across every migration and `lib/`), `payment-accounts.ts` (T029: read
+`is_platform_admin()`, write `is_super_admin()` = the DB `WITH CHECK`; masked identifiers in lists;
+no member path), the `(system)` routes (roles + new + [userId]; commission + new + [policyId];
+tax/shipping + new + [ruleId]; payment-accounts + new + [accountId]), `components/admin/system/*`
+(notices: future-only, attribution gap, high-risk + OPS-01, shipping-unconsumed; role panels;
+status panel; coverage panel), `RecordForm` generalised (`resource: "system"`, number/datetime
+kinds), EN + AR copy incl. the six mandated commission semantics, `lib/admin/areas.ts` → five system
+areas `live`. **Defect found and fixed on the way:** the `checkbox` zod contract (RUN E + RUN F)
+required the key to be present, but an unchecked HTML checkbox is absent from FormData — deactivating
+a warehouse/rule through the browser would have failed validation; now optional (absent = false).
+**Evidence:** `tests/admin/run-f-static.test.tsx` (16 green: CHECK vocabularies vs the schema report,
+the six RLS policies exactly as reported + no migration touching the six tables, no service role/
+cache/delete/foreign table, per-path `is_super_admin()` counts, T044 grep pin over
+`src/app/dashboard-admin`, coverage rule incl. the literal `0–100` + `250–NULL` → `100–250` case,
+COMMISSION-OPEN-01 cited, T029 masking/OPS-01/no member path); `tests/admin/run-f-live.test.tsx`
+(10 green with REAL sessions: ADMIN, COMPLIANCE, WAREHOUSE, FINANCE, AUDITOR and a plain member each
+refused by direct action (`system_not_capable`) AND by direct URL on commission/roles/tax/shipping,
+anonymous unauthenticated, the ADMIN's raw `commission_policies` insert refused by RLS (42501);
+T027: grant COMPLIANCE to the `no-organization` fixture with `created_by` = super admin and the
+target's own `is_compliance_operator()` flipping true → change to AUDITOR once (stale repeat
+refused) → `is_auditor()` true → deactivate → false; self-deactivation refused; ADMIN raw update
+affects 0 rows; T042: 2099-dated policy DRAFT, bands 0–100/250–NULL, duplicate min (23505),
+max ≤ min and 150% refused, page shows `100–250` gap + COMMISSION-OPEN-01 + future-only, tier edit
+persists, activate once / stale repeat / deactivate / archive / restore, never in force, invisible
+to ADMIN/FINANCE; T044: every `order_financials` snapshot readable by FINANCE byte-identical across
+the commission mutations; T028: ZZ tax rule inactive/2099 created, edited, duplicate key + bad rate
+refused, the real AE VAT rule still the in-force one and byte-identical, ZZ shipping rule created/
+edited with USD-only enforced, unconsumed notice rendered; T029: ADMIN lists (masked) but its
+create is refused in-app AND by RLS, SUPER_ADMIN creates/edits with `created_by`, member/FINANCE
+null, anonymous redirected, ADMIN page shows the read-only + OPS-01 + high-risk statements and no
+"new" link) and `tests/browser/feature010-runf.browser.mjs` (real Chrome + axe: 45 surfaces = 9
+pages × EN/AR × light/dark × 390/1366/1920, ZERO violations, one <main>, no overflow, no raw error,
+all six semantics rendered; ADMIN refused by URL on 7 super-admin routes and read-only on payment
+accounts; a policy CREATED through the UI + two bands → gap warning; inline max ≤ min validation on
+the exact field; activation confirmation with the future-only text cancelled → still DRAFT; keyboard
+ring `solid 2px`). All rows removed (`--cleanup-run-f-config-rows`) and every disposable fixture
+de-privileged after every run (`activeCapability: false`). **T027 / T029 PARTIAL — the exact
+minimum DB change for later approval (NOT applied):** attach the EXISTING `write_audit_log()`
+trigger (the same mechanism already on `coffees`, `orders`, `organizations`, `kyb_applications`,
+…) to `platform_admins`, `commission_policies`, `commission_tiers`, `tax_rules`, `shipping_rules` and
+`payment_accounts` — `CREATE TRIGGER trg_audit_<table> AFTER INSERT OR UPDATE OR DELETE ON
+public.<table> FOR EACH ROW EXECUTE FUNCTION public.write_audit_log();` — no new column, no new
+function; alternatively an `updated_by uuid REFERENCES profiles(id)` column on `platform_admins` and
+`payment_accounts` written by the console. Until one lands, a GRANT/CREATE is attributed
+(`created_by`) and a role change, deactivation or account edit is not persisted with its actor;
+the console states this on every affected page (`AttributionGapNotice`). **Preserved gaps:**
+COMMISSION-OPEN-01 (displayed, not decided; no fallback, no checkout block; commission is live at
+0% today — zero policies exist), OPS-01 (stated in-product; no maker-checker simulated),
+`shipping_rules` unconsumed by any checkout/shipment path, `payment_accounts` write = SUPER_ADMIN
+by DB policy while the area is `is_platform_admin()`, no SUPER_ADMIN exists in production data
+(bootstrap is an operational seed act), T010/T012/T013–T015/DB-OPEN-06/DB-BLOCK-01/COMPLIANCE
+`file_assets` gap/DB-OPEN-19/suspended-organization policy/T047/T048 unchanged.
+**RUN E complete (2026-09-16) — Phases 7–8 T021–T026 RECORDED; 22 / 48.** The RUN E WIP
 checkpoint (`9afaecb`, interrupted mid-implementation on another machine) was audited file-by-file
 on a second machine, its defects fixed, the missing KYB reviewer wiring finished, and everything
 then LIVE- and BROWSER-proven. **Defects inherited from the WIP and fixed:** (1) all five catalogue
@@ -799,18 +903,26 @@ scope has no owning task (flagged for RUN B planning, not silently added).
 - [ ] T027 [PS8] Implement platform-admin role management (SUPER_ADMIN only).
   - Req: FR-002, PS8, SEC-003 | Depends: T004
   - Verify: ADMIN is refused; SUPER_ADMIN succeeds; changes are attributable
+  - RUN F (2026-09-17) — **PARTIAL (D2 ii)**: implemented and live-proven (ADMIN + every other role
+    refused by action and URL; SUPER_ADMIN grants/changes/deactivates with compare-and-set; self-change
+    refused). "Changes are attributable" holds for the GRANT (`created_by`) but NOT for a role change or
+    deactivation — `platform_admins` has no `updated_by` and no audit trigger (schema fact, test-pinned).
+    Stays unchecked until the recorded minimum DB change (status block) is approved and applied.
   - Codex: GPT-5.6 Sol — High · Claude: Opus — High
   - Why: this surface grants operational power to people — the highest-privilege action in the system.
 
-- [ ] T028 [P] [PS8] Implement tax rule and shipping rule configuration (SUPER_ADMIN only), with
+- [x] T028 [P] [PS8] Implement tax rule and shipping rule configuration (SUPER_ADMIN only), with
   clear indication that changes affect future snapshots only. *(Commission configuration is T042 —
   split out because it carries its own immutability and coverage semantics.)*
   - Req: FR-002, PS8 | Depends: T004
   - Verify: ADMIN refused; existing order snapshots are unaffected by later configuration changes
+  - RUN F (2026-09-17) — RECORDED: ADMIN refused by action and URL; `order_financials` snapshots
+    byte-identical across rule changes (live); future-only stated on every tax form; shipping rules
+    carry the honest "not applied by any checkout/shipment path yet" notice (no consumer exists).
   - Codex: GPT-5.6 Sol — High · Claude: Opus — Medium
   - Why: misunderstanding snapshot semantics here could retroactively distort commercial records.
 
-- [ ] T042 [PS8] Implement **commission configuration** inside the existing `/dashboard-admin`
+- [x] T042 [PS8] Implement **commission configuration** inside the existing `/dashboard-admin`
   surface, managing the existing `commission_policies` and `commission_tiers` tables — no parallel
   or shadow commission tables, no schema change. Behavioural reference:
   `docs/database/commission-capability.md`.
@@ -824,33 +936,37 @@ scope has no owning task (flagged for RUN B planning, not silently added).
   ACTIVE policies resolve to the latest `effective_from`.
   - Req: FR-002, PS8 | Depends: T004
   - Verify: `ADMIN` (non-super) is refused in the application **and** by RLS; `SUPER_ADMIN` succeeds; the screens read/write only `commission_policies`/`commission_tiers`; `grep -rn "commission" src/app/dashboard src/app/\(public\)` shows no member or public commission surface
+  - RUN F (2026-09-17) — RECORDED: live (ADMIN `system_not_capable` in-app and 42501 by RLS; SUPER_ADMIN create/tiers/named status operations), static (`.from()` set = exactly the two tables; no member/public commission surface).
   - Codex: GPT-5.6 Sol — High · Claude: Opus — High
   - Why: a configuration screen that silently mis-states tier semantics would cause every future order to be priced on a rate the operator did not intend.
 
-- [ ] T043 [PS8] Enforce the commission authorization boundary in the application layer as well as
+- [x] T043 [PS8] Enforce the commission authorization boundary in the application layer as well as
   RLS: every commission read/mutation path verifies `is_super_admin()` server-side before calling
   the database, and the existing `commission_admin` / `tiers_admin` RLS policies are left unchanged.
   - Req: FR-001, FR-002, SEC-003 | Depends: T042
   - Verify: an `ADMIN`, `COMPLIANCE`, `WAREHOUSE`, `FINANCE`, `AUDITOR` and plain member fixture are each refused — by direct URL and by direct action invocation; no migration or policy edit appears in the diff
+  - RUN F (2026-09-17) — RECORDED: all six refused live by action and URL; every `commission.ts` export calls `requireSuperAdmin()` before `createClient()` (count-pinned); `commission_admin`/`tiers_admin` exactly as reported; `supabase/` untouched.
   - Codex: GPT-5.6 Sol — High · Claude: Opus — High
   - Why: defence in depth on the highest-privilege commercial configuration in the platform; RLS alone is the backstop, not the only gate.
 
-- [ ] T044 [PS8] Make historical immutability explicit in the commission UI: state that **"Changes
+- [x] T044 [PS8] Make historical immutability explicit in the commission UI: state that **"Changes
   apply to eligible future checkouts only"** at the point of change, and provide **no** normal
   action — button, bulk operation, or menu item — that recalculates, restates or re-snapshots
   historical orders, commission amounts, seller net amounts or payouts.
   - Req: FR-002, PS8 | Depends: T042
-  - Verify: the copy is present on both policy and tier mutations; `grep -rniE "recalculat|re-?snapshot|restate|backfill" src/app/dashboard-admin` returns nothing that acts on historical financial records. The current 008 Phase-1 foundation has no T032 evidence, so historical-snapshot integration verification remains an explicit 008 dependency rather than an unsatisfied claim in 010; 010 verifies its own UI has no restatement action.
+  - Verify: the copy is present on both policy and tier mutations; `grep -rniE "recalculat|re-?snapshot|restate|backfill" src/app/dashboard-admin` returns nothing that acts on historical financial records.
+  - RUN F (2026-09-17) — RECORDED: future-only copy on the policy form, both tier forms and the status confirmation (EN/AR); the grep's only hits are statements of absence (comments/copy) — none on an action, button or query (test-pinned); live: `order_financials` unchanged across mutations. The current 008 Phase-1 foundation has no T032 evidence, so historical-snapshot integration verification remains an explicit 008 dependency rather than an unsatisfied claim in 010; 010 verifies its own UI has no restatement action.
   - Codex: GPT-5.6 Sol — Medium · Claude: Opus — High
   - Why: the one place a well-meaning "fix historical commissions" feature would plausibly be added — its absence must be deliberate and visible.
 
-- [ ] T045 [PS8] Surface tier **coverage gaps** to the operator: show, for a policy, which quantity
+- [x] T045 [PS8] Surface tier **coverage gaps** to the operator: show, for a policy, which quantity
   ranges have no covering band, because an uncovered total quantity currently yields a **0%**
   commission at checkout rather than an error (`COMMISSION-OPEN-01`). Present this as an
   operational warning; do **not** implement either resolution option — the fallback decision is
   Business/Finance's, owned by Feature 008.
   - Req: FR-002, PS8, spec Open items | Depends: T042
   - Verify: a policy with bands `0–100` and `250–NULL` visibly warns about the uncovered `100–250` range; the UI neither blocks checkout nor silently "fixes" the gap; `COMMISSION-OPEN-01` is cited in the surface or its handoff notes
+  - RUN F (2026-09-17) — RECORDED: the literal case proven statically, live (real rows) and in Chrome (`data-coverage-gap="100-250"`, COMMISSION-OPEN-01 cited on the panel); no fallback rate, no checkout block exists in the commission layer.
   - Codex: GPT-5.6 Sol — Medium · Claude: Opus — Medium
   - Why: makes a silent revenue-affecting misconfiguration visible without pre-empting an open business decision.
 
@@ -858,6 +974,10 @@ scope has no owning task (flagged for RUN B planning, not silently added).
   high-risk action pending the OPS-01 dual-control decision.
   - Req: FR-002, SEC-003, spec Open items | Depends: T004
   - Verify: member paths remain absent; changes are attributable; the dual-control gap is noted in-product
+  - RUN F (2026-09-17) — **PARTIAL (D2 ii)**: implemented and live-proven (no member path — static + live;
+    OPS-01 + high-risk notices on every page; ADMIN read-only / SUPER_ADMIN write = the DB `WITH CHECK`).
+    "Changes are attributable" holds for creation (`created_by`) but NOT for an edit/deactivation — no
+    `updated_by`, no audit trigger on `payment_accounts`. Stays unchecked pending the recorded DB change.
   - Codex: GPT-5.6 Sol — Medium · Claude: Opus — High
   - Why: bank-detail changes are explicitly called out as high-risk in the SRS; the missing maker-checker must be visible.
 
@@ -865,11 +985,16 @@ scope has no owning task (flagged for RUN B planning, not silently added).
 
 ## Phase 10 — Automated tests
 
-- [ ] T030 Write `tests/admin/access-matrix.test.ts` — iterate `lib/admin/areas.ts` × all six role
+- [x] T030 Write `tests/admin/access-matrix.test.ts` — iterate `lib/admin/areas.ts` × all six role
   fixtures + a member-without-role, asserting allowed areas render and forbidden areas are refused by
   direct URL and direct action invocation.
   - Req: FR-002, SEC-001, SC-001, SC-004 | Depends: T001, T004
   - Verify: `npm test -- admin/access-matrix` passes for every combination; adding an area without a role entry fails the test
+  - RUN G (2026-09-17) — RECORDED: all six live role fixtures (WAREHOUSE/FINANCE standing;
+    COMPLIANCE/ADMIN/AUDITOR/SUPER_ADMIN disposable) × every declared area (not a sample) + member +
+    anonymous; a dedicated meta-test proves the matrix check itself catches a missing/invalid role
+    entry; a live cross-role "direct action" block proves four real domain functions (warehouse,
+    KYB decision, catalogue, commission) refuse every non-owning role, not merely the page.
   - Codex: GPT-5.6 Sol — High · Claude: Opus — High
   - Why: the definitive proof of least privilege across the whole console, and the guard against future drift.
 
@@ -877,6 +1002,11 @@ scope has no owning task (flagged for RUN B planning, not silently added).
   `admin_review_payment` call and no raw shipment/inventory write.
   - Req: FR-004, FR-005, SC-002 | Depends: T014, T017
   - Verify: `npm test -- admin/delegation` passes; greps are part of the assertion
+  - RUN G (2026-09-17) — **BLOCKED (Depends: T014 unmet)**: `tests/admin/delegation.test.ts` created
+    and green — no `admin_review_payment`/`submit_payment_proof` reference and no raw shipment/
+    inventory write anywhere in the console (T017 half, complete); Feature 008's `decidePayment()`
+    is re-confirmed absent, so there is no settlement decision UI to prove delegates correctly. Stays
+    unchecked.
   - Codex: GPT-5.6 Sol — Medium · Claude: Opus — Medium
   - Why: structural guarantee that the console never becomes a second transactional engine.
 
@@ -885,6 +1015,11 @@ scope has no owning task (flagged for RUN B planning, not silently added).
   operators.
   - Req: FR-006, SC-003 | Depends: T009, T011, T014
   - Verify: `npm test -- admin/decisions` passes, including the concurrency cases
+  - RUN G (2026-09-17) — **BLOCKED (Depends: T014 unmet)**: `tests/admin/decisions.test.ts` created
+    and green — KYB and listing decisions proven live (reviewer/decision/reason recorded, exactly
+    once, INCLUDING a two-operator concurrency race for each); payment decisions proven honestly
+    absent (no `decidePayment`); dispute decisions proven honestly absent (Feature 012/T012 not
+    started, `disputes` area still `blocked`). Nothing fabricated. Stays unchecked.
   - Codex: GPT-5.6 Sol — High · Claude: Opus — High
   - Why: attribution and single-effect semantics for irreversible operational decisions.
 
@@ -892,20 +1027,37 @@ scope has no owning task (flagged for RUN B planning, not silently added).
   inventory, title, payment or audit rows.
   - Req: FR-008, SC-006 | Depends: Phases 3–9
   - Verify: `npm test -- admin/no-hard-delete` passes; grep for `.delete(` across console code returns only non-commercial cases
+  - RUN G (2026-09-17) — **PARTIAL (Depends: Phases 3–9 unmet)**: `tests/admin/no-hard-delete.test.ts`
+    created and green — zero `.delete(` calls anywhere in the CURRENT console, and every table the
+    console's own code references carries no DELETE grant for `authenticated`/`anon` (derived
+    dynamically, not hand-maintained). This is the honest, exhaustive proof available today; it
+    cannot cover surfaces that do not exist (T010/T012/T013–T015/T027/T029 remain open). Stays
+    unchecked pending those.
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — High
   - Why: OPS-02 compliance across a broad surface.
 
-- [ ] T034 [P] Write `tests/admin/catalogue-revalidation.test.ts` — publish/unpublish reflects on the
+- [x] T034 [P] Write `tests/admin/catalogue-revalidation.test.ts` — publish/unpublish reflects on the
   public site after revalidation.
   - Req: FR-007, SC-005 | Depends: T023
   - Verify: `npm test -- admin/catalogue-revalidation` passes
+  - RUN G (2026-09-17) — RECORDED: `tests/admin/catalogue-revalidation.test.tsx` created and green,
+    independently re-proving T023's public-cache contract (DRAFT not public → publish → public
+    visible with exact tags `public-coffees`+`public-coffee:<slug>` and `{ expire: 0 }`, no path
+    purge, no shared cache → second publish STALE → unpublish → public 404/null again → a raw
+    anonymous write is refused).
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — Medium
   - Why: cross-feature cache correctness with a clear assertion.
 
-- [ ] T035 Write `tests/admin/auditor-readonly.test.ts` — auditor surfaces expose zero mutation
+- [x] T035 Write `tests/admin/auditor-readonly.test.ts` — auditor surfaces expose zero mutation
   affordances and refuse all mutations.
   - Req: FR-009, SC-007 | Depends: T025
   - Verify: `npm test -- admin/auditor-readonly` passes
+  - RUN G (2026-09-17) — RECORDED: `tests/admin/auditor-readonly.test.ts` created and green,
+    independently re-proving T025/T026 (zero mutation affordances render for AUDITOR on the audit
+    list AND listing-detail pages; six distinct domain mutation paths — listing, KYB, catalogue,
+    warehouse, roles, commission — refuse AUDITOR live; a direct raw table write affects zero rows;
+    DB-OPEN-06 is honestly stated from a live zero-row read and its policy is unchanged in every
+    migration; no service-role fallback).
   - Codex: GPT-5.6 Sol — High · Claude: Opus — High
   - Why: read-only-by-construction must be proven, not assumed.
 

@@ -126,11 +126,11 @@ export const ADMIN_AREAS: readonly AdminArea[] = [
   { key: "audit", group: "audit", href: "/dashboard-admin/audit", roleFunction: "is_auditor", icon: "clipboard-list", availability: "live", phase: 8 },
 
   // ── System ────────────────────────────────────────────────────────────────────────────────────
-  { key: "roles", group: "system", href: "/dashboard-admin/roles", roleFunction: "is_super_admin", icon: "users", availability: "planned", phase: 9 },
-  { key: "commission", group: "system", href: "/dashboard-admin/commission", roleFunction: "is_super_admin", icon: "percent", availability: "planned", phase: 9 },
-  { key: "tax", group: "system", href: "/dashboard-admin/tax", roleFunction: "is_super_admin", icon: "percent", availability: "planned", phase: 9 },
-  { key: "shipping", group: "system", href: "/dashboard-admin/shipping", roleFunction: "is_super_admin", icon: "truck", availability: "planned", phase: 9 },
-  { key: "paymentAccounts", group: "system", href: "/dashboard-admin/payment-accounts", roleFunction: "is_platform_admin", icon: "key-round", availability: "planned", phase: 9 },
+  { key: "roles", group: "system", href: "/dashboard-admin/roles", roleFunction: "is_super_admin", icon: "users", availability: "live", phase: 9 },
+  { key: "commission", group: "system", href: "/dashboard-admin/commission", roleFunction: "is_super_admin", icon: "percent", availability: "live", phase: 9 },
+  { key: "tax", group: "system", href: "/dashboard-admin/tax", roleFunction: "is_super_admin", icon: "percent", availability: "live", phase: 9 },
+  { key: "shipping", group: "system", href: "/dashboard-admin/shipping", roleFunction: "is_super_admin", icon: "truck", availability: "live", phase: 9 },
+  { key: "paymentAccounts", group: "system", href: "/dashboard-admin/payment-accounts", roleFunction: "is_platform_admin", icon: "key-round", availability: "live", phase: 9 },
 ];
 
 /**

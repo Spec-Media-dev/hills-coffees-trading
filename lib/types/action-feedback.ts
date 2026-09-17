@@ -185,6 +185,25 @@ export const ACTION_FEEDBACK = {
   KYB_DOCUMENT_REVIEW_RECORDED: "kyb_document_review_recorded",
   KYB_DOCUMENT_REVIEW_STALE: "kyb_document_review_stale",
   KYB_DOCUMENT_REVIEW_FAILED: "kyb_document_review_failed",
+
+  /**
+   * Feature 010 RUN F — Phase 9 system configuration (`lib/admin/{roles,commission,pricing-rules,
+   * payment-accounts}.ts`). `SYSTEM_NOT_CAPABLE` = the live `is_super_admin()` (or, for the
+   * payment-account READ area, `is_platform_admin()`) check refused the caller before any query;
+   * `SYSTEM_STALE` = a compare-and-set miss; SQLSTATE mapping lives in `lib/admin/system-errors.ts`
+   * (23505 → DUPLICATE, 23503 → REFERENCE_INVALID, 23514/23502 → VALUE_INVALID, else SAVE_FAILED).
+   * `ROLE_SELF_CHANGE_REFUSED` = a super admin may not change or deactivate their own capability row
+   * (the database would allow it and lock every operator out).
+   */
+  SYSTEM_NOT_CAPABLE: "system_not_capable",
+  SYSTEM_SAVED: "system_saved",
+  SYSTEM_STALE: "system_stale",
+  SYSTEM_NOT_FOUND: "system_not_found",
+  SYSTEM_DUPLICATE: "system_duplicate",
+  SYSTEM_REFERENCE_INVALID: "system_reference_invalid",
+  SYSTEM_VALUE_INVALID: "system_value_invalid",
+  SYSTEM_SAVE_FAILED: "system_save_failed",
+  ROLE_SELF_CHANGE_REFUSED: "role_self_change_refused",
 } as const;
 
 export type ActionFeedbackCode = (typeof ACTION_FEEDBACK)[keyof typeof ACTION_FEEDBACK];

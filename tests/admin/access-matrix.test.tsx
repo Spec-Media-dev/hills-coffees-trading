@@ -2,7 +2,7 @@ import { existsSync, readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import {
   ADMIN_AREAS,
@@ -13,8 +13,26 @@ import {
   ROLE_FUNCTION_ATTESTS,
   getAdminAreaForPath,
   getVisibleAdminAreas,
+  type AdminRoleFunction,
 } from "@/lib/admin/areas";
-import { FOUNDATION_FIXTURES, createAnonymousFixtureClient, signInAsFixture } from "@/tests/auth/fixture-session";
+import type { OperationalRole } from "@/lib/auth/types";
+import {
+  FOUNDATION_FIXTURES,
+  cleanupAuditorFixture,
+  cleanupCatalogueAdminFixture,
+  cleanupComplianceFixture,
+  cleanupSuperAdminFixture,
+  createAnonymousFixtureClient,
+  inspectAuditorFixture,
+  inspectCatalogueAdminFixture,
+  inspectComplianceFixture,
+  inspectSuperAdminFixture,
+  prepareAuditorFixture,
+  prepareCatalogueAdminFixture,
+  prepareComplianceFixture,
+  prepareSuperAdminFixture,
+  signInAsFixture,
+} from "@/tests/auth/fixture-session";
 
 /**
  * Feature 010 RUN A — Phase 1 proof for T001 (matrix), T002 (guards), T004 (route-group guards).
@@ -23,11 +41,19 @@ import { FOUNDATION_FIXTURES, createAnonymousFixtureClient, signInAsFixture } fr
  * no "any staff" catch-all exists, every route group carries its own layout guard, and navigation
  * is derived from the same matrix.
  *
- * LIVE half: with the REAL fixture sessions this repository already has (WAREHOUSE and FINANCE
- * operators with no organization, and a fully approved trading member with no operational role),
- * the guards call the real database functions and refuse/permit exactly per the matrix. No
- * COMPLIANCE/AUDITOR/ADMIN/SUPER_ADMIN fixture exists yet (Phase 10's T030 owns the full six-role
- * matrix), so those rows are proven structurally here and their live legs are recorded as pending.
+ * LIVE half (T030, Phase 10): with REAL sessions for ALL SIX operational roles — the standing
+ * WAREHOUSE/FINANCE fixtures and the human-authorized disposable COMPLIANCE/ADMIN/AUDITOR/SUPER_ADMIN
+ * fixtures (prepared here, de-privileged in `afterAll`) — plus a fully approved trading MEMBER with
+ * no operational role and an anonymous session, the guards call the REAL database functions for
+ * EVERY declared area (not a sample) and refuse/permit exactly per the matrix AND per the role
+ * hierarchy those functions themselves attest (`is_compliance_operator`/`is_warehouse_operator`/
+ * `is_finance_operator`/`is_auditor` are true for their own role AND for ADMIN/SUPER_ADMIN;
+ * `is_platform_admin` is true for ADMIN/SUPER_ADMIN; `is_super_admin` is true for SUPER_ADMIN only —
+ * verified against the live function bodies in the schema report, never invented here). A dedicated
+ * meta-test proves an area with a missing/invalid role-function entry would fail this same check
+ * (the literal T030 "adding an area without a role entry fails the test" requirement), and a
+ * "direct action" block proves the SAME refusal holds one layer deeper, at real mutating domain
+ * functions, not merely at the page guard.
  */
 
 const root = process.cwd();
@@ -71,8 +97,31 @@ async function withLiveClient<T>(client: SupabaseClient, run: () => Promise<T>):
  * One area per approved function — every function is exercised live, without resolving identity
  * 21× per fixture (each `checkAreaAccess` re-resolves identity outside a request-scoped cache).
  */
-const REPRESENTATIVE_AREAS = ADMIN_ROLE_FUNCTIONS.map((fn) => ADMIN_AREAS.find((area) => area.roleFunction === fn)!);
 const LIVE_TIMEOUT_MS = 90_000;
+const FIXTURE_LIVE_TIMEOUT_MS = 150_000;
+
+/**
+ * Which `platform_admins.role` each approved function returns TRUE for — copied verbatim from the
+ * LIVE function bodies in `docs/database/database-schema-report.json` (re-verified 2026-09-17), not
+ * invented here: `is_compliance_operator`/`is_warehouse_operator`/`is_finance_operator`/`is_auditor`
+ * each read `role IN ('<OWN>', 'ADMIN', 'SUPER_ADMIN')`; `is_platform_admin` reads
+ * `role IN ('ADMIN', 'SUPER_ADMIN')`; `is_super_admin` reads `role = 'SUPER_ADMIN'`.
+ */
+const ROLES_SATISFYING: Readonly<Record<AdminRoleFunction, readonly OperationalRole[]>> = {
+  is_compliance_operator: ["COMPLIANCE", "ADMIN", "SUPER_ADMIN"],
+  is_warehouse_operator: ["WAREHOUSE", "ADMIN", "SUPER_ADMIN"],
+  is_finance_operator: ["FINANCE", "ADMIN", "SUPER_ADMIN"],
+  is_auditor: ["AUDITOR", "ADMIN", "SUPER_ADMIN"],
+  is_platform_admin: ["ADMIN", "SUPER_ADMIN"],
+  is_super_admin: ["SUPER_ADMIN"],
+};
+function roleSatisfiesFunction(role: OperationalRole, fn: AdminRoleFunction): boolean {
+  return ROLES_SATISFYING[fn].includes(role);
+}
+/** The one function each role's OWN name attests (`ROLE_FUNCTION_ATTESTS` inverted) — a sanity anchor, not a second source of truth. */
+const ROLE_FUNCTION_ATTESTS_INVERSE: Readonly<Record<OperationalRole, AdminRoleFunction>> = Object.fromEntries(
+  (Object.entries(ROLE_FUNCTION_ATTESTS) as [AdminRoleFunction, OperationalRole][]).map(([fn, role]) => [role, fn]),
+) as Record<OperationalRole, AdminRoleFunction>;
 
 describe("T001 — lib/admin/areas.ts is the single declarative access matrix", () => {
   it("declares every area exactly once (unique key, unique href) with exactly one approved role function", () => {
@@ -85,6 +134,17 @@ describe("T001 — lib/admin/areas.ts is the single declarative access matrix", 
       expect(area.href.startsWith("/dashboard-admin/")).toBe(true);
       expect(ADMIN_AREA_GROUP_KEYS).toContain(area.group);
     }
+  });
+
+  it("T030 — a declared area without a valid role-function entry fails this exact matrix check (the literal 'missing matrix entry causes proof failure' requirement)", () => {
+    // The real matrix has no such row — this proves the CHECK ITSELF is capable of catching one, by
+    // running it against a deliberately broken area object, never by mutating `ADMIN_AREAS`.
+    const brokenRoleFunction = { key: "bogus", group: "system", href: "/dashboard-admin/bogus", roleFunction: "is_definitely_not_approved", icon: "users", availability: "live", phase: 9 } as unknown as (typeof ADMIN_AREAS)[number];
+    expect(() => expect(ADMIN_ROLE_FUNCTIONS).toContain(brokenRoleFunction.roleFunction)).toThrow();
+    // Same proof for `ROLE_FUNCTION_ATTESTS` (the table T003/T004 read to shape navigation and enforcement).
+    expect((ROLE_FUNCTION_ATTESTS as Record<string, unknown>)["is_definitely_not_approved"]).toBeUndefined();
+    // And for `roleSatisfiesFunction` below: an unapproved function has no entry, so every role is (correctly) refused, never silently admitted.
+    expect(() => roleSatisfiesFunction("SUPER_ADMIN", "is_definitely_not_approved" as AdminRoleFunction)).toThrow();
   });
 
   it("covers every console group the spec names, and every group's own guard is one of the six approved functions", () => {
@@ -127,9 +187,9 @@ describe("T001 — lib/admin/areas.ts is the single declarative access matrix", 
     expect(ADMIN_GROUP_ROLE_FUNCTIONS.system).toBe("is_platform_admin");
   });
 
-  it("availability is honest — only the areas with a real workflow are `live` (RUN B: kyb, organizations, listings; RUN D: shipments, inventory; RUN E: catalogue areas + audit); every other area is planned or blocked", () => {
+  it("availability is honest — only the areas with a real workflow are `live` (RUN B: kyb, organizations, listings; RUN D: shipments, inventory; RUN E: catalogue areas + audit; RUN F: system configuration); every other area is planned or blocked", () => {
     const live = ADMIN_AREAS.filter((area) => area.availability === "live").map((area) => area.key).sort();
-    expect(live).toEqual(["audit", "coffees", "inventory", "kyb", "listings", "media", "organizations", "origins", "regions", "shipments", "taxonomy", "warehouses"]);
+    expect(live).toEqual(["audit", "coffees", "commission", "inventory", "kyb", "listings", "media", "organizations", "origins", "paymentAccounts", "regions", "roles", "shipments", "shipping", "tax", "taxonomy", "warehouses"]);
     for (const area of ADMIN_AREAS) {
       expect(["live", "planned", "blocked"]).toContain(area.availability);
       if (area.availability === "blocked") expect(area.blocker).toBeTruthy();
@@ -270,48 +330,82 @@ describe("T003 — navigation is derived from the matrix and matches the permitt
   });
 });
 
-describe("LIVE — real fixture sessions × real role functions (T002/T004 direct-URL refusal)", () => {
-  it("WAREHOUSE operator (no organization): permitted in the warehouse group only; forbidden by direct URL everywhere else; never gains member capability", async () => {
-    const client = await signInAsFixture(FOUNDATION_FIXTURES.warehouseAdmin.email);
-    await withLiveClient(client, async () => {
-      const { checkGroupAccess, checkAreaAccess, checkConsoleShellAccess } = await import("@/lib/admin/guards");
-      const shell = await checkConsoleShellAccess();
-      expect(shell.ok).toBe(true);
-      if (shell.ok) {
-        expect(shell.roles).toEqual(["WAREHOUSE"]);
-        // Operator/member independence: an operational role alone never grants member capability.
-        expect(shell.identity.organization).toBeNull();
-        expect(shell.identity.organizations).toEqual([]);
-        expect(shell.identity.isAuthorizedMember).toBe(false);
-      }
-      for (const group of ADMIN_AREA_GROUP_KEYS) {
-        const access = await checkGroupAccess(group);
-        expect(access.ok, `warehouse → ${group}`).toBe(group === "warehouse");
-        if (!access.ok) expect(access.denial).toBe("forbidden");
-      }
-      for (const area of REPRESENTATIVE_AREAS) {
-        const access = await checkAreaAccess(area.key);
-        expect(access.ok, `warehouse → ${area.key}`).toBe(area.roleFunction === "is_warehouse_operator");
-      }
-    });
-  }, LIVE_TIMEOUT_MS);
+describe("T030 — LIVE, all six operational role fixtures × every declared area (direct URL refusal); member and anonymous", () => {
+  /**
+   * COMPLIANCE/ADMIN/AUDITOR/SUPER_ADMIN have no standing fixture (unlike WAREHOUSE/FINANCE): each is
+   * a human-authorized, disposable identity created here and de-privileged in `afterAll`, exactly the
+   * lifecycle every other Feature 010 run has used (RUN B/E/F). Nothing here reuses a delivery/T013
+   * fixture or a product identity.
+   */
+  beforeAll(() => {
+    prepareComplianceFixture();
+    prepareCatalogueAdminFixture();
+    prepareAuditorFixture();
+    prepareSuperAdminFixture();
+  }, FIXTURE_LIVE_TIMEOUT_MS);
 
-  it("FINANCE operator (no organization): permitted in the finance group only; forbidden by direct URL everywhere else", async () => {
-    const client = await signInAsFixture(FOUNDATION_FIXTURES.financeAdmin.email);
-    await withLiveClient(client, async () => {
-      const { checkGroupAccess, checkAreaAccess } = await import("@/lib/admin/guards");
-      for (const group of ADMIN_AREA_GROUP_KEYS) {
-        const access = await checkGroupAccess(group);
-        expect(access.ok, `finance → ${group}`).toBe(group === "finance");
-      }
-      for (const area of REPRESENTATIVE_AREAS) {
-        const access = await checkAreaAccess(area.key);
-        expect(access.ok, `finance → ${area.key}`).toBe(area.roleFunction === "is_finance_operator");
-      }
-    });
-  }, LIVE_TIMEOUT_MS);
+  afterAll(() => {
+    for (const [cleanup, inspect] of [
+      [cleanupComplianceFixture, inspectComplianceFixture],
+      [cleanupCatalogueAdminFixture, inspectCatalogueAdminFixture],
+      [cleanupAuditorFixture, inspectAuditorFixture],
+      [cleanupSuperAdminFixture, inspectSuperAdminFixture],
+    ] as const) {
+      const result = cleanup();
+      expect(result.activeAdminPrivilege).toBe(false);
+      expect(inspect().activeCapability).toBe(false);
+    }
+  }, FIXTURE_LIVE_TIMEOUT_MS);
 
-  it("an approved trading MEMBER with no operational role is refused everywhere in the console — shell, every group, every area", async () => {
+  /** One `it` per role: EVERY declared group and EVERY declared area, checked against the real hierarchy — not a sample. */
+  const cases: readonly { role: OperationalRole; email: () => string; standing: boolean }[] = [
+    { role: "WAREHOUSE", email: () => FOUNDATION_FIXTURES.warehouseAdmin.email, standing: true },
+    { role: "FINANCE", email: () => FOUNDATION_FIXTURES.financeAdmin.email, standing: true },
+    { role: "COMPLIANCE", email: () => FOUNDATION_FIXTURES.complianceReviewer.email, standing: false },
+    { role: "ADMIN", email: () => FOUNDATION_FIXTURES.catalogueAdmin.email, standing: false },
+    { role: "AUDITOR", email: () => FOUNDATION_FIXTURES.auditor.email, standing: false },
+    { role: "SUPER_ADMIN", email: () => FOUNDATION_FIXTURES.superAdmin.email, standing: false },
+  ];
+
+  for (const { role, email } of cases) {
+    it(`${role} operator (no organization): permitted in exactly the groups/areas its role function satisfies — every declared group, every declared area, direct URL`, async () => {
+      const client = await signInAsFixture(email());
+      await withLiveClient(client, async () => {
+        const { checkGroupAccess, checkAreaAccess, checkConsoleShellAccess } = await import("@/lib/admin/guards");
+        const shell = await checkConsoleShellAccess();
+        expect(shell.ok, role).toBe(true);
+        if (shell.ok) {
+          // The DAL attests EVERY function that returns true for this session (`lib/auth/dal.ts`), so
+          // ADMIN/SUPER_ADMIN legitimately attest several roles (the same hierarchy fact this file's
+          // `ROLES_SATISFYING` table records) — the set, not the order or the count, is what matters.
+          const expectedRoles = new Set(ADMIN_ROLE_FUNCTIONS.filter((fn) => roleSatisfiesFunction(role, fn)).map((fn) => ROLE_FUNCTION_ATTESTS[fn]));
+          expect(new Set(shell.roles), role).toEqual(expectedRoles);
+          expect(shell.roles, role).toContain(role);
+          // Operator/member independence: an operational role alone never grants member capability.
+          expect(shell.identity.organization, role).toBeNull();
+          expect(shell.identity.organizations, role).toEqual([]);
+          expect(shell.identity.isAuthorizedMember, role).toBe(false);
+        }
+        for (const group of ADMIN_AREA_GROUP_KEYS) {
+          const access = await checkGroupAccess(group);
+          const expected = roleSatisfiesFunction(role, ADMIN_GROUP_ROLE_FUNCTIONS[group]);
+          expect(access.ok, `${role} → group ${group}`).toBe(expected);
+          if (!access.ok) expect(access.denial, `${role} → group ${group}`).toBe("forbidden");
+        }
+        for (const area of ADMIN_AREAS) {
+          const access = await checkAreaAccess(area.key);
+          const expected = roleSatisfiesFunction(role, area.roleFunction);
+          expect(access.ok, `${role} → area ${area.key} (${area.roleFunction})`).toBe(expected);
+          if (!access.ok) expect(access.denial, `${role} → area ${area.key}`).toBe("forbidden");
+        }
+        // Sanity: the role actually satisfies at least the ONE function that names it, and the matrix has at least one area for it.
+        expect(roleSatisfiesFunction(role, ROLE_FUNCTION_ATTESTS_INVERSE[role]), role).toBe(true);
+        expect(ADMIN_AREAS.some((area) => area.roleFunction === ROLE_FUNCTION_ATTESTS_INVERSE[role]), role).toBe(true);
+      });
+    }, FIXTURE_LIVE_TIMEOUT_MS);
+  }
+
+  it("an approved trading MEMBER with no operational role is refused everywhere in the console — shell, every group, every declared area", async () => {
     const client = await signInAsFixture(FOUNDATION_FIXTURES.buyerOnly.email);
     await withLiveClient(client, async () => {
       const { checkGroupAccess, checkAreaAccess, checkConsoleShellAccess } = await import("@/lib/admin/guards");
@@ -320,10 +414,10 @@ describe("LIVE — real fixture sessions × real role functions (T002/T004 direc
       for (const group of ADMIN_AREA_GROUP_KEYS) {
         expect(await checkGroupAccess(group)).toEqual({ ok: false, denial: "no-operational-role" });
       }
-      for (const area of REPRESENTATIVE_AREAS) {
+      for (const area of ADMIN_AREAS) {
         const access = await checkAreaAccess(area.key);
-        expect(access.ok).toBe(false);
-        if (!access.ok) expect(access.denial).toBe("no-operational-role");
+        expect(access.ok, area.key).toBe(false);
+        if (!access.ok) expect(access.denial, area.key).toBe("no-operational-role");
       }
     });
   }, LIVE_TIMEOUT_MS);
@@ -355,6 +449,26 @@ describe("LIVE — real fixture sessions × real role functions (T002/T004 direc
     });
   }, LIVE_TIMEOUT_MS);
 
+  it("DIRECT URL: the SUPER_ADMIN-only (super) slice refuses an ADMIN (platform admin) with the forbidden state naming Super admin, and admits SUPER_ADMIN", async () => {
+    const adminClient = await signInAsFixture(FOUNDATION_FIXTURES.catalogueAdmin.email);
+    await withLiveClient(adminClient, async () => {
+      const { render, screen, cleanup } = await import("@testing-library/react");
+      const SuperLayout = (await import("@/src/app/dashboard-admin/(system)/(super)/layout")).default;
+      const refused = await SuperLayout({ children: "SECRET SUPER-ADMIN CONTENT" });
+      render(refused as React.ReactElement);
+      expect(screen.queryByText("SECRET SUPER-ADMIN CONTENT")).toBeNull();
+      expect(document.querySelector('[data-admin-state="forbidden"]')).not.toBeNull();
+      expect(screen.getAllByText(/Required role: Super admin/).length).toBeGreaterThan(0);
+      cleanup();
+    });
+    const superClient = await signInAsFixture(FOUNDATION_FIXTURES.superAdmin.email);
+    await withLiveClient(superClient, async () => {
+      const SuperLayout = (await import("@/src/app/dashboard-admin/(system)/(super)/layout")).default;
+      const admitted = await SuperLayout({ children: "SUPER-ADMIN CONTENT" });
+      expect(admitted).toBe("SUPER-ADMIN CONTENT");
+    });
+  }, LIVE_TIMEOUT_MS);
+
   it("DIRECT URL: the anonymous branch redirects to the dedicated operator sign-in, never the member page", async () => {
     const client = createAnonymousFixtureClient();
     await withLiveClient(client, async () => {
@@ -368,6 +482,91 @@ describe("LIVE — real fixture sessions × real role functions (T002/T004 direc
       expect(redirectCalls.targets.length).toBeGreaterThan(0);
       expect(new Set(redirectCalls.targets)).toEqual(new Set(["/admin/sign-in/"]));
       cleanup();
+    });
+  }, LIVE_TIMEOUT_MS);
+});
+
+describe("T030 — LIVE direct action invocation: the SAME refusal holds one layer past the page guard, at real mutating domain functions", () => {
+  /**
+   * Every domain module (`lib/admin/{warehouse,decisions,catalogue,commission}.ts`) independently
+   * re-verifies its own role function before touching the database — this is the structural claim
+   * `run-e-static`/`run-f-static`/`finance-delegation` already pin per-domain. This block proves the
+   * SAME claim live, cross-role, in ONE place: a forged/bypassed form post (skipping the page
+   * entirely) is refused by the action itself, not merely by the page that would normally guard it.
+   * `is_finance_operator` has no write domain yet (Feature 008 T013–T015 blocked — see the RUN C
+   * report) and `is_auditor` has none by design (T025: read-only by construction), so neither is
+   * exercised here; both are already proven refused from every area in the block above.
+   */
+  const NIL_UUID = "00000000-0000-4000-8000-000000000000";
+  const probes: readonly { label: string; fn: AdminRoleFunction; call: () => Promise<{ ok: boolean; code?: string }> }[] = [
+    { label: "warehouse.executeWarehouseOperation", fn: "is_warehouse_operator", call: async () => (await import("@/lib/admin/warehouse")).executeWarehouseOperation({ shipmentId: NIL_UUID, operation: "dispatch" }) },
+    { label: "decisions.decideKybApplication", fn: "is_compliance_operator", call: async () => (await import("@/lib/admin/decisions")).decideKybApplication({ applicationId: NIL_UUID, decision: "APPROVED" }) },
+    { label: "catalogue.createCoffee", fn: "is_platform_admin", call: async () => (await import("@/lib/admin/catalogue")).createCoffee({ name: "T030 direct-action probe", slug: "t030-direct-action-probe" }) },
+    { label: "commission.createCommissionPolicy", fn: "is_super_admin", call: async () => (await import("@/lib/admin/commission")).createCommissionPolicy({ name: "T030 direct-action probe", effectiveFrom: "2099-01-01T00:00" }) },
+  ];
+  // Only the four functions actually probed below (`probes`) — `is_finance_operator` (blocked
+  // pending Feature 008, no write domain yet) and `is_auditor` (read-only by construction, no write
+  // domain by design) are deliberately absent rather than assigned an invented code.
+  const NOT_CAPABLE_CODES: Partial<Record<AdminRoleFunction, string>> = {
+    is_warehouse_operator: "warehouse_not_capable",
+    is_compliance_operator: "compliance_not_capable",
+    is_platform_admin: "catalogue_not_capable",
+    is_super_admin: "system_not_capable",
+  };
+  const sessions: readonly { role: OperationalRole; email: () => string }[] = [
+    { role: "WAREHOUSE", email: () => FOUNDATION_FIXTURES.warehouseAdmin.email },
+    { role: "FINANCE", email: () => FOUNDATION_FIXTURES.financeAdmin.email },
+    { role: "COMPLIANCE", email: () => FOUNDATION_FIXTURES.complianceReviewer.email },
+    { role: "ADMIN", email: () => FOUNDATION_FIXTURES.catalogueAdmin.email },
+    { role: "AUDITOR", email: () => FOUNDATION_FIXTURES.auditor.email },
+    { role: "SUPER_ADMIN", email: () => FOUNDATION_FIXTURES.superAdmin.email },
+  ];
+
+  beforeAll(() => {
+    prepareComplianceFixture();
+    prepareCatalogueAdminFixture();
+    prepareAuditorFixture();
+    prepareSuperAdminFixture();
+  }, FIXTURE_LIVE_TIMEOUT_MS);
+
+  afterAll(() => {
+    for (const [cleanup, inspect] of [
+      [cleanupComplianceFixture, inspectComplianceFixture],
+      [cleanupCatalogueAdminFixture, inspectCatalogueAdminFixture],
+      [cleanupAuditorFixture, inspectAuditorFixture],
+      [cleanupSuperAdminFixture, inspectSuperAdminFixture],
+    ] as const) {
+      const result = cleanup();
+      expect(result.activeAdminPrivilege).toBe(false);
+      expect(inspect().activeCapability).toBe(false);
+    }
+  }, FIXTURE_LIVE_TIMEOUT_MS);
+
+  for (const probe of probes) {
+    it(`${probe.label} refuses every session whose role does not satisfy ${probe.fn}() — real domain function, not the page guard`, async () => {
+      for (const { role, email } of sessions) {
+        if (roleSatisfiesFunction(role, probe.fn)) continue; // the owning-role write path is proven live elsewhere (run-e-live/run-f-live/compliance-decisions/warehouse-operations); this test writes nothing.
+        const client = await signInAsFixture(email());
+        const result = await withLiveClient(client, probe.call);
+        expect(result.ok, `${probe.label} × ${role}`).toBe(false);
+        if (!result.ok) expect(result.code, `${probe.label} × ${role}`).toBe(NOT_CAPABLE_CODES[probe.fn]!);
+      }
+      // Anonymous is refused too, with the auth-required code (never the same not-capable code, and never a raw error).
+      const anonymous = await withLiveClient(createAnonymousFixtureClient(), probe.call);
+      expect(anonymous.ok, `${probe.label} × anonymous`).toBe(false);
+      if (!anonymous.ok) expect(anonymous.code, `${probe.label} × anonymous`).toBe("profile_auth_required");
+    }, FIXTURE_LIVE_TIMEOUT_MS);
+  }
+
+  it("no probe above left a stray row: the warehouse/KYB probes used a nil id (never found) and the catalogue/commission probes were refused before any insert", async () => {
+    const superClient = await signInAsFixture(FOUNDATION_FIXTURES.superAdmin.email);
+    await withLiveClient(superClient, async () => {
+      const { createClient } = await import("@/lib/supabase/server");
+      const supabase = await createClient();
+      const { data: coffee } = await supabase.from("coffees").select("id").eq("slug", "t030-direct-action-probe");
+      expect(coffee ?? []).toEqual([]);
+      const { data: policy } = await supabase.from("commission_policies").select("id").eq("name", "T030 direct-action probe");
+      expect(policy ?? []).toEqual([]);
     });
   }, LIVE_TIMEOUT_MS);
 });

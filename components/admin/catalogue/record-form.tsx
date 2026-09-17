@@ -9,8 +9,10 @@ import { Button } from "@/components/ui/button";
 import { Field, FieldGroup } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import type { CatalogueWriteOutcome } from "@/lib/admin/catalogue";
 import { ACTION_FEEDBACK, type ActionFeedbackResult } from "@/lib/types/action-feedback";
+
+/** Every record write returns the row id plus the public tags it revalidated (empty for system configuration). */
+export type RecordWriteOutcome = { id: string; revalidatedTags: readonly string[] };
 
 /**
  * Feature 010 RUN E (T021/T022) — the ONE catalogue record form. Each resource page declares its
@@ -20,6 +22,10 @@ import { ACTION_FEEDBACK, type ActionFeedbackResult } from "@/lib/types/action-f
  * on the exact field through the shared `Field` primitive (`aria-invalid` + `aria-describedby`);
  * outcomes surface through Sonner with the copy for the returned code — never raw database text.
  * After a successful CREATE the form navigates to the new record's detail route.
+ *
+ * Feature 010 RUN F reuses it for the SUPER_ADMIN system-configuration forms (`resource: "system"` +
+ * `copyKey`): labels/validation/feedback then resolve from `admin.system.*`, and the `number` /
+ * `datetime` field kinds carry the numeric bounds and instants those forms need.
  */
 
 export type RecordFieldOption = { value: string; label: string };
@@ -29,12 +35,16 @@ export type RecordField = {
   /** Key into the client-side label dictionary (`admin.catalogue.common` ∪ `warehouses.form` ∪ `warehouses.locations`) — resolved in the viewer's locale. */
   labelKey: string;
   hintKey?: string;
-  kind: "text" | "textarea" | "select" | "checkbox";
+  kind: "text" | "textarea" | "select" | "checkbox" | "number" | "datetime";
+  /** Numeric bounds for `number` fields (rendered as HTML attributes only — the server contract decides). */
+  min?: number;
+  max?: number;
+  step?: number | "any";
   defaultValue?: string | boolean | null;
   /** Static options (names are data — single-language by nature). */
   options?: readonly RecordFieldOption[];
   /** Localized status options from the approved vocabularies. */
-  statusOptions?: "coffee" | "origin";
+  statusOptions?: "coffee" | "origin" | "role" | "taxableBase";
   /** For selects: show an empty ("none") option; omitted = the select is required. */
   allowEmpty?: boolean;
   required?: boolean;
@@ -47,9 +57,11 @@ export type RecordField = {
 export type RecordFormProps = {
   fields: readonly RecordField[];
   hiddenFields: Record<string, string>;
-  action: (prev: ActionFeedbackResult<CatalogueWriteOutcome> | undefined, formData: FormData) => Promise<ActionFeedbackResult<CatalogueWriteOutcome>>;
+  action: (prev: ActionFeedbackResult<RecordWriteOutcome> | undefined, formData: FormData) => Promise<ActionFeedbackResult<RecordWriteOutcome>>;
   /** Which resource copy block supplies heading/lead (resolved client-side in the viewer's locale). */
-  resource: "coffees" | "origins" | "regions" | "taxonomy" | "warehouses" | "locations";
+  resource: "coffees" | "origins" | "regions" | "taxonomy" | "warehouses" | "locations" | "system";
+  /** For `resource: "system"` — the `admin.system.forms` entry that supplies heading/lead. */
+  copyKey?: "commissionPolicy" | "commissionTier" | "taxRule" | "shippingRule" | "paymentAccount" | "roleGrant";
   mode: "create" | "edit";
   /**
    * Detail route to navigate to after a successful CREATE, with `{id}` standing for the new record's
@@ -60,28 +72,48 @@ export type RecordFormProps = {
   formKey: string;
 };
 
-export function RecordForm({ fields, hiddenFields, action, resource, mode, successHrefTemplate, formKey }: RecordFormProps) {
+export function RecordForm({ fields, hiddenFields, action, resource, copyKey, mode, successHrefTemplate, formKey }: RecordFormProps) {
   const { tApp } = useLocale();
   const copy = tApp.admin.catalogue;
+  const system = tApp.admin.system;
+  const isSystem = resource === "system";
   const formCopy =
-    resource === "locations"
-      ? { createTitle: copy.warehouses.locations.add, editTitle: copy.warehouses.locations.heading, lead: undefined }
-      : (copy[resource].form as { createTitle: string; editTitle: string; lead?: string; createLead?: string; editLead?: string });
+    resource === "system"
+      ? (system.forms[copyKey ?? "commissionPolicy"] as { createTitle: string; editTitle: string; lead?: string; createLead?: string; editLead?: string })
+      : resource === "locations"
+        ? { createTitle: copy.warehouses.locations.add, editTitle: copy.warehouses.locations.heading, lead: undefined }
+        : (copy[resource].form as { createTitle: string; editTitle: string; lead?: string; createLead?: string; editLead?: string });
   const heading = mode === "create" ? formCopy.createTitle : formCopy.editTitle;
   const lead = mode === "create" ? (formCopy.createLead ?? formCopy.lead) : (formCopy.editLead ?? formCopy.lead);
-  const submitLabel = resource === "locations" ? copy.warehouses.locations.save : mode === "create" ? copy.common.create : copy.common.save;
-  const successMessage = mode === "create" && resource === "coffees" ? copy.feedback.created : copy.feedback.saved;
+  const submitLabel = isSystem ? (mode === "create" ? system.common.create : system.common.save) : resource === "locations" ? copy.warehouses.locations.save : mode === "create" ? copy.common.create : copy.common.save;
+  const successMessage = isSystem ? system.feedback.saved : mode === "create" && resource === "coffees" ? copy.feedback.created : copy.feedback.saved;
   const router = useRouter();
   const [state, dispatch, isPending] = useActionState(action, undefined);
   const [clientErrors, setClientErrors] = useState<Record<string, string>>({});
   const baseId = useId();
   const navigated = useRef<object | null>(null);
 
-  const feedbackFor = (result: ActionFeedbackResult<CatalogueWriteOutcome>): ActionToastFeedback | null => {
+  const feedbackFor = (result: ActionFeedbackResult<RecordWriteOutcome>): ActionToastFeedback | null => {
     if (result.ok) return { tone: "success", message: successMessage ?? copy.feedback.saved };
     switch (result.code) {
+      case ACTION_FEEDBACK.SYSTEM_NOT_CAPABLE:
+        return { tone: "error", message: system.feedback.notCapable };
+      case ACTION_FEEDBACK.SYSTEM_STALE:
+        return { tone: "warning", message: system.feedback.stale };
+      case ACTION_FEEDBACK.SYSTEM_NOT_FOUND:
+        return { tone: "error", message: system.feedback.notFound };
+      case ACTION_FEEDBACK.SYSTEM_DUPLICATE:
+        return { tone: "error", message: system.feedback.duplicate };
+      case ACTION_FEEDBACK.SYSTEM_REFERENCE_INVALID:
+        return { tone: "error", message: system.feedback.referenceInvalid };
+      case ACTION_FEEDBACK.SYSTEM_VALUE_INVALID:
+        return { tone: "error", message: system.feedback.valueInvalid };
+      case ACTION_FEEDBACK.SYSTEM_SAVE_FAILED:
+        return { tone: "error", message: system.feedback.failed };
+      case ACTION_FEEDBACK.ROLE_SELF_CHANGE_REFUSED:
+        return { tone: "error", message: system.feedback.selfChangeRefused };
       case ACTION_FEEDBACK.VALIDATION_ERROR:
-        return { tone: "error", message: copy.feedback.validationError };
+        return { tone: "error", message: isSystem ? system.feedback.validationError : copy.feedback.validationError };
       case ACTION_FEEDBACK.CATALOGUE_NOT_CAPABLE:
         return { tone: "error", message: copy.feedback.notCapable };
       case ACTION_FEEDBACK.PROFILE_AUTH_REQUIRED:
@@ -110,12 +142,16 @@ export function RecordForm({ fields, hiddenFields, action, resource, mode, succe
   }, [state, successHrefTemplate, router]);
 
   const serverErrors = state?.ok === false && state.code === ACTION_FEEDBACK.VALIDATION_ERROR ? (state.fieldErrors ?? {}) : {};
-  const validationCopy = copy.common.validation as Record<string, string>;
-  const labels: Record<string, string> = { ...(copy.common as unknown as Record<string, string>), ...(copy.warehouses.form as unknown as Record<string, string>), ...(copy.warehouses.locations as unknown as Record<string, string>) };
+  const validationCopy = (isSystem ? system.validation : copy.common.validation) as Record<string, string>;
+  const labels: Record<string, string> = isSystem
+    ? { ...(system.common as unknown as Record<string, string>), ...(system.fields as unknown as Record<string, string>) }
+    : { ...(copy.common as unknown as Record<string, string>), ...(copy.warehouses.form as unknown as Record<string, string>), ...(copy.warehouses.locations as unknown as Record<string, string>) };
   const labelOf = (key: string) => labels[key] ?? key;
   const optionsOf = (field: RecordField): readonly RecordFieldOption[] => {
     if (field.statusOptions === "coffee") return Object.entries(copy.statuses.coffee).map(([value, label]) => ({ value, label }));
     if (field.statusOptions === "origin") return Object.entries(copy.statuses.origin).map(([value, label]) => ({ value, label }));
+    if (field.statusOptions === "role") return Object.entries(system.roles.roleLabels).map(([value, label]) => ({ value, label }));
+    if (field.statusOptions === "taxableBase") return Object.entries(system.tax.taxableBases).map(([value, label]) => ({ value, label }));
     return field.options ?? [];
   };
   const errorFor = (field: RecordField): string | undefined => {
@@ -133,7 +169,7 @@ export function RecordForm({ fields, hiddenFields, action, resource, mode, succe
     for (const field of fields) {
       if (field.readOnly || !field.required) continue;
       const value = formData.get(field.name);
-      if (typeof value !== "string" || value.trim().length === 0) nextErrors[field.name] = field.kind === "select" ? validationCopy.INVALID_REFERENCE! : validationCopy.NAME_REQUIRED!;
+      if (typeof value !== "string" || value.trim().length === 0) nextErrors[field.name] = field.kind === "select" ? validationCopy.INVALID_REFERENCE! : field.kind === "datetime" ? (validationCopy.DATE_REQUIRED ?? validationCopy.NAME_REQUIRED!) : field.kind === "number" ? (validationCopy.QUANTITY_INVALID ?? validationCopy.NAME_REQUIRED!) : validationCopy.NAME_REQUIRED!;
     }
     setClientErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) return;
@@ -188,6 +224,10 @@ export function RecordForm({ fields, hiddenFields, action, resource, mode, succe
                     </option>
                   ))}
                 </select>
+              ) : field.kind === "number" ? (
+                <Input id={id} name={field.name} type="number" inputMode="decimal" min={field.min} max={field.max} step={field.step ?? "any"} defaultValue={typeof field.defaultValue === "string" ? field.defaultValue : ""} readOnly={field.readOnly} required={field.required} dir="ltr" className="font-mono" />
+              ) : field.kind === "datetime" ? (
+                <Input id={id} name={field.name} type="datetime-local" defaultValue={typeof field.defaultValue === "string" ? field.defaultValue : ""} readOnly={field.readOnly} required={field.required} dir="ltr" className="font-mono" />
               ) : (
                 <Input id={id} name={field.name} defaultValue={typeof field.defaultValue === "string" ? field.defaultValue : ""} maxLength={field.maxLength} readOnly={field.readOnly} required={field.required} dir={field.ltr ? "ltr" : undefined} className={field.ltr ? "font-mono" : undefined} />
               );
@@ -200,7 +240,7 @@ export function RecordForm({ fields, hiddenFields, action, resource, mode, succe
           <Button type="submit" disabled={isPending} variant="primary">
             {isPending ? copy.common.saving : submitLabel}
           </Button>
-          <p className="text-[length:var(--text-micro)] text-muted-foreground">{copy.common.publicNote}</p>
+          <p className="text-[length:var(--text-micro)] text-muted-foreground">{isSystem ? system.common.futureOnlyTitle : copy.common.publicNote}</p>
         </div>
       </form>
     </section>

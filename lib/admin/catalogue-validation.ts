@@ -134,7 +134,11 @@ export type TaxonomyUpdateInput = z.infer<typeof TaxonomyUpdateInput>;
 // ── Warehouses (reference/configuration fields ONLY — never inventory, custody or shipments) ────
 
 const warehouseCode = z.string().trim().toUpperCase().min(2, "CODE_REQUIRED").max(32, "CODE_TOO_LONG").regex(/^[A-Z0-9][A-Z0-9-]*$/, "CODE_INVALID");
-const checkbox = z.union([z.literal("on"), z.literal("true"), z.literal("false"), z.literal(""), z.boolean(), z.undefined()]).transform((value) => value === "on" || value === "true" || value === true);
+/** HTML checkbox semantics: an unchecked box is simply ABSENT from the FormData, so the key is optional and absent = false. */
+const checkbox = z
+  .union([z.literal("on"), z.literal("true"), z.literal("false"), z.literal(""), z.boolean()])
+  .optional()
+  .transform((value) => value === "on" || value === "true" || value === true);
 
 export const WarehouseFieldsInput = z.object({
   code: warehouseCode,

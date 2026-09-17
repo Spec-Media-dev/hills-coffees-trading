@@ -37,7 +37,12 @@ function walk(dir: string, out: string[] = []): string[] {
 const FEATURE_010_ROOTS = ["src/app/dashboard-admin", "lib/admin", "components/admin"] as const;
 const feature010Files = FEATURE_010_ROOTS.flatMap((dir) => walk(dir));
 
-const FINANCE_TABLES = ["payments", "payment_proofs", "payment_reviews", "payment_events", "payment_accounts", "payouts", "tax_invoices", "order_financials", "proforma_invoices", "proforma_invoice_items"] as const;
+/**
+ * Feature 008's finance domain tables. `payment_accounts` is deliberately NOT here: it is the
+ * platform's own bank-account CONFIGURATION table, assigned to Feature 010 (T029, 008 plan decision
+ * 6) and written only by `lib/admin/payment-accounts.ts` under `is_super_admin()` (RUN F).
+ */
+const FINANCE_TABLES = ["payments", "payment_proofs", "payment_reviews", "payment_events", "payouts", "tax_invoices", "order_financials", "proforma_invoices", "proforma_invoice_items"] as const;
 
 /** Strip `//` and `/* *\/` comments so the audit judges runtime code, not the documentation that names the primitive. */
 function stripComments(src: string): string {

@@ -125,8 +125,18 @@ function stripComments(source: string): string {
   return source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
 }
 
-describe("T005 — payment_accounts boundary audit (static, whole repo)", () => {
+describe("T005 — payment_accounts boundary audit (static, member/public/finance surfaces)", () => {
+  /**
+   * Feature 010 RUN F (decision D1, 2026-09-17): the ONLY permitted callers of `payment_accounts` are
+   * Feature 010's SUPER_ADMIN configuration surface (`lib/admin/payment-accounts.ts`,
+   * `src/app/dashboard-admin/(system)/payment-accounts/**`, `components/admin/system/**`) — the
+   * configuration UI Feature 008's plan (decision 6) assigns to Feature 010. Every member-facing,
+   * public and finance-domain root stays under this audit, and Feature 008 itself still contains no
+   * payment-account implementation (`lib/finance` is inside the audited set).
+   */
   const sourceRoots = ["lib", "components", "src", "app"];
+  const FEATURE_010_PAYMENT_ACCOUNT_OWNERS = [/^lib\/admin\/payment-accounts\.ts$/, /^lib\/admin\/system-validation\.ts$/, /^src\/app\/dashboard-admin\/\(system\)\/payment-accounts\//, /^components\/admin\/system\/fields\.ts$/, /^lib\/app\/copy\/(en|ar)\.ts$/];
+  const isFeature010Owner = (file: string) => FEATURE_010_PAYMENT_ACCOUNT_OWNERS.some((pattern) => pattern.test(file));
 
   function collectSourceFiles(dir: string): string[] {
     let entries: import("node:fs").Dirent[];
@@ -146,6 +156,7 @@ describe("T005 — payment_accounts boundary audit (static, whole repo)", () => 
     const offenders: string[] = [];
     for (const root of sourceRoots) {
       for (const file of collectSourceFiles(root)) {
+        if (isFeature010Owner(file)) continue;
         const source = stripComments(readFileSync(file, "utf8"));
         if (/\.from\(\s*["']payment_accounts["']\s*\)/.test(source)) offenders.push(file);
       }
@@ -153,11 +164,19 @@ describe("T005 — payment_accounts boundary audit (static, whole repo)", () => 
     expect(offenders).toEqual([]);
   });
 
+  it("Feature 010's permitted payment-account owners are admin-only: none lives under a member, public or finance root, and Feature 008 (lib/finance) still executes no payment_accounts operation", () => {
+    const owners = sourceRoots.flatMap((root) => collectSourceFiles(root)).filter((file) => isFeature010Owner(file));
+    expect(owners.length).toBeGreaterThan(0);
+    for (const owner of owners) expect(owner, owner).not.toMatch(/^src\/app\/dashboard\/|^src\/app\/\(public\)|^lib\/finance|^lib\/public|^components\/(dashboard|public)/);
+    for (const file of collectSourceFiles("lib/finance")) expect(stripComments(readFileSync(file, "utf8")), file).not.toMatch(/payment_accounts/);
+  });
+
   it("no application source file references a bank-account field name (member-facing bank-instruction surface)", () => {
     const bankFieldPattern = /\b(account_number|iban|swift_code|bank_name)\b/;
     const offenders: string[] = [];
     for (const root of sourceRoots) {
       for (const file of collectSourceFiles(root)) {
+        if (isFeature010Owner(file)) continue;
         const source = stripComments(readFileSync(file, "utf8"));
         if (bankFieldPattern.test(source)) offenders.push(file);
       }

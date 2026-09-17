@@ -59,6 +59,10 @@ export const FOUNDATION_FIXTURES = {
   auditor: {
     email: "auditor+t025-test@example.com",
   },
+  /** Feature 010 RUN F — human-authorized (H1) disposable SUPER_ADMIN (role exactly SUPER_ADMIN, no membership). */
+  superAdmin: {
+    email: "super-admin+t027-test@example.com",
+  },
 } as const;
 
 /** Feature 010 RUN E (T023) — the fixed-id DRAFT coffee the console publishes/unpublishes in its live public proof. */
@@ -503,6 +507,27 @@ export const RUN_E_CREATED_ROWS = {
 } as const;
 export function cleanupRunECreatedRows(): Record<string, unknown> {
   return runJsonFixtureCommand("--cleanup-run-e-created-rows");
+}
+
+/** Feature 010 RUN F — creates/reactivates the disposable SUPER_ADMIN (role exactly SUPER_ADMIN). */
+export function prepareSuperAdminFixture(): void {
+  runFixtureScript(["--prepare-super-admin-fixture"]);
+}
+export function cleanupSuperAdminFixture(): Record<string, unknown> {
+  return runJsonFixtureCommand("--cleanup-super-admin-fixture");
+}
+export function inspectSuperAdminFixture(): Record<string, unknown> {
+  return runJsonFixtureCommand("--inspect-super-admin-fixture");
+}
+/** Feature 010 RUN F — the fixed identifiers of the rows the live suite creates, and their removal. */
+export const RUN_F_CONFIG_ROWS = {
+  policyNamePrefix: "RUN F ",
+  ruleCountryCode: "ZZ",
+  accountNamePrefix: "RUN F ",
+  roleTargetEmail: "no-organization+foundation-test@example.com",
+} as const;
+export function cleanupRunFConfigRows(): Record<string, unknown> {
+  return runJsonFixtureCommand("--cleanup-run-f-config-rows");
 }
 
 /** Feature 010 RUN E (KYB coherence) — stages the complete-draft TRADE_LICENSE document (restored by `resetCompleteDraftApplication`). */

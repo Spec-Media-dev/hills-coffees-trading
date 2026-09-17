@@ -138,11 +138,11 @@ type FixtureOrganization = {
 };
 
 type Fixture = {
-  label: "buyer-only" | "buyer-and-seller" | "warehouse-admin" | "finance-admin" | "delivery-admin" | "compliance-reviewer" | "catalogue-admin" | "auditor";
+  label: "buyer-only" | "buyer-and-seller" | "warehouse-admin" | "finance-admin" | "delivery-admin" | "compliance-reviewer" | "catalogue-admin" | "auditor" | "super-admin";
   email: string;
   fullName: string;
   organization: FixtureOrganization | null;
-  platformAdminRole: "WAREHOUSE" | "FINANCE" | "ADMIN" | "COMPLIANCE" | "AUDITOR" | null;
+  platformAdminRole: "WAREHOUSE" | "FINANCE" | "ADMIN" | "COMPLIANCE" | "AUDITOR" | "SUPER_ADMIN" | null;
 };
 
 /**
@@ -262,6 +262,55 @@ const RUN_E_AUDITOR_FIXTURE: Fixture = {
   organization: null,
   platformAdminRole: "AUDITOR",
 };
+
+/**
+ * Feature 010 RUN F's human-authorized (2026-09-17, decision H1), disposable SUPER_ADMIN identity for
+ * the Phase 9 system-configuration proofs (T027/T028/T042–T045/T029). It is the ONLY way a test can
+ * satisfy `is_super_admin()`: `platform_admins` is writable solely by an existing super admin (none
+ * exists live), so this seed-time service-role creation is the bootstrap — never a product path.
+ * Role is exactly `SUPER_ADMIN`, no organization membership, same prepare/cleanup lifecycle as the
+ * other disposable fixtures; de-privileged (`activeCapability: false`) after every run.
+ */
+const RUN_F_SUPER_ADMIN_FIXTURE: Fixture = {
+  label: "super-admin",
+  email: "super-admin+t027-test@example.com",
+  fullName: "Feature 010 Test — Super Admin",
+  organization: null,
+  platformAdminRole: "SUPER_ADMIN",
+};
+
+/**
+ * Feature 010 RUN F — the fixed identifiers of every configuration row the RUN F live suite CREATES
+ * through the console's own SUPER_ADMIN layer, and the ONE standing fixture user (`no-organization`,
+ * a member with no organization and no operational role) that T027 temporarily grants a role to.
+ * Commission policies are dated 2099 so they can never be selected by `checkout_order`; the tax and
+ * shipping rules use the user-assigned ISO code `ZZ` (no real country); the payment account carries
+ * placeholder identifiers. Nothing seeded by another feature (the real AE VAT rule, the real ADMIN
+ * row) is ever matched by these predicates.
+ */
+const RUN_F_CONFIG_ROWS = {
+  policyNamePrefix: "RUN F ",
+  ruleCountryCode: "ZZ",
+  accountNamePrefix: "RUN F ",
+  roleTargetEmail: "no-organization+foundation-test@example.com",
+} as const;
+
+async function cleanupRunFConfigRows(admin: SupabaseClient): Promise<void> {
+  const removed: Record<string, number> = {};
+  const count = async (label: string, promise: PromiseLike<{ data: unknown[] | null; error: unknown }>) => {
+    const { data, error } = await promise;
+    if (error) throw new SafeFixtureError(`RUN F config-row cleanup failed (${label}).`);
+    removed[label] = data?.length ?? 0;
+  };
+  // Tiers cascade with their policy (FK ON DELETE CASCADE).
+  await count("commission_policies", admin.from("commission_policies").delete().like("name", `${RUN_F_CONFIG_ROWS.policyNamePrefix}%`).select("id"));
+  await count("tax_rules", admin.from("tax_rules").delete().eq("country_code", RUN_F_CONFIG_ROWS.ruleCountryCode).select("id"));
+  await count("shipping_rules", admin.from("shipping_rules").delete().eq("country_code", RUN_F_CONFIG_ROWS.ruleCountryCode).select("id"));
+  await count("payment_accounts", admin.from("payment_accounts").delete().like("account_name", `${RUN_F_CONFIG_ROWS.accountNamePrefix}%`).select("id"));
+  const targetId = await findAuthUserIdByEmail(admin, RUN_F_CONFIG_ROWS.roleTargetEmail);
+  if (targetId) await count("platform_admins(role target)", admin.from("platform_admins").delete().eq("user_id", targetId).select("user_id"));
+  console.log(JSON.stringify({ removed }));
+}
 
 // ---------------------------------------------------------------------------
 // Catalogue fixtures — Feature 002 (T006a)
@@ -3549,6 +3598,22 @@ async function main(): Promise<void> {
   }
   if (process.argv.includes("--cleanup-run-e-created-rows")) {
     await cleanupRunECreatedRows(admin);
+    return;
+  }
+  if (process.argv.includes("--prepare-super-admin-fixture")) {
+    await createDisposableOperatorFixture(admin, requireEnv("TEST_FIXTURE_PASSWORD"), RUN_F_SUPER_ADMIN_FIXTURE, "feature-010-run-f-super-admin", { reuseIfActive: true });
+    return;
+  }
+  if (process.argv.includes("--cleanup-super-admin-fixture")) {
+    console.log(JSON.stringify(await cleanupDisposableOperatorFixture(admin, RUN_F_SUPER_ADMIN_FIXTURE)));
+    return;
+  }
+  if (process.argv.includes("--inspect-super-admin-fixture")) {
+    console.log(JSON.stringify(await inspectDisposableOperatorFixture(admin, RUN_F_SUPER_ADMIN_FIXTURE)));
+    return;
+  }
+  if (process.argv.includes("--cleanup-run-f-config-rows")) {
+    await cleanupRunFConfigRows(admin);
     return;
   }
   const stageDocument = process.argv.find((argument) => argument.startsWith("--stage-complete-draft-document="));
