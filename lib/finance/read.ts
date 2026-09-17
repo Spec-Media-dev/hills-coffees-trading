@@ -244,3 +244,25 @@ export async function getPayoutsForOrganization({ organizationId }: { organizati
   const { data: rows } = await supabase.from("payouts").select(PAYOUT_SELECT).eq("seller_organization_id", organizationId).order("created_at", { ascending: false });
   return (rows ?? []).map(mapPayoutRow);
 }
+
+const MAX_BATCH_SIZE = 100;
+
+/**
+ * Feature 008 T022 — the `payments` rows for ONE ALREADY-FETCHED page of order ids (mirrors
+ * `lib/orders/read.ts#getOrderFinancialsForOrders`'s exact bounded-batch shape: never an org-wide
+ * scan, never a cross-order "review queue" — the caller must already have resolved and authorized
+ * `orderIds` itself, e.g. via `getOrdersForOrganization`). RLS (`payments_view`) is the real boundary;
+ * an id the caller was not authorized to see is simply absent from the returned map, same as a single
+ * `getPayment` call. This is NOT the finance-operator review-queue read Feature 010's T013 still needs
+ * (no proof reference, no cross-organization listing, no hold-status join) — that remains unbuilt.
+ */
+export async function getPaymentsForOrders({ orderIds }: { orderIds: readonly string[] }): Promise<Map<string, PaymentDTO>> {
+  const result = new Map<string, PaymentDTO>();
+  const ids = [...new Set(orderIds)].slice(0, MAX_BATCH_SIZE);
+  if (ids.length === 0) return result;
+
+  const supabase = await createClient();
+  const { data: rows } = await supabase.from("payments").select(PAYMENT_SELECT).in("order_id", ids);
+  for (const row of rows ?? []) result.set(row.order_id, mapPaymentRow(row));
+  return result;
+}

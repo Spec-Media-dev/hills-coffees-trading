@@ -2157,6 +2157,51 @@ export const en = {
           description: "Funding steps for this order aren't available yet. No payment method has been set up, and nothing has been charged or reserved.",
         },
       },
+      /**
+       * Feature 008 T022 — private payment state routes (`/dashboard/payments`,
+       * `/dashboard/payments/[orderId]`). `status` is the full 7-value `payments.status` vocabulary
+       * (`payments_status_check`), verbatim from `lib/finance/validation.ts`'s own `PAYMENT_STATUSES`
+       * — no invented escrow/provider label.
+       */
+      payments: {
+        status: {
+          PENDING: "Pending",
+          PROOF_SUBMITTED: "Proof submitted",
+          UNDER_REVIEW: "Under review",
+          CONFIRMED: "Confirmed",
+          REJECTED: "Rejected",
+          EXPIRED: "Expired",
+          VOID: "Void",
+        },
+        list: {
+          title: "Payments",
+          description: "The stored payment state for each of your orders — exact amounts and currency, never recalculated.",
+          breadcrumb: "Payments",
+          columns: {
+            order: "Order",
+            status: "Status",
+            amount: "Amount",
+          },
+          viewDetails: "View details",
+          empty: {
+            title: "No payments yet",
+            description: "A payment record appears here once you check out an order.",
+          },
+          caption: "Your payments",
+        },
+        detail: {
+          breadcrumb: "Payment",
+          orderReferenceLabel: "Order reference",
+          paymentSectionHeading: "Payment state",
+          amountLabel: "Amount",
+          correlationLabel: "Correlation reference",
+          externalReferenceLabel: "Provider reference",
+          notYetAssigned: "Not yet assigned",
+          financialsSectionHeading: "Order financial snapshot",
+          financialsNotCalculated: "This order's financial snapshot has not been calculated yet.",
+          fundingSectionHeading: "Funding",
+        },
+      },
     },
 
     /**

@@ -2013,6 +2013,45 @@ export const ar: DeepPartial<AppCopy> = {
           description: "خطوات التمويل لهذا الطلب غير متاحة بعد. لم يتم إعداد وسيلة دفع، ولم يُخصم أو يُحجز أي مبلغ.",
         },
       },
+      payments: {
+        status: {
+          PENDING: "قيد الانتظار",
+          PROOF_SUBMITTED: "تم إرسال الإثبات",
+          UNDER_REVIEW: "قيد المراجعة",
+          CONFIRMED: "مؤكَّد",
+          REJECTED: "مرفوض",
+          EXPIRED: "منتهي الصلاحية",
+          VOID: "ملغى",
+        },
+        list: {
+          title: "المدفوعات",
+          description: "حالة الدفع المخزَّنة لكل طلب من طلباتك — المبالغ والعملة بالضبط، دون إعادة حساب أبدًا.",
+          breadcrumb: "المدفوعات",
+          columns: {
+            order: "الطلب",
+            status: "الحالة",
+            amount: "المبلغ",
+          },
+          viewDetails: "عرض التفاصيل",
+          empty: {
+            title: "لا توجد مدفوعات بعد",
+            description: "يظهر سجل الدفع هنا بمجرد إتمام الدفع لأحد طلباتك.",
+          },
+          caption: "مدفوعاتك",
+        },
+        detail: {
+          breadcrumb: "الدفعة",
+          orderReferenceLabel: "مرجع الطلب",
+          paymentSectionHeading: "حالة الدفع",
+          amountLabel: "المبلغ",
+          correlationLabel: "مرجع الارتباط",
+          externalReferenceLabel: "مرجع مزوّد الخدمة",
+          notYetAssigned: "لم يُحدَّد بعد",
+          financialsSectionHeading: "اللقطة المالية للطلب",
+          financialsNotCalculated: "لم تُحسب اللقطة المالية لهذا الطلب بعد.",
+          fundingSectionHeading: "التمويل",
+        },
+      },
     },
 
     /** Feature 009 RUN B (T015) — see `en.ts`'s matching block for scope/honesty notes. */

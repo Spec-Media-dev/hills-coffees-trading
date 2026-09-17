@@ -2,7 +2,11 @@
 
 **Status**: RUN A / Phase 1 complete (T001–T006, 6/39). RUN B / Phase 2A Stripe architecture
 preparation done (see `STRIPE-PREPARATION.md`) — T007–T010 remain unchecked pending Stripe account
-verification/credentials/approval; still 6/39. Feature 008 is NOT closed.
+verification/credentials/approval; still 6/39. **RUN C (2026-09-17) — T022 COMPLETE**: private
+payment-state routes (`/dashboard/payments`, `/dashboard/payments/[orderId]`) built provider-neutrally
+on the already-approved Phase 1 foundation only; 7/39. Feature 008 is NOT closed — Phase 2 (T007–T010)
+remains gated on external provider/legal/banking approval; Phases 3–4 (T011–T021) remain blocked on
+that approval and on T009's approved DB design; T023–T026 remain open.
 **Real task count**: **39** (`T001`–`T039`)
 **Primary decision**: escrow-oriented, provider-neutral; provider is TBD
 **Feature 007 prerequisite**: closed; consume its checkout/reservation/payment/snapshot outputs only
@@ -226,12 +230,38 @@ application-side workaround.
 
 ## Phase 5 — Private member integration, documents, and payout records
 
-- [ ] T022 Build private payment state and settlement-outcome routes from the read/domain layers;
+- [x] T022 Build private payment state and settlement-outcome routes from the read/domain layers;
   before T014 provider integration, render only the honest funding-unavailable state.
   - Req: FR-002, FR-014, FR-015, FR-019 | Depends: T002 through T006; final funded outcomes depend on T021
   - Verify: no manual-bank instructions, fake provider action, or raw error; private route guards and
     non-indexability hold for buyer/seller/finance variants.
   - Recommended: Codex — High | Why: secure private UI state handling.
+  - **Done (2026-09-17)** — `src/app/dashboard/payments/{page.tsx,[orderId]/page.tsx}`, using ONLY the
+    already-approved provider-neutral foundation (`lib/finance/{read,funding,types,errors}.ts`,
+    T002–T006) plus existing Feature 007 outputs (`getOrdersForOrganization`). No manual-bank
+    instructions, no fake provider CTA, no raw error — the funding section renders the REAL outcome of
+    `requestFunding()` (never a hardcoded string). Route guards: buyer live-proven (own order's exact
+    stored status/amount/currency/correlation + verbatim `order_financials` via the reused
+    `FinancialSummary` component); cross-org and a nonexistent id both `notFound()` identically (no
+    existence leak); anonymous refused by the existing `/dashboard` boundary. Non-indexability is
+    inherited from `dashboard/layout.tsx`'s `robots: { index: false, follow: false }` (neither new page
+    overrides it). **Seller variant**: proven as far as is honestly possible without fabricating a
+    record — the detail page adds NO buyer-only narrowing (source-proven), relying on RLS alone
+    (`payments_view`/`financials_view`'s `can_view_order`, which has a genuine seller-of-record branch,
+    re-read from the live schema report this run), exactly like every other feature's tests have had to
+    do since no live fixture anywhere has ever sold as a genuine member seller (`tests/listings/
+    sales-page.test.tsx`'s own established, pre-existing limitation — not new to this task). **"Finance"
+    variant**: not built as a distinct UI path here — a pure FINANCE-role identity is not
+    `isAuthorizedMember` and is correctly refused by this MEMBER route exactly as buyer/seller-only
+    routes are; the finance-operator RLS grant on `payments`/`order_financials` was already proven at
+    the read layer in Phase 1 (T003) and belongs to Feature 010's console (spec.md's own actor table),
+    not this route — recorded as a scope reading, not silently claimed as a fourth UI variant.
+    Verification: `tests/finance/t022-payment-state.test.tsx` (29 live/source tests), `tests/browser/
+    feature008-t022.browser.mjs` (real Chrome + axe, EN/AR × light/dark × 390/1366, 0 violations,
+    keyboard focus ring, anonymous/cross-org denial, zero console/page/request errors); finance/orders/
+    dashboard regression 34 files/439 tests unaffected; `tsc --noEmit`/scoped ESLint/`npm run build`/
+    `git diff --check` all exit 0. Stays independent of T023–T026 (no proforma/tax-invoice/payout
+    rendering) and Feature 010 (no admin-console import, no nav registration under T025).
 
 - [ ] T023 Build permitted proforma/tax-invoice metadata and seller payout-record presentation with
   stored currency, snapshot-only commission, and a clear separation from actual provider release.
