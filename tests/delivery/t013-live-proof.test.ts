@@ -14,8 +14,18 @@ describe("Feature 009 T013 live-proof hardening", () => {
     expect(financeBlock).toContain('platformAdminRole: "FINANCE"');
     expect(financeBlock).not.toContain('platformAdminRole: "ADMIN"');
     expect(seed).toContain('const T013_DELIVERY_ADMIN_FIXTURE: Fixture');
-    expect(seed).toContain('email: "delivery-admin+t013-test@example.com"');
-    expect(seed).toContain('role: "ADMIN"');
+    // The ADMIN capability is declared ON the fixture (`platformAdminRole`) and granted from it by the
+    // shared `createDisposableOperatorFixture` (`insert({ …, role, … })`) — there is no hard-coded
+    // `role: "ADMIN"` insert any more (Feature 010 RUN B refactor), so the check is scoped to the
+    // T013 fixture block and requires exactly ADMIN, no organization, and the opt-in email.
+    const t013Start = seed.indexOf("const T013_DELIVERY_ADMIN_FIXTURE: Fixture");
+    const t013Block = seed.slice(t013Start, seed.indexOf("\n};", t013Start));
+    expect(t013Block).toContain('email: "delivery-admin+t013-test@example.com"');
+    expect(t013Block).toContain("organization: null");
+    expect(t013Block).toContain('platformAdminRole: "ADMIN"');
+    expect(t013Block).not.toContain('platformAdminRole: "SUPER_ADMIN"');
+    expect(seed).toContain("await createDisposableOperatorFixture(admin, password, T013_DELIVERY_ADMIN_FIXTURE,");
+    expect(seed).not.toMatch(/insert\(\{[^}]*role: "ADMIN"/);
     expect(fixtureSession).toContain('deliveryAdmin:');
     expect(fixtureSession).toContain("platform_admins.role = 'FINANCE'");
   });
