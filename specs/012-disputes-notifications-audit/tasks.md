@@ -3,9 +3,31 @@
 **Input**: [spec.md](./spec.md), [plan.md](./plan.md), `docs/architecture/DATABASE-CAPABILITY-MAP.md`,
 `.specify/memory/constitution.md` (v2.0.0), SRS §8 (MKT-07), §13.5, §14 (OPS-02), §46.
 
-**Status**: all tasks unchecked — implementation NOT started.
+**Status**: all tasks unchecked — implementation NOT started. **RUN 0 (2026-09-17) — dependency
+reconciliation only, no code**: the "008 implemented" clause below is CLARIFIED, not removed — see the
+note immediately after this block. RUN A (T001–T004, T006, T018, T019) is GO while Feature 008 remains
+7/39 (see clarification).
 **Prerequisite**: 001, 003, 004, 007, 008, 009 implemented; 010 consumes this feature's compliance
 layer.
+
+> **RUN 0 clarification (2026-09-17)**: "008 implemented" above is broader than what this feature's
+> actual tasks require, and — re-checked against the live `disputes` schema (`order_id` only; no
+> `payment_id`, no `payment_events` reference, no `payments`/`order_financials`/`payouts` table in any
+> policy this feature reads or writes) — no task in this file calls `lib/finance/*` or reads a
+> Feature-008-owned table. `disputes_create`/`disputes_ops_update`/`disputes_view`/`dispute_evidence_*`
+> depend only on `can_view_order()` (Feature 007, CLOSED 32/32), `is_compliance_operator()`/
+> `is_auditor()`/`is_blocked_user()` (Feature 001/003/010 role functions), and `orders` existing
+> (Feature 007). **T001–T004, T006 and T019 do not require Feature 008 beyond the Phase 1 read
+> foundation it already shipped (7/39)** — none of them import, call or read anything Feature 008 adds
+> from Phase 2 onward (provider selection, the trusted-funding DB gate, funding/event boundary,
+> settlement, `decidePayment`, payout/document UI). The one place Feature 008 appears in this task
+> list (T007's Verify: "no copy... implies... freezes... settlement") is a NEGATIVE constraint —
+> disputes must not pretend to affect a Feature 008 concept — not a positive dependency on it. This
+> does not weaken the prerequisite for tasks that genuinely would need more of Feature 008 (none exist
+> today; if one is added later, it must restate its own literal `Depends:` line, not rely on this
+> blanket clause). DB-BLOCK-01, DB-BLOCK-04, DB-OPEN-06 and DB-OPEN-09 are unaffected and remain fully
+> open, exactly as recorded in `docs/architecture/DATABASE-CAPABILITY-MAP.md` — this clarification adds
+> no new capability and closes no gap.
 
 > **Standing rules**: nothing is ever deleted or edited (append-only corrections only); no capability
 > may be simulated where a recorded blocker prevents it (notifications, freezes, evidence files,

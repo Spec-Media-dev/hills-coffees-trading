@@ -6,6 +6,12 @@
 **Primary surfaces**: Member Portal (`/dashboard/disputes`, notifications) + Operations Console
 (`/dashboard-admin`, via 010)
 **Depends on**: 001, 003, 004, 007, 008, 009 (the records disputes attach to), 010 (operator surfaces)
+> **RUN 0 clarification (2026-09-17)**: the `disputes` table has an `order_id` column only — no
+> `payment_id`, no shipment reference. The genuine "record disputes attach to" is the ORDER (Feature
+> 007, CLOSED), via `can_view_order()`. Feature 008's Phase 1 read foundation (7/39) is present but not
+> consumed by any current dispute/notification/audit task; Feature 008's unfinished Phase 2+
+> (provider/settlement/funding) is not a dependency of this feature's current task set. See tasks.md's
+> own RUN 0 note for the task-by-task evidence.
 
 ## Purpose
 
@@ -272,7 +278,9 @@ visibility and the absence of any mutation affordance.
 
 | Depends on | Why |
 |---|---|
-| 007, 008, 009 | The orders/payments/shipments disputes attach to and their `DISPUTED` states |
+| 007 | The order disputes attach to (`disputes.order_id`, via `can_view_order()`) — CLOSED, no blocker |
+| 009 | `order_shipments`'s `DISPUTED` vocabulary value, for PS4/T007's linkage rendering only — CLOSED, no blocker |
+| 008 *(RUN 0, 2026-09-17: clarified — see note above)* | Only Phase 1's already-shipped read foundation (7/39) provides shared context (the buyer journey a dispute sits in); no current dispute/notification/audit task calls `lib/finance/*` or reads a Feature-008-owned table. Feature 008's unfinished settlement/provider work (Phase 2+) is NOT required for T001–T004, T006, T018 or T019 |
 | 003 | Organization/account status history |
 | 006 | Listing status history |
 | 010 | Compliance review console built on this feature's layer; auditor surfaces |
