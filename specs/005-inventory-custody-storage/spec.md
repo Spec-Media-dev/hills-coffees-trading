@@ -239,8 +239,25 @@ request delivery of the affected quantity.
 - Members cannot SELECT `inventory_reservations` directly (admin-only policy). Reservation context
   for a member must therefore come from readable sources (`orders.hold_expires_at`,
   `inventory_reservation_items` via `can_view_order`). Recorded as a design constraint, not a blocker.
-- Whether "hold/quarantine/variance" has a first-class representation for members in the approved
-  schema needs confirmation with 010's warehouse model before PS5 is fully implementable.
+- **DB-OPEN-19** *(confirmed absent; re-confirmed 2026-09-17 against Feature 010's implemented and
+  proven warehouse model)*: "hold/quarantine/variance" has **NO** first-class representation for
+  members, or for anyone, in the approved schema. Re-verified against the live schema report (68
+  tables, 0 views) and every one of the 7 applied migrations (none post-dates the report; none adds
+  matching vocabulary) — no table, column, CHECK value or function represents variance,
+  discrepancy, reconciliation, quarantine, warehouse-hold or stock/cycle-count; `storage_allocations
+  .status` is exactly `STORED`/`RELEASED`/`DELIVERED`; `inventory_positions` has only
+  `available_quantity_kg`/`reserved_quantity_kg`; the only `HOLD` is `orders.status` (a payment
+  hold — a different domain concept entirely) and the only `FROZEN` is `disputes.status`. Feature
+  010 confirmed the identical finding independently (T020, RUN D 2026-09-16) and recorded it as
+  **DB-OPEN-19** in `docs/architecture/DATABASE-CAPABILITY-MAP.md`, which already lists this
+  feature's T013/T014 as dependents. **PS5 acceptance scenario 1 (an affected position showing an
+  explicit hold/variance state) and scenario 2 (a dependent action refused server-side because of
+  one) are both NOT IMPLEMENTABLE today** — there is nothing to surface and no condition to seed
+  without fabricating one, which FR-009 explicitly forbids. **T013 is closed on the honest-gap
+  branch of its own Verify** (the finding is recorded here, not invented); **T014 stays BLOCKED**
+  pending the minimum capability DB-OPEN-19 already names: an approved, append-only inventory
+  adjustment/variance record plus a warehouse-only decision path applied by the database. This
+  feature invents no interim field, status or table to work around the gap.
 
 ## Dependencies
 

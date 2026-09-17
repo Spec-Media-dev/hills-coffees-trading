@@ -108,5 +108,5 @@ tests/inventory/                     # NEW — isolation, quantity fidelity, led
 |---|---|---|
 | **DB-OPEN-05** | Lot detail may be unreadable for members | Honest degradation (FR-011); escalate the policy decision |
 | `inventory_reservations` admin-only | Reservation cause/expiry not directly readable | Use `inventory_reservation_items` + `orders.hold_expires_at`; documented so nobody "fixes" it with service-role |
-| Variance/hold representation unconfirmed | PS5 partially unimplementable | Confirm with 010's warehouse model before building; do not invent a status |
+| **DB-OPEN-19** — variance/hold/quarantine representation CONFIRMED ABSENT (re-confirmed 2026-09-17 against Feature 010's implemented, proven warehouse model; Feature 010 T020 independently confirmed the same finding) | PS5 scenarios 1–2 not implementable; T013 closed on the honest-gap branch, T014 BLOCKED | No workaround attempted; the minimum capability (an approved append-only variance/adjustment record + warehouse-only decision path) is named in the capability map, not built here |
 | Data volume growth | Slow pages | Bounded, paginated queries in the read layer |

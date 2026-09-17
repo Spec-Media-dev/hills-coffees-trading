@@ -3,10 +3,13 @@
 **Input**: [spec.md](./spec.md), [plan.md](./plan.md), `docs/architecture/DATABASE-CAPABILITY-MAP.md`,
 `.specify/memory/constitution.md` (v2.0.0), SRS §7 (LOT-01..LOT-04, DEL-01).
 
-**Status**: **RUN D (2026-09-12) COMPLETE — Phase 1 (T001–T006, RECONCILED) + Phase 2 (T007–T012) +
-Phase 4 (T015) + Phase 5 (T016–T019) + Phase 6 (T020–T021), 19/25 tasks.** Phase 3 (T013–T014,
-custody trust/variance — depends on 010's warehouse model, not yet built) and Phase 7 (T022–T025,
-final closure) remain NOT STARTED. See
+**Status**: **RECONCILED (2026-09-17) — Phase 3 T013 CLOSED on the honest-gap branch (DB-OPEN-19
+re-confirmed against Feature 010's now-implemented and proven warehouse model: no hold/variance/
+quarantine representation exists); T014 stays BLOCKED on that same missing model, not fabricated.
+Phase 7 (T022–T025) readiness recorded (typecheck/build exit 0, lint at the pre-existing baseline,
+Feature 005's own suites 159/159 fresh) but stays open — `Depends: all` unmet while T014 is
+BLOCKED. 20/25 tasks.** Prior: RUN D (2026-09-12) COMPLETE — Phase 1 (T001–T006, RECONCILED) +
+Phase 2 (T007–T012) + Phase 4 (T015) + Phase 5 (T016–T019) + Phase 6 (T020–T021), 19/25 tasks. See
 [IMPLEMENTATION-HANDOFF.md](./IMPLEMENTATION-HANDOFF.md) for the full real-RLS, fixture-lifecycle,
 immutability, fidelity and DB-OPEN-05 evidence. Do not start Feature 010 implementation from this
 feature's handoff.
@@ -255,12 +258,36 @@ feature's handoff.
 
 ## Phase 3 — Custody trust & variance surfacing
 
-- [ ] T013 [PS5] Confirm with 010's warehouse model how holds/variances/quarantine are represented in
+- [x] T013 [PS5] Confirm with 010's warehouse model how holds/variances/quarantine are represented in
   the approved schema; implement surfacing **only** for representations that actually exist.
   - Req: FR-009, PS5 | Depends: T002
   - Verify: no invented status field is introduced; if no representation exists, the finding is recorded in spec.md Open items rather than fabricated
   - Codex: GPT-5.6 Sol — Medium · Claude: Opus — High
   - Why: the honest answer may be "the schema does not represent this yet" — recognising that instead of inventing a field is the whole point.
+  - **RECONCILED (2026-09-17) — CLOSED ON THE HONEST-GAP BRANCH; NO REPRESENTATION EXISTS.**
+    Feature 010's warehouse model now EXISTS and has been implemented and proven (RUN A–H,
+    32/48 tasks); its own investigation (T020, RUN D 2026-09-16, re-confirmed live RUN H
+    2026-09-17) reached the identical conclusion this run independently re-verified: **no
+    hold, variance, reconciliation or quarantine representation exists anywhere in the approved
+    schema.** Re-checked directly, this run: the live schema report (`docs/database/database-
+    schema-report.json`, 68 tables, 0 views, 0 enums) contains no table/column/constraint/
+    function matching that vocabulary (except the unrelated `order_items.variant_name_snapshot`);
+    `storage_allocations.status` is exactly `STORED`/`RELEASED`/`DELIVERED`
+    (`storage_allocations_status_check`); `inventory_positions` has only `available_quantity_kg`/
+    `reserved_quantity_kg`; the only `HOLD` is `orders.status` (a checkout payment hold — an
+    unrelated domain concept, not custody) and the only `FROZEN` is `disputes.status`;
+    `inventory_ownership_events.event_type` lists `ADJUSTMENT` but the table is SELECT-only for
+    `is_platform_admin()` and append-only-enforced (`prevent_ownership_event_mutation`), with
+    `admin_review_payment` its only writer — no warehouse adjustment path exists. All 7 applied
+    migrations (`supabase/migrations/*.sql`, none post-dating the schema report) were scanned and
+    add none of this vocabulary. This is test-pinned and green (re-run this session):
+    `tests/admin/warehouse-operations.test.ts` (18/18) — Feature 010's own T020 evidence test,
+    which this feature relies on rather than re-deriving. **Recorded, not invented**: `DB-OPEN-19`
+    in `docs/architecture/DATABASE-CAPABILITY-MAP.md` (already lists this feature's T013/T014 as
+    dependents — no edit needed there), and spec.md's Open items (replaced the prior "needs
+    confirmation" placeholder with this finding) and plan.md's risk table. No status field, table
+    or column was added by this feature. Closed on the Verify's second, honest branch: "the
+    finding is recorded in spec.md Open items rather than fabricated."
 
 - [ ] T014 [PS5] Where a hold/variance exists, block dependent member actions (listing, delivery
   request) with a clear server-side refusal and reason.
@@ -268,6 +295,24 @@ feature's handoff.
   - Verify: with an affected position seeded, the dependent action is refused server-side, not merely hidden
   - Codex: GPT-5.6 Sol — High · Claude: Opus — High
   - Why: LOT-04 requires unsafe stock to stop trading; a UI-only block would violate it.
+  - **RECONCILED (2026-09-17) — BLOCKED ON THE MISSING MODEL, NOT ON T013.** T013's finding is
+    definitive: no hold/variance/quarantine condition exists ANYWHERE in the approved schema for
+    any position, so there is no real "affected position" to seed — Verify's literal seeding step
+    would require FABRICATING the exact condition this task exists to detect, which the standing
+    rule and FR-009 both forbid ("Do not invent a new field/status/table"; "MUST NOT invent a
+    parallel status model"). No listing/delivery refusal logic was added to Feature 006
+    (`lib/listings/*`) or Feature 009 (`lib/delivery/*`) — both were re-read this run and neither
+    contains a hold/variance/quarantine concept of any kind (Feature 006's `eligibility.ts` already
+    separately and correctly notes the schema's approved-custody proxy is only `warehouses
+    .is_active`, "no HOLD/VARIANCE/QUARANTINE model — Feature 005 Phase 3 confirmed this gap" —
+    written in anticipation of this exact finding). **Minimum future capability required** (mirrors
+    DB-OPEN-19's own minimum, restated from T014's specific angle): an approved, append-only
+    inventory variance/adjustment record readable per-position (position id, warehouse, counted vs.
+    recorded quantity, reason, actor, correlation, and — for T014 specifically — an unresolved/
+    resolved state a member-facing read can check) plus a warehouse-only decision path the database
+    applies; only once such a column/table is queryable can a dependent action's server-side check
+    be added and tested against a REAL affected row. Until then this task has no true starting
+    point and stays BLOCKED — not attempted, not worked around.
 
 ---
 
@@ -391,25 +436,51 @@ feature's handoff.
   - Verify: four exit-0 results
   - Codex: GPT-5.6 Sol — Low · Claude: Sonnet — Low
   - Why: mechanical execution.
-
+  - **RECONCILED (2026-09-17) — readiness recorded; NOT closable: `Depends: all` unmet (T014
+    BLOCKED).** `npx tsc --noEmit` → exit 0. `npm run lint` → exit 1, 273 problems (124 errors,
+    149 warnings) — the exact recorded repo baseline (`docs/claude-design/` + one pre-existing
+    unrelated warning), zero findings in any Feature 005 file. Feature 005's own test suites, run
+    fresh this session — `tests/inventory/*` (isolation, quantity-fidelity, ledger-immutability,
+    live-empty, degradation, run-b-ui, availability) + `tests/dashboard/*` + `tests/design/
+    uif-f.test.tsx`: **15 files, 159/159 tests passed.** Repo-wide `npm test` was run in full this
+    same day (unrelated Feature 010 RUN H session, before any Feature 005 file changed in this
+    run): 149 files, 147 passed/2 gated-skipped; 1672 tests, 1666 passed/0 failed/6 skipped,
+    `TEST_EXIT=0` — cited, not re-run, since no production file has changed since. `npm run build`
+    → exit 0 (67/67 static pages). So three of four commands are clean; `npm run lint` stays at
+    the pre-existing baseline (not caused by, or fixable within, Feature 005). Still NOT "four
+    exit-0 results" — and even if it were, `Depends: all` remains unmet while T014 is BLOCKED.
 - [ ] T023 Confirm this feature ships zero mutations and no service-role usage.
   - Req: SEC-001, SEC-003 | Depends: T022
   - Verify: `grep -rn "\"use server\"\|SERVICE_ROLE" src/app/dashboard/inventory src/app/dashboard/storage lib/inventory` returns nothing
   - Codex: GPT-5.6 Sol — Low · Claude: Sonnet — Low
   - Why: mechanical structural check of a deliberate read-only scope.
-
+  - **RECONCILED (2026-09-17) — grep proof recorded; NOT closed (Depends: T022, unmet).**
+    `grep -rn "\"use server\"\|SERVICE_ROLE" src/app/dashboard/inventory src/app/dashboard/storage
+    lib/inventory` → **zero matches** (Verify's literal clause met). Feature 005 remains a pure
+    Server Component read layer with no Server Actions and no service-role path.
 - [ ] T024 Confirm no inventory data is cached and none is reachable from a public route.
   - Req: FR-008, SEC-004, SC-005, SC-007 | Depends: T022
   - Verify: `grep -rn "cacheTag\|unstable_cache" lib/inventory src/app/dashboard/inventory src/app/dashboard/storage` returns nothing; no public page imports `lib/inventory/*`
   - Codex: GPT-5.6 Sol — Low · Claude: Sonnet — Low
   - Why: mechanical grep verification of two constitutional rules.
-
+  - **RECONCILED (2026-09-17) — grep proof recorded; NOT closed (Depends: T022, unmet).**
+    `grep -rn "cacheTag\|unstable_cache" lib/inventory src/app/dashboard/inventory src/app/dashboard/
+    storage` → **zero matches**. `lib/inventory/*` is imported only under `src/app/dashboard/*`
+    (Feature 005's own member routes, gated) and `src/app/dashboard-admin/*` (Feature 010's
+    operator console — role-gated, not public); no public page (`src/app/(public)` or equivalent)
+    imports it. Both Verify clauses met.
 - [ ] T025 Update the roadmap and re-confirm DB-OPEN-05 status (still open unless formally resolved).
   - Req: spec.md Open items | Depends: T022
   - Verify: roadmap row accurate; capability-map entry unchanged unless a decision was recorded
   - Codex: GPT-5.6 Sol — Low · Claude: Opus — Medium
   - Why: honest continuity reporting on an unresolved database question.
-
+  - **RECONCILED (2026-09-17) — NOT closed (Depends: T022, unmet); no roadmap/capability-map
+    edit made this run beyond what T013 already recorded.** DB-OPEN-05 (`coffee_lots` member-read
+    policy) is UNCHANGED and stays open — no decision was recorded, no migration touched it, so per
+    Verify's own wording the capability-map entry is correctly left unchanged. DB-OPEN-19 (the
+    variance/hold/quarantine gap T013 re-confirmed) already names this feature's T013/T014 as
+    dependents in the capability map and needed no edit; spec.md/plan.md were updated under T013.
+    This task itself stays open pending T022.
 ---
 
 ## Dependencies & parallelisation
