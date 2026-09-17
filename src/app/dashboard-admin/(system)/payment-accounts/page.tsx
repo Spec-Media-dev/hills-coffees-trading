@@ -21,7 +21,13 @@ import { canWritePaymentAccounts, listPaymentAccounts, type PaymentAccountRow } 
 export default async function PaymentAccountsPage() {
   const access = await checkAreaAccess("paymentAccounts");
   if (!access.ok) return <AdminAccessDenied denial={access.denial} requiredFunction="is_platform_admin" />;
-  const [rows, canWrite] = await Promise.all([listPaymentAccounts(), canWritePaymentAccounts()]);
+  let rows: Awaited<ReturnType<typeof listPaymentAccounts>> = null;
+  const canWrite = await canWritePaymentAccounts();
+  try {
+    rows = await listPaymentAccounts();
+  } catch {
+    rows = null;
+  }
 
   const columns = [
     { key: "account", primary: true, header: <AppBilingual pick={(c) => c.admin.system.paymentAccounts.columns.account} />, render: (row: PaymentAccountRow) => <span className="font-medium text-foreground">{row.accountName}</span> },

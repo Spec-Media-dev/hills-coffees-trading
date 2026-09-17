@@ -37,7 +37,8 @@ export async function listTaxRules(): Promise<readonly TaxRuleRow[] | null> {
   const authority = await requireSuperAdmin();
   if (!authority.ok) return null;
   const supabase = await createClient();
-  const { data } = await supabase.from("tax_rules").select(TAX_SELECT).order("country_code").order("effective_from", { ascending: false }).limit(500);
+  const { data, error } = await supabase.from("tax_rules").select(TAX_SELECT).order("country_code").order("effective_from", { ascending: false }).limit(500);
+  if (error) throw new Error("pricing_rules_read_failed");
   return ((data ?? []) as TaxRaw[]).map(toTax);
 }
 
@@ -45,7 +46,8 @@ export async function getTaxRule(ruleId: string): Promise<TaxRuleRow | null> {
   const authority = await requireSuperAdmin();
   if (!authority.ok || !/^[0-9a-f-]{36}$/i.test(ruleId)) return null;
   const supabase = await createClient();
-  const { data } = await supabase.from("tax_rules").select(TAX_SELECT).eq("id", ruleId).maybeSingle();
+  const { data, error } = await supabase.from("tax_rules").select(TAX_SELECT).eq("id", ruleId).maybeSingle();
+  if (error) throw new Error("pricing_rules_read_failed");
   return data ? toTax(data as TaxRaw) : null;
 }
 
@@ -91,7 +93,8 @@ export async function listShippingRules(): Promise<readonly ShippingRuleRow[] | 
   const authority = await requireSuperAdmin();
   if (!authority.ok) return null;
   const supabase = await createClient();
-  const { data } = await supabase.from("shipping_rules").select(SHIPPING_SELECT).order("delivery_method").order("effective_from", { ascending: false }).limit(500);
+  const { data, error } = await supabase.from("shipping_rules").select(SHIPPING_SELECT).order("delivery_method").order("effective_from", { ascending: false }).limit(500);
+  if (error) throw new Error("pricing_rules_read_failed");
   return ((data ?? []) as ShippingRaw[]).map(toShipping);
 }
 
@@ -99,7 +102,8 @@ export async function getShippingRule(ruleId: string): Promise<ShippingRuleRow |
   const authority = await requireSuperAdmin();
   if (!authority.ok || !/^[0-9a-f-]{36}$/i.test(ruleId)) return null;
   const supabase = await createClient();
-  const { data } = await supabase.from("shipping_rules").select(SHIPPING_SELECT).eq("id", ruleId).maybeSingle();
+  const { data, error } = await supabase.from("shipping_rules").select(SHIPPING_SELECT).eq("id", ruleId).maybeSingle();
+  if (error) throw new Error("pricing_rules_read_failed");
   return data ? toShipping(data as ShippingRaw) : null;
 }
 

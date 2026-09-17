@@ -21,7 +21,12 @@ import { checkAreaAccess } from "@/lib/admin/guards";
 export default async function CommissionPage() {
   const access = await checkAreaAccess("commission");
   if (!access.ok) return <AdminAccessDenied denial={access.denial} requiredFunction="is_super_admin" />;
-  const policies = await listCommissionPolicies();
+  let policies: Awaited<ReturnType<typeof listCommissionPolicies>> = null;
+  try {
+    policies = await listCommissionPolicies();
+  } catch {
+    policies = null;
+  }
   const inForce = policies ? resolveInForce(policies) : null;
 
   const columns = [

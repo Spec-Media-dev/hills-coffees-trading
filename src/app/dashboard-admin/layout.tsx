@@ -2,11 +2,11 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 
 import { AdminRoleBadges } from "@/components/admin/role-badges";
+import { AdminStateCard } from "@/components/admin/state-card";
 import { AdminTopbarActions } from "@/components/admin/topbar";
 import { AppShell } from "@/components/app/app-shell";
 import { buildAdminNavGroups } from "@/components/app/admin-navigation";
 import { AppBilingual } from "@/components/locale/app-bilingual";
-import { StateScreen } from "@/components/layout/state-screen";
 import { appCopy } from "@/lib/app/copy";
 import { getRequestIdentity } from "@/lib/auth/dal";
 
@@ -83,11 +83,13 @@ export default async function DashboardAdminLayout({
 
   if (identity.operationalRoles.length === 0) {
     return (
-      <main className="flex flex-1 flex-col">
-        <StateScreen
-          kind="forbidden"
-          title={appCopy.noOperationalRole.title}
-          description={appCopy.noOperationalRole.description}
+      <main className="flex flex-1 flex-col p-6">
+        {/* T037: bilingual (the shared StateScreen takes strings only); same state as the per-area refusal. */}
+        <AdminStateCard
+          kind="no-operational-role"
+          icon="shield"
+          title={<AppBilingual pick={(c) => c.noOperationalRole.title} />}
+          description={<AppBilingual pick={(c) => c.noOperationalRole.description} />}
         />
       </main>
     );

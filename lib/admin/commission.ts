@@ -75,7 +75,8 @@ export async function listCommissionPolicies(): Promise<readonly CommissionPolic
   const authority = await requireSuperAdmin();
   if (!authority.ok) return null;
   const supabase = await createClient();
-  const { data } = await supabase.from("commission_policies").select(POLICY_SELECT).order("effective_from", { ascending: false }).order("created_at", { ascending: false }).limit(500);
+  const { data, error } = await supabase.from("commission_policies").select(POLICY_SELECT).order("effective_from", { ascending: false }).order("created_at", { ascending: false }).limit(500);
+  if (error) throw new Error("commission_read_failed");
   return ((data ?? []) as unknown as PolicyRaw[]).map(toPolicy);
 }
 
@@ -83,7 +84,8 @@ export async function getCommissionPolicy(policyId: string): Promise<CommissionP
   const authority = await requireSuperAdmin();
   if (!authority.ok || !/^[0-9a-f-]{36}$/i.test(policyId)) return null;
   const supabase = await createClient();
-  const { data } = await supabase.from("commission_policies").select(POLICY_SELECT).eq("id", policyId).maybeSingle();
+  const { data, error } = await supabase.from("commission_policies").select(POLICY_SELECT).eq("id", policyId).maybeSingle();
+  if (error) throw new Error("commission_read_failed");
   return data ? toPolicy(data as unknown as PolicyRaw) : null;
 }
 

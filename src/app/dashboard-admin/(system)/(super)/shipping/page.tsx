@@ -20,7 +20,12 @@ import { listShippingRules, type ShippingRuleRow } from "@/lib/admin/pricing-rul
 export default async function ShippingRulesPage() {
   const access = await checkAreaAccess("shipping");
   if (!access.ok) return <AdminAccessDenied denial={access.denial} requiredFunction="is_super_admin" />;
-  const rules = await listShippingRules();
+  let rules: Awaited<ReturnType<typeof listShippingRules>> = null;
+  try {
+    rules = await listShippingRules();
+  } catch {
+    rules = null;
+  }
 
   const columns = [
     { key: "method", primary: true, header: <AppBilingual pick={(c) => c.admin.system.shipping.columns.method} />, render: (row: ShippingRuleRow) => <span className="font-medium text-foreground">{row.deliveryMethod}</span> },

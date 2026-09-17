@@ -9,7 +9,7 @@ import { PageHeader } from "@/components/app/page-header";
 import { AppBilingual } from "@/components/locale/app-bilingual";
 import { appCopy } from "@/lib/app/copy";
 import { Button } from "@/components/ui/button";
-import { canReadOrganizations, listOrganizations, type OrganizationListRow } from "@/lib/admin/compliance";
+import { listOrganizations, probeOrganizationsRead, type OrganizationListRow } from "@/lib/admin/compliance";
 import { checkAreaAccess } from "@/lib/admin/guards";
 
 /**
@@ -23,8 +23,15 @@ export default async function OrganizationsPage({ searchParams }: { searchParams
   if (!access.ok) return <AdminAccessDenied denial={access.denial} requiredFunction="is_compliance_operator" />;
 
   const page = Math.max(0, Number.parseInt((await searchParams).page ?? "0", 10) || 0);
-  const readable = await canReadOrganizations();
-  const result = readable ? await listOrganizations({ page }) : { rows: [] as readonly OrganizationListRow[], hasMore: false };
+  let probe = await probeOrganizationsRead();
+  let result: { rows: readonly OrganizationListRow[]; hasMore: boolean } = { rows: [], hasMore: false };
+  if (probe === "readable") {
+    try {
+      result = await listOrganizations({ page });
+    } catch {
+      probe = "error"; // a failed read renders the error state, never an empty list pretending nothing exists
+    }
+  }
 
   const columns = [
     {
@@ -74,7 +81,9 @@ export default async function OrganizationsPage({ searchParams }: { searchParams
           { label: <AppBilingual pick={(c) => c.admin.compliance.organizations.breadcrumb} /> },
         ]}
       />
-      {!readable ? (
+      {probe === "error" ? (
+        <AdminStateCard kind="error" icon="warning" title={<AppBilingual pick={(c) => c.admin.compliance.common.loadError.title} />} description={<AppBilingual pick={(c) => c.admin.compliance.common.loadError.description} />} />
+      ) : probe === "gap" ? (
         <AdminStateCard kind="capability-gap" icon="shield" title={<AppBilingual pick={(c) => c.admin.compliance.organizations.gap.title} />} description={<AppBilingual pick={(c) => c.admin.compliance.organizations.gap.description} />} />
       ) : (
         <>

@@ -3,7 +3,33 @@
 **Input**: [spec.md](./spec.md), [plan.md](./plan.md), `docs/architecture/DATABASE-CAPABILITY-MAP.md`,
 `.specify/memory/constitution.md` (v2.0.0), SRS §14 (OPS-01, OPS-02), §3.1, §13.5.
 
-**Status**: **RUN G complete (2026-09-17) — Phase 10: T030, T034, T035 RECORDED; T031, T032, T033
+**Status**: **RUN H complete (2026-09-17) — Phase 11 T036, T037 RECORDED; Phase 12 T038–T041 VERIFIED (typecheck/build/diff-check exit 0; lint at baseline; tests 1665/1672 with the one recorded 009 failure) /
+PROVEN / RECONCILED but NOT closable on their literal dependencies; 32 / 48.** T036 (state coverage —
+`tests/admin/state-coverage.test.tsx`, 14 tests: every list page owns an honest `empty` AND `error` state,
+all 16 detail pages render `not-found` for nil/malformed ids, unauthorized/forbidden/no-operational-role are
+three distinct live outcomes, blocked 008/012 areas stay placeholders, the route `error.tsx` never prints the
+raw error; FIX: Feature 010 reads no longer swallow PostgREST errors into empty lists — they throw internal
+`_read_failed` codes and the pages render the error card; organizations distinguishes `error` from the RLS
+`capability-gap`) and T037 (real Chrome + axe over 33 surfaces × 6 appearances = 198 renders, 0 violations,
+EN/AR × light/dark × 390/1366/1920, one `<main>`, no overflow, text-labelled badges, keyboard row focus ring,
+mobile drawer open/Escape/focus-restore, exact-field validation association on catalogue AND compliance
+forms, keyboard-accessible `alertdialog` cancelled without a write; physical-CSS grep over the whole console
+returns nothing — `tests/admin/console-a11y-pins.test.ts`; FIX: the console shell's member refusal was
+English-only under `lang="ar"` → bilingual `AdminStateCard`). **Phase 12**: T038 commands — lint exit 1 at
+the exact 273/124/149 `docs/claude-design` baseline (0 findings in any 010 file), typecheck exit 0,
+`npm test` 1665/1672 passed with the ONE recorded pre-existing Feature 009 failure (`tests/delivery/t013-live-proof.test.ts`, exit non-zero), `npm run build` exit 0, `git diff --check` exit 0 — recorded as readiness proof (NOT four exit-0 results: lint and test exit non-zero for the recorded, pre-existing reasons), **T038 stays unchecked
+because `Depends: all` is unmet** (T010, T012–T015, T027, T029, T031–T033, T047, T048 open); T039 proof
+recorded (`tests/admin/surface-separation.test.tsx`, 4 live tests: member refused by the shell and all 22
+areas; operators without an organization refused by `/dashboard` and its marketplace guard); T040 proof
+recorded (no `SERVICE_ROLE` in console code, no console cache, public catalogue cache separate); T041
+reconciled (roadmap 010 row rewritten honestly; DB-OPEN-22 and SUSPEND-OPEN-01 classified in the capability
+map; nothing converted to resolved; DB-BLOCK-07 still resolved by 009) — T039/T040/T041 stay unchecked on
+`Depends: T038`. Disposable fixtures (SUPER_ADMIN, ADMIN) de-privileged after every live run
+(`activeCapability: false`); listing-review fixture reset to PENDING_REVIEW; no DB/RLS/grant/trigger change;
+no service-role path; no hard delete; no commit. **Feature 010 final closure is prevented by**: T010
+(DB-OPEN-22), T012/T032 (Feature 012 + DB-OPEN-09), T013–T015/T031 (Feature 008 finance layer), T027/T029
+(DB-OPEN-21, decision D2 ii), T033 (Phases 3–9 not all closed), T047/T048 (no approved branding storage /
+email-change flow), and therefore T038–T041. **RUN G complete (2026-09-17) — Phase 10: T030, T034, T035 RECORDED; T031, T032, T033
 PARTIAL/BLOCKED on their literal dependencies; 30 / 48.** Six new dedicated Phase 10 test files (66
 live/static tests, all green): `tests/admin/access-matrix.test.tsx` (T030 — extended from two live
 role fixtures to ALL SIX, full `ADMIN_AREAS` iteration per role incl. the DB's own hierarchy
@@ -1065,25 +1091,81 @@ scope has no owning task (flagged for RUN B planning, not silently added).
 
 ## Phase 11 — States, accessibility, RTL
 
-- [ ] T036 State coverage across all console areas (loading, empty, error, unauthorized, forbidden,
+- [x] T036 State coverage across all console areas (loading, empty, error, unauthorized, forbidden,
   not-found, plus domain states).
   - Req: FR-014 | Depends: Phases 3–9
   - Verify: each state renders; empty queues show honest empty states
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — Medium
   - Why: broad but well-specified.
+  - **RUN H (2026-09-17) — RECORDED, Verify met over every CURRENT surface** (`tests/admin/state-coverage.test.tsx`,
+    14 tests: 8 static + 6 live with the disposable SUPER_ADMIN, de-privileged after). Matrix: **loading** — route
+    `loading.tsx` (`StateScreen loading`); **error** — route `error.tsx` renders the generic screen and never
+    `error.message`/`stack`/`cause` (rendered with a fabricated 42501 message → no raw text), PLUS an inline `error`
+    card on every list page whose read Feature 010 owns (17 list pages: catalogue ×6, system ×5, KYB queue, listing
+    queue, organizations, audit ×3 — proven live with a proxied client whose DOMAIN tables return a PostgREST error
+    while identity tables pass through); **not-found** — all 16 detail pages × {nil UUID, malformed id} render
+    `not-found`, no form, no fabricated record; **empty** — the three configuration lists that are genuinely empty
+    live (shipping rules, payment accounts, commission policies) render the honest `empty` card; **unauthorized**
+    (anonymous → `/admin/sign-in/`), **forbidden** (WAREHOUSE on a super-admin area), **no-operational-role**
+    (member) are three distinct live outcomes on the same page; **blocked** — payments/payouts/invoices (Feature 008)
+    and disputes (Feature 012) stay `AdminAreaPlaceholder` (`blocked`, no table, no sample rows); **capability-gap /
+    domain states** — DB-OPEN-06 audit-log card, organizations gap (now distinguished from a read ERROR), KYB
+    readiness/document gaps, coffee media upload unavailable, publication not-operable, commission coverage gaps,
+    every system notice (`data-system-notice`). **Fixes made**: Feature 010 reads swallowed PostgREST errors and
+    rendered EMPTY lists (dishonest) — `lib/admin/{catalogue,commission,pricing-rules,payment-accounts,roles,
+    compliance}.ts` now throw internal `<domain>_read_failed` codes (writes untouched); the five system list pages
+    catch → `SystemLoadError`; the organizations page distinguishes `error` (probe failed) from `capability-gap`
+    (RLS filtered every row). **Recorded, not changed**: the warehouse queues/custody surfaces compose Feature
+    009/005 read layers whose contract degrades a database error to an empty result — they render the honest empty
+    state and never raw text; an inline error there needs the owning features' read contract. Dependency note:
+    `Depends: Phases 3–9` is not fully closed (T010, T012–T015, T027, T029 open); coverage is over every surface
+    that EXISTS today, and the surfaces those open tasks would add do not exist to have states — marked per the
+    RUN H directive ("if the literal Verify clauses pass, mark COMPLETE").
 
-- [ ] T037 Accessibility, RTL and responsive pass for the console (dense tables, keyboard traversal,
+- [x] T037 Accessibility, RTL and responsive pass for the console (dense tables, keyboard traversal,
   drawer behaviour, dot+label badges, monospace codes).
   - Req: FR-015 | Depends: Phases 3–9
   - Verify: a11y check clean; grep for physical CSS properties returns nothing; tables usable by keyboard
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — High
   - Why: dense operational tables are the hardest accessibility surface in the product.
+  - **RUN H (2026-09-17) — RECORDED, all three Verify clauses met.** (1) **a11y check clean**: real Chrome (CDP) +
+    axe-core with colour-contrast on, `tests/browser/feature010-runh.browser.mjs` against `next dev` on :3230 —
+    **33 surfaces × 6 appearances = 198 renders, 0 axe violations**, exactly one `<main>` and an `h1` each, correct
+    `lang`/`dir`/theme, no horizontal overflow and no element past the viewport, every status badge text-labelled,
+    no raw error text. Scenarios: en-light-1366, en-dark-390, ar-light-1920, ar-dark-1366, ar-light-390,
+    en-dark-1920. Surfaces: overview, account; compliance KYB queue + detail, organizations, listing queue +
+    detail, disputes (blocked); warehouse shipments queue + detail, inventory, position detail; catalogue coffees,
+    coffee detail, coffee create, warehouses, warehouse detail, media, taxonomy; audit listings, custody, log;
+    system roles, role detail, tax, shipping (empty), payment accounts; finance payments/payouts/invoices
+    (blocked); not-found ×3 (KYB, coffee, commission); member `no-operational-role` (EN + AR); anonymous →
+    `/admin/sign-in/`. Responsive: desktop `<table>` shown at 1366/1920 and hidden at 390 (card list) on the KYB
+    queue and coffees — 12 checks. Keyboard: Tab reaches a row link with a visible 2px solid focus ring on the KYB
+    queue AND the roles list. Drawer (390, AR): trigger `aria-expanded`, opens a `role="dialog"` with focus inside
+    and 23 navigation links, Escape closes and focus returns to the trigger. Forms: coffee create — empty name →
+    `aria-invalid="true"`, `aria-describedby` → `role="alert"` on the exact field, label associated, no navigation;
+    listing decision — missing reason → exact-field alert; with a reason → `alertdialog` (labelled, focus inside,
+    0 axe violations), Escape cancels, listing still PENDING_REVIEW (no write). (2) **grep for physical CSS returns
+    nothing**: `tests/admin/console-a11y-pins.test.ts` scans every file under `src/app/dashboard-admin`,
+    `components/admin`, `lib/admin` for physical-direction Tailwind utilities (`ml-/mr-/pl-/pr-/left-/right-/
+    text-left/text-right/border-l/border-r/rounded-l/rounded-r/float-…`) and inline styles — 0 offenders; the
+    repo-wide pin in `tests/design/hills-tokens.test.tsx` still holds. (3) **tables usable by keyboard**: real
+    `<table>` + `<caption>` at `lg:`, card list below, row links reachable by Tab (above). **Fix made**: the
+    console shell's member refusal (`src/app/dashboard-admin/layout.tsx`) used the string-only `StateScreen`
+    and therefore rendered ENGLISH under `lang="ar"` — replaced with the bilingual `AdminStateCard`
+    (`no-operational-role`, the same state the per-area guard renders). Dependency note as T036.
 
 ---
 
 ## Phase 12 — Verification & closure
 
 - [ ] T038 Run `npm run lint`, `npm run typecheck`, `npm test`, `npm run build`.
+  - **RUN H (2026-09-17) — verification recorded as readiness proof (typecheck/build/diff-check exit 0; lint and test exit non-zero for recorded pre-existing reasons); NOT closable: `Depends: all` is unmet** (T010, T012, T013,
+    T014, T015, T027, T029, T031, T032, T033, T047, T048 open). Results: `npm run lint` → exit 1, **273 problems
+    (124 errors, 149 warnings) = the recorded repo baseline exactly** (272 in `docs/claude-design/` + 1
+    pre-existing unused-import warning in `tests/listings/manage-page.test.tsx`, untouched by 010); zero findings
+    in any file Feature 010 touched. `npm run typecheck` → exit 0. `npm test` → **149 files: 146 passed, 1 failed, 2 gated-skipped; 1672 tests: 1665 passed, 1 failed, 6 skipped; 1943.65 s; exit NON-ZERO** — the single failure is the RECORDED pre-existing static assertion in `tests/delivery/t013-live-proof.test.ts` (expects the seed script to contain the literal `role: "ADMIN"`, which RUN B's `createDisposableOperatorFixture` refactor renamed to `platformAdminRole: "ADMIN"`; fails identically on the untouched tree since RUN B, first recorded in RUN D — Feature 009 test ownership, not patched by 010; neither that file nor the seed script changed in RUN H). Every Feature 010 suite passed (23 files under `tests/admin/`, incl. the four RUN H files: 14 + 6 + 4 tests)
+    `npm run build` → exit 0 (compiled, 67/67 static pages, every `/dashboard-admin/*` route dynamic ƒ). `git diff --check` → exit 0 (only autocrlf LF→CRLF notices). **So even apart from dependencies, the literal Verify "four exit-0 results" is NOT met: `npm run lint` (baseline) and `npm test` (the recorded 009 assertion) exit non-zero.** Green tests do not satisfy the
+    missing task dependencies; the checkbox stays open.
   - Req: — | Depends: all
   - Verify: four exit-0 results
   - Codex: GPT-5.6 Sol — Low · Claude: Sonnet — Low
@@ -1095,12 +1177,34 @@ scope has no owning task (flagged for RUN B planning, not silently added).
   - Verify: an approved trading member with no operational role is refused everywhere in the console; an operator with no organization is refused member trading routes
   - Codex: GPT-5.6 Sol — High · Claude: Opus — High
   - Why: the Constitution-locked surface-separation guarantee, checked from both directions.
+  - **RUN H (2026-09-17) — PROOF RECORDED, task NOT closed (Depends: T038, which cannot close).**
+    `tests/admin/surface-separation.test.tsx` (4 live tests, real sessions): an approved trading MEMBER with no
+    operational role (`buyerOnly`: organization present, `isAuthorizedMember: true`, `operationalRoles: []`) is
+    refused by `checkConsoleShellAccess()` and by ALL 22 `ADMIN_AREAS` with `no-operational-role`, and the console
+    layout renders that card with no `{children}` and no nav; an OPERATOR with no organization (the standing
+    WAREHOUSE fixture and the disposable SUPER_ADMIN: `operationalRoles` non-empty, `organization: null`,
+    `isAuthorizedMember: false`) is admitted by the console shell but `src/app/dashboard/layout.tsx` renders
+    onboarding without the member shell or `{children}`, and `src/app/dashboard/coffee/layout.tsx` refuses with a
+    state screen; the member's children render on `/dashboard` and the operator's on `/dashboard-admin` — the two
+    facts never cross. Browser confirmation (RUN H script): anonymous → `/admin/sign-in/`; member → the
+    `no-operational-role` state in EN and AR. Complements `tests/admin/access-matrix.test.tsx` (T030).
 
 - [ ] T040 Confirm no service-role usage and no public/shared caching of operational data.
   - Req: SEC-002, SEC-005, FR-011 | Depends: T038
   - Verify: `grep -rn "SERVICE_ROLE" src/app/dashboard-admin lib/admin` returns nothing; operational reads are uncached
   - Codex: GPT-5.6 Sol — Low · Claude: Sonnet — Low
   - Why: mechanical constitutional checks.
+  - **RUN H (2026-09-17) — PROOF RECORDED, task NOT closed (Depends: T038).** `grep -rn "SERVICE_ROLE"
+    src/app/dashboard-admin lib/admin` → **no matches** (the only case-insensitive hit is a code COMMENT in
+    `lib/admin/catalogue.ts` stating that DELETE privilege is held by the database's `service_role` alone — no
+    key, no client). `SUPABASE_SERVICE_ROLE_KEY` is read only by `scripts/seed-test-fixtures.ts` (test tooling)
+    and `lib/foundation/status.ts` (Feature 001 pinned status probe) — never by console code. Caching:
+    `unstable_cache`/`"use cache"`/`cacheTag`/`cacheLife` are ABSENT from `src/app/dashboard-admin`,
+    `components/admin`, `lib/admin` (only comments stating so); the KYB byte route is `force-dynamic`; the only
+    `next/cache` call in the console is `revalidateTag(tag, { expire: 0 })` in `lib/admin/catalogue.ts`, which
+    INVALIDATES Feature 002's public catalogue cache on publish/unpublish — that public cache lives in
+    `lib/public/{cache,coffees,origins}.ts` and holds only anonymously-readable rows (separate and intentional).
+    Every operator read is a per-request, session-scoped `createClient()` read under RLS.
 
 - [ ] T041 Update the roadmap for 010 and confirm OPS-01 dual control, DB-OPEN-06, DB-OPEN-09,
   evidence-byte scope, the suspended-operation policy, and the variance-model question all remain
@@ -1109,6 +1213,22 @@ scope has no owning task (flagged for RUN B planning, not silently added).
   - Verify: roadmap accurate; every unresolved item is visible both in the capability map and to operators where relevant
   - Codex: GPT-5.6 Sol — Medium · Claude: Opus — High
   - Why: the console is where operators would otherwise assume capabilities exist; honest representation is a governance requirement.
+  - **RUN H (2026-09-17) — RECONCILED, task NOT closed (Depends: T038).** `docs/architecture/IMPLEMENTATION-
+    ROADMAP.md`: the Feature 010 row (stale "implementation not started") now states 32/48 IN PROGRESS / NOT
+    closed, what is built, and every open item BY CAUSE; the blockers table gains DB-OPEN-19, DB-OPEN-21,
+    DB-OPEN-22, SHIP-OPEN-01, SUSPEND-OPEN-01. `docs/architecture/DATABASE-CAPABILITY-MAP.md` gains two
+    CLASSIFICATION rows (IDs assigned for tracking, nothing resolved): **DB-OPEN-22** — the COMPLIANCE
+    reviewability gap (`organizations`/`file_assets`/`account_status_history` unreadable by
+    `is_compliance_operator()`; suspension UPDATE affects 0 rows; KYB bytes unlocatable for that role → T010 open)
+    and **SUSPEND-OPEN-01** — the suspended-organization mid-operation policy (business decision). Classification
+    confirmed unchanged: OPS-01 OPEN (business/security; stated on payment accounts and role pages); DB-OPEN-06
+    OPEN (auditor audit-log card); DB-OPEN-09 OPEN (disputes blocked); DB-OPEN-19 OPEN (no variance model; stated on
+    inventory); DB-OPEN-21 OPEN (attribution notice on every configuration page; T027/T029 PARTIAL); SHIP-OPEN-01
+    OPEN (shipping page notice); COMMISSION-OPEN-01 OPEN (coverage-gap warning; 0% fallback undecided); DB-BLOCK-01
+    resolved for KYB scope only (delivery/payment/dispute/public-media bytes still open); **DB-BLOCK-07 remains
+    RESOLVED by Feature 009** (unchanged). Open tasks preserved: T010, T012, T013–T015, T027, T029, T031, T032,
+    T033, T047, T048. Every unresolved item is visible in the capability map AND in-product where an operator would
+    otherwise assume the capability exists (`data-system-notice`, `capability-gap` cards, blocked placeholders).
 
 ---
 

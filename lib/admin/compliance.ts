@@ -222,11 +222,12 @@ export type KybApplicationDetail = {
 
 export async function getKybApplicationDetail(applicationId: string): Promise<KybApplicationDetail | null> {
   const supabase = await createClient();
-  const { data: application } = await supabase
+  const { data: application, error: applicationError } = await supabase
     .from("kyb_applications")
     .select("id, organization_id, status, registered_address, business_activity, rejection_reason, submitted_at, decided_at, decided_by, created_at, updated_at")
     .eq("id", applicationId)
     .maybeSingle();
+  if (applicationError) throw new Error("compliance_read_failed");
   if (!application) return null;
   const row = application as ApplicationRow;
 
@@ -326,11 +327,12 @@ export type OrganizationListRow = OrganizationReadout & { createdAt: string };
 export async function listOrganizations({ page = 0, pageSize = 25 }: { page?: number; pageSize?: number } = {}): Promise<{ rows: readonly OrganizationListRow[]; hasMore: boolean }> {
   const supabase = await createClient();
   const from = Math.max(0, page) * pageSize;
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("organizations")
     .select("id, legal_name, display_name, status, account_type, country_code, can_buy, can_sell, is_hills_internal, created_at")
     .order("created_at", { ascending: false })
     .range(from, from + pageSize);
+  if (error) throw new Error("compliance_read_failed");
   const all = data ?? [];
   const hasMore = all.length > pageSize;
   return {
@@ -351,10 +353,16 @@ export async function listOrganizations({ page = 0, pageSize = 25 }: { page?: nu
 }
 
 /** Whether THIS operator's session can read `organizations` at all — the T007/T010 capability probe. */
-export async function canReadOrganizations(): Promise<boolean> {
+/**
+ * `readable` — this session sees organization rows; `gap` — the probe succeeded but RLS filtered every
+ * row (the RECORDED compliance-operator gap); `error` — the probe itself failed (T036: an outage is an
+ * error state, never reported as the capability gap).
+ */
+export async function probeOrganizationsRead(): Promise<"readable" | "gap" | "error"> {
   const supabase = await createClient();
   const { count, error } = await supabase.from("organizations").select("id", { count: "exact", head: true });
-  return !error && typeof count === "number" && count > 0;
+  if (error) return "error";
+  return typeof count === "number" && count > 0 ? "readable" : "gap";
 }
 
 // ── Listings (T011) ─────────────────────────────────────────────────────────────────────────────
@@ -468,7 +476,8 @@ export type ListingReviewDetail = {
 
 export async function getListingReviewDetail(offerId: string): Promise<ListingReviewDetail | null> {
   const supabase = await createClient();
-  const { data: offer } = await supabase.from("coffee_offers").select(OFFER_SELECT).eq("id", offerId).maybeSingle();
+  const { data: offer, error: offerError } = await supabase.from("coffee_offers").select(OFFER_SELECT).eq("id", offerId).maybeSingle();
+  if (offerError) throw new Error("compliance_read_failed");
   if (!offer) return null;
   const row = offer as OfferRow;
   const [names, { data: reviews }, { data: history }] = await Promise.all([

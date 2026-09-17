@@ -21,7 +21,12 @@ import { listPlatformAdmins, type PlatformAdminRow } from "@/lib/admin/roles";
 export default async function RolesPage() {
   const access = await checkAreaAccess("roles");
   if (!access.ok) return <AdminAccessDenied denial={access.denial} requiredFunction="is_super_admin" />;
-  const rows = await listPlatformAdmins();
+  let rows: Awaited<ReturnType<typeof listPlatformAdmins>> = null;
+  try {
+    rows = await listPlatformAdmins();
+  } catch {
+    rows = null; // a failed read renders the error state, never an empty list pretending nothing exists
+  }
   const viewerId = access.identity.userId;
 
   const columns = [

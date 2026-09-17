@@ -20,7 +20,12 @@ import { listTaxRules, resolveInForceTaxRule, type TaxRuleRow } from "@/lib/admi
 export default async function TaxRulesPage() {
   const access = await checkAreaAccess("tax");
   if (!access.ok) return <AdminAccessDenied denial={access.denial} requiredFunction="is_super_admin" />;
-  const rules = await listTaxRules();
+  let rules: Awaited<ReturnType<typeof listTaxRules>> = null;
+  try {
+    rules = await listTaxRules();
+  } catch {
+    rules = null;
+  }
   const inForceIds = new Set((rules ?? []).map((rule) => resolveInForceTaxRule(rules ?? [], rule.countryCode)?.id).filter(Boolean));
 
   const columns = [

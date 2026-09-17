@@ -38,7 +38,8 @@ export async function listPlatformAdmins(): Promise<readonly PlatformAdminRow[] 
   const authority = await requireSuperAdmin();
   if (!authority.ok) return null;
   const supabase = await createClient();
-  const { data } = await supabase.from("platform_admins").select("user_id, role, is_active, created_by, created_at, updated_at, profiles!platform_admins_user_id_fkey(full_name, is_blocked)").order("role").order("created_at");
+  const { data, error } = await supabase.from("platform_admins").select("user_id, role, is_active, created_by, created_at, updated_at, profiles!platform_admins_user_id_fkey(full_name, is_blocked)").order("role").order("created_at");
+  if (error) throw new Error("roles_read_failed");
   type Row = { user_id: string; role: PlatformAdminRole; is_active: boolean; created_by: string | null; created_at: string; updated_at: string; profiles: { full_name: string | null; is_blocked: boolean } | { full_name: string | null; is_blocked: boolean }[] | null };
   return ((data ?? []) as unknown as Row[]).map((row) => {
     const profile = Array.isArray(row.profiles) ? (row.profiles[0] ?? null) : row.profiles;

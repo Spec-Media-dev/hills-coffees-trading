@@ -57,7 +57,8 @@ export async function listPaymentAccounts(): Promise<readonly PaymentAccountRow[
   const authority = await requirePlatformAdmin();
   if (!authority.ok) return null;
   const supabase = await createClient();
-  const { data } = await supabase.from("payment_accounts").select(SELECT).order("is_active", { ascending: false }).order("created_at", { ascending: false }).limit(200);
+  const { data, error } = await supabase.from("payment_accounts").select(SELECT).order("is_active", { ascending: false }).order("created_at", { ascending: false }).limit(200);
+  if (error) throw new Error("payment_accounts_read_failed");
   return ((data ?? []) as Raw[]).map((row) => {
     const { accountNumber: _n, iban: _i, ...masked } = toDetail(row);
     void _n;
@@ -70,7 +71,8 @@ export async function getPaymentAccount(accountId: string): Promise<PaymentAccou
   const authority = await requirePlatformAdmin();
   if (!authority.ok || !/^[0-9a-f-]{36}$/i.test(accountId)) return null;
   const supabase = await createClient();
-  const { data } = await supabase.from("payment_accounts").select(SELECT).eq("id", accountId).maybeSingle();
+  const { data, error } = await supabase.from("payment_accounts").select(SELECT).eq("id", accountId).maybeSingle();
+  if (error) throw new Error("payment_accounts_read_failed");
   return data ? toDetail(data as Raw) : null;
 }
 

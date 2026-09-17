@@ -176,7 +176,8 @@ export async function listCoffees({ page = 0, status }: { page?: number; status?
   const from = Math.max(0, page) * COFFEE_LIST_PAGE;
   let query = supabase.from("coffees").select("id, name, slug, status, updated_at, origins(name), coffee_types(name)").order("updated_at", { ascending: false }).order("id", { ascending: false }).range(from, from + COFFEE_LIST_PAGE);
   if (status) query = query.eq("status", status);
-  const { data } = await query;
+  const { data, error } = await query;
+  if (error) throw new Error("catalogue_read_failed");
   type Row = { id: string; name: string; slug: string; status: CoffeeStatus; updated_at: string; origins: { name: string } | { name: string }[] | null; coffee_types: { name: string } | { name: string }[] | null };
   const rows = ((data ?? []) as unknown as Row[]).slice(0, COFFEE_LIST_PAGE).map((row) => ({
     id: row.id,
@@ -196,11 +197,12 @@ function one<T>(value: T | T[] | null): T | null {
 
 export async function getCoffee(coffeeId: string): Promise<CoffeeDetail | null> {
   const supabase = await createClient();
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("coffees")
     .select("id, name, slug, description, status, origin_id, coffee_type_id, variety_id, processing_method_id, packaging_type_id, created_at, updated_at, created_by, updated_by")
     .eq("id", coffeeId)
     .maybeSingle();
+  if (error) throw new Error("catalogue_read_failed");
   if (!data) return null;
   return {
     id: data.id,
@@ -253,7 +255,8 @@ export type OriginRow = {
 
 export async function listOrigins(): Promise<readonly OriginRow[]> {
   const supabase = await createClient();
-  const { data } = await supabase.from("origins").select("id, name, slug, description, country_code, status, region_id, parent_origin_id, updated_at, regions(name)").order("name").limit(500);
+  const { data, error } = await supabase.from("origins").select("id, name, slug, description, country_code, status, region_id, parent_origin_id, updated_at, regions(name)").order("name").limit(500);
+  if (error) throw new Error("catalogue_read_failed");
   type Row = { id: string; name: string; slug: string; description: string | null; country_code: string | null; status: OriginStatus; region_id: string | null; parent_origin_id: string | null; updated_at: string; regions: { name: string } | { name: string }[] | null };
   return ((data ?? []) as unknown as Row[]).map((row) => ({
     id: row.id,
@@ -277,7 +280,8 @@ export type RegionRow = { id: string; name: string; slug: string; countryCode: s
 
 export async function listRegions(): Promise<readonly RegionRow[]> {
   const supabase = await createClient();
-  const { data } = await supabase.from("regions").select("id, name, slug, country_code, updated_at").order("name").limit(500);
+  const { data, error } = await supabase.from("regions").select("id, name, slug, country_code, updated_at").order("name").limit(500);
+  if (error) throw new Error("catalogue_read_failed");
   return (data ?? []).map((row) => ({ id: row.id, name: row.name, slug: row.slug, countryCode: row.country_code?.trim() ?? null, updatedAt: row.updated_at }));
 }
 
@@ -300,11 +304,13 @@ export async function listTaxonomy(kind: TaxonomyKind): Promise<readonly Taxonom
   const supabase = await createClient();
   const table = TAXONOMY_TABLES[kind];
   if (kind === "varieties") {
-    const { data } = await supabase.from("coffee_varieties").select("id, name, slug, coffee_type_id, created_at, coffee_types(name)").order("name").limit(500);
+    const { data, error } = await supabase.from("coffee_varieties").select("id, name, slug, coffee_type_id, created_at, coffee_types(name)").order("name").limit(500);
+    if (error) throw new Error("catalogue_read_failed");
     type Row = { id: string; name: string; slug: string; coffee_type_id: string | null; created_at: string | null; coffee_types: { name: string } | { name: string }[] | null };
     return ((data ?? []) as unknown as Row[]).map((row) => ({ kind, id: row.id, name: row.name, slug: row.slug, coffeeTypeId: row.coffee_type_id, coffeeTypeName: one(row.coffee_types)?.name ?? null, createdAt: row.created_at }));
   }
-  const { data } = await supabase.from(table).select("id, name, slug, created_at").order("name").limit(500);
+  const { data, error } = await supabase.from(table).select("id, name, slug, created_at").order("name").limit(500);
+  if (error) throw new Error("catalogue_read_failed");
   return ((data ?? []) as { id: string; name: string; slug: string; created_at: string | null }[]).map((row) => ({ kind, id: row.id, name: row.name, slug: row.slug, coffeeTypeId: null, coffeeTypeName: null, createdAt: row.created_at }));
 }
 
@@ -330,7 +336,8 @@ export type OrganizationOption = { id: string; displayName: string };
 
 export async function listWarehouses(): Promise<readonly WarehouseRow[]> {
   const supabase = await createClient();
-  const { data } = await supabase.from("warehouses").select("id, code, name, country_code, city, address, is_active, owner_organization_id, updated_at, organizations(display_name)").order("code").limit(500);
+  const { data, error } = await supabase.from("warehouses").select("id, code, name, country_code, city, address, is_active, owner_organization_id, updated_at, organizations(display_name)").order("code").limit(500);
+  if (error) throw new Error("catalogue_read_failed");
   type Row = { id: string; code: string; name: string; country_code: string | null; city: string | null; address: string | null; is_active: boolean; owner_organization_id: string | null; updated_at: string; organizations: { display_name: string } | { display_name: string }[] | null };
   return ((data ?? []) as unknown as Row[]).map((row) => ({
     id: row.id,
@@ -350,14 +357,16 @@ export async function getWarehouse(warehouseId: string): Promise<{ warehouse: Wa
   const warehouse = (await listWarehouses()).find((row) => row.id === warehouseId) ?? null;
   if (!warehouse) return null;
   const supabase = await createClient();
-  const { data } = await supabase.from("warehouse_locations").select("id, warehouse_id, code, name").eq("warehouse_id", warehouseId).order("code");
+  const { data, error } = await supabase.from("warehouse_locations").select("id, warehouse_id, code, name").eq("warehouse_id", warehouseId).order("code");
+  if (error) throw new Error("catalogue_read_failed");
   return { warehouse, locations: (data ?? []).map((row) => ({ id: row.id, warehouseId: row.warehouse_id, code: row.code, name: row.name })) };
 }
 
 /** Organizations a platform admin may assign as a warehouse owner (`organizations_admin_all`). */
 export async function listOrganizationOptions(): Promise<readonly OrganizationOption[]> {
   const supabase = await createClient();
-  const { data } = await supabase.from("organizations").select("id, display_name").order("display_name").limit(500);
+  const { data, error } = await supabase.from("organizations").select("id, display_name").order("display_name").limit(500);
+  if (error) throw new Error("catalogue_read_failed");
   return (data ?? []).map((row) => ({ id: row.id, displayName: row.display_name }));
 }
 
@@ -374,7 +383,8 @@ export type CoffeeMediaRow = {
 
 export async function listCoffeeMedia(coffeeId: string): Promise<readonly CoffeeMediaRow[]> {
   const supabase = await createClient();
-  const { data } = await supabase.from("coffee_media").select("id, coffee_id, file_asset_id, sort_order, is_primary, created_at, file_assets(original_name, mime_type, size_bytes, bucket_name, is_private)").eq("coffee_id", coffeeId).order("sort_order").order("created_at");
+  const { data, error } = await supabase.from("coffee_media").select("id, coffee_id, file_asset_id, sort_order, is_primary, created_at, file_assets(original_name, mime_type, size_bytes, bucket_name, is_private)").eq("coffee_id", coffeeId).order("sort_order").order("created_at");
+  if (error) throw new Error("catalogue_read_failed");
   type Row = { id: string; coffee_id: string; file_asset_id: string; sort_order: number; is_primary: boolean; created_at: string; file_assets: { original_name: string; mime_type: string; size_bytes: number; bucket_name: string; is_private: boolean } | { original_name: string; mime_type: string; size_bytes: number; bucket_name: string; is_private: boolean }[] | null };
   return ((data ?? []) as unknown as Row[]).map((row) => {
     const file = one(row.file_assets);
@@ -395,7 +405,8 @@ export type CoffeeMediaListRow = CoffeeMediaRow & { coffeeName: string; coffeeSl
 /** Every media record across the catalogue (T024 list), newest coffee first — read-only. */
 export async function listAllCoffeeMedia(): Promise<readonly CoffeeMediaListRow[]> {
   const supabase = await createClient();
-  const { data } = await supabase.from("coffee_media").select("id, coffee_id, file_asset_id, sort_order, is_primary, created_at, coffees(name, slug), file_assets(original_name, mime_type, size_bytes, bucket_name, is_private)").order("created_at", { ascending: false }).limit(500);
+  const { data, error } = await supabase.from("coffee_media").select("id, coffee_id, file_asset_id, sort_order, is_primary, created_at, coffees(name, slug), file_assets(original_name, mime_type, size_bytes, bucket_name, is_private)").order("created_at", { ascending: false }).limit(500);
+  if (error) throw new Error("catalogue_read_failed");
   type Row = { id: string; coffee_id: string; file_asset_id: string; sort_order: number; is_primary: boolean; created_at: string; coffees: { name: string; slug: string } | { name: string; slug: string }[] | null; file_assets: { original_name: string; mime_type: string; size_bytes: number; bucket_name: string; is_private: boolean } | { original_name: string; mime_type: string; size_bytes: number; bucket_name: string; is_private: boolean }[] | null };
   return ((data ?? []) as unknown as Row[]).map((row) => {
     const file = one(row.file_assets);
