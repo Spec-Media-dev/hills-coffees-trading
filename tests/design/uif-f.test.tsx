@@ -227,11 +227,14 @@ describe("Phase 5.5 UIF-036 — member shell applied at /dashboard", () => {
     // request form (`/dashboard/deliveries/new`), list (`/dashboard/deliveries`) and tracking detail
     // (`/dashboard/deliveries/[shipmentId]`), registered with Feature 004's module contract as the
     // `delivery` module (`requiredCapability: "buy"`), each page enforcing its own Feature 003
-    // eligibility truth server-side. No OTHER business area (payments, disputes) has a directory here yet.
-    expect(dirs.sort()).toEqual(["coffee", "deliveries", "inventory", "kyb", "listings", "onboarding", "orders", "sales", "settings", "storage"]);
-    for (const stillUnbuilt of ["payments", "disputes"]) {
-      expect(dirs).not.toContain(stillUnbuilt);
-    }
+    // eligibility truth server-side.
+    //
+    // Feature 008 (commit 3234458) added `dashboard/payments/` — this list was not updated at the
+    // time, so it had been failing since that commit. Feature 012 RUN A (T006) added
+    // `dashboard/disputes/` and RUN B (T010/T011) `dashboard/notifications/` (+ `preferences/`); each
+    // page re-verifies the Feature 003 member contract server-side. Recorded here together (2026-09-19)
+    // so the list again states exactly what exists — no other business area has a directory.
+    expect(dirs.sort()).toEqual(["coffee", "deliveries", "disputes", "inventory", "kyb", "listings", "notifications", "onboarding", "orders", "payments", "sales", "settings", "storage"]);
 
     // Feature 003 T013 added `dashboard/onboarding/` for the controlled-onboarding Server Action
     // only — it carries no `page.tsx`, so Next.js never registers it as a route. The onboarding

@@ -226,6 +226,15 @@ export const ACTION_FEEDBACK = {
   DISPUTE_TRANSITION_REFUSED: "dispute_transition_refused",
   DISPUTE_STALE: "dispute_stale",
   DISPUTE_TRANSITION_FAILED: "dispute_transition_failed",
+  /**
+   * Feature 012 RUN B (T005) — the inert evidence-FILE seam's only outcome: dispute evidence files
+   * cannot be stored (DB-BLOCK-01). Never paired with copy implying an upload happened.
+   */
+  DISPUTE_EVIDENCE_FILE_UNAVAILABLE: "dispute_evidence_file_unavailable",
+  /** Feature 012 RUN B (T011) — own-user notification preferences. */
+  NOTIFICATION_PREFERENCES_SAVED: "notification_preferences_saved",
+  NOTIFICATION_PREFERENCES_FAILED: "notification_preferences_failed",
+  NOTIFICATION_PREFERENCES_NOT_CAPABLE: "notification_preferences_not_capable",
 } as const;
 
 export type ActionFeedbackCode = (typeof ACTION_FEEDBACK)[keyof typeof ACTION_FEEDBACK];

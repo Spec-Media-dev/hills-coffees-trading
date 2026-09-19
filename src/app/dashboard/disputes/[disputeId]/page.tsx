@@ -6,10 +6,15 @@ import { AdminDateTime } from "@/components/admin/compliance/date-time";
 import { PageHeader } from "@/components/app/page-header";
 import { DisputeHonestyNotice } from "@/components/disputes/dispute-honesty-notice";
 import { DisputeStatusBadge } from "@/components/disputes/dispute-status-badge";
+import { EvidenceFilesNotice } from "@/components/disputes/evidence-files-notice";
+import { EvidenceList } from "@/components/disputes/evidence-list";
+import { EvidenceNoteForm } from "@/components/disputes/evidence-note-form";
+import { UntrustedText } from "@/components/disputes/untrusted-text";
 import { AppBilingual } from "@/components/locale/app-bilingual";
 import { StateScreen } from "@/components/layout/state-screen";
+import { OrderStatusBadge } from "@/components/orders/order-status-badge";
 import { getRequestIdentity } from "@/lib/auth/dal";
-import { getDisputeForMember } from "@/lib/disputes/read";
+import { getDisputeEvidenceForMember, getDisputeForMember } from "@/lib/disputes/read";
 
 export const metadata: Metadata = {
   title: "Dispute",
@@ -26,8 +31,9 @@ export const metadata: Metadata = {
  * render ONLY as React text nodes (escaped by construction, `whitespace-pre-wrap` for line breaks) —
  * never `dangerouslySetInnerHTML`, never markdown.
  *
- * READ-ONLY: a member has no dispute action here — no status control, no edit, no delete (T003's
- * boundary). Evidence display/entry is T008 and is not part of RUN A.
+ * READ-ONLY STATUS: a member has no status control, no edit, no delete here (T003's
+ * boundary). RUN B (T008): the ONLY write is appending a text evidence note; no file control exists
+ * (DB-BLOCK-01). RUN B (T007): the affected order's OWN status is shown as it is — never inferred.
  */
 export default async function DisputeDetailPage({ params }: { params: Promise<{ disputeId: string }> }) {
   const identity = await getRequestIdentity();
@@ -41,6 +47,11 @@ export default async function DisputeDetailPage({ params }: { params: Promise<{ 
   const { disputeId } = await params;
   const dispute = await getDisputeForMember({ organizationId: identity.organization.organizationId, userId: identity.userId, disputeId });
   if (!dispute) notFound();
+
+  // RUN B (T008): evidence on THIS dispute only, through the same acting-organization scope; the
+  // uploader is reduced to "you / someone else" — no profile id is rendered.
+  const evidence = (await getDisputeEvidenceForMember({ organizationId: identity.organization.organizationId, userId: identity.userId, disputeId: dispute.id })) ?? [];
+  const evidenceItems = evidence.map((row) => ({ id: row.id, note: row.note, hasFileReference: row.hasFileReference, byViewer: row.uploadedBy === identity.userId, createdAt: row.createdAt }));
 
   const decided = dispute.status === "RESOLVED" || dispute.status === "REJECTED" || dispute.status === "CLOSED";
 
@@ -147,9 +158,7 @@ export default async function DisputeDetailPage({ params }: { params: Promise<{ 
         <h2 id="dispute-reason-heading" className="text-base font-semibold text-foreground">
           <AppBilingual pick={(c) => c.disputes.detail.reasonHeading} />
         </h2>
-        <p data-slot="dispute-reason" dir="auto" className="text-[length:var(--text-small)] break-words whitespace-pre-wrap text-foreground">
-          {dispute.reason}
-        </p>
+        <UntrustedText value={dispute.reason} slot="dispute-reason" />
       </section>
 
       <section aria-labelledby="dispute-resolution-heading" className="flex flex-col gap-2 rounded-[var(--radius-xl)] border border-border bg-card p-6 sm:p-7">
@@ -157,14 +166,39 @@ export default async function DisputeDetailPage({ params }: { params: Promise<{ 
           <AppBilingual pick={(c) => c.disputes.detail.resolutionHeading} />
         </h2>
         {dispute.resolution ? (
-          <p data-slot="dispute-resolution" dir="auto" className="text-[length:var(--text-small)] break-words whitespace-pre-wrap text-foreground">
-            {dispute.resolution}
-          </p>
+          <UntrustedText value={dispute.resolution} slot="dispute-resolution" />
         ) : (
           <p className="text-[length:var(--text-small)] text-muted-foreground">
             <AppBilingual pick={(c) => c.disputes.detail.resolutionPending} />
           </p>
         )}
+      </section>
+
+      <section aria-labelledby="dispute-affected-heading" data-slot="dispute-affected-order" className="flex flex-col gap-3 rounded-[var(--radius-xl)] border border-border bg-card p-6 sm:p-7">
+        <h2 id="dispute-affected-heading" className="text-base font-semibold text-foreground">
+          <AppBilingual pick={(c) => c.disputes.detail.affectedHeading} />
+        </h2>
+        <div className="flex flex-wrap items-center gap-3 text-[length:var(--text-small)]">
+          <span className="text-muted-foreground">
+            <AppBilingual pick={(c) => c.disputes.detail.orderStatusLabel} />
+          </span>
+          <OrderStatusBadge status={dispute.orderStatus} />
+        </div>
+        <p className="text-[length:var(--text-small)] text-muted-foreground">
+          <AppBilingual pick={(c) => c.disputes.detail.orderStatusNote} />
+        </p>
+      </section>
+
+      <section aria-labelledby="dispute-evidence-heading" data-slot="dispute-evidence" className="flex flex-col gap-4 rounded-[var(--radius-xl)] border border-border bg-card p-6 sm:p-7">
+        <h2 id="dispute-evidence-heading" className="text-base font-semibold text-foreground">
+          <AppBilingual pick={(c) => c.disputes.evidence.heading} />
+        </h2>
+        <p className="text-[length:var(--text-small)] text-muted-foreground">
+          <AppBilingual pick={(c) => c.disputes.evidence.description} />
+        </p>
+        <EvidenceList items={evidenceItems} />
+        <EvidenceFilesNotice />
+        <EvidenceNoteForm disputeId={dispute.id} />
       </section>
 
       <DisputeHonestyNotice />

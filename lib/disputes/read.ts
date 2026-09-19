@@ -10,6 +10,7 @@ import {
   type PaginatedDisputes,
 } from "@/lib/disputes/types";
 import { isUuid } from "@/lib/disputes/validation";
+import type { OrderStatus } from "@/lib/orders/validation";
 import { createClient } from "@/lib/supabase/server";
 
 /**
@@ -61,7 +62,7 @@ const DEFAULT_PAGE_SIZE = 25;
 const MAX_PAGE_SIZE = 100;
 
 const MEMBER_DISPUTE_SELECT =
-  "id, order_id, opened_by_user_id, status, reason, resolution, opened_at, resolved_at, updated_at, correlation_id, orders!inner(order_code, buyer_organization_id)";
+  "id, order_id, opened_by_user_id, status, reason, resolution, opened_at, resolved_at, updated_at, correlation_id, orders!inner(order_code, buyer_organization_id, status)";
 
 const OPERATOR_DISPUTE_SELECT =
   "id, order_id, opened_by_user_id, opened_by_organization_id, status, reason, resolution, correlation_id, opened_at, resolved_at, resolved_by, created_at, updated_at, orders(order_code)";
@@ -81,7 +82,7 @@ type MemberDisputeRow = {
   resolved_at: string | null;
   updated_at: string;
   correlation_id: string;
-  orders: EmbeddedOrder<{ order_code: string; buyer_organization_id: string }>;
+  orders: EmbeddedOrder<{ order_code: string; buyer_organization_id: string; status: string }>;
 };
 
 type OperatorDisputeRow = {
@@ -131,6 +132,7 @@ function toMemberDispute(row: MemberDisputeRow, organizationId: string, userId: 
     id: row.id,
     orderId: row.order_id,
     orderCode: order.order_code,
+    orderStatus: order.status as OrderStatus,
     status: row.status,
     openedAt: row.opened_at,
     resolvedAt: row.resolved_at,
@@ -148,6 +150,7 @@ function toSummary(detail: MemberDisputeDetailDTO): MemberDisputeSummaryDTO {
     id: detail.id,
     orderId: detail.orderId,
     orderCode: detail.orderCode,
+    orderStatus: detail.orderStatus,
     status: detail.status,
     openedAt: detail.openedAt,
     resolvedAt: detail.resolvedAt,
@@ -238,6 +241,30 @@ export async function getDisputeEvidenceForMember({ organizationId, userId, disp
   const dispute = await getDisputeForMember({ organizationId, userId, disputeId });
   if (!dispute) return null;
   return readEvidence(dispute.id);
+}
+
+/**
+ * Feature 012 RUN B (T007) — the acting organization's disputes on ONE of its own orders, newest
+ * first, for the order/shipment linkage. Same buyer-organization scoping as the list above; an order
+ * of another organization simply yields `[]` (no existence signal). Read-only: this never touches the
+ * order itself, and nothing about a dispute changes the order's status (DB-OPEN-09).
+ */
+export async function listDisputesForOrder({ organizationId, userId, orderId }: { organizationId: string; userId: string; orderId: string }): Promise<readonly MemberDisputeSummaryDTO[]> {
+  if (!isUuid(orderId)) return [];
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("disputes")
+    .select(MEMBER_DISPUTE_SELECT)
+    .eq("order_id", orderId)
+    .eq("orders.buyer_organization_id", organizationId)
+    .order("opened_at", { ascending: false })
+    .order("id", { ascending: false })
+    .limit(MAX_PAGE_SIZE);
+  if (error) throw new DisputeReadError();
+  return ((data ?? []) as unknown as MemberDisputeRow[])
+    .map((row) => toMemberDispute(row, organizationId, userId))
+    .filter((row): row is MemberDisputeDetailDTO => row !== null)
+    .map(toSummary);
 }
 
 // ── 2/3. OPERATOR audiences (compliance, auditor) ────────────────────────────────────────────────

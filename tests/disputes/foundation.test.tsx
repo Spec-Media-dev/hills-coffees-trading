@@ -92,9 +92,9 @@ describe("T003 — the member module exposes no status mutation path", () => {
     }
   });
 
-  it("the member Server Action file exposes only raiseDisputeAction", async () => {
+  it("the member Server Action file exposes only raise + text-evidence actions (no status, file or delete action)", async () => {
     const actions = await import("@/src/app/dashboard/disputes/actions");
-    expect(Object.keys(actions)).toEqual(["raiseDisputeAction"]);
+    expect(Object.keys(actions).sort()).toEqual(["addEvidenceNoteAction", "raiseDisputeAction"]);
   });
 
   it("the raise schema carries only the order and the description (never status, organization, user or file)", () => {

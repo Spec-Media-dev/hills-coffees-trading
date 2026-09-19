@@ -131,7 +131,7 @@ async function visit(url) {
   await new Promise((resolve) => setTimeout(resolve, 250));
 }
 
-async function useSession(session) {
+async function setSessionCookie(session) {
   await client.send("Network.deleteCookies", { name: cookieName, url: baseUrl });
   if (session) await client.send("Network.setCookie", { url: baseUrl, name: cookieName, value: cookieValue(session), path: "/", sameSite: "Lax" });
 }
@@ -169,7 +169,7 @@ async function waitFor(expression, attempts = 80) {
 
 try {
   // ── (6a) Anonymous: neither route renders private dispute data. ──
-  await useSession(null);
+  await setSessionCookie(null);
   await viewport(client, 1366, 900);
   for (const path of ["/dashboard/disputes/", `/dashboard/disputes/${disputeIds.RESOLVED}/`]) {
     await visit(`${baseUrl}${path}`);
@@ -180,7 +180,7 @@ try {
   }
 
   // ── (6b) Cross-organization member: not-found on the detail page; nothing of Org A's in its list. ──
-  await useSession(otherOrgSession);
+  await setSessionCookie(otherOrgSession);
   await visit(`${baseUrl}/dashboard/disputes/${disputeIds.OPEN}/`);
   const crossDetail = await client.evaluate(`({ url: location.href, body: document.body.innerText })`);
   await visit(`${baseUrl}/dashboard/disputes/`);
@@ -191,14 +191,14 @@ try {
   assert(report.crossOrg.detailNotFound, "Cross-organization detail did not render not-found", { body: crossDetail.body.slice(0, 400) });
 
   // ── Blocked member: refused under the existing auth contract (no dispute data). ──
-  await useSession(blockedSession);
+  await setSessionCookie(blockedSession);
   await visit(`${baseUrl}/dashboard/disputes/`);
   const blockedFacts = await client.evaluate(`({ body: document.body.innerText, states: [...document.querySelectorAll("[data-state-screen]")].map((el) => el.getAttribute("data-state-screen")), form: Boolean(document.querySelector("textarea")) })`);
   assert(!blockedFacts.form && !blockedFacts.body.includes("Browser proof"), "Blocked member reached the dispute surface", blockedFacts);
   report.blocked = { states: blockedFacts.states, formRendered: blockedFacts.form };
 
   // ── Owner session for everything below. ──
-  await useSession(buyerSession);
+  await setSessionCookie(buyerSession);
 
   // ── (1) Inline validation, EN and AR: errors are localized and associated with their control. ──
   for (const locale of ["en", "ar"]) {

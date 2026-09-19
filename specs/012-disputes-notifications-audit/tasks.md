@@ -3,7 +3,7 @@
 **Input**: [spec.md](./spec.md), [plan.md](./plan.md), `docs/architecture/DATABASE-CAPABILITY-MAP.md`,
 `.specify/memory/constitution.md` (v2.0.0), SRS §8 (MKT-07), §13.5, §14 (OPS-02), §46.
 
-**Status**: RUN A (2026-09-19) — 5/28 complete (T001, T002, T003, T006, T019); T004 implemented but PARTIAL (see its RUN A note). All other tasks unchecked. **RUN 0 (2026-09-17) — dependency
+**Status**: RUN B (2026-09-19) — 14/28 complete (RUN A: T001, T002, T003, T006, T019; RUN B: T005, T007, T008, T009, T010, T011, T012, T021, T022); T004 remains PARTIAL (see its RUN A note — unchanged in RUN B). All other tasks unchecked. **RUN 0 (2026-09-17) — dependency
 reconciliation only, no code**: the "008 implemented" clause below is CLARIFIED, not removed — see the
 note immediately after this block. RUN A (T001–T004, T006, T018, T019) is GO while Feature 008 remains
 7/39 (see clarification).
@@ -88,12 +88,17 @@ layer.
     Also recorded: the database enforces NO dispute transition rule (compliance may write any status/column
     under `disputes_ops_update`); `DISPUTE_TRANSITIONS` is application-owned policy.
 
-- [ ] T005 [PS2] Implement the evidence file seam — private `file_assets` metadata only, inert until a
+- [X] T005 [PS2] Implement the evidence file seam — private `file_assets` metadata only, inert until a
   Storage bucket is approved (DB-BLOCK-01).
   - Req: FR-005, SEC-003 | Depends: T003
   - Verify: no bytes are written anywhere; the seam is one marked function citing DB-BLOCK-01; text notes still work
   - Codex: GPT-5.6 Sol — High · Claude: Opus — High
   - Why: same blocked-capability discipline as 003/008, applied to evidence that may later be legally significant.
+  - **RUN B (2026-09-19) — COMPLETE.** `lib/disputes/evidence-files.ts#attachDisputeEvidenceFile` is the one marked
+    DB-BLOCK-01 seam: it always returns `DISPUTE_EVIDENCE_FILE_UNAVAILABLE`, imports no Supabase client, creates no
+    `file_assets` row (its NOT NULL `bucket_name`/`object_path` would describe bytes that don't exist), issues no signed
+    URL and touches no bucket. Live: `file_assets` count and bucket set unchanged, no evidence row has a
+    `file_asset_id`; text notes still work (`tests/disputes/run-b-live.test.ts`).
 
 ---
 
@@ -110,49 +115,67 @@ layer.
     read exists yet (Feature 007's recorded boundary). Not registered in the nav (that is T017). Proof:
     `tests/browser/feature012-runa.browser.mjs` (real Chrome + axe, EN/AR × light/dark × 390/1366).
 
-- [ ] T007 [PS4] Render dispute linkage from affected orders/shipments (`DISPUTED` state) **without
+- [X] T007 [PS4] Render dispute linkage from affected orders/shipments (`DISPUTED` state) **without
   implying an automatic freeze**.
   - Req: FR-007, SC-005, PS4 | Depends: T006
   - Verify: no copy states or implies that raising a dispute freezes quantity/settlement; the link between dispute and record state reflects actual behaviour
   - Codex: GPT-5.6 Sol — Medium · Claude: Opus — High
   - Why: an honest-product judgment about a capability the SRS describes but the database does not yet implement (DB-OPEN-09).
+  - **RUN B (2026-09-19) — COMPLETE.** Order detail lists the acting organization's disputes on that order with the
+    no-effect statement; a shipment whose OWN status is `DISPUTED` links to the order's dispute records; the dispute
+    detail shows the order's real status. No status is inferred either way. Live: raise + evidence + compliance
+    FREEZE left every order/shipment/payment/reservation/history/custody/inventory row byte-identical. The DISPUTED-
+    shipment linkage is unit-tested only (no DISPUTED shipment exists in fixture data).
 
-- [ ] T008 [P] [PS2] Build the evidence list/add UI with untrusted-text escaping and the DB-BLOCK-01
+- [X] T008 [P] [PS2] Build the evidence list/add UI with untrusted-text escaping and the DB-BLOCK-01
   explanation.
   - Req: FR-005, SEC-004 | Depends: T005
   - Verify: injected markup in a note renders inert; the file limitation is explained, not hidden
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — High
   - Why: user-supplied content rendered in two surfaces (member + console) — the classic XSS path.
+  - **RUN B (2026-09-19) — COMPLETE.** Evidence list (uploader relative to viewer, time, type) + text-note form on
+    the dispute detail; visible DB-BLOCK-01 notice instead of any upload control. All free text goes through
+    `components/disputes/untrusted-text.tsx`.
 
 ---
 
 ## Phase 3 — Notifications (honest read surface)
 
-- [ ] T009 [PS5] Implement `lib/notifications/read.ts` — own-user notification reads only.
+- [X] T009 [PS5] Implement `lib/notifications/read.ts` — own-user notification reads only.
   - Req: FR-008, SEC-001 | Depends: —
   - Verify: another user's notifications are never returned
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — Medium
   - Why: simple scoped read.
 
-- [ ] T010 [PS5] Implement `lib/notifications/limitations.ts` + the notification page, stating
+- [X] T010 [PS5] Implement `lib/notifications/limitations.ts` + the notification page, stating
   honestly that notifications cannot currently be generated or marked read (DB-BLOCK-04).
   - Req: FR-008, SC-006, PS5 | Depends: T009
   - Verify: no client-side read state, no local-storage read flags, no notifications synthesised from other tables; the limitation is visible in-product
   - Codex: GPT-5.6 Sol — Medium · Claude: Opus — High
   - Why: the strongest temptation in this feature is to fake a working notification centre; refusing to is the correct — and non-obvious — call.
+  - **RUN B (2026-09-19) — COMPLETE.** Own-user reads only (`user_id` filter on top of `notifications_own`, which
+    would otherwise let an ADMIN read everyone's). No read_at, no unread count, no mark-read, no local storage, no
+    synthesis. Live isolation proven against ONE test-only fixture row inserted by the seed script (the product
+    cannot create notifications) and removed afterwards.
 
-- [ ] T011 [P] [PS6] Implement notification preferences (own-user read/write).
+- [X] T011 [P] [PS6] Implement notification preferences (own-user read/write).
   - Req: FR-009 | Depends: —
   - Verify: preferences persist per user; another user's are unreachable
   - Codex: GPT-5.6 Sol — Low · Claude: Sonnet — Low
   - Why: small own-scoped CRUD.
+  - **RUN B (2026-09-19) — COMPLETE.** Channels from the live CHECK (EMAIL/SMS/WHATSAPP). `notification_type` has no
+    DB vocabulary, so the four transactional categories from the Hills design system
+    (`docs/claude-design/ui_kits/shared/account-settings.jsx`) are used as application-owned keys ("Marketplace
+    digest" omitted — saved filters don't exist). Must be reconciled when an approved generator defines types.
 
-- [ ] T012 Wire 004's reserved topbar notification entry to this surface, keeping it honest (no
+- [X] T012 Wire 004's reserved topbar notification entry to this surface, keeping it honest (no
   fabricated unread count).
   - Req: FR-008, SC-006 | Depends: T010
   - Verify: the entry links to the surface and displays no invented count
   - Codex: GPT-5.6 Sol — Low · Claude: Sonnet — Medium
   - Why: small integration with one honesty constraint.
+  - **RUN B (2026-09-19) — COMPLETE.** The Feature 004 bell is now a real `<a>` to `/dashboard/notifications/` with
+    no count; `tests/dashboard/shell.test.tsx` updated to the new contract.
 
 ---
 
@@ -222,19 +245,25 @@ layer.
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — High
   - Why: OPS-02/LOT-03 compliance proven at the boundary.
 
-- [ ] T021 Write `tests/disputes/honest-limitations.test.ts` — asserts the **absence** of a simulated
+- [X] T021 Write `tests/disputes/honest-limitations.test.ts` — asserts the **absence** of a simulated
   notification creation/read mechanism and the absence of any automatic-freeze claim.
   - Req: SC-005, SC-006 | Depends: T007, T010
   - Verify: `npm test -- disputes/honest-limitations` passes; it would fail if a fake read-state or freeze claim were introduced
   - Codex: GPT-5.6 Sol — High · Claude: Opus — High
   - Why: an unusual but valuable test — it protects a *deliberate non-implementation* from being "helpfully" filled in later.
+  - **RUN B (2026-09-19) — COMPLETE.** 15 checks (static + runtime write-recording). Mutation-proven: a freeze claim
+    in copy, a localStorage read flag, and an app-side `orders.update({ status: "DISPUTED" })` each fail it.
 
-- [ ] T022 [P] Write `tests/disputes/escaping.test.tsx` — injected markup in reasons/resolutions/notes
+- [X] T022 [P] Write `tests/disputes/escaping.test.tsx` — injected markup in reasons/resolutions/notes
   renders inert in both member and console surfaces.
   - Req: SEC-004 | Depends: T008
   - Verify: `npm test -- disputes/escaping` passes for both surfaces
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — High
   - Why: two rendering contexts must both be safe.
+  - **RUN B (2026-09-19) — COMPLETE (member surface + reusable operator-facing seam).** Feature 010's dispute console
+    route is still a placeholder that renders no dispute text, so no second page exists yet; `UntrustedText`/
+    `EvidenceList` (role-agnostic) are tested directly. When 010 builds its console it must reuse them and extend
+    this test to that page.
 
 ---
 

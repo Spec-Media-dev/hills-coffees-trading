@@ -29,6 +29,8 @@ vi.mock("@/lib/delivery/read", () => ({
 vi.mock("@/lib/orders/read", () => ({
   getOrderItems: vi.fn(async () => mocks.orderItems),
 }));
+// Feature 012 RUN B (T007): a DISPUTED shipment now links to its order's dispute records.
+vi.mock("@/lib/disputes/read", () => ({ listDisputesForOrder: vi.fn(async () => []) }));
 vi.mock("@/lib/delivery/custody", () => ({
   getCustodyForOrderItems: vi.fn(async () => mocks.custody),
 }));
@@ -200,7 +202,7 @@ describe("T020 — delivery detail page guard + state coverage", () => {
     expect(screen.getByText("No reason has been recorded for this status yet.")).toBeTruthy();
   });
 
-  it("a DISPUTED shipment shows the reason panel AND the route-toward-012 note, without implementing dispute mechanics", async () => {
+  it("a DISPUTED shipment shows the reason panel AND its Feature 012 dispute linkage, without implementing dispute mechanics or claiming a hold", async () => {
     mocks.identity = buyerIdentity;
     mocks.shipment = shipmentFixture({ status: "DISPUTED" });
     mocks.shipmentItems = [];
@@ -208,7 +210,9 @@ describe("T020 — delivery detail page guard + state coverage", () => {
     mocks.custody = [];
     await renderDetailPage();
     expect(screen.getByText("Reason")).toBeTruthy();
-    expect(screen.getByText(/This delivery is disputed/)).toBeTruthy();
+    expect(screen.getByText(/This delivery's own status is Disputed/)).toBeTruthy();
+    expect(screen.getByText(/does not by itself hold the delivery/)).toBeTruthy();
+    expect(screen.getByText(/No dispute record on this delivery's order is visible/)).toBeTruthy();
   });
 
   it("a CANCELLED shipment shows the reason panel", async () => {

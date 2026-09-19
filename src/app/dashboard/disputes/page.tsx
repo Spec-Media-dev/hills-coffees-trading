@@ -40,7 +40,7 @@ const RAISABLE_ORDER_LIMIT = 100;
  * HONESTY: the notice states plainly that raising a dispute freezes/holds nothing (DB-OPEN-09), that
  * updates are not sent as notifications (DB-BLOCK-04) and that files cannot be attached (DB-BLOCK-01).
  */
-export default async function DisputesPage({ searchParams }: { searchParams: Promise<{ page?: string }> }) {
+export default async function DisputesPage({ searchParams }: { searchParams: Promise<{ page?: string; orderId?: string }> }) {
   const identity = await getRequestIdentity();
   if (identity.kind !== "authenticated" || identity.organization === null) {
     return <StateScreen kind="unauthorized" />;
@@ -49,7 +49,7 @@ export default async function DisputesPage({ searchParams }: { searchParams: Pro
     return <StateScreen kind="forbidden" />;
   }
 
-  const { page: pageParam } = await searchParams;
+  const { page: pageParam, orderId: orderIdParam } = await searchParams;
   const page = Math.max(0, Number.parseInt(pageParam ?? "0", 10) || 0);
   const organizationId = identity.organization.organizationId;
   const [{ rows, hasMore }, orders] = await Promise.all([
@@ -57,6 +57,9 @@ export default async function DisputesPage({ searchParams }: { searchParams: Pro
     getOrdersForOrganization({ organizationId, pageSize: RAISABLE_ORDER_LIMIT }),
   ]);
   const raisableOrders = orders.rows.map((order) => ({ id: order.id, orderCode: order.orderCode, status: order.status }));
+  // RUN B (T007): "Raise a dispute on this order" prefills the select — honoured only when the id is
+  // one of the acting organization's own orders just read above; anything else is ignored.
+  const defaultOrderId = raisableOrders.some((order) => order.id === orderIdParam) ? orderIdParam : undefined;
 
   const columns: TableCardListColumn<MemberDisputeSummaryDTO>[] = [
     {
@@ -138,7 +141,7 @@ export default async function DisputesPage({ searchParams }: { searchParams: Pro
             </p>
           </div>
         ) : (
-          <RaiseDisputeForm orders={raisableOrders} />
+          <RaiseDisputeForm orders={raisableOrders} defaultOrderId={defaultOrderId} />
         )}
       </section>
 

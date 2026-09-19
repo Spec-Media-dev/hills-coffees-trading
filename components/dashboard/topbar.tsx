@@ -13,12 +13,11 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Icon } from "@/components/ui/icon";
-import { IconButton } from "@/components/ui/icon-button";
 import { useLocale } from "@/components/locale/locale-provider";
 
 /**
  * Feature 004 T006 — the Member Portal topbar's two genuinely new pieces: an account menu and the
- * reserved (inert) notifications entry. Both are passed into the EXISTING, shared
+ * notifications entry (inert until Feature 012 RUN B T012 linked it to `/dashboard/notifications`). Both are passed into the EXISTING, shared
  * `AppShell`/`Topbar` (Phase 5.5) via its `topbarActions` prop — this file does not rebuild the
  * sticky header itself. Acting-organization display already exists (`AppShell`'s `identitySubtitle`,
  * wired in `src/app/dashboard/layout.tsx`); nothing new was needed for that part of T006.
@@ -81,32 +80,30 @@ export function DashboardAccountMenu({
 }
 
 /**
- * Reserved notification entry (FR-016). Notification DELIVERY belongs to Feature 012 and is blocked
- * on DB-BLOCK-04 (no mechanism yet to create or mark a notification read) — this control exists so
- * the topbar's final visual position is correct now, without fabricating behaviour ahead of it:
+ * Notification entry (Feature 004 FR-016, wired by Feature 012 RUN B T012). It is now a plain link to
+ * the honest notification surface (`/dashboard/notifications`) — and still carries:
  *
- * - no unread count (there is no notification data to count)
- * - no dropdown content (there is nothing real to show in one)
- * - no mark-read action (no approved mechanism exists)
- * - no polling (nothing to poll)
+ * - no unread count or badge (nothing can mark a notification read, and nothing generates one —
+ *   DB-BLOCK-04; any number here would be invented)
+ * - no dropdown preview, no "needs action" items, no mark-read action
+ * - no polling and no client-side notification state
  *
- * `disabled` + a truthful, localized `aria-label` ("Notifications aren't available yet") is the
- * established disabled-control pattern this project already uses elsewhere (e.g. `FileUpload`'s
- * `disabled:opacity-[0.45]`) — an inert control that clearly LOOKS and IS unavailable, not a broken
- * live one.
+ * It renders only inside the member `AppShell`, which `src/app/dashboard/layout.tsx` reaches solely
+ * for an authorized member — the existing dashboard access contract; the target page re-verifies.
  */
 export function DashboardNotificationsButton() {
   const { tApp } = useLocale();
 
   return (
-    <IconButton
-      type="button"
-      variant="outline"
-      disabled
-      aria-label={`${tApp.notifications.label} — ${tApp.notifications.unavailable}`}
+    // A real link (not a Button rendered as `<a role="button">`), styled like the outline icon button.
+    <Link
+      href="/dashboard/notifications/"
+      aria-label={tApp.notifications.label}
+      data-slot="notifications-entry"
+      className="grid size-11 shrink-0 place-items-center rounded-[var(--radius-sm)] border border-[var(--border-strong)] text-foreground transition-[background-color] duration-[var(--dur-fast)] hover:bg-[color-mix(in_srgb,transparent,var(--forest-700)_8%)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus-ring)]"
     >
       <Icon name="bell" className="size-[18px]" />
-    </IconButton>
+    </Link>
   );
 }
 

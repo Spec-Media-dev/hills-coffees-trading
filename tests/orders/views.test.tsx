@@ -25,6 +25,8 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@/lib/auth/dal", () => ({ getRequestIdentity: vi.fn(async () => mocks.identity) }));
+// Feature 012 RUN B (T007): the order detail page now lists this order's dispute records (read-only linkage).
+vi.mock("@/lib/disputes/read", () => ({ listDisputesForOrder: vi.fn(async () => []) }));
 vi.mock("@/lib/orders/read", () => ({
   getOrdersForOrganization: vi.fn(async () => {
     mocks.readCalls.push("getOrdersForOrganization");

@@ -6,12 +6,14 @@ import { PageHeader } from "@/components/app/page-header";
 import { AppBilingual } from "@/components/locale/app-bilingual";
 import { StateScreen } from "@/components/layout/state-screen";
 import { ShipmentStatusBadge } from "@/components/delivery/shipment-status-badge";
+import { ShipmentDisputeLinkage } from "@/components/disputes/dispute-linkage";
 import { StatusTimeline } from "@/components/delivery/status-timeline";
 import { ItemQuantitiesTable } from "@/components/delivery/item-quantities-table";
 import { appCopy } from "@/lib/app/copy";
 import { getRequestIdentity } from "@/lib/auth/dal";
 import { getCustodyForOrderItems } from "@/lib/delivery/custody";
 import { getShipmentById, getShipmentItems } from "@/lib/delivery/read";
+import { listDisputesForOrder } from "@/lib/disputes/read";
 import { getOrderItems } from "@/lib/orders/read";
 
 export const metadata: Metadata = {
@@ -29,8 +31,9 @@ export const metadata: Metadata = {
  * RLS, but neither is this page's audience — a mismatch refuses identically to a nonexistent shipment,
  * no existence leak).
  *
- * `DISPUTED` (T020's own verify line): this page links toward 012's approved future dispute surface
- * (a plain note, no link target yet exists) — it implements no dispute mechanics itself.
+ * `DISPUTED` (T020's own verify line): Feature 012 RUN B (T007) now links a shipment whose OWN status is
+ * `DISPUTED` to the order's dispute records (`ShipmentDisputeLinkage`) — it implements no dispute
+ * mechanics itself and never infers a hold from a dispute record (DB-OPEN-09).
  *
  * `FAILED`/`CANCELLED`/`DISPUTED` "reason" — see `lib/app/copy`'s own `deliveries.detail.reason`
  * comment: `order_shipments` has no reason column in the live schema; the honest `notRecorded` copy
@@ -52,6 +55,8 @@ export default async function DeliveryDetailPage({ params }: { params: Promise<{
   }
 
   const [shipmentItems, orderItems] = await Promise.all([getShipmentItems({ shipmentId }), getOrderItems({ orderId: shipment.orderId })]);
+  // Feature 012 RUN B (T007): only a shipment whose OWN status is DISPUTED links to dispute records.
+  const linkedDisputes = shipment.status === "DISPUTED" ? await listDisputesForOrder({ organizationId: identity.organization.organizationId, userId: identity.userId, orderId: shipment.orderId }) : [];
   const custody = await getCustodyForOrderItems({ organizationId: identity.organization.organizationId, orderItemIds: shipmentItems.map((item) => item.orderItemId) });
 
   const needsReason = shipment.status === "FAILED" || shipment.status === "CANCELLED" || shipment.status === "DISPUTED";
@@ -95,7 +100,7 @@ export default async function DeliveryDetailPage({ params }: { params: Promise<{
             <AppBilingual pick={(c) => c.deliveries.detail.reason.heading} />
           </h2>
           <p className="text-[length:var(--text-small)] text-muted-foreground">{copy.reason.notRecorded}</p>
-          {shipment.status === "DISPUTED" ? <p className="text-[length:var(--text-small)] text-muted-foreground">{copy.disputed.note}</p> : null}
+          {shipment.status === "DISPUTED" ? <ShipmentDisputeLinkage disputes={linkedDisputes} /> : null}
         </section>
       ) : null}
 

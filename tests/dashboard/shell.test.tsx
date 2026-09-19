@@ -47,13 +47,13 @@ describe("Feature 004 T005 — capability filtering is fresh, never cached/memoi
   });
 });
 
-describe("Feature 004 T006 — the reserved notifications entry is genuinely inert", () => {
-  it("renders disabled, with a truthful accessible name, and no unread count/badge", () => {
+describe("Feature 004 T006 / Feature 012 RUN B T012 — the notifications entry links to the honest surface, with no count", () => {
+  it("is a link to /dashboard/notifications with a truthful accessible name and no unread count/badge", () => {
     render(withLocale(<DashboardNotificationsButton />));
-    const button = screen.getByRole("button") as HTMLButtonElement;
-    expect(button.disabled).toBe(true);
-    expect(button.getAttribute("aria-label")).toMatch(/notification/i);
-    expect(button.getAttribute("aria-label")).toMatch(/available yet|unavailable/i);
+    const link = screen.getByRole("link");
+    expect(link.getAttribute("href")).toMatch(/^\/dashboard\/notifications\/?$/);
+    expect(link.getAttribute("aria-label")).toMatch(/notification/i);
+    expect(link.getAttribute("aria-label")).not.toMatch(/\d/);
     // No numeric badge anywhere near the control.
     expect(screen.queryByText(/^\d+$/)).toBeNull();
   });

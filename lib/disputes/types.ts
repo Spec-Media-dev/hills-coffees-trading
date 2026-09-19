@@ -15,6 +15,8 @@
  * dispute in any status — including `FROZEN` — has no effect on the affected order, shipment,
  * payment, settlement, inventory or trading. Nothing typed here implies otherwise.
  */
+import type { OrderStatus } from "@/lib/orders/validation";
+
 export const DISPUTE_STATUSES = ["OPEN", "UNDER_REVIEW", "FROZEN", "RESOLVED", "REJECTED", "CLOSED"] as const;
 
 export type DisputeStatus = (typeof DISPUTE_STATUSES)[number];
@@ -42,6 +44,12 @@ export type MemberDisputeSummaryDTO = {
   id: string;
   orderId: string;
   orderCode: string;
+  /**
+   * The affected order's OWN current status, read from `orders` (RUN B, T007). Shown so the linkage
+   * reflects actual behaviour: a dispute never changes it (DB-OPEN-09) — it is `DISPUTED` only if
+   * the order's own workflow put it there.
+   */
+  orderStatus: OrderStatus;
   status: DisputeStatus;
   openedAt: string;
   resolvedAt: string | null;

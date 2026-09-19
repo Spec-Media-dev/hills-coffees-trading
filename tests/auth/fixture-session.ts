@@ -512,6 +512,14 @@ export function cleanupDisputeTestRows(): Record<string, unknown> {
 export function inspectDisputeFixtures(): Record<string, unknown> {
   return runJsonFixtureCommand("--inspect-dispute-fixtures");
 }
+/** Feature 012 RUN B — one tagged, test-only notification for the buyer-only user (see the seed script's own note). */
+export const NOTIFICATION_FIXTURE = { id: "12000000-0000-4000-8000-0000000000b1", titlePrefix: "[F012-RUN-B]" } as const;
+export function seedNotificationFixture(): void {
+  runFixtureScript(["--seed-notification-fixture"]);
+}
+export function cleanupNotificationTestRows(): Record<string, unknown> {
+  return runJsonFixtureCommand("--cleanup-notification-test-rows");
+}
 
 /** Feature 010 RUN E (T023) — restores the RUN E proof coffee to DRAFT. */
 export function resetRunECatalogueFixture(): void {

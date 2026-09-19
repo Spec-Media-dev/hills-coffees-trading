@@ -8,6 +8,7 @@ import { StateScreen } from "@/components/layout/state-screen";
 import { DraftEditor } from "@/components/orders/draft-editor";
 import { DraftItemControls } from "@/components/orders/draft-item-controls";
 import { FinancialSummary } from "@/components/orders/financial-summary";
+import { OrderDisputeLinkage } from "@/components/disputes/dispute-linkage";
 import { HoldCountdown } from "@/components/orders/hold-countdown";
 import { OrderStatusBadge } from "@/components/orders/order-status-badge";
 import { ShipmentPlanner } from "@/components/orders/shipment-planner";
@@ -15,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { appCopy } from "@/lib/app/copy";
 import { getRequestIdentity } from "@/lib/auth/dal";
+import { listDisputesForOrder } from "@/lib/disputes/read";
 import { ensureHoldFresh } from "@/lib/orders/expiry";
 import { getOrderFinancials, getOrderItems, getOrderShipments, getOrderStatusHistory, getPaymentStatus, getProforma, getShipmentItems } from "@/lib/orders/read";
 
@@ -55,13 +57,15 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ or
 
   // `order_financials`/proforma/payment exist ONLY once `checkout_order()` has written them — all
   // verbatim pass-throughs (`null` before checkout), never computed here.
-  const [items, shipments, financials, proforma, payment, history] = await Promise.all([
+  const [items, shipments, financials, proforma, payment, history, disputes] = await Promise.all([
     getOrderItems({ orderId }),
     getOrderShipments({ orderId }),
     getOrderFinancials({ orderId }),
     getProforma({ orderId }),
     getPaymentStatus({ orderId }),
     getOrderStatusHistory({ orderId }),
+    // Feature 012 RUN B (T007): read-only linkage to this order's dispute records (acting organization's own).
+    listDisputesForOrder({ organizationId: identity.organization.organizationId, userId: identity.userId, orderId: order.id }),
   ]);
 
   // At most one buyer-owned shipment plan per order (a RUN A narrowing, not a schema limit).
@@ -293,6 +297,11 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ or
             </ul>
           )}
         </section>
+
+        <Separator />
+
+        {/* Feature 012 RUN B (T007) — dispute records linked to this order; the order's own status is never inferred from them (DB-OPEN-09). */}
+        <OrderDisputeLinkage orderId={order.id} orderIsDisputed={order.status === "DISPUTED"} disputes={disputes} />
       </div>
     </div>
   );

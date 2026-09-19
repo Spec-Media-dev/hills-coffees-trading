@@ -3179,6 +3179,15 @@ async function inspectDisputeFixtures(admin: SupabaseClient): Promise<Record<str
   const itemIds = (items.data ?? []).map((row) => row.id as string);
   const allocations = itemIds.length > 0 ? await admin.from("storage_allocations").select("id, status, quantity_kg, released_quantity_kg").in("order_item_id", itemIds).order("id") : { data: [], error: null };
   if (allocations.error) throw new SafeFixtureError("Feature 012 dispute fixture inspection failed (custody).");
+  const lotIds = [...new Set(((await admin.from("order_items").select("lot_id").in("order_id", orderIds)).data ?? []).map((row) => row.lot_id as string))];
+  const positions = lotIds.length > 0 ? await admin.from("inventory_positions").select("id, available_quantity_kg, reserved_quantity_kg").in("lot_id", lotIds).order("id") : { data: [], error: null };
+  if (positions.error) throw new SafeFixtureError("Feature 012 dispute fixture inspection failed (positions).");
+  // Zero-byte evidence proof (DB-BLOCK-01): the file-asset register and the bucket set must not move.
+  const [{ count: fileAssetCount, error: fileAssetError }, { data: buckets, error: bucketError }] = await Promise.all([
+    admin.from("file_assets").select("id", { count: "exact", head: true }),
+    admin.storage.listBuckets(),
+  ]);
+  if (fileAssetError || bucketError) throw new SafeFixtureError("Feature 012 dispute fixture inspection failed (storage).");
   const disputeIds = (disputes.data ?? []).map((row) => row.id as string);
   const evidence = disputeIds.length > 0 ? await admin.from("dispute_evidence").select("id, dispute_id, note, uploaded_by, file_asset_id").in("dispute_id", disputeIds).order("created_at") : { data: [], error: null };
   if (evidence.error) throw new SafeFixtureError("Feature 012 dispute fixture inspection failed (evidence).");
@@ -3189,9 +3198,56 @@ async function inspectDisputeFixtures(admin: SupabaseClient): Promise<Record<str
     reservations: reservations.data,
     orderStatusHistoryCount: history.count ?? 0,
     storageAllocations: allocations.data,
+    inventoryPositions: positions.data,
+    fileAssetCount: fileAssetCount ?? 0,
+    storageBuckets: (buckets ?? []).map((bucket) => ({ id: bucket.id, public: bucket.public })).sort((x, y) => x.id.localeCompare(y.id)),
     disputes: disputes.data,
     evidence: evidence.data,
   };
+}
+
+/**
+ * Feature 012 RUN B — notification ISOLATION fixture (privileged, test-only). The product can never
+ * create a notification (DB-BLOCK-04: SELECT-only policy, no generating trigger), so the only way to
+ * prove "a user sees ONLY their own notifications" against a real row is for this fixture script to
+ * insert ONE clearly tagged row for the buyer-only fixture user. It is removed by
+ * `--cleanup-notification-test-rows`. This does NOT simulate a notification system: the product
+ * paths still create nothing, and `tests/disputes/honest-limitations.test.ts` scans product code only.
+ */
+const NOTIFICATION_FIXTURE = {
+  id: "12000000-0000-4000-8000-0000000000b1",
+  titlePrefix: "[F012-RUN-B]",
+} as const;
+const NOTIFICATION_PREFERENCE_TEST_TYPES = ["ORDER_UPDATES", "PAYMENT_INVOICES", "SHIPMENT_UPDATES", "KYB_DOCUMENTS"] as const;
+
+async function seedNotificationFixture(admin: SupabaseClient): Promise<void> {
+  const buyerOnlyUserId = await findAuthUserIdByEmail(admin, FIXTURES[0]!.email);
+  if (!buyerOnlyUserId) throw new SafeFixtureError("buyer-only fixture is missing; run npm run test:seed first.");
+  const { error } = await admin.from("notifications").upsert(
+    {
+      id: NOTIFICATION_FIXTURE.id,
+      user_id: buyerOnlyUserId,
+      organization_id: ORGANIZATION_IDS.buyerOnly,
+      notification_type: "ORDER_UPDATES",
+      title: `${NOTIFICATION_FIXTURE.titlePrefix} Isolation fixture <img src=x onerror=alert(1)>`,
+      body: "Test-only row inserted by the fixture script to prove own-user isolation.",
+    },
+    { onConflict: "id" },
+  );
+  if (error) throw new SafeFixtureError("Feature 012 notification fixture upsert failed.");
+}
+
+async function cleanupNotificationTestRows(admin: SupabaseClient): Promise<Record<string, unknown>> {
+  const { data: removedNotifications, error } = await admin.from("notifications").delete().like("title", `${NOTIFICATION_FIXTURE.titlePrefix}%`).select("id");
+  if (error) throw new SafeFixtureError("Feature 012 notification cleanup failed.");
+  const userIds = (await Promise.all([findAuthUserIdByEmail(admin, FIXTURES[0]!.email), findAuthUserIdByEmail(admin, FIXTURES[1]!.email)])).filter((id): id is string => Boolean(id));
+  const { data: removedPreferences, error: preferenceError } = userIds.length
+    ? await admin.from("notification_preferences").delete().in("user_id", userIds).in("notification_type", [...NOTIFICATION_PREFERENCE_TEST_TYPES]).select("user_id")
+    : { data: [], error: null };
+  if (preferenceError) throw new SafeFixtureError("Feature 012 notification preference cleanup failed.");
+  const { count, error: countError } = await admin.from("notifications").select("id", { count: "exact", head: true }).like("title", `${NOTIFICATION_FIXTURE.titlePrefix}%`);
+  if (countError) throw new SafeFixtureError("Feature 012 notification residue check failed.");
+  return { removedNotifications: removedNotifications?.length ?? 0, removedPreferences: removedPreferences?.length ?? 0, remainingTaggedNotifications: count ?? 0 };
 }
 
 async function cleanupRunECreatedRows(admin: SupabaseClient): Promise<void> {
@@ -3693,6 +3749,14 @@ async function main(): Promise<void> {
   }
   if (process.argv.includes("--cleanup-dispute-test-rows")) {
     console.log(JSON.stringify(await cleanupDisputeTestRows(admin)));
+    return;
+  }
+  if (process.argv.includes("--seed-notification-fixture")) {
+    await seedNotificationFixture(admin);
+    return;
+  }
+  if (process.argv.includes("--cleanup-notification-test-rows")) {
+    console.log(JSON.stringify(await cleanupNotificationTestRows(admin)));
     return;
   }
   if (process.argv.includes("--inspect-dispute-fixtures")) {

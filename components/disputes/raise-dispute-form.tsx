@@ -47,7 +47,7 @@ function feedbackMessage(copy: RaiseCopy, result: ActionFeedbackResult<{ id: str
  * toast in the page language, never as raw database text. On success the member lands on the new
  * dispute's own tracking page.
  */
-export function RaiseDisputeForm({ orders }: { orders: readonly RaisableOrder[] }) {
+export function RaiseDisputeForm({ orders, defaultOrderId }: { orders: readonly RaisableOrder[]; defaultOrderId?: string }) {
   const { tApp } = useLocale();
   const copy = tApp.disputes.raise;
   const router = useRouter();
@@ -66,7 +66,7 @@ export function RaiseDisputeForm({ orders }: { orders: readonly RaisableOrder[] 
     formState: { errors },
   } = useForm<z.input<typeof RaiseDisputeInput>, unknown, RaiseDisputeInput>({
     resolver: zodResolver(RaiseDisputeInput),
-    defaultValues: { orderId: "", reason: "" },
+    defaultValues: { orderId: defaultOrderId ?? "", reason: "" },
   });
 
   const serverFieldErrors = state && !state.ok ? state.fieldErrors : undefined;

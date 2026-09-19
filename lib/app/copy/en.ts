@@ -2405,7 +2405,102 @@ export const en = {
         resolutionHeading: "Resolution",
         resolutionPending: "No resolution has been recorded yet.",
         viewOrder: "View order",
+        affectedHeading: "Affected order",
+        orderStatusLabel: "Order status",
+        orderStatusNote: "The order's status is managed by its own workflow. Raising or reviewing this dispute did not change it.",
       },
+      evidence: {
+        heading: "Evidence",
+        description: "Add written notes that support this dispute. Every note is kept with its time and cannot be edited or removed.",
+        filesUnavailableTitle: "Evidence files can't be stored yet",
+        filesUnavailableBody: "Hills Coffee cannot currently store evidence files for disputes, so there is no file upload here. Describe the evidence in a note instead — for example what a photo or document shows and who has it.",
+        empty: "No evidence has been added to this dispute yet.",
+        listCaption: "Evidence on this dispute",
+        uploadedByYou: "You",
+        uploadedByOther: "Another participant or Hills operations",
+        typeNote: "Written note",
+        typeFileReference: "File reference — the file itself is not available",
+        addedLabel: "Added",
+        byLabel: "By",
+        typeLabel: "Type",
+        noteLabel: "New note",
+        noteHint: "Up to 2,000 characters. Notes are stored as plain text.",
+        submit: "Add note",
+        submitting: "Adding…",
+        added: "Note added to the dispute.",
+        feedback: {
+          notFound: "This dispute isn't available to your organization.",
+          notCapable: "Your account can't add evidence right now.",
+          validation: "Check the note and try again.",
+          failed: "We couldn't add the note. Please try again.",
+        },
+      },
+      linkage: {
+        heading: "Disputes on this order",
+        none: "No disputes have been raised on this order.",
+        raise: "Raise a dispute on this order",
+        viewDispute: "View dispute",
+        noEffect:
+          "A dispute does not change this order's status. It does not automatically freeze or hold the order, its payment, settlement, inventory or delivery.",
+        orderDisputed: "This order's own status is Disputed. That status comes from the order's workflow, not from raising a dispute.",
+        shipmentHeading: "Dispute records",
+        shipmentDisputed:
+          "This delivery's own status is Disputed. Raising a dispute does not set or clear that status, and a dispute record does not by itself hold the delivery.",
+        shipmentNone: "No dispute record on this delivery's order is visible to your organization.",
+      },
+    },
+
+    /**
+     * Feature 012 RUN B (T010/T011) — the honest notification surfaces. DB-BLOCK-04: notifications
+     * can be neither generated nor marked read by the approved system, and no delivery channel is
+     * approved. Nothing here implies otherwise — no unread count, no "mark as read", no promise that a
+     * saved preference makes anything arrive.
+     */
+    notificationCenter: {
+      title: "Notifications",
+      breadcrumb: "Notifications",
+      description: "Notifications that exist for your account appear here.",
+      limitation: {
+        heading: "How notifications work today",
+        generate: "The platform does not create notifications yet, so this list is normally empty. Check each area — orders, deliveries, disputes — for current status.",
+        readState: "Notifications cannot be marked as read yet, so there is no read or unread state.",
+        delivery: "Nothing is sent by email, SMS or WhatsApp yet.",
+      },
+      empty: {
+        title: "No notifications",
+        description: "There are no notifications for your account.",
+      },
+      listCaption: "Your notifications",
+      receivedLabel: "Created",
+      typeLabel: "Type",
+      preferencesLink: "Notification preferences",
+    },
+    notificationPreferences: {
+      title: "Notification preferences",
+      breadcrumb: "Preferences",
+      description: "Choose how you'd like to hear about each kind of update.",
+      honesty:
+        "These choices are saved to your account only. Hills Coffee does not send notifications by email, SMS or WhatsApp yet, so saving them does not make anything arrive.",
+      notSaved: "You haven't saved preferences yet. Every option starts unticked until you save.",
+      channelsLegend: "Channels",
+      types: {
+        ORDER_UPDATES: { label: "Order updates", description: "Placed, confirmed, paid and completed orders." },
+        PAYMENT_INVOICES: { label: "Payment & invoices", description: "Proforma invoices, payment confirmation and refunds." },
+        SHIPMENT_UPDATES: { label: "Shipment updates", description: "Dispatch, delivery and delivery exceptions." },
+        KYB_DOCUMENTS: { label: "KYB & documents", description: "Review outcomes and expiring documents." },
+      },
+      channels: {
+        EMAIL: "Email",
+        SMS: "SMS",
+        WHATSAPP: "WhatsApp",
+      },
+      submit: "Save preferences",
+      submitting: "Saving…",
+      saved: "Preferences saved.",
+      failed: "We couldn't save your preferences. Please try again.",
+      validation: "Some preference values were not valid. Reload the page and try again.",
+      notCapable: "Please sign in again to save your preferences.",
+      backToNotifications: "Back to notifications",
     },
 
 } as const;
