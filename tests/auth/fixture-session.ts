@@ -492,6 +492,27 @@ export function inspectAuditorFixture(): Record<string, unknown> {
   return runJsonFixtureCommand("--inspect-auditor-fixture");
 }
 
+/**
+ * Feature 012 RUN A — dispute proof fixtures (literals mirror `scripts/seed-test-fixtures.ts`'s
+ * `DISPUTE_FIXTURE_IDS`/`DISPUTE_TEST_REASON_PREFIX`). Every dispute the live suite raises MUST start
+ * with `reasonPrefix` — `cleanupDisputeTestRows()` removes only tagged disputes on the three fixture
+ * orders. `blockedOrderId` is a standing DRAFT order of the blocked-member fixture's organization.
+ */
+export const DISPUTE_FIXTURES = {
+  reasonPrefix: "[F012-RUN-A]",
+  blockedOrderId: "12000000-0000-4000-8000-000000000001",
+  blockedOrderCode: "F012-FIX-ORDER-BLOCKED",
+} as const;
+export function seedDisputeFixtures(): void {
+  runFixtureScript(["--seed-dispute-fixtures"]);
+}
+export function cleanupDisputeTestRows(): Record<string, unknown> {
+  return runJsonFixtureCommand("--cleanup-dispute-test-rows");
+}
+export function inspectDisputeFixtures(): Record<string, unknown> {
+  return runJsonFixtureCommand("--inspect-dispute-fixtures");
+}
+
 /** Feature 010 RUN E (T023) — restores the RUN E proof coffee to DRAFT. */
 export function resetRunECatalogueFixture(): void {
   runFixtureScript(["--reset-run-e-catalogue-fixture"]);

@@ -2305,4 +2305,107 @@ export const en = {
       },
     },
 
+    /**
+     * Feature 012 RUN A (T006) — the member dispute surfaces (`/dashboard/disputes`,
+     * `/dashboard/disputes/[disputeId]`). `status` is the full six-value `disputes.status` vocabulary,
+     * verbatim from the live `disputes_status_check` CHECK constraint — every rendered dispute status
+     * MUST use exactly one of these labels (FR-006/SC-004).
+     *
+     * PRODUCT HONESTY (FR-007, SC-005, DB-OPEN-09): nothing here states or implies that raising a
+     * dispute — or a dispute being `FROZEN` — holds, freezes or stops an order, payment, settlement,
+     * inventory, delivery or trading. The database performs no such effect, so the copy says so.
+     * No copy promises a notification (DB-BLOCK-04) or offers a file upload (DB-BLOCK-01).
+     */
+    disputes: {
+      status: {
+        OPEN: "Open",
+        UNDER_REVIEW: "Under review",
+        FROZEN: "Frozen",
+        RESOLVED: "Resolved",
+        REJECTED: "Rejected",
+        CLOSED: "Closed",
+      },
+      statusDescription: {
+        OPEN: "Your dispute is recorded and waiting for Hills Compliance to start the review.",
+        UNDER_REVIEW: "Hills Compliance is reviewing this dispute.",
+        FROZEN:
+          "Hills Compliance has marked this dispute as frozen. This status applies to the dispute record only — it does not by itself hold or stop the order, its payment, settlement, inventory, delivery or trading.",
+        RESOLVED: "Hills Compliance has resolved this dispute. The recorded resolution is shown below.",
+        REJECTED: "Hills Compliance has rejected this dispute. The recorded reason is shown below.",
+        CLOSED: "This dispute is closed. Its record is kept as it is and cannot be edited.",
+      },
+      honesty: {
+        heading: "What raising a dispute does",
+        body: "Raising a dispute records it for review by Hills Compliance. It does not automatically freeze or hold the order, its payment, settlement, inventory, delivery or any trading activity. Any action on the order itself is a separate decision by Hills operations.",
+        tracking: "Check this page for status changes — dispute updates are not sent as notifications yet.",
+        evidence: "File attachments are not available for disputes yet. Include the relevant details in your description.",
+      },
+      list: {
+        title: "Disputes",
+        breadcrumb: "Disputes",
+        description: "Raise a dispute on one of your organization's orders and follow its review.",
+        caption: "Your organization's disputes",
+        columns: {
+          order: "Order",
+          status: "Status",
+          opened: "Opened",
+          raisedBy: "Raised by",
+        },
+        raisedByYou: "You",
+        raisedByColleague: "A colleague",
+        viewDetails: "View dispute",
+        empty: {
+          title: "No disputes",
+          description: "Your organization has not raised any disputes. If something is wrong with an order, you can raise one above.",
+        },
+      },
+      raise: {
+        heading: "Raise a dispute",
+        description: "Choose the order and describe what went wrong. Hills Compliance reviews every dispute.",
+        orderLabel: "Order",
+        orderPlaceholder: "Choose an order",
+        reasonLabel: "What went wrong",
+        reasonHint: "Between 10 and 2,000 characters. Describe the problem and what you expect to happen.",
+        submit: "Raise dispute",
+        submitting: "Raising…",
+        raised: "Dispute raised. It is now waiting for review.",
+        noOrders: {
+          title: "No orders to dispute",
+          description: "Disputes are raised against your organization's orders. Once your organization has an order, you can raise a dispute on it here.",
+        },
+        errors: {
+          orderRequired: "Choose the order this dispute is about.",
+          reasonTooShort: "Describe the problem in at least 10 characters.",
+          reasonTooLong: "Keep the description under 2,000 characters.",
+          noteRequired: "Enter a note.",
+          noteTooLong: "Keep the note under 2,000 characters.",
+          resolutionTooShort: "Enter at least 10 characters.",
+          resolutionTooLong: "Keep this under 2,000 characters.",
+          invalidReference: "This dispute reference is not valid.",
+        },
+        feedback: {
+          orderNotFound: "That order isn't available to your organization.",
+          notCapable: "Your account can't raise disputes right now.",
+          validation: "Check the highlighted fields.",
+          failed: "We couldn't raise the dispute. Please try again.",
+        },
+      },
+      detail: {
+        breadcrumb: "Dispute",
+        titlePrefix: "Dispute on order",
+        statusHeading: "Status",
+        detailsHeading: "Details",
+        orderLabel: "Order",
+        openedLabel: "Opened",
+        updatedLabel: "Last updated",
+        resolvedLabel: "Decided",
+        raisedByLabel: "Raised by",
+        correlationLabel: "Reference",
+        reasonHeading: "Your description",
+        resolutionHeading: "Resolution",
+        resolutionPending: "No resolution has been recorded yet.",
+        viewOrder: "View order",
+      },
+    },
+
 } as const;

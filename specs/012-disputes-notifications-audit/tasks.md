@@ -3,7 +3,7 @@
 **Input**: [spec.md](./spec.md), [plan.md](./plan.md), `docs/architecture/DATABASE-CAPABILITY-MAP.md`,
 `.specify/memory/constitution.md` (v2.0.0), SRS §8 (MKT-07), §13.5, §14 (OPS-02), §46.
 
-**Status**: all tasks unchecked — implementation NOT started. **RUN 0 (2026-09-17) — dependency
+**Status**: RUN A (2026-09-19) — 5/28 complete (T001, T002, T003, T006, T019); T004 implemented but PARTIAL (see its RUN A note). All other tasks unchecked. **RUN 0 (2026-09-17) — dependency
 reconciliation only, no code**: the "008 implemented" clause below is CLARIFIED, not removed — see the
 note immediately after this block. RUN A (T001–T004, T006, T018, T019) is GO while Feature 008 remains
 7/39 (see clarification).
@@ -47,20 +47,20 @@ layer.
 
 ## Phase 1 — Dispute domain layer
 
-- [ ] T001 Create `lib/disputes/errors.ts` and dispute/evidence DTO types.
+- [X] T001 Create `lib/disputes/errors.ts` and dispute/evidence DTO types.
   - Req: FR-006, FR-015 | Depends: —
   - Verify: dispute status type matches the six approved values exactly
   - Codex: GPT-5.6 Sol — Low · Claude: Sonnet — Low
   - Why: mechanical typing against a closed vocabulary.
 
-- [ ] T002 Implement `lib/disputes/read.ts` — scoped dispute and evidence reads (participants,
+- [X] T002 Implement `lib/disputes/read.ts` — scoped dispute and evidence reads (participants,
   compliance, auditor).
   - Req: FR-004, SEC-001 | Depends: T001
   - Verify: an unrelated organization's dispute id returns nothing for all three audiences' queries
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — High
   - Why: three-audience scoping where one over-broad predicate leaks commercially sensitive conflict data.
 
-- [ ] T003 [PS1] Implement `lib/disputes/member.ts` — raise a dispute (`can_view_order`, own user, not
+- [X] T003 [PS1] Implement `lib/disputes/member.ts` — raise a dispute (`can_view_order`, own user, not
   blocked) and attach evidence records. Exposes no status-change path.
   - Req: FR-001, FR-004, SEC-001 | Depends: T001, T002
   - Verify: the module exports no status mutation; an unrelated organization and a blocked user are both refused
@@ -73,6 +73,20 @@ layer.
   - Verify: non-compliance roles refused in the app and by RLS; every transition records actor, reason and timestamp
   - Codex: GPT-5.6 Sol — High · Claude: Opus — High
   - Why: the authority boundary for resolving commercial conflicts, and the seam 010 depends on.
+  - **RUN A (2026-09-19) — IMPLEMENTED, PARTIAL (left unchecked).** `lib/disputes/compliance.ts` ships six
+    named operations (`beginReview`, `markFrozen`, `resumeReview`, `resolveDispute`, `rejectDispute`,
+    `closeDispute`), no generic status setter, live `is_compliance_operator()` gate, compare-and-set on the
+    status the operator saw, a column allowlist, and write-once resolution. Verify half 1 is MET live
+    (`tests/disputes/role-restriction.test.ts`: member/unrelated member/blocked/WAREHOUSE/FINANCE/AUDITOR/
+    anonymous refused in the app AND zero rows changed through RLS). Verify half 2 ("every transition records
+    actor, reason and timestamp") is NOT literally satisfiable on the current schema: `disputes` has no
+    trigger, no audit trigger and no per-transition history table, and its only attribution columns are
+    `resolution`/`resolved_by`/`resolved_at` (+ `updated_at`). RESOLVED and REJECTED record actor + reason +
+    timestamp; OPEN→UNDER_REVIEW, →FROZEN, FROZEN→UNDER_REVIEW and →CLOSED can record `updated_at` only (each
+    result reports `attribution: "timestamp-only"`; no reason is collected and discarded). Closing this needs
+    an approved database change (a dispute status-history table or equivalent) — not made here.
+    Also recorded: the database enforces NO dispute transition rule (compliance may write any status/column
+    under `disputes_ops_update`); `DISPUTE_TRANSITIONS` is application-owned policy.
 
 - [ ] T005 [PS2] Implement the evidence file seam — private `file_assets` metadata only, inert until a
   Storage bucket is approved (DB-BLOCK-01).
@@ -85,12 +99,16 @@ layer.
 
 ## Phase 2 — Member dispute surfaces
 
-- [ ] T006 [PS1] Implement `src/app/dashboard/disputes/page.tsx` + `[disputeId]/page.tsx` + actions —
+- [X] T006 [PS1] Implement `src/app/dashboard/disputes/page.tsx` + `[disputeId]/page.tsx` + actions —
   raise, list and track disputes with approved status labels.
   - Req: FR-001, FR-006, FR-015, PS1 | Depends: T003
   - Verify: all six statuses render exact labels; only the member's own organization's disputes appear
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — High
   - Why: member-facing conflict surface where clarity and correct scoping both matter.
+  - **RUN A (2026-09-19) — COMPLETE.** Buyer-side scope only: disputes on orders the ACTING organization
+    bought. Seller-side participation (permitted by `can_view_order`) is not surfaced — no seller-side order
+    read exists yet (Feature 007's recorded boundary). Not registered in the nav (that is T017). Proof:
+    `tests/browser/feature012-runa.browser.mjs` (real Chrome + axe, EN/AR × light/dark × 390/1366).
 
 - [ ] T007 [PS4] Render dispute linkage from affected orders/shipments (`DISPUTED` state) **without
   implying an automatic freeze**.
@@ -190,7 +208,7 @@ layer.
   - Codex: GPT-5.6 Sol — High · Claude: Opus — High
   - Why: cross-tenant exposure of conflict and audit data would be among the most damaging leaks possible.
 
-- [ ] T019 [P] Write `tests/disputes/role-restriction.test.ts` — only compliance changes dispute
+- [X] T019 [P] Write `tests/disputes/role-restriction.test.ts` — only compliance changes dispute
   status; member/warehouse/finance/auditor all refused.
   - Req: FR-002, SEC-002, SC-002 | Depends: T004
   - Verify: `npm test -- disputes/role-restriction` passes for all four refused roles

@@ -204,6 +204,28 @@ export const ACTION_FEEDBACK = {
   SYSTEM_VALUE_INVALID: "system_value_invalid",
   SYSTEM_SAVE_FAILED: "system_save_failed",
   ROLE_SELF_CHANGE_REFUSED: "role_self_change_refused",
+
+  /**
+   * Feature 012 RUN A (T001) — the dispute domain's own safe result codes. `lib/disputes/errors.ts`
+   * is the single place that maps a raw database error to one of these; no dispute module or Server
+   * Action inspects a Postgres/PostgREST message itself. A dispute the caller may not see — another
+   * organization's, or one that does not exist — is ONE code (`DISPUTE_NOT_FOUND`), never a
+   * distinguishable "exists but not yours". `DISPUTE_NOT_CAPABLE` = the member-side caller is not an
+   * authorized, unblocked member of an acting organization (checked live before any write);
+   * the compliance side reuses `COMPLIANCE_NOT_CAPABLE` above. `DISPUTE_TRANSITION_REFUSED` = the
+   * requested operation is not an approved transition from the dispute's current status;
+   * `DISPUTE_STALE` = the compare-and-set update matched zero rows (another operator acted first).
+   */
+  DISPUTE_NOT_FOUND: "dispute_not_found",
+  DISPUTE_NOT_CAPABLE: "dispute_not_capable",
+  DISPUTE_RAISED: "dispute_raised",
+  DISPUTE_RAISE_FAILED: "dispute_raise_failed",
+  DISPUTE_EVIDENCE_RECORDED: "dispute_evidence_recorded",
+  DISPUTE_EVIDENCE_FAILED: "dispute_evidence_failed",
+  DISPUTE_TRANSITION_RECORDED: "dispute_transition_recorded",
+  DISPUTE_TRANSITION_REFUSED: "dispute_transition_refused",
+  DISPUTE_STALE: "dispute_stale",
+  DISPUTE_TRANSITION_FAILED: "dispute_transition_failed",
 } as const;
 
 export type ActionFeedbackCode = (typeof ACTION_FEEDBACK)[keyof typeof ACTION_FEEDBACK];

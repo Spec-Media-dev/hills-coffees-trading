@@ -3119,6 +3119,81 @@ const RUN_E_CREATED_ROWS = {
   warehouseCode: "RUN-E-PROOF",
 } as const;
 
+/**
+ * Feature 012 RUN A — dispute proof fixtures (privileged setup/teardown/inspection ONLY; the product
+ * path never uses a service role).
+ *
+ * - `blockedOrder`: ONE standing DRAFT order owned by the `blocked-member` fixture's organization.
+ *   A blocked user cannot create an order through Feature 007's flow (that is the point of being
+ *   blocked), so this is the only way to give the blocked user an order it CAN view — which isolates
+ *   `disputes_create`'s `NOT is_blocked_user()` clause from its `can_view_order()` clause. Same
+ *   DRAFT-order precedent as Feature 005's `orderA`/`orderB` (`can_view_order` ignores status).
+ * - Every dispute the live suite raises carries `DISPUTE_TEST_REASON_PREFIX`; cleanup deletes ONLY
+ *   disputes that carry it AND sit on one of the three fixture orders (evidence cascades by FK).
+ */
+const DISPUTE_FIXTURE_IDS = {
+  blockedOrder: "12000000-0000-4000-8000-000000000001",
+  blockedOrderCode: "F012-FIX-ORDER-BLOCKED",
+} as const;
+const DISPUTE_TEST_REASON_PREFIX = "[F012-RUN-A]";
+const DISPUTE_FIXTURE_ORDER_IDS = [INVENTORY_FIXTURE_IDS.orderA, INVENTORY_FIXTURE_IDS.orderB, DISPUTE_FIXTURE_IDS.blockedOrder] as const;
+
+async function seedDisputeFixtures(admin: SupabaseClient): Promise<void> {
+  const blockedUserId = await findAuthUserIdByEmail(admin, "blocked-member+foundation-test@example.com");
+  if (!blockedUserId) throw new SafeFixtureError("blocked-member fixture is missing; run npm run test:seed first.");
+  const { error } = await admin.from("orders").upsert(
+    { id: DISPUTE_FIXTURE_IDS.blockedOrder, buyer_organization_id: PHASE89_ORGANIZATION_IDS.blockedMember, status: "DRAFT", order_code: DISPUTE_FIXTURE_IDS.blockedOrderCode, created_by: blockedUserId },
+    { onConflict: "id" },
+  );
+  if (error) throw new SafeFixtureError("Feature 012 blocked-member fixture order upsert failed.");
+}
+
+async function cleanupDisputeTestRows(admin: SupabaseClient): Promise<Record<string, unknown>> {
+  const { data, error } = await admin
+    .from("disputes")
+    .delete()
+    .in("order_id", [...DISPUTE_FIXTURE_ORDER_IDS])
+    .like("reason", `${DISPUTE_TEST_REASON_PREFIX}%`)
+    .select("id");
+  if (error) throw new SafeFixtureError("Feature 012 dispute test-row cleanup failed.");
+  const { count, error: countError } = await admin.from("disputes").select("id", { count: "exact", head: true }).in("order_id", [...DISPUTE_FIXTURE_ORDER_IDS]).like("reason", `${DISPUTE_TEST_REASON_PREFIX}%`);
+  if (countError) throw new SafeFixtureError("Feature 012 dispute test-row residue check failed.");
+  return { removedDisputes: data?.length ?? 0, remainingTaggedDisputes: count ?? 0 };
+}
+
+/** Read-only side-effect snapshot of the three fixture orders (orders, shipments, payments, reservations, history, custody) plus the tagged disputes. */
+async function inspectDisputeFixtures(admin: SupabaseClient): Promise<Record<string, unknown>> {
+  const orderIds = [...DISPUTE_FIXTURE_ORDER_IDS];
+  const [orders, shipments, payments, reservations, history, items, disputes] = await Promise.all([
+    admin.from("orders").select("id, status, updated_at, correlation_id").in("id", orderIds).order("id"),
+    admin.from("order_shipments").select("id, order_id, status, updated_at").in("order_id", orderIds).order("id"),
+    admin.from("payments").select("id, order_id, status, updated_at").in("order_id", orderIds).order("id"),
+    admin.from("inventory_reservations").select("id, order_id, status").in("order_id", orderIds).order("id"),
+    admin.from("order_status_history").select("id", { count: "exact", head: true }).in("order_id", orderIds),
+    admin.from("order_items").select("id").in("order_id", orderIds),
+    admin.from("disputes").select("id, order_id, status, opened_by_user_id, opened_by_organization_id, resolution, resolved_by, resolved_at, correlation_id, updated_at").in("order_id", orderIds).like("reason", `${DISPUTE_TEST_REASON_PREFIX}%`).order("created_at"),
+  ]);
+  if (orders.error || shipments.error || payments.error || reservations.error || history.error || items.error || disputes.error) {
+    throw new SafeFixtureError("Feature 012 dispute fixture inspection failed.");
+  }
+  const itemIds = (items.data ?? []).map((row) => row.id as string);
+  const allocations = itemIds.length > 0 ? await admin.from("storage_allocations").select("id, status, quantity_kg, released_quantity_kg").in("order_item_id", itemIds).order("id") : { data: [], error: null };
+  if (allocations.error) throw new SafeFixtureError("Feature 012 dispute fixture inspection failed (custody).");
+  const disputeIds = (disputes.data ?? []).map((row) => row.id as string);
+  const evidence = disputeIds.length > 0 ? await admin.from("dispute_evidence").select("id, dispute_id, note, uploaded_by, file_asset_id").in("dispute_id", disputeIds).order("created_at") : { data: [], error: null };
+  if (evidence.error) throw new SafeFixtureError("Feature 012 dispute fixture inspection failed (evidence).");
+  return {
+    orders: orders.data,
+    shipments: shipments.data,
+    payments: payments.data,
+    reservations: reservations.data,
+    orderStatusHistoryCount: history.count ?? 0,
+    storageAllocations: allocations.data,
+    disputes: disputes.data,
+    evidence: evidence.data,
+  };
+}
+
 async function cleanupRunECreatedRows(admin: SupabaseClient): Promise<void> {
   const removed: Record<string, number> = {};
   const count = async (label: string, promise: PromiseLike<{ data: { id: string }[] | null; error: unknown }>) => {
@@ -3610,6 +3685,18 @@ async function main(): Promise<void> {
   }
   if (process.argv.includes("--inspect-super-admin-fixture")) {
     console.log(JSON.stringify(await inspectDisposableOperatorFixture(admin, RUN_F_SUPER_ADMIN_FIXTURE)));
+    return;
+  }
+  if (process.argv.includes("--seed-dispute-fixtures")) {
+    await seedDisputeFixtures(admin);
+    return;
+  }
+  if (process.argv.includes("--cleanup-dispute-test-rows")) {
+    console.log(JSON.stringify(await cleanupDisputeTestRows(admin)));
+    return;
+  }
+  if (process.argv.includes("--inspect-dispute-fixtures")) {
+    console.log(JSON.stringify(await inspectDisputeFixtures(admin)));
     return;
   }
   if (process.argv.includes("--cleanup-run-f-config-rows")) {
