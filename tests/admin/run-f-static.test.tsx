@@ -104,7 +104,10 @@ describe("Phase 9 — vocabularies are the schema's own CHECK constraints; polic
       expect(triggers.filter((t) => t.table_name === table && /audit/.test(t.function_name)), table).toEqual([]);
     }
     const migrations = readdirSync(path.join(root, "supabase", "migrations")).filter((f) => f.endsWith(".sql"));
-    expect(migrations.some((f) => /feature_010|run_f|commission|platform_admins|payment_accounts/i.test(f))).toBe(false);
+    // RUN F added no migration. The one later Feature 010 migration (RUN J, DB-OPEN-22 — `organizations`
+    // read path + compliance guard, human-approved) is exempted by name only; the content check below
+    // still proves it — like every migration — touches none of the six configuration tables.
+    expect(migrations.filter((f) => !/feature_010_db_open_22_compliance_organization_read/.test(f)).some((f) => /feature_010|run_f|commission|platform_admins|payment_accounts/i.test(f))).toBe(false);
     for (const file of migrations) {
       const sql = source("supabase", "migrations", file);
       for (const table of CONFIG_TABLES) expect(sql, `${file} alters ${table}`).not.toMatch(new RegExp(`(create|drop|alter)\\s+(policy|trigger)[^;]*on\\s+public\\.${table}\\b`, "i"));

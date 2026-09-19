@@ -105,7 +105,7 @@ export default async function KybApplicationPage({ params }: { params: Promise<{
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        title={organization?.displayName ?? <AppBilingual pick={(c) => c.admin.compliance.kyb.detail.title} />}
+        title={organization?.displayName ?? organization?.legalName ?? <AppBilingual pick={(c) => c.admin.compliance.kyb.detail.title} />}
         description={<span className="font-mono text-[length:var(--text-micro)]">{application.id}</span>}
         trail={trail}
         actions={<AdminStatusBadge status={application.status} tone={KYB_STATUS_TONE[application.status] ?? "draft"} pick={(c) => c.admin.compliance.statuses.kyb[application.status]} />}
@@ -140,7 +140,7 @@ export default async function KybApplicationPage({ params }: { params: Promise<{
             {organization ? (
               <dl className="divide-y divide-border">
                 <Row label={<AppBilingual pick={(c) => c.admin.compliance.organizations.detail.legalName} />}>{organization.legalName}</Row>
-                <Row label={<AppBilingual pick={(c) => c.admin.compliance.organizations.detail.displayName} />}>{organization.displayName}</Row>
+                <Row label={<AppBilingual pick={(c) => c.admin.compliance.organizations.detail.displayName} />}>{organization.displayName ?? <AppBilingual pick={(c) => c.admin.compliance.common.notRecorded} />}</Row>
                 <Row label={<AppBilingual pick={(c) => c.admin.compliance.kyb.detail.organizationStatus} />}>
                   <AdminStatusBadge status={organization.status} tone={ORGANIZATION_STATUS_TONE[organization.status] ?? "draft"} pick={(c) => c.admin.compliance.statuses.organization[organization.status as keyof typeof c.admin.compliance.statuses.organization] ?? organization.status} />
                 </Row>

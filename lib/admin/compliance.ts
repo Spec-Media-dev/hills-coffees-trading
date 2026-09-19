@@ -14,8 +14,10 @@ import { createClient } from "@/lib/supabase/server";
  * RLS filters rather than errors, so an unreadable row simply does not come back. Three tables have
  * NO SELECT path for `is_compliance_operator()` in the approved policy set — only `is_platform_admin()`
  * or the owning organization's own members:
- *   - `organizations`      (`organizations_member_select`)  → organization names/status are `null`
- *                            for a pure COMPLIANCE operator; an ADMIN reads them normally;
+ *   - `organizations`      (`organizations_member_select`)  → RESOLVED by Feature 010 RUN J
+ *                            (DB-OPEN-22, migration `20260919130000_…_compliance_organization_read`):
+ *                            `is_compliance_operator()` now reads organizations; the `null` markers
+ *                            below remain only for roles that still cannot (e.g. WAREHOUSE);
  *   - `file_assets`        (`catalog_admin_files`)          → document file name / MIME / size /
  *                            object path are unavailable, so KYB evidence bytes cannot be opened by a
  *                            pure COMPLIANCE operator even though the storage policy itself would
@@ -91,8 +93,10 @@ function toDocumentSummary(row: DocumentRow): KybDocumentSummary & { fileMetadat
 
 async function readOrganizationNames(supabase: Awaited<ReturnType<typeof createClient>>, organizationIds: readonly string[]): Promise<Map<string, string>> {
   if (organizationIds.length === 0) return new Map();
-  const { data } = await supabase.from("organizations").select("id, display_name").in("id", [...organizationIds]);
-  return new Map((data ?? []).map((row) => [row.id as string, row.display_name as string]));
+  const { data } = await supabase.from("organizations").select("id, display_name, legal_name").in("id", [...organizationIds]);
+  // A readable organization with no display name shows its stored legal name — "not readable by your
+  // role" is reserved for a row that genuinely did not come back.
+  return new Map((data ?? []).map((row) => [row.id as string, ((row.display_name as string | null) ?? (row.legal_name as string)) as string]));
 }
 
 export async function listKybApplications({
@@ -231,7 +235,7 @@ export async function getKybApplicationDetail(applicationId: string): Promise<Ky
   if (!application) return null;
   const row = application as ApplicationRow;
 
-  const [{ data: organization }, { data: documents }, { data: reviews }, { data: documentReviews }, { data: history }] = await Promise.all([
+  const [{ data: organization }, { data: documents }, { data: reviews }, { data: documentReviews }, { data: history }, { data: platformAdmin }] = await Promise.all([
     supabase
       .from("organizations")
       .select("id, legal_name, display_name, status, account_type, country_code, can_buy, can_sell, is_hills_internal")
@@ -250,6 +254,9 @@ export async function getKybApplicationDetail(applicationId: string): Promise<Ky
       .eq("organization_id", row.organization_id)
       .order("created_at", { ascending: false })
       .limit(50),
+    // `account_status_history_view` = is_org_member(organization_id) OR is_platform_admin(): for an
+    // operator, the history is readable exactly when the database says it is a platform admin.
+    supabase.rpc("is_platform_admin"),
   ]);
 
   const docs = ((documents ?? []) as DocumentRow[]).map(toDocumentSummary);
@@ -299,10 +306,11 @@ export async function getKybApplicationDetail(applicationId: string): Promise<Ky
       reviewerUserId: review.reviewer_user_id,
       createdAt: review.created_at,
     })),
-    // An empty result is indistinguishable from "filtered by RLS" for a pure COMPLIANCE operator;
-    // callers treat `null` as "unavailable for this role" only when the organization row itself was
-    // unreadable (the two policies share the same `is_platform_admin()`/member shape).
-    organizationStatusHistory: organization
+    // An empty result is indistinguishable from "filtered by RLS" for a pure COMPLIANCE operator, so
+    // `null` ("unavailable for this role") is decided by the history policy's own operator clause —
+    // NOT by organization readability: since RUN J (DB-OPEN-22) COMPLIANCE reads the organization but
+    // still has no `account_status_history` path (that policy is intentionally unchanged).
+    organizationStatusHistory: organization && platformAdmin === true
       ? (history ?? []).map((entry) => ({
           id: entry.id,
           oldStatus: entry.old_status,

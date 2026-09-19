@@ -580,6 +580,10 @@ export const COMPLETE_DRAFT_TRADE_LICENSE_DOCUMENT_ID = "f0000000-0000-4000-8000
 export function resetSuspendedFixture(): void {
   runFixtureScript(["--reset-suspended-fixture"]);
 }
+/** Feature 010 RUN J (T010) — read-only snapshot of the `suspended` fixture + a fingerprint of every other organization. */
+export function inspectSuspendedOrganization(): Record<string, unknown> {
+  return runJsonFixtureCommand("--inspect-suspended-organization");
+}
 
 /** Feature 010 RUN B (T011) — restores the two compliance-review listings to PENDING_REVIEW / PUBLISHED. */
 export function resetListingReviewFixtures(): void {

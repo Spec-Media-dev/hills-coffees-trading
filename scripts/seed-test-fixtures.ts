@@ -1175,6 +1175,40 @@ async function resetSuspendedFixture(admin: SupabaseClient): Promise<void> {
   await setSuspendedOrganizationStatus(admin, "SUSPENDED");
 }
 
+/**
+ * Feature 010 RUN J (T010 / DB-OPEN-22) — read-only proof snapshot for the `suspended` fixture:
+ * the organization, its application, its `account_status_history` and `kyb_reviews` rows (history is
+ * never deleted — counts only grow), and a fingerprint of EVERY OTHER organization's
+ * id/status/updated_at/can_buy/can_sell so a run can prove no unrelated organization changed.
+ * Service-role inspection only (a pure COMPLIANCE role cannot read `account_status_history` —
+ * that policy is intentionally unchanged).
+ */
+async function inspectSuspendedOrganization(admin: SupabaseClient): Promise<Record<string, unknown>> {
+  const organizationId = PHASE89_ORGANIZATION_IDS.suspended;
+  const applicationId = PHASE89_KYB_APPLICATION_IDS.suspended;
+  const [organization, application, history, reviews, others] = await Promise.all([
+    admin.from("organizations").select("id, status, legal_name, tax_number, can_buy, can_sell, updated_at").eq("id", organizationId).single(),
+    admin.from("kyb_applications").select("id, status, rejection_reason, decided_by").eq("id", applicationId).single(),
+    admin.from("account_status_history").select("id, old_status, new_status, changed_by, reason, created_at").eq("organization_id", organizationId).order("created_at").order("id"),
+    admin.from("kyb_reviews").select("id, decision, reviewer_user_id, reason, created_at").eq("application_id", applicationId).order("created_at").order("id"),
+    admin.from("organizations").select("id, status, updated_at, can_buy, can_sell").neq("id", organizationId).order("id"),
+  ]);
+  if (organization.error || application.error || history.error || reviews.error || others.error) {
+    throw new SafeFixtureError("Feature 010 T010 suspended-organization inspection failed.");
+  }
+  const { data: canBuy, error: canBuyError } = await admin.rpc("organization_can_buy", { p_organization_id: organizationId });
+  if (canBuyError) throw new SafeFixtureError("Feature 010 T010 organization_can_buy probe failed.");
+  return {
+    organization: organization.data,
+    application: application.data,
+    organizationCanBuy: canBuy === true,
+    accountStatusHistory: history.data,
+    kybReviews: reviews.data,
+    totalOrganizations: (others.data?.length ?? 0) + 1,
+    otherOrganizationsFingerprint: JSON.stringify(others.data),
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Feature 005 Phase 5 (T016–T019) — inventory/custody/ownership fixtures
 // ---------------------------------------------------------------------------
@@ -3700,6 +3734,7 @@ async function main(): Promise<void> {
   const isCleanupComplianceFixture = process.argv.includes("--cleanup-compliance-fixture");
   const isInspectComplianceFixture = process.argv.includes("--inspect-compliance-fixture");
   const isResetSuspendedFixture = process.argv.includes("--reset-suspended-fixture");
+  const isInspectSuspendedOrganization = process.argv.includes("--inspect-suspended-organization");
   const isResetListingReviewFixtures = process.argv.includes("--reset-listing-review-fixtures");
   const createT013PaymentProofPrefix = "--create-t013-payment-proof-metadata=";
   const createT013PaymentProofArgument = process.argv.find((argument) => argument.startsWith(createT013PaymentProofPrefix));
@@ -3712,6 +3747,11 @@ async function main(): Promise<void> {
   const seedPhantomReservationPrefix = "--seed-phantom-reservation=";
   const seedPhantomReservationArgument = process.argv.find((argument) => argument.startsWith(seedPhantomReservationPrefix));
   const admin = createAdminClient();
+
+  if (isInspectSuspendedOrganization) {
+    console.log(JSON.stringify(await inspectSuspendedOrganization(admin)));
+    return;
+  }
 
   if (isVerifyInventoryFixtures && isVerifyInventoryAppendOnly) {
     throw new SafeFixtureError("Choose only one Feature 005 inventory verification operation.");

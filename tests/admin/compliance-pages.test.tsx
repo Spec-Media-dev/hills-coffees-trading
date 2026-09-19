@@ -84,7 +84,7 @@ afterAll(() => {
 }, LIVE_TIMEOUT_MS);
 
 describe("T007 — KYB queue page (live, COMPLIANCE)", () => {
-  it("renders REAL applications with status, submission time and outstanding items; organization names are stated unavailable for a pure COMPLIANCE role (recorded gap), never fabricated", async () => {
+  it("renders REAL applications with status, submission time and outstanding items; since DB-OPEN-22 closed (RUN J) the pure COMPLIANCE role reads the REAL organization names — no gap note", async () => {
     await withLiveClient(compliance, async () => {
       const { default: KybQueuePage } = await import("@/src/app/dashboard-admin/(compliance)/kyb/page");
       await renderPage(await KybQueuePage({ searchParams: Promise.resolve({ view: "all" }) }));
@@ -92,10 +92,10 @@ describe("T007 — KYB queue page (live, COMPLIANCE)", () => {
     // The seeded UNDER_REVIEW fixture application is a real row in the queue.
     expect(document.body.textContent).toContain(PHASE89_FIXTURES.underReview.organizationId);
     expect(document.querySelectorAll('[data-slot="admin-status-badge"][data-status="UNDER_REVIEW"]').length).toBeGreaterThan(0);
-    // Honest gap: no organization name is readable by this role, and the page says so (no invented name).
-    expect(document.querySelector("[data-organization-gap]")).not.toBeNull();
-    expect(screen.getAllByText("Organization name is not readable by your role.").length).toBeGreaterThan(0);
-    expect(document.body.textContent).not.toMatch(/Foundation Test — Under Review/);
+    // The organization name is the stored one, read under the COMPLIANCE role's own session.
+    expect(document.querySelector("[data-organization-gap]")).toBeNull();
+    expect(screen.queryAllByText("Organization name is not readable by your role.")).toHaveLength(0);
+    expect(document.body.textContent).toMatch(/Foundation Test — Under Review/);
     // Outstanding items come from the real completeness rule.
     expect(document.body.textContent).toMatch(/outstanding|Nothing outstanding/);
     // Filter affordances exist (awaiting action / all).
@@ -133,7 +133,7 @@ describe("T007 — KYB queue page (live, COMPLIANCE)", () => {
 });
 
 describe("T008 — KYB application detail page (live, COMPLIANCE)", () => {
-  it("renders identity, status, timestamps, fields, documents with expiry flags, outstanding items and REAL history; file bytes/metadata and organization history are stated unavailable; no download control exists", async () => {
+  it("renders identity, status, timestamps, fields, documents with expiry flags, outstanding items and REAL history; the organization is now readable (DB-OPEN-22), while file bytes/metadata and the organization status history stay stated unavailable (their policies are unchanged); no download control exists", async () => {
     await withLiveClient(compliance, async () => {
       const { default: KybApplicationPage } = await import("@/src/app/dashboard-admin/(compliance)/kyb/[applicationId]/page");
       await renderPage(await KybApplicationPage({ params: Promise.resolve({ applicationId: BUYER_AND_SELLER_APPLICATION_ID }) }));
@@ -150,8 +150,10 @@ describe("T008 — KYB application detail page (live, COMPLIANCE)", () => {
     expect(document.querySelector("[data-document-bytes-note]")).not.toBeNull();
     expect(document.querySelectorAll("a[download], a[href*='storage'], a[href*='kyb-evidence']")).toHaveLength(0);
     expect(document.body.textContent).not.toMatch(/Download/);
-    // Organization row + status history unreadable for this role → stated, not fabricated.
-    expect(document.querySelector("[data-organization-gap]")).not.toBeNull();
+    // The organization row is readable (DB-OPEN-22 closed) — no gap note, the real name renders.
+    expect(document.querySelector("[data-organization-gap]")).toBeNull();
+    expect(document.body.textContent).toContain("Foundation Test — Buyer And Seller");
+    // `account_status_history` still has no COMPLIANCE path: stated unavailable — never shown as "no change recorded".
     expect(document.querySelector("[data-history-unavailable]")).not.toBeNull();
     // Decision panel: an APPROVED application only offers SUSPENDED.
     expect(document.querySelector('[data-decision-option="SUSPENDED"]')).not.toBeNull();
@@ -178,20 +180,22 @@ describe("T008 — KYB application detail page (live, COMPLIANCE)", () => {
 });
 
 describe("T010 — organizations surface (live, COMPLIANCE)", () => {
-  it("a pure COMPLIANCE operator sees the RECORDED capability gap (not an empty list) on the queue and on a detail URL", async () => {
+  it("since DB-OPEN-22 closed (RUN J), a pure COMPLIANCE operator lists REAL organizations and opens one with its status and the status panel (no capability gap)", async () => {
     await withLiveClient(compliance, async () => {
       const { default: OrganizationsPage } = await import("@/src/app/dashboard-admin/(compliance)/organizations/page");
       await renderPage(await OrganizationsPage({ searchParams: Promise.resolve({}) }));
     });
-    expect(document.querySelector('[data-admin-state="capability-gap"]')).not.toBeNull();
-    expect(document.body.textContent).toContain("Organizations are not readable by your role");
+    expect(document.querySelector('[data-admin-state="capability-gap"]')).toBeNull();
+    expect(document.body.textContent).toContain("Foundation Test — Suspended");
     cleanup();
     await withLiveClient(compliance, async () => {
       const { default: OrganizationPage } = await import("@/src/app/dashboard-admin/(compliance)/organizations/[organizationId]/page");
       await renderPage(await OrganizationPage({ params: Promise.resolve({ organizationId: PHASE89_FIXTURES.suspended.organizationId }) }));
     });
-    expect(document.querySelector('[data-admin-state="capability-gap"]')).not.toBeNull();
-    expect(document.body.textContent).not.toContain("Foundation Test — Suspended");
+    expect(document.querySelector('[data-admin-state="capability-gap"]')).toBeNull();
+    expect(document.querySelector('[data-organization-section="identity"]')).not.toBeNull();
+    expect(document.body.textContent).toContain("Foundation Test — Suspended");
+    expect(document.querySelector('[data-decision-form="status"]')).not.toBeNull();
   }, LIVE_TIMEOUT_MS);
 
   it("DIRECT URL: a FINANCE operator is refused by the organizations page itself", async () => {

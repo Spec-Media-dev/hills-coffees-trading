@@ -40,7 +40,7 @@ export default async function OrganizationsPage({ searchParams }: { searchParams
       header: <AppBilingual pick={(c) => c.admin.compliance.organizations.columns.name} />,
       render: (row: OrganizationListRow) => (
         <span className="flex min-w-0 flex-col">
-          <span className="truncate font-medium text-foreground">{row.displayName}</span>
+          <span className="truncate font-medium text-foreground">{row.displayName ?? row.legalName}</span>
           <span className="truncate text-[length:var(--text-micro)] text-muted-foreground">{row.legalName}</span>
         </span>
       ),

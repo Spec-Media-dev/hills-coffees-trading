@@ -60,7 +60,7 @@ export default async function OrganizationPage({ params }: { params: Promise<{ o
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        title={organization.display_name}
+        title={organization.display_name ?? organization.legal_name}
         description={<span className="font-mono text-[length:var(--text-micro)]">{organization.id}</span>}
         trail={trail}
         actions={<AdminStatusBadge status={organization.status} tone={ORGANIZATION_STATUS_TONE[organization.status] ?? "draft"} pick={statusPick(organization.status)} />}
@@ -79,7 +79,7 @@ export default async function OrganizationPage({ params }: { params: Promise<{ o
                 <dt className="text-[length:var(--text-small)] text-muted-foreground">
                   <AppBilingual pick={(c) => c.admin.compliance.organizations.detail[key as "legalName" | "displayName" | "accountType" | "country"]} />
                 </dt>
-                <dd className="text-[length:var(--text-small)] text-foreground">{value}</dd>
+                <dd className="text-[length:var(--text-small)] text-foreground">{value ?? <AppBilingual pick={(c) => c.admin.compliance.common.notRecorded} />}</dd>
               </div>
             ))}
             <div className="flex flex-col gap-0.5 py-2 sm:grid sm:grid-cols-[minmax(10rem,14rem)_1fr] sm:gap-4">

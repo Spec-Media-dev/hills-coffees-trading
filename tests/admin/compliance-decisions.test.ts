@@ -174,26 +174,30 @@ describe("T009 — KYB decisions (live, COMPLIANCE fixture)", () => {
     expect(latest.reviewer_user_id).toBe(complianceUserId);
   }, LIVE_TIMEOUT_MS);
 
-  it("APPROVED: the application status changes once and is recorded; the organization follow-through is honestly `unavailable` for a pure COMPLIANCE operator (recorded policy gap), and organization_can_buy stays false — nothing is bypassed", async () => {
+  it("APPROVED: the application status changes once and is recorded; since DB-OPEN-22 closed (RUN J) the organization follow-through APPLIES for a pure COMPLIANCE operator (PENDING_KYB → ACTIVE, an approved guard transition) and the member can buy on its next request", async () => {
     await submitCompleteDraft();
-    const result = await withLiveClient(compliance, async () => {
-      const { decideKybApplication } = await import("@/lib/admin/decisions");
-      return decideKybApplication({ applicationId: APP, decision: "APPROVED" });
-    });
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
-    expect(result.data.toStatus).toBe("APPROVED");
-    expect(result.data.organizationFollowThrough).toBe("unavailable");
-    expect((await readApplication(compliance))?.status).toBe("APPROVED");
-    expect((await readReviews(compliance, APP)).at(-1)?.decision).toBe("APPROVED");
+    try {
+      const result = await withLiveClient(compliance, async () => {
+        const { decideKybApplication } = await import("@/lib/admin/decisions");
+        return decideKybApplication({ applicationId: APP, decision: "APPROVED" });
+      });
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.data.toStatus).toBe("APPROVED");
+      expect(result.data.organizationFollowThrough).toBe("applied");
+      expect((await readApplication(compliance))?.status).toBe("APPROVED");
+      expect((await readReviews(compliance, APP)).at(-1)?.decision).toBe("APPROVED");
 
-    // The database's own capability rule is untouched: the organization is still PENDING_KYB, so
-    // the member gains no trading capability from a console-side approval alone.
-    const member = await signInAsFixture(PHASE89_FIXTURES.completeDraft.email);
-    const { data: canBuy } = await member.rpc("organization_can_buy", { p_organization_id: PHASE89_FIXTURES.completeDraft.organizationId });
-    expect(canBuy).toBe(false);
-    const { data: organization } = await member.from("organizations").select("status").eq("id", PHASE89_FIXTURES.completeDraft.organizationId).maybeSingle();
-    expect(organization?.status).toBe("PENDING_KYB");
+      // The database's own capability rule decides the effect: APPROVED application + ACTIVE organization.
+      const member = await signInAsFixture(PHASE89_FIXTURES.completeDraft.email);
+      const { data: canBuy } = await member.rpc("organization_can_buy", { p_organization_id: PHASE89_FIXTURES.completeDraft.organizationId });
+      expect(canBuy).toBe(true);
+      const { data: organization } = await member.from("organizations").select("status").eq("id", PHASE89_FIXTURES.completeDraft.organizationId).maybeSingle();
+      expect(organization?.status).toBe("ACTIVE");
+    } finally {
+      // Canonical fixture state (DRAFT application, PENDING_KYB organization); history rows are kept.
+      resetCompleteDraftApplication();
+    }
   }, LIVE_TIMEOUT_MS);
 
   it("TWO OPERATORS RACE: two concurrent decisions on the same SUBMITTED application → exactly one takes effect, exactly one review row, the loser is STALE", async () => {
@@ -228,22 +232,28 @@ describe("T009 — KYB decisions (live, COMPLIANCE fixture)", () => {
 });
 
 describe("T010 — organization status (live)", () => {
-  it("a pure COMPLIANCE operator is refused up front with ORGANIZATION_ACCESS_UNAVAILABLE (no read/update path to organizations) and NOTHING is written", async () => {
+  it("since DB-OPEN-22 closed (RUN J), a pure COMPLIANCE operator reinstates and re-suspends the organization with a reason each time; the member's next request follows (full proof: organization-suspension.test.ts)", async () => {
     resetSuspendedFixture();
-    const { data: appBefore } = await compliance.from("kyb_applications").select("status").eq("id", PHASE89_FIXTURES.suspended.applicationId).maybeSingle();
-    const reviewsBefore = (await readReviews(compliance, PHASE89_FIXTURES.suspended.applicationId)).length;
-    const result = await withLiveClient(compliance, async () => {
-      const { setOrganizationStatus } = await import("@/lib/admin/decisions");
-      return setOrganizationStatus({ organizationId: PHASE89_FIXTURES.suspended.organizationId, status: "ACTIVE", reason: "Reinstated after review." });
-    });
-    expect(result).toEqual({ ok: false, code: "organization_access_unavailable" });
-    const { data: appAfter } = await compliance.from("kyb_applications").select("status").eq("id", PHASE89_FIXTURES.suspended.applicationId).maybeSingle();
-    expect(appAfter?.status).toBe(appBefore?.status);
-    expect((await readReviews(compliance, PHASE89_FIXTURES.suspended.applicationId)).length).toBe(reviewsBefore);
-    // The member's own next-request truth is unchanged: still suspended.
-    const member = await signInAsFixture(PHASE89_FIXTURES.suspended.email);
-    const { data: canBuy } = await member.rpc("organization_can_buy", { p_organization_id: PHASE89_FIXTURES.suspended.organizationId });
-    expect(canBuy).toBe(false);
+    try {
+      const reviewsBefore = (await readReviews(compliance, PHASE89_FIXTURES.suspended.applicationId)).length;
+      const member = await signInAsFixture(PHASE89_FIXTURES.suspended.email);
+      const decide = (status: "ACTIVE" | "SUSPENDED", reason: string) =>
+        withLiveClient(compliance, async () => {
+          const { setOrganizationStatus } = await import("@/lib/admin/decisions");
+          return setOrganizationStatus({ organizationId: PHASE89_FIXTURES.suspended.organizationId, status, reason });
+        });
+
+      expect(await decide("ACTIVE", "Reinstated after review.")).toMatchObject({ ok: true, code: "organization_status_changed", data: { fromStatus: "SUSPENDED", toStatus: "ACTIVE" } });
+      expect((await member.rpc("organization_can_buy", { p_organization_id: PHASE89_FIXTURES.suspended.organizationId })).data).toBe(true);
+      expect(await decide("SUSPENDED", "Suspended again for the round-trip proof.")).toMatchObject({ ok: true, code: "organization_status_changed", data: { fromStatus: "ACTIVE", toStatus: "SUSPENDED" } });
+      expect((await member.rpc("organization_can_buy", { p_organization_id: PHASE89_FIXTURES.suspended.organizationId })).data).toBe(false);
+
+      const reviews = await readReviews(compliance, PHASE89_FIXTURES.suspended.applicationId);
+      expect(reviews.length).toBe(reviewsBefore + 2);
+      expect(reviews.slice(-2).map((review) => review.decision)).toEqual(["APPROVED", "SUSPENDED"]);
+    } finally {
+      resetSuspendedFixture();
+    }
   }, LIVE_TIMEOUT_MS);
 
   it("a missing reason is refused before any access check", async () => {

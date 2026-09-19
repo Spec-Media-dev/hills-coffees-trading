@@ -369,7 +369,7 @@ export const en = {
           organizationId: "Organization ID",
           organizationNameUnavailable: "Organization name is not readable by your role.",
           organizationGapNote:
-            "Your role (COMPLIANCE) has no read path to the organizations table under the current database policies, so organization names, statuses and status changes are unavailable here. This is a recorded capability gap awaiting a database decision — nothing is bypassed. Platform admins see these values.",
+            "This organization's details did not come back for your session under the current database policies, so its name and status are not shown here. Nothing is bypassed or guessed.",
           reason: "Reason",
           reasonHint: "Recorded with your decision and shown in the review history. Treat it as a formal note.",
           reasonRequired: "A reason is required for this decision (at least 5 characters).",
@@ -547,7 +547,7 @@ export const en = {
               confirmDescription: "{decision} will be recorded against this application in your name. This cannot be undone.",
               followThrough: {
                 applied: "Organization status updated to match.",
-                unavailable: "Organization status was NOT changed: your role has no update path to the organizations table (recorded gap). A platform admin must activate or suspend the organization.",
+                unavailable: "Organization status was NOT changed: the organization was not in a state this decision moves (or it did not come back for your session). Review the organization directly — nothing was forced.",
                 notRequired: "No organization status change is required for this decision.",
               },
             },
@@ -560,7 +560,7 @@ export const en = {
           columns: { name: "Organization", status: "Status", type: "Type", country: "Country", created: "Created", open: "Open" },
           gap: {
             title: "Organizations are not readable by your role",
-            description: "Under the current database policies the COMPLIANCE role cannot read or update organization rows, so this area cannot list organizations or change their status. This is a recorded capability gap awaiting a database decision; the console does not bypass it.",
+            description: "No organization rows came back for your session under the current database policies, so this area cannot list organizations or change their status. The console does not bypass this.",
           },
           empty: { title: "No organizations", description: "No organization row is readable right now." },
           detail: {
@@ -700,7 +700,7 @@ export const en = {
           documentReviewFailed: "The document outcome could not be recorded. Nothing was changed.",
           reviewStarted: "Review started.",
           complianceNotCapable: "Your role is not permitted to record compliance decisions.",
-          organizationAccessUnavailable: "Your role cannot read or update organizations under the current database policies (recorded gap). Nothing was changed.",
+          organizationAccessUnavailable: "This organization did not come back for your session (it may not exist, or it is not readable under the current database policies). Nothing was changed.",
           organizationStatusChanged: "Organization status changed. It applies on the member's next request.",
           organizationStatusStale: "The organization is no longer in the expected state. Nothing was changed.",
           organizationStatusFailed: "The organization status could not be changed. Nothing was changed.",

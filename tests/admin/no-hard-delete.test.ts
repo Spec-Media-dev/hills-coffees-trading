@@ -15,11 +15,12 @@ import { describe, expect, it } from "vitest";
  * the console's own `.from("…")` calls, not a hand-maintained list, so a newly added table is
  * covered automatically). That is the honest, exhaustive proof available TODAY.
  *
- * The literal `Depends: Phases 3–9` is **NOT fully satisfied**: T010 (organizations COMPLIANCE
- * policy), T013–T015 (Feature 008 finance layer), T027 and T029 (both PARTIAL on DB-OPEN-21, the
- * UPDATE-attribution gap) remain open. A no-delete proof cannot honestly claim to cover a
- * payment-review queue, a settlement decision surface or an organizations write surface that DOES NOT
- * EXIST — there is nothing there to grep. No delete path is introduced anywhere merely to give this
+ * The literal `Depends: Phases 3–9` is **NOT fully satisfied**: T013–T015 (Feature 008 finance
+ * layer), T027 and T029 (both PARTIAL on DB-OPEN-21, the UPDATE-attribution gap) remain open. A
+ * no-delete proof cannot honestly claim to cover a payment-review queue or a settlement decision
+ * surface that DOES NOT EXIST — there is nothing there to grep. T010 (organization suspension) closed
+ * in RUN J (DB-OPEN-22 organizations read path) and its surface is part of the console scan above;
+ * `organizations` carries no DELETE grant. No delete path is introduced anywhere merely to give this
  * test something to check. T033 therefore stays PARTIAL.
  *
  * T012 (disputes) closed in the Feature 010 dispute-unblock run (2026-09-19) and IS covered below:
@@ -130,9 +131,9 @@ describe("T033 — no console path (current disk state) issues a runtime .delete
     expect(migration).not.toMatch(/grant[^;]*delete[^;]*dispute_status_history/i);
   });
 
-  it("the Phase 3–9 dependency is honestly NOT fully closed — T010/T013–T015/T027/T029 remain open, so this proof cannot and does not claim exhaustive Phase 3–9 coverage", async () => {
+  it("the Phase 3–9 dependency is honestly NOT fully closed — T013–T015/T027/T029 remain open, so this proof cannot and does not claim exhaustive Phase 3–9 coverage", async () => {
     const tasks = source("specs", "010-admin-operations-console", "tasks.md");
-    for (const task of ["T010", "T013", "T014", "T015", "T027", "T029"]) {
+    for (const task of ["T013", "T014", "T015", "T027", "T029"]) {
       expect(tasks, task).toMatch(new RegExp(`- \\[ \\] ${task}\\b`));
     }
   });

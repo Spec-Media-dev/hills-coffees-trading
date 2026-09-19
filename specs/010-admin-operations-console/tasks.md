@@ -3,7 +3,15 @@
 **Input**: [spec.md](./spec.md), [plan.md](./plan.md), `docs/architecture/DATABASE-CAPABILITY-MAP.md`,
 `.specify/memory/constitution.md` (v2.0.0), SRS §14 (OPS-01, OPS-02), §3.1, §13.5.
 
-**Status**: **Dispute-unblock run (2026-09-19) — 33 / 48.** Feature 012 closed (28/28; DB-OPEN-23 resolved by the
+**Status**: **RUN J (2026-09-19) — 34 / 48.** **T010 COMPLETE**: human-approved migration
+`supabase/migrations/20260919130000_feature_010_db_open_22_compliance_organization_read.sql` (applied in the SQL Editor; postflight 12/12 ok) extends `organizations_member_select`
+with `OR is_compliance_operator()` and adds `trg_organizations_compliance_guard` (a compliance operator who is not a
+platform admin may change only `status`, only along the console's own transitions). Pure COMPLIANCE suspension /
+reinstatement is live-proven end to end. DB-OPEN-22 is **partially resolved** (organizations half); its
+`file_assets` (KYB evidence bytes) and `account_status_history` halves stay OPEN. T033 still PARTIAL (T013–T015,
+T027, T029 open). Remaining closure blockers: T013–T015/T031/T032 (Feature 008), T027/T029 (DB-OPEN-21), T033,
+T047/T048, and therefore T038–T041.
+**Dispute-unblock run (2026-09-19) — 33 / 48.** Feature 012 closed (28/28; DB-OPEN-23 resolved by the
 database-authoritative `transition_dispute()` + append-only `dispute_status_history`). **T012 COMPLETE** — the
 Compliance dispute review surface (`/dashboard-admin/disputes` queue + `/[disputeId]` detail, `recordDisputeTransition`
 Server Action) composes ONLY Feature 012's layer; live + Chrome/axe proven. **T032** — dispute half now proven live
@@ -532,7 +540,7 @@ scope has no owning task (flagged for RUN B planning, not silently added).
     platform admin activates the organization — stated in-product, never bypassed. Concurrency
     beyond the two-session race remains T032's.
 
-- [ ] T010 [PS2] Implement organization status/suspension actions with reason capture.
+- [x] T010 [PS2] Implement organization status/suspension actions with reason capture.
   - Req: FR-006, PS2 | Depends: T009
   - Verify: suspension is reflected for the member on their next request (003/004); reason recorded
   - Codex: GPT-5.6 Sol — High · Claude: Opus — High
@@ -556,6 +564,40 @@ scope has no owning task (flagged for RUN B planning, not silently added).
     (legal/tax/contact fields) — consistent with the SRS compliance role; no write widening beyond
     the UPDATE policy that already exists. Until then this surface renders the recorded gap for
     COMPLIANCE (`data-admin-state="capability-gap"`) and is expected to work for a platform admin.
+  - **RUN J (2026-09-19) — COMPLETE (literal Verify met, live).** Pre-migration review found that a SELECT path
+    alone would make `organizations_compliance_update` EFFECTIVE with no column or transition limit (all 16
+    columns, any status, via raw REST); the human chose "SELECT + narrow guard". Migration `supabase/migrations/20260919130000_feature_010_db_open_22_compliance_organization_read.sql`
+    (applied; postflight 12/12): `organizations_member_select` USING = `is_org_member(id) OR is_platform_admin()
+    OR is_compliance_operator()` (roles/command unchanged) + `trg_organizations_compliance_guard` →
+    `guard_organization_compliance_update()` (SECURITY DEFINER, pinned search_path, no EXECUTE for anon/
+    authenticated): for a compliance operator who is NOT a platform admin, only `status` may change, only
+    PENDING_KYB→UNDER_REVIEW|ACTIVE|REJECTED, UNDER_REVIEW→ACTIVE|REJECTED, ACTIVE→SUSPENDED, SUSPENDED→ACTIVE.
+    `organizations_compliance_update`, `organizations_admin_all`, the MFA gate, grants, `account_status_history`
+    and `file_assets` policies unchanged. **Verify**: (1) "suspension is reflected for the member on their next
+    request (003/004)" — `tests/admin/organization-suspension.test.ts` (12/12, pure COMPLIANCE, through the
+    console's own Server Action): after ACTIVE→SUSPENDED the SAME member session's next `getRequestIdentity()`
+    has `isAuthorizedMember=false`, `canBuy=false`; Feature 007's `createOrder` → `buyer_not_capable`;
+    `organization_can_buy` and `is_authorized_member` both false; reinstatement restores all three. (2) "reason
+    recorded" — the mandatory reason is persisted in `kyb_reviews` (decision SUSPENDED / APPROVED, reviewer =
+    the operator, exact reason, linked by `application_id` to the organization's application) and, on
+    suspension, as `kyb_applications.rejection_reason`; `account_status_history` gains exactly one attributed
+    row per change (ACTIVE→SUSPENDED, SUSPENDED→ACTIVE, `changed_by` = operator; that table's `reason` column is
+    not written by its trigger — the reason-bearing record is the review row, no second history model was
+    invented). Also proven: stale/repeated change refused (`organization_status_stale`, nothing recorded);
+    unrelated member, own member, WAREHOUSE, FINANCE, AUDITOR → `compliance_not_capable`, anonymous →
+    `profile_auth_required`, and their raw UPDATEs change nothing; the guard refuses raw COMPLIANCE writes to
+    legal_name / tax_number / can_sell / email / mixed writes (`organization_compliance_update_scope`) and
+    ACTIVE→CLOSED|REJECTED|PENDING_KYB|UNDER_REVIEW (`organization_compliance_transition_refused`); INSERT 42501,
+    DELETE 0 rows; ADMIN and SUPER_ADMIN still edit a non-status column (unchanged); anonymous / WAREHOUSE /
+    FINANCE / AUDITOR read no organization, an unrelated member reads only its own; no history row deleted; every
+    other organization byte-identical. Console fixes found by the live proof: KYB detail no longer infers
+    "status history readable" from "organization readable" (asks `is_platform_admin()`, the history policy's own
+    operator clause — else it would have said "no change recorded" when history exists); organization names
+    fall back to the stored legal name when `display_name` is null (two real organizations), instead of claiming
+    "not readable by your role"; stale gap copy reworded (EN/AR). Browser: `tests/browser/feature010-t010.browser.mjs`
+    — 24 surfaces (EN/AR × light/dark × 390/1366 × list, detail, not-found), 0 axe violations (two consecutive
+    clean runs), visible focus ring, reason-field validation, alertdialog explaining the next-request effect,
+    Escape = no write (DB snapshot unchanged), confirmed suspension and reinstatement recorded.
 
 ---
 
@@ -1102,6 +1144,10 @@ scope has no owning task (flagged for RUN B planning, not silently added).
     dynamically, not hand-maintained). This is the honest, exhaustive proof available today; it
     cannot cover surfaces that do not exist (T010/T012/T013–T015/T027/T029 remain open). Stays
     unchecked pending those.
+  - **RUN J (2026-09-19) — still PARTIAL (Depends: Phases 3–9 unmet).** T010 closed, so the open list is now
+    T013–T015 (Feature 008) and T027/T029 (DB-OPEN-21). The organization status surface is scanned with the rest
+    of the console (no `.delete(`; `organizations` has no DELETE grant; the RUN J guard refuses a COMPLIANCE
+    delete path anyway — live: 0 rows). `tests/admin/no-hard-delete.test.ts` updated accordingly (5/5).
   - **Dispute-unblock run (2026-09-19) — still PARTIAL (Depends: Phases 3–9 unmet).** Feature 012's closure removes
     T012 from the open list only: the console dispute surface and the Feature 012 files it composes are now scanned
     (no `.delete(`), `disputes`/`dispute_evidence` carry no DELETE grant, and the `dispute_status_history` migration
