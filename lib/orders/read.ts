@@ -1,3 +1,4 @@
+import { readOrderStatusHistory } from "@/lib/audit/history";
 import { createClient } from "@/lib/supabase/server";
 import type {
   OrderFinancialsDTO,
@@ -62,8 +63,6 @@ const ORDER_FINANCIALS_SELECT =
 
 const PROFORMA_SELECT = "id, order_id, proforma_code, status, issued_at, valid_until, file_asset_id";
 const PROFORMA_ITEM_SELECT = "id, proforma_id, order_item_id, description, quantity_kg, unit_price, amount";
-
-const ORDER_STATUS_HISTORY_SELECT = "id, order_id, old_status, new_status, changed_by, reason, created_at";
 
 const ORDER_SHIPMENT_SELECT =
   "id, order_id, shipment_code, status, delivery_method, country_code, city, address_line, contact_name, contact_phone, shipping_fee, currency, ready_at, delivered_at, created_by, created_at, updated_at";
@@ -307,19 +306,21 @@ export async function getProforma({ orderId }: { orderId: string }): Promise<Pro
 }
 type ProformaStatusValue = ProformaDTO["status"];
 
-/** `order_status_history` — read-only, `can_view_order`-scoped. Empty for a fresh DRAFT (the recording trigger fires only `AFTER UPDATE OF status`). */
+/**
+ * `order_status_history` — read-only, `can_view_order`-scoped. Empty for a fresh DRAFT (the recording
+ * trigger fires only `AFTER UPDATE OF status`). Feature 012 RUN C (T016): the query itself now lives
+ * ONCE in `lib/audit/history.ts#readOrderStatusHistory`; this keeps Feature 007's own DTO shape.
+ */
 export async function getOrderStatusHistory({ orderId }: { orderId: string }): Promise<readonly OrderStatusHistoryEntry[]> {
-  const supabase = await createClient();
-  const { data: rows } = await supabase.from("order_status_history").select(ORDER_STATUS_HISTORY_SELECT).eq("order_id", orderId).order("created_at", { ascending: true }).order("id", { ascending: true });
-
-  return (rows ?? []).map((row) => ({
-    id: String(row.id),
-    orderId: row.order_id,
-    oldStatus: row.old_status as OrderStatus | null,
-    newStatus: row.new_status as OrderStatus,
-    changedBy: row.changed_by,
+  const rows = await readOrderStatusHistory(orderId);
+  return rows.map((row) => ({
+    id: row.id,
+    orderId: row.subjectId,
+    oldStatus: row.oldStatus as OrderStatus | null,
+    newStatus: row.newStatus as OrderStatus,
+    changedBy: row.changedBy,
     reason: row.reason,
-    createdAt: row.created_at,
+    createdAt: row.createdAt,
   }));
 }
 

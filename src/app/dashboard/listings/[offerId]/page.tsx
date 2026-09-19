@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { PageHeader } from "@/components/app/page-header";
+import { HistoryTimeline, actorFor } from "@/components/audit/history-timeline";
 import { ListingStatusBadge } from "@/components/listings/listing-status-badge";
 import { AppBilingual } from "@/components/locale/app-bilingual";
 import { InlineAlert } from "@/components/ui/inline-alert";
@@ -132,28 +133,31 @@ export default async function SellerListingDetailPage({
 
         <Separator />
 
-        <section className="flex flex-col gap-3">
-          <h2 className="text-lg font-semibold text-foreground">
+        <section className="flex flex-col gap-3" aria-labelledby="listing-history-heading">
+          <h2 id="listing-history-heading" className="text-lg font-semibold text-foreground">
             <AppBilingual pick={(c) => c.listings.detail.historyHeading} />
           </h2>
-          {history.length === 0 ? (
-            <p className="text-[length:var(--text-small)] text-muted-foreground">
-              <AppBilingual pick={(c) => c.listings.detail.historyEmpty} />
-            </p>
-          ) : (
-            <ul className="flex flex-col gap-2">
-              {history.map((entry) => (
-                <li key={entry.id} className="flex flex-wrap items-center justify-between gap-3 border-b border-border py-2 text-[length:var(--text-small)] last:border-b-0">
-                  <span className="text-foreground">
-                    {entry.oldStatus ? `${entry.oldStatus} → ${entry.newStatus}` : entry.newStatus}
-                  </span>
-                  <span className="text-muted-foreground" dir="ltr">
-                    {entry.createdAt}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
+          {/* Feature 012 RUN C (T016): the shared read-only timeline, with the approved status labels. */}
+          <HistoryTimeline
+            labelledBy="listing-history-heading"
+            emptyMessage={<AppBilingual pick={(c) => c.listings.detail.historyEmpty} />}
+            entries={history.map((entry) => ({
+              id: entry.id,
+              occurredAt: entry.createdAt,
+              title: (
+                <>
+                  {entry.oldStatus ? (
+                    <>
+                      <AppBilingual pick={(c) => c.marketplace.status[entry.oldStatus!]} /> →{" "}
+                    </>
+                  ) : null}
+                  <AppBilingual pick={(c) => c.marketplace.status[entry.newStatus]} />
+                </>
+              ),
+              actor: actorFor(entry.changedBy, identity.userId),
+              reason: entry.reason,
+            }))}
+          />
         </section>
       </div>
     </div>

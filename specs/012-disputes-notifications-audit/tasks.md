@@ -3,7 +3,7 @@
 **Input**: [spec.md](./spec.md), [plan.md](./plan.md), `docs/architecture/DATABASE-CAPABILITY-MAP.md`,
 `.specify/memory/constitution.md` (v2.0.0), SRS §8 (MKT-07), §13.5, §14 (OPS-02), §46.
 
-**Status**: RUN B (2026-09-19) — 14/28 complete (RUN A: T001, T002, T003, T006, T019; RUN B: T005, T007, T008, T009, T010, T011, T012, T021, T022); T004 remains PARTIAL (see its RUN A note — unchanged in RUN B). All other tasks unchecked. **RUN 0 (2026-09-17) — dependency
+**Status**: RUN C (2026-09-19) — 21/28 complete (RUN A: T001–T003, T006, T019; RUN B: T005, T007–T012, T021, T022; RUN C: T013–T018, T020); T004 remains PARTIAL (unchanged). Phases 7–8 (T023–T028) not started.
 reconciliation only, no code**: the "008 implemented" clause below is CLARIFIED, not removed — see the
 note immediately after this block. RUN A (T001–T004, T006, T018, T019) is GO while Feature 008 remains
 7/39 (see clarification).
@@ -181,55 +181,79 @@ layer.
 
 ## Phase 4 — History & audit surfaces
 
-- [ ] T013 [PS7] Implement `lib/audit/history.ts` — scoped reads for order, listing and account status
+- [X] T013 [PS7] Implement `lib/audit/history.ts` — scoped reads for order, listing and account status
   history plus ownership events, with correlation IDs.
   - Req: FR-010, FR-011, SEC-001 | Depends: —
   - Verify: each history type returns exactly what its policy permits for member/compliance/auditor fixtures
   - Codex: GPT-5.6 Sol — High · Claude: Opus — High
   - Why: four different scoping rules across four tables; a mistake exposes another organization's commercial history.
+  - **RUN C (2026-09-19) — COMPLETE.** `lib/audit/history.ts` is the single read-only owner of all four queries
+    (UUID-guarded; anon `42501` reported as "nothing visible", other errors thrown). Live
+    (`tests/audit/history.test.ts`): order history — participant + ADMIN read, other org/COMPLIANCE/AUDITOR/
+    WAREHOUSE/FINANCE/anon get nothing; listing history — COMPLIANCE/AUDITOR/ADMIN read, every member org gets
+    nothing; account history — own org + ADMIN only; ownership — parties + ADMIN only. Recorded gap: the listing
+    "owning seller" branch cannot be exercised live (no member-owned listing can exist — Feature 006's own gap).
+    No correlation id is invented for the three status-history tables (none stored).
 
-- [ ] T014 [P] [PS7] Build read-only history components (`components/audit/history-timeline.tsx`,
+- [X] T014 [P] [PS7] Build read-only history components (`components/audit/history-timeline.tsx`,
   `correlation-id.tsx`) with **no mutation affordance in the component set at all**.
   - Req: FR-010, SC-008 | Depends: T013
   - Verify: the components expose no edit/delete props; correlation IDs render monospaced
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — High
   - Why: read-only-by-construction is a stronger guarantee than conditional disabling.
+  - **RUN C (2026-09-19) — COMPLETE.** Props are data only (`entries`, `labelledBy`, `emptyMessage`); no callback,
+    button, link, form or input exists; correlation ids monospaced + break-all; reason via `UntrustedText`;
+    actor is viewer-relative ("Not recorded" only for a genuinely NULL `changed_by`). Pinned by
+    `tests/audit/immutability.test.ts` (mutation-proven).
 
-- [ ] T015 [PS7] Implement `lib/audit/access.ts` — who may read what, including the DB-OPEN-06
+- [X] T015 [PS7] Implement `lib/audit/access.ts` — who may read what, including the DB-OPEN-06
   explanation for auditors and `audit_logs`.
   - Req: FR-016, spec Open items | Depends: T013
   - Verify: an auditor fixture sees an explanation rather than an empty list; an admin sees the log
   - Codex: GPT-5.6 Sol — Medium · Claude: Opus — High
   - Why: distinguishing "no data" from "not permitted" is exactly the honesty distinction the SRS's audit model depends on.
+  - **RUN C (2026-09-19) — COMPLETE.** `resolveAuditLogAccess()`: live ADMIN → real rows (reusing Feature 010's
+    existing `probeAuditLog`, no second query); AUDITOR → `limited`/DB-OPEN-06 with NO query and no fallback; any
+    other role → `not-permitted`. `AuditAccessNotice` renders the explanation. DB-OPEN-06 stays OPEN (a direct
+    auditor read still returns nothing). No member route renders it — Feature 010's audit console should adopt it.
 
-- [ ] T016 Integrate history components into 005/006/007's detail surfaces (ownership ledger, listing
+- [X] T016 Integrate history components into 005/006/007's detail surfaces (ownership ledger, listing
   history, order history) without duplicating their read layers.
   - Req: FR-010 | Depends: T014
   - Verify: each surface renders history through these shared components; no duplicate history query exists
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — Medium
   - Why: cross-feature composition with a de-duplication requirement.
+  - **RUN C (2026-09-19) — COMPLETE (for 005/006/007).** Order detail (007) and listing detail (006) render the
+    shared `HistoryTimeline`; 005's `LedgerTimeline` is now a thin adapter over it. `getOrderStatusHistory`,
+    `getListingStatusHistory` and `getOwnershipEvents` delegate their queries to `lib/audit/history.ts`.
+    Recorded: Feature 010's console (`lib/admin/compliance.ts`) still issues its own listing/account history
+    reads — left untouched per the no-new-010-work boundary; a candidate for 010 to delegate.
 
 ---
 
 ## Phase 5 — Module registration
 
-- [ ] T017 Register `disputes` and `notifications` nav entries and any "needs your action"
+- [X] T017 Register `disputes` and `notifications` nav entries and any "needs your action"
   contributions with 004's contract.
   - Req: FR-014 | Depends: T006, T010
   - Verify: entries appear for member organizations; no fabricated action items are contributed
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — Medium
   - Why: contract-conformant registration with an honesty constraint.
+  - **RUN C (2026-09-19) — COMPLETE.** `disputes` (buy, "trading" group) and `notifications` (member, "account"
+    group) registered in `lib/dashboard/registry.tsx`; neither contributes an overview card, count or action item.
 
 ---
 
 ## Phase 6 — Tests
 
-- [ ] T018 [P] Write `tests/disputes/isolation.test.ts` — unrelated organizations cannot read or write
+- [X] T018 [P] Write `tests/disputes/isolation.test.ts` — unrelated organizations cannot read or write
   disputes, evidence, notifications or histories.
   - Req: SEC-001, SC-001 | Depends: T002, T009, T013
   - Verify: `npm test -- disputes/isolation` passes across all four data types
   - Codex: GPT-5.6 Sol — High · Claude: Opus — High
   - Why: cross-tenant exposure of conflict and audit data would be among the most damaging leaks possible.
+  - **RUN C (2026-09-19) — COMPLETE.** 8 live tests: disputes, evidence, notifications and all four history types —
+    app layer AND raw RLS SELECT/INSERT/UPDATE/DELETE, for two unrelated organizations.
 
 - [X] T019 [P] Write `tests/disputes/role-restriction.test.ts` — only compliance changes dispute
   status; member/warehouse/finance/auditor all refused.
@@ -238,12 +262,16 @@ layer.
   - Codex: GPT-5.6 Sol — High · Claude: Opus — High
   - Why: resolution authority boundary.
 
-- [ ] T020 [P] Write `tests/audit/immutability.test.ts` — no delete/edit path exists; database refuses
+- [X] T020 [P] Write `tests/audit/immutability.test.ts` — no delete/edit path exists; database refuses
   ownership-event mutation.
   - Req: FR-003, SC-003 | Depends: T013
   - Verify: `npm test -- audit/immutability` passes; grep confirms no `.delete(` on these tables
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — High
   - Why: OPS-02/LOT-03 compliance proven at the boundary.
+  - **RUN C (2026-09-19) — COMPLETE.** Static: no product delete of any protected table; no update of history/
+    ledger/audit/evidence; `disputes` updated only by `lib/disputes/compliance.ts`; `lib/audit` read-only;
+    policies/grants pinned from the schema report. Live: Feature 005's privileged append-only probe passes; party +
+    WAREHOUSE update/delete change nothing. Mutation-proven (evidence delete, `onDelete` prop each fail it).
 
 - [X] T021 Write `tests/disputes/honest-limitations.test.ts` — asserts the **absence** of a simulated
   notification creation/read mechanism and the absence of any automatic-freeze claim.

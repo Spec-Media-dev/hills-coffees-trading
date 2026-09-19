@@ -244,8 +244,12 @@ describe("T016 — order detail page", () => {
     expect(screen.getAllByText("Expired").length).toBeGreaterThan(0);
     expect(screen.queryByRole("button", { name: /pay|proof|escrow/i })).toBeNull();
     // Status history renders labelled transitions in order.
-    expect(screen.getByText(/Draft → Confirmed/)).toBeTruthy();
-    expect(screen.getByText(/On hold → Expired/)).toBeTruthy();
+    // Feature 012 RUN C (T016): the shared read-only timeline renders bilingual labels (EN + AR spans),
+    // so the English transition is asserted on each entry's English-language text.
+    const transitions = [...document.querySelectorAll('[data-slot="history-entry"]')].map((entry) =>
+      [...entry.querySelectorAll(':scope > div:first-child > span:first-child [lang="en"]')].map((node) => node.textContent).join(" → "),
+    );
+    expect(transitions).toEqual(expect.arrayContaining(["Draft → Confirmed", "On hold → Expired"]));
     // Financial snapshot rendered verbatim with currency; proforma code shown, monospace.
     expect(screen.getAllByText("USD 47").length).toBeGreaterThan(0);
     expect(screen.getAllByText("PF-20260913-0000009")[0]!.className).toMatch(/font-mono/);

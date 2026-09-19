@@ -139,6 +139,12 @@ describe("T017 — seller listing detail (module mocks)", () => {
     mocks.listing = { ...baseListing, status: "PENDING_REVIEW" };
     mocks.history = [{ id: "h1", offerId: "offer-1", oldStatus: "DRAFT", newStatus: "PENDING_REVIEW", changedBy: "user-1", reason: null, createdAt: "2026-01-02T00:00:00.000Z" }];
     await renderPage();
-    expect(screen.getByText("DRAFT → PENDING_REVIEW")).toBeTruthy();
+    // Feature 012 RUN C (T016): rendered through the shared read-only timeline with the approved
+    // (English-visible) status labels instead of raw codes; the actor is viewer-relative, never an id.
+    const entry = document.querySelector('[data-slot="history-entry"]');
+    expect(entry?.querySelector('[lang="en"]')?.textContent).toBe("Draft");
+    expect([...(entry?.querySelectorAll('[lang="en"]') ?? [])].map((node) => node.textContent)).toEqual(expect.arrayContaining(["Draft", "Pending review"]));
+    expect(entry?.textContent).not.toContain("user-1");
+    expect(document.querySelector('[data-slot="history-timeline"] button, [data-slot="history-timeline"] a')).toBeNull();
   });
 });

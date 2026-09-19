@@ -2503,4 +2503,28 @@ export const en = {
       backToNotifications: "Back to notifications",
     },
 
+    /**
+     * Feature 012 RUN C (T014/T015) — the shared read-only history timeline and the honest audit-access
+     * explanation. "Not recorded" is shown ONLY where the database column is genuinely empty; nothing is
+     * inferred. DB-OPEN-06: the Auditor role cannot read audit logs — stated, never shown as "no activity".
+     */
+    history: {
+      listLabel: "History",
+      empty: "No history has been recorded yet.",
+      byLabel: "By",
+      byYou: "You",
+      byOther: "Another user or Hills operations",
+      byNotRecorded: "Not recorded",
+      reasonLabel: "Reason",
+      correlationLabel: "Reference",
+      readOnlyNote: "History is a permanent record. It cannot be edited or deleted — corrections are added as new entries.",
+    },
+    auditAccess: {
+      heading: "Audit log access",
+      auditorLimitation:
+        "The Auditor role cannot read the platform audit log yet. This is a recorded database access limitation (DB-OPEN-06) — it does not mean that no activity took place.",
+      notPermitted: "Your role does not include access to the platform audit log.",
+      unavailable: "The audit log could not be read right now. Please try again.",
+    },
+
 } as const;

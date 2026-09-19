@@ -8,6 +8,7 @@ import { StateScreen } from "@/components/layout/state-screen";
 import { DraftEditor } from "@/components/orders/draft-editor";
 import { DraftItemControls } from "@/components/orders/draft-item-controls";
 import { FinancialSummary } from "@/components/orders/financial-summary";
+import { HistoryTimeline, actorFor } from "@/components/audit/history-timeline";
 import { OrderDisputeLinkage } from "@/components/disputes/dispute-linkage";
 import { HoldCountdown } from "@/components/orders/hold-countdown";
 import { OrderStatusBadge } from "@/components/orders/order-status-badge";
@@ -85,7 +86,6 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ or
   const canCheckout = order.status === "DRAFT" || order.status === "CONFIRMED";
   const isOnHold = order.status === "HOLD" && freshness.data.fresh;
   const isExpired = order.status === "EXPIRED";
-  const statusLabels = appCopy.orders.status as Record<string, string>;
   const paymentLabels = appCopy.orders.payment.status as Record<string, string>;
 
   return (
@@ -276,26 +276,27 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ or
           <h2 id="history-heading" className="text-lg font-semibold text-foreground">
             <AppBilingual pick={(c) => c.orders.history.heading} />
           </h2>
-          {history.length === 0 ? (
-            <p className="text-[length:var(--text-small)] text-muted-foreground">
-              <AppBilingual pick={(c) => c.orders.history.empty} />
-            </p>
-          ) : (
-            <ul className="flex flex-col gap-2">
-              {history.map((entry) => (
-                <li key={entry.id} className="flex flex-wrap items-center justify-between gap-3 border-b border-border py-2 text-[length:var(--text-small)] last:border-b-0">
-                  <span className="text-foreground">
-                    {entry.oldStatus ? `${statusLabels[entry.oldStatus] ?? entry.oldStatus} → ` : ""}
-                    {statusLabels[entry.newStatus] ?? entry.newStatus}
-                    {entry.reason ? <span className="block text-muted-foreground">{entry.reason}</span> : null}
-                  </span>
-                  <span className="font-mono text-muted-foreground" dir="ltr">
-                    {entry.createdAt}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
+          {/* Feature 012 RUN C (T016): rendered through the shared read-only timeline (no correlation column exists on order_status_history, so none is shown). */}
+          <HistoryTimeline
+            labelledBy="history-heading"
+            emptyMessage={<AppBilingual pick={(c) => c.orders.history.empty} />}
+            entries={history.map((entry) => ({
+              id: entry.id,
+              occurredAt: entry.createdAt,
+              title: (
+                <>
+                  {entry.oldStatus ? (
+                    <>
+                      <AppBilingual pick={(c) => (c.orders.status as Record<string, string>)[entry.oldStatus!] ?? entry.oldStatus!} /> →{" "}
+                    </>
+                  ) : null}
+                  <AppBilingual pick={(c) => (c.orders.status as Record<string, string>)[entry.newStatus] ?? entry.newStatus} />
+                </>
+              ),
+              actor: actorFor(entry.changedBy, identity.userId),
+              reason: entry.reason,
+            }))}
+          />
         </section>
 
         <Separator />

@@ -38,7 +38,7 @@ describe("T002 — positions: quantity fidelity, DB-OPEN-05 degradation, no fabr
         {
           id: "pos-1",
           lot_id: "lot-1",
-          owner_organization_id: "org-a",
+          owner_organization_id: "0a000000-0000-4000-8000-00000000000a",
           warehouse_id: "wh-1",
           warehouse_location_id: null,
           available_quantity_kg: 123.456,
@@ -55,7 +55,7 @@ describe("T002 — positions: quantity fidelity, DB-OPEN-05 degradation, no fabr
     });
 
     const { getInventoryPositions } = await import("@/lib/inventory/positions");
-    const result = await getInventoryPositions({ organizationId: "org-a" });
+    const result = await getInventoryPositions({ organizationId: "0a000000-0000-4000-8000-00000000000a" });
 
     expect(result.rows).toHaveLength(1);
     const position = result.rows[0]!;
@@ -74,7 +74,7 @@ describe("T002 — positions: quantity fidelity, DB-OPEN-05 degradation, no fabr
         {
           id: "pos-2",
           lot_id: "lot-2",
-          owner_organization_id: "org-a",
+          owner_organization_id: "0a000000-0000-4000-8000-00000000000a",
           warehouse_id: "wh-1",
           warehouse_location_id: null,
           available_quantity_kg: 50,
@@ -90,7 +90,7 @@ describe("T002 — positions: quantity fidelity, DB-OPEN-05 degradation, no fabr
     });
 
     const { getInventoryPositions } = await import("@/lib/inventory/positions");
-    const result = await getInventoryPositions({ organizationId: "org-a" });
+    const result = await getInventoryPositions({ organizationId: "0a000000-0000-4000-8000-00000000000a" });
 
     expect(result.rows[0]!.lot).toEqual({
       lotId: "lot-2",
@@ -109,7 +109,7 @@ describe("T002 — positions: quantity fidelity, DB-OPEN-05 degradation, no fabr
     const rows = Array.from({ length: 3 }, (_, i) => ({
       id: `pos-${i}`,
       lot_id: `lot-${i}`,
-      owner_organization_id: "org-a",
+      owner_organization_id: "0a000000-0000-4000-8000-00000000000a",
       warehouse_id: "wh-1",
       warehouse_location_id: null,
       available_quantity_kg: 1,
@@ -120,7 +120,7 @@ describe("T002 — positions: quantity fidelity, DB-OPEN-05 degradation, no fabr
     withFakeTables({ inventory_positions: rows, coffee_lots: [], coffees: [], warehouses: [], warehouse_locations: [] });
 
     const { getInventoryPositions } = await import("@/lib/inventory/positions");
-    const result = await getInventoryPositions({ organizationId: "org-a", pageSize: 2 });
+    const result = await getInventoryPositions({ organizationId: "0a000000-0000-4000-8000-00000000000a", pageSize: 2 });
 
     expect(result.rows).toHaveLength(2);
     expect(result.hasMore).toBe(true);
@@ -131,14 +131,14 @@ describe("T003 — allocations: exact vocabulary, distinct quantities", () => {
   it("STORED/RELEASED/DELIVERED render their exact domain value; allocated and released stay distinct", async () => {
     withFakeTables({
       storage_allocations: [
-        { id: "a1", order_item_id: "oi-1", owner_organization_id: "org-a", lot_id: "lot-1", warehouse_id: "wh-1", warehouse_location_id: null, quantity_kg: 100, released_quantity_kg: 0, status: "STORED", started_at: "2026-01-01T00:00:00.000Z", released_at: null },
-        { id: "a2", order_item_id: "oi-2", owner_organization_id: "org-a", lot_id: "lot-1", warehouse_id: "wh-1", warehouse_location_id: null, quantity_kg: 60, released_quantity_kg: 25, status: "RELEASED", started_at: "2026-01-01T00:00:00.000Z", released_at: "2026-01-02T00:00:00.000Z" },
-        { id: "a3", order_item_id: "oi-3", owner_organization_id: "org-a", lot_id: "lot-1", warehouse_id: "wh-1", warehouse_location_id: null, quantity_kg: 40, released_quantity_kg: 40, status: "DELIVERED", started_at: "2026-01-01T00:00:00.000Z", released_at: "2026-01-03T00:00:00.000Z" },
+        { id: "a1", order_item_id: "oi-1", owner_organization_id: "0a000000-0000-4000-8000-00000000000a", lot_id: "lot-1", warehouse_id: "wh-1", warehouse_location_id: null, quantity_kg: 100, released_quantity_kg: 0, status: "STORED", started_at: "2026-01-01T00:00:00.000Z", released_at: null },
+        { id: "a2", order_item_id: "oi-2", owner_organization_id: "0a000000-0000-4000-8000-00000000000a", lot_id: "lot-1", warehouse_id: "wh-1", warehouse_location_id: null, quantity_kg: 60, released_quantity_kg: 25, status: "RELEASED", started_at: "2026-01-01T00:00:00.000Z", released_at: "2026-01-02T00:00:00.000Z" },
+        { id: "a3", order_item_id: "oi-3", owner_organization_id: "0a000000-0000-4000-8000-00000000000a", lot_id: "lot-1", warehouse_id: "wh-1", warehouse_location_id: null, quantity_kg: 40, released_quantity_kg: 40, status: "DELIVERED", started_at: "2026-01-01T00:00:00.000Z", released_at: "2026-01-03T00:00:00.000Z" },
       ],
     });
 
     const { getStorageAllocations } = await import("@/lib/inventory/allocations");
-    const result = await getStorageAllocations({ organizationId: "org-a" });
+    const result = await getStorageAllocations({ organizationId: "0a000000-0000-4000-8000-00000000000a" });
 
     expect(result.rows.map((r) => r.status)).toEqual(["STORED", "RELEASED", "DELIVERED"]);
     const stored = result.rows[0]!;
@@ -162,8 +162,8 @@ describe("T004 — ownership: both directions, redaction, no reconstruction", ()
         {
           id: "evt-2",
           lot_id: "lot-1",
-          from_organization_id: "org-a",
-          to_organization_id: "org-b",
+          from_organization_id: "0a000000-0000-4000-8000-00000000000a",
+          to_organization_id: "0b000000-0000-4000-8000-00000000000b",
           order_item_id: "oi-1",
           quantity_kg: 10,
           event_type: "RESALE",
@@ -177,7 +177,7 @@ describe("T004 — ownership: both directions, redaction, no reconstruction", ()
           id: "evt-1",
           lot_id: "lot-1",
           from_organization_id: null,
-          to_organization_id: "org-a",
+          to_organization_id: "0a000000-0000-4000-8000-00000000000a",
           order_item_id: "oi-0",
           quantity_kg: 20,
           event_type: "INITIAL_ALLOCATION",
@@ -188,17 +188,17 @@ describe("T004 — ownership: both directions, redaction, no reconstruction", ()
           source_document_id: null,
         },
       ],
-      organizations: [{ id: "org-a", display_name: "Org A" }], // only the acting org's own row is ever readable
+      organizations: [{ id: "0a000000-0000-4000-8000-00000000000a", display_name: "Org A" }], // only the acting org's own row is ever readable
     });
 
     const { getOwnershipEvents } = await import("@/lib/inventory/ownership");
-    const result = await getOwnershipEvents({ organizationId: "org-a" });
+    const result = await getOwnershipEvents({ organizationId: "0a000000-0000-4000-8000-00000000000a" });
 
     expect(result.rows).toHaveLength(2);
     const [outgoing, incoming] = result.rows;
     expect(outgoing!.role).toEqual({ isSource: true, isDestination: false });
     expect(outgoing!.from.displayName).toBe("Org A"); // acting org resolves its own name
-    expect(outgoing!.to.organizationId).toBe("org-b");
+    expect(outgoing!.to.organizationId).toBe("0b000000-0000-4000-8000-00000000000b");
     expect(outgoing!.to.displayName).toBeNull();
     expect(outgoing!.to.redacted).toBe(true); // real counterparty, unreadable name — redacted, not dropped
 
@@ -213,8 +213,8 @@ describe("T004 — ownership: both directions, redaction, no reconstruction", ()
       inventory_ownership_events: (["INITIAL_ALLOCATION", "SALE", "RESALE", "ADJUSTMENT", "VOID"] as const).map((eventType, i) => ({
         id: `evt-${i}`,
         lot_id: "lot-1",
-        from_organization_id: "org-a",
-        to_organization_id: "org-a",
+        from_organization_id: "0a000000-0000-4000-8000-00000000000a",
+        to_organization_id: "0a000000-0000-4000-8000-00000000000a",
         order_item_id: null,
         quantity_kg: 1,
         event_type: eventType,
@@ -224,11 +224,11 @@ describe("T004 — ownership: both directions, redaction, no reconstruction", ()
         reason: null,
         source_document_id: null,
       })),
-      organizations: [{ id: "org-a", display_name: "Org A" }],
+      organizations: [{ id: "0a000000-0000-4000-8000-00000000000a", display_name: "Org A" }],
     });
 
     const { getOwnershipEvents } = await import("@/lib/inventory/ownership");
-    const result = await getOwnershipEvents({ organizationId: "org-a" });
+    const result = await getOwnershipEvents({ organizationId: "0a000000-0000-4000-8000-00000000000a" });
     expect(result.rows.map((r) => r.eventType).sort()).toEqual(["ADJUSTMENT", "INITIAL_ALLOCATION", "RESALE", "SALE", "VOID"].sort());
   });
 });

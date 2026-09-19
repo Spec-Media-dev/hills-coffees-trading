@@ -82,7 +82,8 @@ describe("T002 — static registry lists implemented modules only", () => {
     // "marketplace" (coffee browse always; listings/sales additive for sell-capable organizations).
     // Feature 007 RUN C (T018) adds "orders" (buyer-capable organizations; merges into the "trading" group).
     // Feature 009 RUN C (T023) adds "delivery" (buyer-capable organizations; also merges into "trading").
-    expect(DASHBOARD_MODULES.map((m) => m.id)).toEqual(["account", "inventory", "marketplace", "orders", "delivery"]);
+    // Feature 012 RUN C (T017) adds "disputes" (buy, merges into "trading") and "notifications" (member, "account" group).
+    expect(DASHBOARD_MODULES.map((m) => m.id)).toEqual(["account", "inventory", "marketplace", "orders", "delivery", "disputes", "notifications"]);
     const account = DASHBOARD_MODULES[0]!;
     const accountHrefs = (account.navGroups ?? []).flatMap((g) => g.entries.map((e) => e.href));
     expect(accountHrefs.sort()).toEqual(["/dashboard", "/dashboard/settings"]);
@@ -112,7 +113,8 @@ describe("T002 — static registry lists implemented modules only", () => {
     // "marketplace"/"listings" (Feature 006 RUN C, T020), "orders" (Feature 007 RUN C, T018), and
     // "delivery" (Feature 009 RUN C, T023) are now genuinely live — removed from the forbidden list;
     // the still-unbuilt areas remain forbidden.
-    const forbidden = ["payments", "disputes"];
+    // Feature 012 RUN C (T017): "disputes" is now genuinely live (T006) — removed from the forbidden list.
+    const forbidden = ["payments"];
     const ids = DASHBOARD_MODULES.map((m) => m.id);
     const allHrefs = DASHBOARD_MODULES.flatMap((m) => (m.navGroups ?? []).flatMap((g) => g.entries.map((e) => e.href)));
     for (const name of forbidden) {
@@ -126,10 +128,10 @@ describe("T002 — static registry lists implemented modules only", () => {
     const groups = buildDashboardNavGroups({ modules: DASHBOARD_MODULES, organization: buyerOnlyOrg });
     expect(groups.map((g) => g.key)).toEqual(["overview", "account", "trading", "marketplace"]);
     expect(groups[0]!.items.map((i) => i.href)).toEqual(["/dashboard"]);
-    expect(groups[1]!.items.map((i) => i.href)).toEqual(["/dashboard/settings"]);
+    expect(groups[1]!.items.map((i) => i.href)).toEqual(["/dashboard/settings", "/dashboard/notifications"]);
     // Feature 007 RUN C (T018) / Feature 009 RUN C (T023): "orders"/"delivery" merge into the SAME
     // "trading" group as inventory/storage — no fourth "Trading"-shaped header.
-    expect(groups[2]!.items.map((i) => i.href).sort()).toEqual(["/dashboard/deliveries", "/dashboard/inventory", "/dashboard/orders", "/dashboard/storage"]);
+    expect(groups[2]!.items.map((i) => i.href).sort()).toEqual(["/dashboard/deliveries", "/dashboard/disputes", "/dashboard/inventory", "/dashboard/orders", "/dashboard/storage"]);
     // A buyer-only organization sees ONLY the marketplace browse entry — listings/sales are
     // entry-level `requiredCapability: "sell"` and stay hidden (T020's own additive-capability rule).
     expect(groups[3]!.items.map((i) => i.href)).toEqual(["/dashboard/coffee"]);
@@ -296,5 +298,26 @@ describe("Feature 005 RUN B reconciliation — T015 inventory module overview co
     expect(result.bought).toEqual([]);
     expect(result.where).toEqual([]);
     fakeClientState.client = createFakeSupabaseClient({});
+  });
+});
+
+describe("Feature 012 RUN C (T017) — disputes and notifications are registered honestly", () => {
+  it("both modules point only at existing routes and contribute no overview card, count or action item", async () => {
+    const { existsSync } = await import("node:fs");
+    for (const id of ["disputes", "notifications"]) {
+      const registered = DASHBOARD_MODULES.find((m) => m.id === id)!;
+      expect(registered.overviewCards, id).toBeUndefined();
+      expect(registered.actionItems, id).toBeUndefined();
+      for (const entry of (registered.navGroups ?? []).flatMap((g) => g.entries)) {
+        expect(existsSync(`src/app${entry.href}/page.tsx`), entry.href).toBe(true);
+      }
+    }
+  });
+
+  it("notifications is visible to every member; disputes follows the buy capability like Orders", () => {
+    const noBuyOrg: OrganizationMembership = { organizationId: "o", displayName: "O", memberRole: "OWNER", canBuy: false, canSell: false };
+    const hrefs = buildDashboardNavGroups({ modules: DASHBOARD_MODULES, organization: noBuyOrg }).flatMap((g) => g.items.map((i) => i.href));
+    expect(hrefs).toContain("/dashboard/notifications");
+    expect(hrefs).not.toContain("/dashboard/disputes");
   });
 });

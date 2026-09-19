@@ -346,4 +346,57 @@ export const DASHBOARD_MODULES: readonly DashboardModule[] = [
       return cards;
     },
   },
+  /**
+   * Feature 012 RUN C (T017) — disputes (T006, live at `/dashboard/disputes`). A member raises a
+   * dispute on an order its organization BOUGHT (`lib/disputes/member.ts`), so the entry follows the
+   * same `buy` capability as Orders/Deliveries and merges into the SAME "trading" group. Presentational
+   * only: the route re-verifies `is_authorized_member()` itself, and RLS scopes every row.
+   *
+   * NO `overviewCards` and NO `actionItems` — deliberately. A dispute's review is Hills Compliance's
+   * action, not the member's, and no count/"needs your action" item is contributed (nothing fabricated).
+   */
+  {
+    id: "disputes",
+    requiredCapability: "buy",
+    navGroups: [
+      {
+        key: "trading",
+        label: <AppBilingual pick={(c) => c.inventory.nav.inventory} />,
+        entries: [
+          {
+            id: "disputes",
+            label: <AppBilingual pick={(c) => c.disputes.list.title} />,
+            href: "/dashboard/disputes",
+            icon: <Icon name="shield" className="size-[18px]" />,
+            requiredCapability: "buy",
+          },
+        ],
+      },
+    ],
+  },
+  /**
+   * Feature 012 RUN C (T017) — notifications (T010/T011, live at `/dashboard/notifications`, with
+   * preferences reachable from that page). User-level, so `member`, in the "account" group beside
+   * Settings. NO count, NO badge, NO overview card, NO action item: notifications can be neither
+   * generated nor marked read (DB-BLOCK-04), so any number here would be invented.
+   */
+  {
+    id: "notifications",
+    requiredCapability: "member",
+    navGroups: [
+      {
+        key: "account",
+        label: <AppBilingual pick={(c) => c.account} />,
+        entries: [
+          {
+            id: "notifications",
+            label: <AppBilingual pick={(c) => c.notifications.label} />,
+            href: "/dashboard/notifications",
+            icon: <Icon name="bell" className="size-[18px]" />,
+            requiredCapability: "member",
+          },
+        ],
+      },
+    ],
+  },
 ];

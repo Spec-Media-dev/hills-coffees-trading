@@ -1,3 +1,4 @@
+import { readOwnershipEvents } from "@/lib/audit/history";
 import { createClient } from "@/lib/supabase/server";
 import type { OwnershipCounterparty, OwnershipEvent, PaginatedResult } from "@/lib/inventory/types";
 
@@ -30,23 +31,10 @@ export async function getOwnershipEvents({
   page?: number;
   pageSize?: number;
 }): Promise<PaginatedResult<OwnershipEvent>> {
-  const boundedPageSize = Math.max(1, Math.min(pageSize, MAX_PAGE_SIZE));
-  const from = Math.max(0, page) * boundedPageSize;
-  const to = from + boundedPageSize;
-
+  // Feature 012 RUN C (T016): the ledger query lives ONCE in `lib/audit/history.ts`; this module keeps
+  // only Feature 005's own presentation concerns (role, counterparty-name redaction).
+  const { rows: pageRows, hasMore } = await readOwnershipEvents({ organizationId, page, pageSize: Math.max(1, Math.min(pageSize, MAX_PAGE_SIZE)) });
   const supabase = await createClient();
-
-  const { data: rows } = await supabase
-    .from("inventory_ownership_events")
-    .select("id, lot_id, from_organization_id, to_organization_id, order_item_id, quantity_kg, event_type, created_by, created_at, correlation_id, reason, source_document_id")
-    .or(`from_organization_id.eq.${organizationId},to_organization_id.eq.${organizationId}`)
-    .order("created_at", { ascending: false })
-    .order("id", { ascending: false })
-    .range(from, to);
-
-  const allRows = rows ?? [];
-  const hasMore = allRows.length > boundedPageSize;
-  const pageRows = hasMore ? allRows.slice(0, boundedPageSize) : allRows;
 
   if (pageRows.length === 0) {
     return { rows: [], hasMore: false };
@@ -54,27 +42,27 @@ export async function getOwnershipEvents({
 
   const counterpartyIds = [
     ...new Set(
-      pageRows.flatMap((row) => [row.from_organization_id, row.to_organization_id]).filter((id): id is string => id !== null)
+      pageRows.flatMap((row) => [row.fromOrganizationId, row.toOrganizationId]).filter((id): id is string => id !== null)
     ),
   ];
   const displayNameById = await getReadableOrganizationNames(supabase, counterpartyIds);
 
   const events: OwnershipEvent[] = pageRows.map((row) => ({
     id: row.id,
-    lotId: row.lot_id,
-    quantityKg: Number(row.quantity_kg),
-    eventType: row.event_type as OwnershipEvent["eventType"],
+    lotId: row.lotId,
+    quantityKg: row.quantityKg,
+    eventType: row.eventType as OwnershipEvent["eventType"],
     role: {
-      isSource: row.from_organization_id === organizationId,
-      isDestination: row.to_organization_id === organizationId,
+      isSource: row.fromOrganizationId === organizationId,
+      isDestination: row.toOrganizationId === organizationId,
     },
-    from: toCounterparty(row.from_organization_id, displayNameById),
-    to: toCounterparty(row.to_organization_id, displayNameById),
-    orderItemId: row.order_item_id,
-    correlationId: row.correlation_id,
+    from: toCounterparty(row.fromOrganizationId, displayNameById),
+    to: toCounterparty(row.toOrganizationId, displayNameById),
+    orderItemId: row.orderItemId,
+    correlationId: row.correlationId,
     reason: row.reason,
-    createdAt: row.created_at,
-    createdBy: row.created_by,
+    createdAt: row.createdAt,
+    createdBy: row.createdBy,
   }));
 
   return { rows: events, hasMore };

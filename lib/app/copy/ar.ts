@@ -2315,4 +2315,22 @@ export const ar: DeepPartial<AppCopy> = {
       backToNotifications: "العودة إلى الإشعارات",
     },
 
+    history: {
+      listLabel: "السجل",
+      empty: "لم يُسجَّل أي سجل بعد.",
+      byLabel: "بواسطة",
+      byYou: "أنت",
+      byOther: "مستخدم آخر أو عمليات هيلز",
+      byNotRecorded: "غير مسجَّل",
+      reasonLabel: "السبب",
+      correlationLabel: "المرجع",
+      readOnlyNote: "السجل قيد دائم. لا يمكن تعديله أو حذفه — تُضاف التصحيحات كإدخالات جديدة.",
+    },
+    auditAccess: {
+      heading: "الوصول إلى سجل التدقيق",
+      auditorLimitation: "لا يمكن لدور المدقق قراءة سجل تدقيق المنصة بعد. هذا قيد وصول مسجَّل في قاعدة البيانات (DB-OPEN-06) — ولا يعني عدم وجود أي نشاط.",
+      notPermitted: "لا يتضمن دورك الوصول إلى سجل تدقيق المنصة.",
+      unavailable: "تعذّرت قراءة سجل التدقيق الآن. يُرجى المحاولة مرة أخرى.",
+    },
+
 };

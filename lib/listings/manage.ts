@@ -1,3 +1,4 @@
+import { readListingStatusHistory } from "@/lib/audit/history";
 import { createClient } from "@/lib/supabase/server";
 import type { ListingLotDetail, ListingStatusHistoryEntry, ListingWarehouseContext, ManagedListing, PaginatedListings } from "@/lib/listings/types";
 
@@ -113,23 +114,16 @@ export async function getManagedListingById({ organizationId, offerId }: { organ
  * against the offer before the query, since RLS already makes a mismatched query return nothing.
  */
 export async function getListingStatusHistory({ offerId }: { organizationId: string; offerId: string }): Promise<readonly ListingStatusHistoryEntry[]> {
-  const supabase = await createClient();
-
-  const { data: rows } = await supabase
-    .from("listing_status_history")
-    .select("id, offer_id, old_status, new_status, changed_by, reason, created_at")
-    .eq("offer_id", offerId)
-    .order("created_at", { ascending: true })
-    .order("id", { ascending: true });
-
-  return (rows ?? []).map((row) => ({
+  // Feature 012 RUN C (T016): the query lives ONCE in `lib/audit/history.ts`; Feature 006's DTO is kept.
+  const rows = await readListingStatusHistory(offerId);
+  return rows.map((row) => ({
     id: row.id,
-    offerId: row.offer_id,
-    oldStatus: row.old_status as ListingStatusHistoryEntry["oldStatus"],
-    newStatus: row.new_status as ListingStatusHistoryEntry["newStatus"],
-    changedBy: row.changed_by,
+    offerId: row.subjectId,
+    oldStatus: row.oldStatus as ListingStatusHistoryEntry["oldStatus"],
+    newStatus: row.newStatus as ListingStatusHistoryEntry["newStatus"],
+    changedBy: row.changedBy,
     reason: row.reason,
-    createdAt: row.created_at,
+    createdAt: row.createdAt,
   }));
 }
 
