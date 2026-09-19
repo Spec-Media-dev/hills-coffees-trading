@@ -464,7 +464,7 @@ describe("T033 — MFA gate is checked at every protected surface, at the source
 
   it("the rollback removes every MFA policy/wrapper and restores all original RPC names", () => {
     const rollback = readFileSync(
-      "supabase/migrations/20260913000000_feature_003_t033_mfa_data_gate.rollback.sql",
+      "supabase/rollback/20260913000000_feature_003_t033_mfa_data_gate.rollback.sql",
       "utf8"
     );
     expect(rollback).toContain("drop policy if exists mfa_gate_kyb_evidence on storage.objects");

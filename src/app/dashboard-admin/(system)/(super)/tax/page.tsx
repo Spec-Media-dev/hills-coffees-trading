@@ -2,7 +2,7 @@ import Link from "next/link";
 
 import { AdminAccessDenied } from "@/components/admin/access-denied";
 import { AdminStateCard } from "@/components/admin/state-card";
-import { ActiveBadge, AttributionGapNotice, FutureOnlyNotice, NoDeleteNote } from "@/components/admin/system/notices";
+import { ActiveBadge, FutureOnlyNotice, NoDeleteNote } from "@/components/admin/system/notices";
 import { EffectiveWindow, SystemLoadError, systemTrail } from "@/components/admin/system/page-parts";
 import { PageHeader } from "@/components/app/page-header";
 import { TableCardList } from "@/components/dashboard/responsive/table-card-list";
@@ -83,7 +83,6 @@ export default async function TaxRulesPage() {
           emptyState={<AdminStateCard kind="empty" icon="inbox" className="min-h-0 py-4" title={<AppBilingual pick={(c) => c.admin.system.tax.empty.title} />} description={<AppBilingual pick={(c) => c.admin.system.tax.empty.description} />} />}
         />
       )}
-      <AttributionGapNotice />
       <NoDeleteNote />
     </div>
   );

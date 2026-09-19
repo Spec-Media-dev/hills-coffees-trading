@@ -7,7 +7,6 @@ import type { CommissionPolicyStatus, PlatformAdminRole } from "@/lib/admin/syst
  * Feature 010 RUN F — the system area's recorded-fact notices. Each one names a real, verified
  * property of the approved schema or an open item; none simulates a capability:
  *   FutureOnlyNotice       — T028/T044: changes affect eligible future checkouts only.
- *   AttributionGapNotice   — UPDATE actor not persisted (no updated_by, no audit trigger) — D2 (ii).
  *   HighRiskNotice         — T029 / OPS-01: single actor, no maker-checker, not simulated.
  *   ShippingUnconsumedNotice — no checkout/shipment path reads `shipping_rules` today.
  */
@@ -33,14 +32,6 @@ function Notice({ tone, icon, title, description, dataKey }: { tone: "info" | "w
 
 export function FutureOnlyNotice() {
   return <Notice dataKey="future-only" tone="info" icon="clock" title={(c) => c.admin.system.common.futureOnlyTitle} description={(c) => c.admin.system.common.futureOnly} />;
-}
-
-export function AttributionGapNotice() {
-  return (
-    <p data-system-notice="attribution-gap" className="rounded-[var(--radius-md)] border border-dashed border-border bg-[var(--surface-subtle)] px-4 py-3 text-[length:var(--text-micro)] leading-[var(--lh-body)] text-muted-foreground">
-      <AppBilingual pick={(c) => c.admin.system.common.attributionGap} />
-    </p>
-  );
 }
 
 export function HighRiskNotice() {

@@ -1,7 +1,7 @@
 import { AdminAccessDenied } from "@/components/admin/access-denied";
 import { RecordForm } from "@/components/admin/catalogue/record-form";
 import { shippingRuleFields } from "@/components/admin/system/fields";
-import { ActiveBadge, AttributionGapNotice, NoDeleteNote, ShippingUnconsumedNotice } from "@/components/admin/system/notices";
+import { ActiveBadge, NoDeleteNote, ShippingUnconsumedNotice } from "@/components/admin/system/notices";
 import { EffectiveWindow, SystemNotFound, systemTrail } from "@/components/admin/system/page-parts";
 import { PageHeader } from "@/components/app/page-header";
 import { formatMoney } from "@/lib/dashboard/format";
@@ -23,7 +23,6 @@ export default async function ShippingRulePage({ params }: { params: Promise<{ r
       <PageHeader title={`${rule.deliveryMethod} · ${formatMoney(rule.flatFee, rule.currency)}`} description={<EffectiveWindow from={rule.effectiveFrom} until={rule.effectiveUntil} />} trail={trail} actions={<ActiveBadge isActive={rule.isActive} />} />
       <ShippingUnconsumedNotice />
       <RecordForm resource="system" copyKey="shippingRule" mode="edit" formKey="shipping-rule" fields={shippingRuleFields(rule)} hiddenFields={{ ruleId: rule.id }} action={saveShippingRule} />
-      <AttributionGapNotice />
       <NoDeleteNote />
     </div>
   );

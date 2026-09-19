@@ -2,7 +2,7 @@ import Link from "next/link";
 
 import { AdminAccessDenied } from "@/components/admin/access-denied";
 import { AdminStateCard } from "@/components/admin/state-card";
-import { ActiveBadge, AttributionGapNotice, NoDeleteNote, ShippingUnconsumedNotice } from "@/components/admin/system/notices";
+import { ActiveBadge, NoDeleteNote, ShippingUnconsumedNotice } from "@/components/admin/system/notices";
 import { EffectiveWindow, SystemLoadError, systemTrail } from "@/components/admin/system/page-parts";
 import { PageHeader } from "@/components/app/page-header";
 import { TableCardList } from "@/components/dashboard/responsive/table-card-list";
@@ -68,7 +68,6 @@ export default async function ShippingRulesPage() {
           emptyState={<AdminStateCard kind="empty" icon="inbox" className="min-h-0 py-4" title={<AppBilingual pick={(c) => c.admin.system.shipping.empty.title} />} description={<AppBilingual pick={(c) => c.admin.system.shipping.empty.description} />} />}
         />
       )}
-      <AttributionGapNotice />
       <NoDeleteNote />
     </div>
   );

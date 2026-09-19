@@ -20,7 +20,10 @@ import { ACTION_FEEDBACK, type ActionFeedbackResult } from "@/lib/types/action-f
  * single actor (`created_by` on INSERT) and NOTHING else — no simulated dual control, no pending
  * state. The gap is stated in-product and in the handoff.
  *
- * ATTRIBUTION — `created_by` on INSERT only (no `updated_by`, no audit trigger): recorded gap (D2 ii).
+ * ATTRIBUTION — every create / edit / deactivation is recorded by the database in `audit_logs` (actor =
+ * `auth.uid()`; DB-OPEN-21 resolved by migration `20260920120000_feature_010_db_open_21_config_attribution.sql`). The audit payload is REDACTED
+ * (`write_audit_log_payment_accounts()`): only the last four characters of the account number / IBAN and
+ * change flags — never the values. `updated_at` is DB-owned.
  * NO HARD DELETE — retirement is `is_active = false`. Identifiers are shown masked in lists.
  */
 

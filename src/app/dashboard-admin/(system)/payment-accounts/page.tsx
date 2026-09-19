@@ -2,7 +2,7 @@ import Link from "next/link";
 
 import { AdminAccessDenied } from "@/components/admin/access-denied";
 import { AdminStateCard } from "@/components/admin/state-card";
-import { ActiveBadge, AttributionGapNotice, HighRiskNotice, NoDeleteNote } from "@/components/admin/system/notices";
+import { ActiveBadge, HighRiskNotice, NoDeleteNote } from "@/components/admin/system/notices";
 import { SystemLoadError, systemTrail } from "@/components/admin/system/page-parts";
 import { PageHeader } from "@/components/app/page-header";
 import { TableCardList } from "@/components/dashboard/responsive/table-card-list";
@@ -89,7 +89,6 @@ export default async function PaymentAccountsPage() {
       <p className="text-[length:var(--text-micro)] text-muted-foreground">
         <AppBilingual pick={(c) => c.admin.system.paymentAccounts.masked} /> <AppBilingual pick={(c) => c.admin.system.paymentAccounts.noMemberPath} />
       </p>
-      <AttributionGapNotice />
       <NoDeleteNote />
     </div>
   );

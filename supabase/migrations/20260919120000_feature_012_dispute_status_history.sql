@@ -4,7 +4,8 @@
 -- T004 literally — EVERY approved dispute status transition persists actor, previous status, new
 -- status, reason, timestamp and correlation id, and the DATABASE (not only application code) enforces
 -- the approved transition graph.
--- Rollback: 20260919120000_feature_012_dispute_status_history.rollback.sql (paired).
+-- Rollback: supabase/rollback/20260919120000_feature_012_dispute_status_history.rollback.sql (paired; kept OUTSIDE
+-- supabase/migrations/ so the Supabase CLI never treats it as a migration).
 -- Apply: Supabase SQL Editor (repository convention — no CLI/DB URL in this environment), then run
 -- supabase/maintenance/20260919_feature_012_dispute_status_history_postflight.sql (every row ok).
 -- ══════════════════════════════════════════════════════════════════════════════════════════════

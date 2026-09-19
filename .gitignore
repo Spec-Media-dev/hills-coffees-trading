@@ -35,6 +35,9 @@ yarn-error.log*
 .env
 .env*.local
 
+# supabase CLI link metadata (project ref / pooler URL written by `supabase link`; machine-local, never committed)
+/supabase/.temp/
+
 # vercel
 .vercel
 

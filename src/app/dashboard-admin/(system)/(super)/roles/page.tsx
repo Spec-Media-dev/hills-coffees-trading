@@ -3,7 +3,7 @@ import Link from "next/link";
 import { AdminAccessDenied } from "@/components/admin/access-denied";
 import { AdminDateTime } from "@/components/admin/compliance/date-time";
 import { AdminStateCard } from "@/components/admin/state-card";
-import { ActiveBadge, AttributionGapNotice, NoDeleteNote, RoleBadge } from "@/components/admin/system/notices";
+import { ActiveBadge, NoDeleteNote, RoleBadge } from "@/components/admin/system/notices";
 import { SystemLoadError, systemTrail } from "@/components/admin/system/page-parts";
 import { PageHeader } from "@/components/app/page-header";
 import { TableCardList } from "@/components/dashboard/responsive/table-card-list";
@@ -94,7 +94,6 @@ export default async function RolesPage() {
       <p className="text-[length:var(--text-small)] leading-[var(--lh-body)] text-muted-foreground" data-hierarchy-note>
         <AppBilingual pick={(c) => c.admin.system.roles.hierarchyNote} />
       </p>
-      <AttributionGapNotice />
       <NoDeleteNote />
     </div>
   );

@@ -170,7 +170,7 @@ describe("T016 — KYB draft create/edit", () => {
   });
 
   it("the paired rollback refuses to run if real business data exists", () => {
-    const rollback = readFileSync("supabase/migrations/20260912010000_feature_003_kyb_draft_fields.rollback.sql", "utf8");
+    const rollback = readFileSync("supabase/rollback/20260912010000_feature_003_kyb_draft_fields.rollback.sql", "utf8");
     expect(rollback).toMatch(/rollback_refused/);
     expect(rollback).toMatch(/registered_address is not null or business_activity is not null/);
   });

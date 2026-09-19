@@ -17,7 +17,8 @@ import { ACTION_FEEDBACK, type ActionFeedbackResult } from "@/lib/types/action-f
  * verified across every applied migration and `lib/`, 2026-09-17). Rows are stored for the seam
  * Feature 007/009 may adopt; the UI says so — nothing pretends a fee is applied.
  *
- * ATTRIBUTION — `created_by` on INSERT only (no `updated_by`, no audit trigger): recorded gap.
+ * ATTRIBUTION — every create / edit / deactivation is recorded by the database in `audit_logs` (actor =
+ * `auth.uid()`; DB-OPEN-21 resolved by migration `20260920120000_feature_010_db_open_21_config_attribution.sql`); `updated_at` is DB-owned.
  * NO HARD DELETE — no `.delete()`; retirement is `is_active = false` / `effective_until`.
  */
 

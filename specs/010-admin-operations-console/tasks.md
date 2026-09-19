@@ -3,7 +3,13 @@
 **Input**: [spec.md](./spec.md), [plan.md](./plan.md), `docs/architecture/DATABASE-CAPABILITY-MAP.md`,
 `.specify/memory/constitution.md` (v2.0.0), SRS §14 (OPS-01, OPS-02), §3.1, §13.5.
 
-**Status**: **RUN J (2026-09-19) — 34 / 48.** **T010 COMPLETE**: human-approved migration
+**Status**: **Database hygiene M1 (2026-09-20) — 36 / 48. T027 and T029 COMPLETE; DB-OPEN-21 RESOLVED.** Human-approved
+migration `supabase/migrations/20260920120000_feature_010_db_open_21_config_attribution.sql` (applied with `supabase db push --linked`; postflight 15/15 ok incl. function ownership)
+gives every configuration table a DB-owned `updated_at` and an attributed audit trail (`audit_logs`, actor = `auth.uid()`);
+`payment_accounts` is audited with a REDACTED payload; `platform_admins` through a `user_id`-keyed sibling function.
+Live proof `tests/admin/config-attribution-live.test.ts` 10/10. `AttributionGapNotice` removed. Remaining closure blockers:
+T013–T015/T031/T032 (Feature 008), T033 (Phases 3–9 — only T013–T015 still open), T047/T048, and therefore T038–T041.
+**RUN J (2026-09-19) — 34 / 48.** **T010 COMPLETE**: human-approved migration
 `supabase/migrations/20260919130000_feature_010_db_open_22_compliance_organization_read.sql` (applied in the SQL Editor; postflight 12/12 ok) extends `organizations_member_select`
 with `OR is_compliance_operator()` and adds `trg_organizations_compliance_guard` (a compliance operator who is not a
 platform admin may change only `status`, only along the console's own transitions). Pure COMPLIANCE suspension /
@@ -1000,7 +1006,7 @@ scope has no owning task (flagged for RUN B planning, not silently added).
 
 ## Phase 9 — System configuration (SUPER_ADMIN)
 
-- [ ] T027 [PS8] Implement platform-admin role management (SUPER_ADMIN only).
+- [x] T027 [PS8] Implement platform-admin role management (SUPER_ADMIN only).
   - Req: FR-002, PS8, SEC-003 | Depends: T004
   - Verify: ADMIN is refused; SUPER_ADMIN succeeds; changes are attributable
   - RUN F (2026-09-17) — **PARTIAL (D2 ii)**: implemented and live-proven (ADMIN + every other role
@@ -1008,6 +1014,22 @@ scope has no owning task (flagged for RUN B planning, not silently added).
     refused). "Changes are attributable" holds for the GRANT (`created_by`) but NOT for a role change or
     deactivation — `platform_admins` has no `updated_by` and no audit trigger (schema fact, test-pinned).
     Stays unchecked until the recorded minimum DB change (status block) is approved and applied.
+  - **Database hygiene M1 (2026-09-20) — PREPARED, NOT APPLIED; T027 stays unchecked.** Human decisions taken:
+    `platform_admins` is audited by a sibling function keyed on `user_id` (no `id` column — the shared
+    `write_audit_log()` would raise on every write), `updated_at` becomes DB-owned by trigger and `lib/admin/roles.ts` no
+    longer sets it. Migration `supabase/migrations/20260920120000_feature_010_db_open_21_config_attribution.sql` (+ rollback under `supabase/rollback/`, postflight under
+    `supabase/maintenance/`); static contract `tests/admin/config-attribution-migration.test.ts`; live proof
+    `tests/admin/config-attribution-live.test.ts` (role grant/change/deactivation → one audit row each with the SUPER_ADMIN as
+    actor, `updated_at` advances). Closure = apply → postflight → live proof → remove `AttributionGapNotice` and update the two
+    RUN F tests that pin the gap.
+  - **Database hygiene M1 (2026-09-20) — COMPLETE (literal Verify met, live).** Migration `supabase/migrations/20260920120000_feature_010_db_open_21_config_attribution.sql`
+    applied; postflight 15/15. **Verify**: (1) "ADMIN is refused" — `run-f-live` (direct action and URL; raw ADMIN update affects 0 rows) and
+    `config-attribution-live` (ADMIN/finance/member/anonymous refused with the same codes, **no audit row**); (2) "SUPER_ADMIN
+    succeeds" — grant, role change and deactivation live; (3) "changes are attributable" — each operation wrote exactly ONE
+    `audit_logs` row keyed on the operator's `user_id`, actor = the SUPER_ADMIN's `auth.uid()`: grant → INSERT (new row incl.
+    `created_by`), role change → UPDATE COMPLIANCE→AUDITOR, deactivation → UPDATE `is_active` true→false; `updated_at`
+    advances on each (and a raw attempt to backdate it is overridden by the trigger). The console no longer writes
+    `updated_at`. `AttributionGapNotice` removed from every page; the role-change form now states that changes are recorded.
   - Codex: GPT-5.6 Sol — High · Claude: Opus — High
   - Why: this surface grants operational power to people — the highest-privilege action in the system.
 
@@ -1070,7 +1092,7 @@ scope has no owning task (flagged for RUN B planning, not silently added).
   - Codex: GPT-5.6 Sol — Medium · Claude: Opus — Medium
   - Why: makes a silent revenue-affecting misconfiguration visible without pre-empting an open business decision.
 
-- [ ] T029 [P] [PS8] Implement payment-account configuration (`is_platform_admin()`), flagged as a
+- [x] T029 [P] [PS8] Implement payment-account configuration (`is_platform_admin()`), flagged as a
   high-risk action pending the OPS-01 dual-control decision.
   - Req: FR-002, SEC-003, spec Open items | Depends: T004
   - Verify: member paths remain absent; changes are attributable; the dual-control gap is noted in-product
@@ -1078,6 +1100,19 @@ scope has no owning task (flagged for RUN B planning, not silently added).
     OPS-01 + high-risk notices on every page; ADMIN read-only / SUPER_ADMIN write = the DB `WITH CHECK`).
     "Changes are attributable" holds for creation (`created_by`) but NOT for an edit/deactivation — no
     `updated_by`, no audit trigger on `payment_accounts`. Stays unchecked pending the recorded DB change.
+  - **Database hygiene M1 (2026-09-20) — PREPARED, NOT APPLIED; T029 stays unchecked.** `payment_accounts` gets a REDACTED audit
+    (decision 1): `write_audit_log_payment_accounts()` stores an allow-list only — last four characters of `account_number` /
+    `iban` plus `account_number_changed` / `iban_changed` flags, never the values (no hash either); the generic
+    `write_audit_log()` (which copies the whole row) is deliberately NOT attached to this table. Same migration, tests and
+    closure steps as T027 (see there). The dual-control (OPS-01) statement in the product is unchanged.
+  - **Database hygiene M1 (2026-09-20) — COMPLETE (literal Verify met, live).** **Verify**: (1) "member paths remain absent" —
+    static (no member file references the table or its console lib) + live (member/anonymous read nothing, refused by RLS and by the
+    domain layer, unchanged); (2) "changes are attributable" — `payment_accounts` create → INSERT, edit (bank name + account
+    number) → UPDATE, deactivation → UPDATE, each ONE audit row with the SUPER_ADMIN as actor and `updated_at` advancing;
+    (3) "the dual-control gap is noted in-product" — unchanged (`HighRiskNotice` / OPS-01 on every page). **Redaction proven**:
+    across all four audit rows of the proof account (incl. the service-role cleanup DELETE) neither account numbers, nor the
+    IBAN (with or without spaces, any case) appear anywhere; the rows carry only `account_number_last4` / `iban_last4`
+    (`****` + last four), `account_number_changed` / `iban_changed` flags and `metadata.redaction = last4_only`.
   - Codex: GPT-5.6 Sol — Medium · Claude: Opus — High
   - Why: bank-detail changes are explicitly called out as high-risk in the SRS; the missing maker-checker must be visible.
 
@@ -1144,6 +1179,8 @@ scope has no owning task (flagged for RUN B planning, not silently added).
     dynamically, not hand-maintained). This is the honest, exhaustive proof available today; it
     cannot cover surfaces that do not exist (T010/T012/T013–T015/T027/T029 remain open). Stays
     unchecked pending those.
+  - **Database hygiene M1 (2026-09-20) — still PARTIAL (Depends: Phases 3–9 unmet).** T027 and T029 are now closed, so the ONLY
+    open Phase 3–9 tasks are T013–T015 (Feature 008). `tests/admin/no-hard-delete.test.ts` updated accordingly.
   - **RUN J (2026-09-19) — still PARTIAL (Depends: Phases 3–9 unmet).** T010 closed, so the open list is now
     T013–T015 (Feature 008) and T027/T029 (DB-OPEN-21). The organization status surface is scanned with the rest
     of the console (no `.delete(`; `organizations` has no DELETE grant; the RUN J guard refuses a COMPLIANCE

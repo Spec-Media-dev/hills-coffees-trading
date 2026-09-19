@@ -1,7 +1,7 @@
 import { AdminAccessDenied } from "@/components/admin/access-denied";
 import { RecordForm } from "@/components/admin/catalogue/record-form";
 import { taxRuleFields } from "@/components/admin/system/fields";
-import { ActiveBadge, AttributionGapNotice, FutureOnlyNotice, NoDeleteNote } from "@/components/admin/system/notices";
+import { ActiveBadge, FutureOnlyNotice, NoDeleteNote } from "@/components/admin/system/notices";
 import { EffectiveWindow, SystemNotFound, systemTrail } from "@/components/admin/system/page-parts";
 import { PageHeader } from "@/components/app/page-header";
 import { AppBilingual } from "@/components/locale/app-bilingual";
@@ -39,7 +39,6 @@ export default async function TaxRulePage({ params }: { params: Promise<{ ruleId
         />
       </p>
       <RecordForm resource="system" copyKey="taxRule" mode="edit" formKey="tax-rule" fields={taxRuleFields(rule)} hiddenFields={{ ruleId: rule.id }} action={saveTaxRule} />
-      <AttributionGapNotice />
       <NoDeleteNote />
     </div>
   );

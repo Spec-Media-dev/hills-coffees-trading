@@ -135,9 +135,13 @@ describe("T035 — static: no raw write path exists in the audit domain (read-on
     const policies = rls_policies.filter((p) => p.table_name === "audit_logs");
     expect(policies.map((p) => p.policy_name)).toEqual(["audit_admin_read"]);
     expect(policies[0].using_expression).toBe("is_platform_admin()");
-    for (const file of readdirSync(path.join(root, "supabase", "migrations")).filter((f) => f.endsWith(".sql"))) {
-      const sql = source("supabase", "migrations", file);
-      expect(sql, file).not.toMatch(/(create|drop|alter)\s+policy[^;]*on\s+public\.audit_logs\b/i);
+    // Forward migrations AND the rollback scripts (kept under `supabase/rollback/`, outside the CLI's
+    // migration folder) — a rollback must not touch the audit-log policy either.
+    for (const dir of ["migrations", "rollback"]) {
+      for (const file of readdirSync(path.join(root, "supabase", dir)).filter((f) => f.endsWith(".sql"))) {
+        const sql = source("supabase", dir, file);
+        expect(sql, `${dir}/${file}`).not.toMatch(/(create|drop|alter)\s+policy[^;]*on\s+public\.audit_logs\b/i);
+      }
     }
   });
 });

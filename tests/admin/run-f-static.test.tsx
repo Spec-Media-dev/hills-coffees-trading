@@ -87,7 +87,7 @@ describe("Phase 9 — vocabularies are the schema's own CHECK constraints; polic
     expect(check("commission_tiers_check")).toBe("CHECK (max_quantity_kg IS NULL OR max_quantity_kg > min_quantity_kg)");
   });
 
-  it("the six RLS policies stay exactly as reported (super-admin USING+CHECK; payment_accounts USING platform admin / CHECK super admin) — no migration, RLS, grant or trigger change is in the tree", () => {
+  it("the six RLS policies stay exactly as reported (super-admin USING+CHECK; payment_accounts USING platform admin / CHECK super admin) — no migration ever changes an RLS policy or grant on them; the only migration touching the tables at all is the human-approved DB-OPEN-21 M1 (updated_at + audit triggers)", () => {
     const { rls_policies, table_grants, triggers } = schemaReport();
     const policy = (table: string) => rls_policies.filter((p) => p.table_name === table);
     for (const table of ["platform_admins", "tax_rules", "shipping_rules", "commission_policies", "commission_tiers"]) {
@@ -100,17 +100,34 @@ describe("Phase 9 — vocabularies are the schema's own CHECK constraints; polic
     expect(policy("payment_accounts")[0]).toMatchObject({ policy_name: "payment_accounts_admin", using_expression: "is_platform_admin()", with_check_expression: "is_super_admin()" });
     for (const table of CONFIG_TABLES) {
       expect(table_grants.filter((g) => g.table_name === table && g.privilege === "DELETE").map((g) => g.grantee), table).not.toContain("authenticated");
-      // The attribution gap is a schema fact: no audit trigger on any configuration table.
+      // The BASELINE report (2026-09-07, frozen) has no audit trigger on any configuration table — that was the
+      // DB-OPEN-21 gap. Migration `20260920120000_feature_010_db_open_21_config_attribution.sql` (M1) adds them; its
+      // own contract is pinned in `config-attribution-migration.test.ts`, its effect in `config-attribution-live.test.ts`.
       expect(triggers.filter((t) => t.table_name === table && /audit/.test(t.function_name)), table).toEqual([]);
     }
     const migrations = readdirSync(path.join(root, "supabase", "migrations")).filter((f) => f.endsWith(".sql"));
-    // RUN F added no migration. The one later Feature 010 migration (RUN J, DB-OPEN-22 — `organizations`
-    // read path + compliance guard, human-approved) is exempted by name only; the content check below
-    // still proves it — like every migration — touches none of the six configuration tables.
-    expect(migrations.filter((f) => !/feature_010_db_open_22_compliance_organization_read/.test(f)).some((f) => /feature_010|run_f|commission|platform_admins|payment_accounts/i.test(f))).toBe(false);
-    for (const file of migrations) {
-      const sql = source("supabase", "migrations", file);
-      for (const table of CONFIG_TABLES) expect(sql, `${file} alters ${table}`).not.toMatch(new RegExp(`(create|drop|alter)\\s+(policy|trigger)[^;]*on\\s+public\\.${table}\\b`, "i"));
+    // Rollback scripts live under `supabase/rollback/` (outside the CLI's migration folder); they get the
+    // same content checks as the forward migrations.
+    const rollbacks = readdirSync(path.join(root, "supabase", "rollback")).filter((f) => f.endsWith(".sql"));
+    expect(rollbacks).toHaveLength(migrations.length);
+    // RUN F added no migration. Two later, human-approved Feature 010 migrations are exempted BY NAME only:
+    // RUN J (DB-OPEN-22 — `organizations` read path + compliance guard) and M1 (DB-OPEN-21 — updated_at +
+    // audit triggers on the six configuration tables). The content checks below still apply to every file.
+    const APPROVED_010_MIGRATIONS = /feature_010_db_open_22_compliance_organization_read|feature_010_db_open_21_config_attribution/;
+    expect(migrations.filter((f) => !APPROVED_010_MIGRATIONS.test(f)).some((f) => /feature_010|run_f|commission|platform_admins|payment_accounts/i.test(f))).toBe(false);
+    for (const [dir, files] of [["migrations", migrations], ["rollback", rollbacks]] as const) {
+      for (const file of files) {
+        const sql = source("supabase", dir, file);
+        // No migration or rollback may create/drop/alter an RLS POLICY on a configuration table — ever.
+        for (const table of CONFIG_TABLES) expect(sql, `${dir}/${file} changes a policy on ${table}`).not.toMatch(new RegExp(`(create|drop|alter)\\s+policy[^;]*on\\s+public\\.${table}\\b`, "i"));
+        // Triggers on those tables are allowed ONLY in the M1 migration (and its rollback), which adds/removes exactly the
+        // updated_at + audit triggers (`trg_<table>_updated_at`, `trg_audit_<table>`).
+        for (const table of CONFIG_TABLES) {
+          const triggerStatements = [...sql.replace(/--[^\n]*/g, "").matchAll(new RegExp(`(create|drop)\\s+trigger\\s+(?:if\\s+exists\\s+)?(\\w+)[^;]*?on\\s+public\\.${table}\\b`, "gi"))].map((match) => match[2]);
+          if (/feature_010_db_open_21_config_attribution/.test(file)) expect(triggerStatements.every((name) => name === `trg_${table}_updated_at` || name === `trg_audit_${table}`), `${dir}/${file} ${table}`).toBe(true);
+          else expect(triggerStatements, `${dir}/${file} alters a trigger on ${table}`).toEqual([]);
+        }
+      }
     }
   });
 
@@ -127,7 +144,7 @@ describe("Phase 9 — vocabularies are the schema's own CHECK constraints; polic
   });
 });
 
-describe("T027 — platform-admin role management (SUPER_ADMIN only, attributable on grant)", () => {
+describe("T027 — platform-admin role management (SUPER_ADMIN only; grant attributed via created_by, every change audited by the database)", () => {
   it("every roles.ts read/write re-verifies is_super_admin() before createClient(); self-change is refused; the grant is attributed via created_by", () => {
     const src = stripComments(source("lib", "admin", "roles.ts"));
     const exported = src.match(/export async function \w+\(/g) ?? [];
@@ -151,8 +168,10 @@ describe("T028 — tax and shipping rules (future snapshots only; shipping hones
     expect(src).not.toMatch(/order_financials|\.from\("orders"\)|payouts|commission/);
     expect((src.match(/await requireSuperAdmin\(\)/g) ?? []).length).toBe((src.match(/export async function \w+\(/g) ?? []).length);
     expect(SHIPPING_RULES_CONSUMED_BY_CHECKOUT).toBe(false);
-    for (const file of readdirSync(path.join(root, "supabase", "migrations")).filter((f) => f.endsWith(".sql"))) {
-      expect(source("supabase", "migrations", file), file).not.toMatch(/from\s+public\.shipping_rules|join\s+public\.shipping_rules/i);
+    for (const dir of ["migrations", "rollback"]) {
+      for (const file of readdirSync(path.join(root, "supabase", dir)).filter((f) => f.endsWith(".sql"))) {
+        expect(source("supabase", dir, file), `${dir}/${file}`).not.toMatch(/from\s+public\.shipping_rules|join\s+public\.shipping_rules/i);
+      }
     }
     for (const file of [...walk("lib/orders"), ...walk("lib/delivery"), ...walk("lib/finance")]) expect(stripComments(source(file)), file).not.toMatch(/shipping_rules/);
     const rules = [

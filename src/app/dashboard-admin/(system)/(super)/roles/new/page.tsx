@@ -1,7 +1,6 @@
 import { AdminAccessDenied } from "@/components/admin/access-denied";
 import { RecordForm } from "@/components/admin/catalogue/record-form";
 import { roleGrantFields } from "@/components/admin/system/fields";
-import { AttributionGapNotice } from "@/components/admin/system/notices";
 import { systemTrail } from "@/components/admin/system/page-parts";
 import { PageHeader } from "@/components/app/page-header";
 import { AppBilingual } from "@/components/locale/app-bilingual";
@@ -63,7 +62,6 @@ export default async function GrantRolePage({ searchParams }: { searchParams: Pr
           <RecordForm resource="system" copyKey="roleGrant" mode="create" formKey="role-grant" fields={roleGrantFields(target)} hiddenFields={{}} action={grantRole} successHrefTemplate="/dashboard-admin/roles/{id}" />
         </>
       ) : null}
-      <AttributionGapNotice />
     </div>
   );
 }

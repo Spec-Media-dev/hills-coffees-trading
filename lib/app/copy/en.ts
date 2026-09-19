@@ -1140,7 +1140,7 @@ export const en = {
         common: {
           futureOnlyTitle: "Changes apply to eligible future checkouts only",
           futureOnly: "Saving this changes what the NEXT checkout snapshots. Existing orders keep their recorded snapshot: no historical order, commission, tax, seller net amount or payout is recalculated, restated or re-snapshotted — no such action exists in this console.",
-          attributionGap: "Attribution: a creation records who made it (created by). A later change or deactivation is NOT persisted with its actor — the approved schema has no updated-by column and no audit trigger on this table (recorded capability gap, pending an approved database change).",
+          changesRecorded: "Every change to this configuration — creation, edit and deactivation — is recorded in the platform audit log with who made it and when.",
           noDeleteNote: "Configuration rows are never deleted from this console (the database grants no delete). Retire them with the status or activity flag shown here.",
           superAdminOnly: "Super administrators only. Every read and write re-verifies the super-admin role on the server; the database policy is the backstop.",
           loadError: { title: "Could not load this view", description: "The data could not be read right now. Try again in a moment." },

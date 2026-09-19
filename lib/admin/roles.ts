@@ -11,11 +11,12 @@ import { ACTION_FEEDBACK, type ActionFeedbackResult } from "@/lib/types/action-f
  * RLS `platform_admins_admin` (USING + WITH CHECK `is_super_admin()`) is the backstop. No membership
  * or generic staff check widens this; no role outside the CHECK list can be written.
  *
- * ATTRIBUTION — the schema records `created_by` on INSERT only; there is no `updated_by` column and
- * no audit trigger on this table (schema report + every applied migration, re-checked 2026-09-17).
- * A GRANT is therefore attributed; a role CHANGE or DEACTIVATION is not persisted with its actor.
- * That is a recorded DB capability gap (decision D2, option ii) — this module does NOT add columns,
- * triggers or a shadow log; the page states the gap.
+ * ATTRIBUTION — every grant, role change and deactivation is recorded BY THE DATABASE in `audit_logs`
+ * (actor = `auth.uid()`, old and new row; DB-OPEN-21 resolved by migration
+ * `20260920120000_feature_010_db_open_21_config_attribution.sql`,
+ * `trg_audit_platform_admins` → `write_audit_log_platform_admins()`, keyed on `user_id` because this table has
+ * no `id` column). A grant is additionally attributed on the row itself (`created_by`). `updated_at` is owned
+ * by the `trg_platform_admins_updated_at` trigger — this module NEVER writes it. No shadow log exists here.
  *
  * SAFETY — a super admin may not change or deactivate their OWN capability row (the database would
  * allow it and could lock every operator out); every change is a compare-and-set on the role/activity
@@ -88,7 +89,7 @@ export async function changePlatformAdminRole(input: unknown): Promise<ActionFee
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("platform_admins")
-    .update({ role: parsed.data.role, updated_at: new Date().toISOString() })
+    .update({ role: parsed.data.role })
     .eq("user_id", parsed.data.userId)
     .eq("role", parsed.data.expectedRole)
     .select("user_id")
@@ -108,7 +109,7 @@ export async function setPlatformAdminActive(input: unknown): Promise<ActionFeed
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("platform_admins")
-    .update({ is_active: parsed.data.isActive, updated_at: new Date().toISOString() })
+    .update({ is_active: parsed.data.isActive })
     .eq("user_id", parsed.data.userId)
     .eq("role", parsed.data.expectedRole)
     .eq("is_active", parsed.data.expectedActive)

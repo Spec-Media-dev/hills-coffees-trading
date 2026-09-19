@@ -217,7 +217,7 @@ describe("T036 — STATIC: every current surface declares its applicable states"
       ["(system)/(super)/commission/[policyId]/page.tsx", /TierCoveragePanel|CommissionStatusPanel/],
       ["(system)/(super)/shipping/page.tsx", /<ShippingUnconsumedNotice \/>/],
       ["(system)/payment-accounts/page.tsx", /<HighRiskNotice \/>|data-payment-accounts-read-only/],
-      ["(system)/(super)/roles/page.tsx", /<AttributionGapNotice \/>/],
+      ["(system)/(super)/roles/page.tsx", /<NoDeleteNote \/>/],
       ["(audit)/audit/page.tsx", /<AuditLogPanel probe=|<AuditReadOnlyBanner \/>/],
     ];
     for (const [file, pattern] of expectations) expect(source(ADMIN, file), file).toMatch(pattern);

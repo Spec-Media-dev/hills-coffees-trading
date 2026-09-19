@@ -1,6 +1,6 @@
 import { AdminAccessDenied } from "@/components/admin/access-denied";
 import { AdminDateTime } from "@/components/admin/compliance/date-time";
-import { ActiveBadge, AttributionGapNotice, RoleBadge } from "@/components/admin/system/notices";
+import { ActiveBadge, RoleBadge } from "@/components/admin/system/notices";
 import { SystemNotFound, systemTrail } from "@/components/admin/system/page-parts";
 import { RoleActivityPanel, RoleChangePanel } from "@/components/admin/system/role-panels";
 import { PageHeader } from "@/components/app/page-header";
@@ -70,7 +70,6 @@ export default async function OperatorPage({ params }: { params: Promise<{ userI
           <RoleActivityPanel userId={row.userId} currentRole={row.role} isActive={row.isActive} />
         </div>
       )}
-      <AttributionGapNotice />
     </div>
   );
 }

@@ -88,6 +88,8 @@ let member: SupabaseClient;
 let target: SupabaseClient;
 let superAdminId: string;
 let targetId: string;
+/** Highest audit_logs.id before this file wrote anything (audit history of the stable role-target user persists across runs). */
+let auditWatermark = 0;
 
 beforeAll(async () => {
   prepareSuperAdminFixture();
@@ -105,6 +107,8 @@ beforeAll(async () => {
   member = await signInAsFixture(FOUNDATION_FIXTURES.buyerOnly.email);
   target = await signInAsFixture(RUN_F_CONFIG_ROWS.roleTargetEmail);
   targetId = (await target.auth.getUser()).data.user!.id;
+  const { data: newest } = await superAdmin.from("audit_logs").select("id").order("id", { ascending: false }).limit(1);
+  auditWatermark = Number(newest?.[0]?.id ?? 0);
 }, LIVE_TIMEOUT_MS);
 
 afterAll(async () => {
@@ -222,9 +226,13 @@ describe("T027 — platform-admin role management LIVE (SUPER_ADMIN)", () => {
     expect((await superAdmin.rpc("is_super_admin")).data).toBe(true);
     const { data: tampered } = await admin.from("platform_admins").update({ role: "SUPER_ADMIN" }).eq("user_id", targetId).select("user_id");
     expect(tampered ?? []).toEqual([]);
-    // UPDATE attribution gap (D2 ii): the row carries only the grant's created_by — no actor for the change/deactivation.
+    // DB-OPEN-21 (resolved by M1): the row still carries the grant's created_by, and the database now ALSO records the
+    // actor of every change/deactivation in audit_logs (full per-operation proof: config-attribution-live.test.ts).
     const { data: after } = await superAdmin.from("platform_admins").select("role, is_active, created_by").eq("user_id", targetId).maybeSingle();
     expect(after).toEqual({ role: "AUDITOR", is_active: false, created_by: superAdminId });
+    const { data: audited } = await superAdmin.from("audit_logs").select("action, actor_user_id").eq("entity_type", "platform_admins").eq("entity_id", targetId).gt("id", auditWatermark).order("id");
+    expect((audited ?? []).map((row) => row.action)).toEqual(["INSERT", "UPDATE", "UPDATE"]);
+    expect((audited ?? []).every((row) => row.actor_user_id === superAdminId)).toBe(true);
 
     await withLiveClient(superAdmin, async () => {
       const { default: OperatorPage } = await import("@/src/app/dashboard-admin/(system)/(super)/roles/[userId]/page");
@@ -232,7 +240,9 @@ describe("T027 — platform-admin role management LIVE (SUPER_ADMIN)", () => {
     });
     expect(document.querySelector(`[data-operator="${targetId}"]`)?.getAttribute("data-operator-active")).toBe("false");
     expect(document.querySelector('[data-decision-form="role-change"]')).not.toBeNull();
-    expect(document.querySelector('[data-system-notice="attribution-gap"]')).not.toBeNull();
+    // The "attribution gap" notice is gone (DB-OPEN-21 resolved); the role-change form states that changes are recorded.
+    expect(document.querySelector('[data-system-notice="attribution-gap"]')).toBeNull();
+    expect(document.querySelector('[data-decision-form="role-change"]')?.textContent).toMatch(/recorded in the platform audit log with who made it and when/);
     cleanup();
     await withLiveClient(superAdmin, async () => {
       const { default: OperatorPage } = await import("@/src/app/dashboard-admin/(system)/(super)/roles/[userId]/page");
@@ -349,7 +359,7 @@ describe("T028 — tax and shipping rules LIVE (SUPER_ADMIN; ZZ only; the real A
       await renderPage(await TaxPage());
     });
     expect(document.querySelector('[data-system-notice="future-only"]')).not.toBeNull();
-    expect(document.querySelector('[data-system-notice="attribution-gap"]')).not.toBeNull();
+    expect(document.querySelector('[data-system-notice="attribution-gap"]')).toBeNull();
   }, LIVE_TIMEOUT_MS);
 
   it("shipping: create → edit (ZZ, 2099); the page states honestly that no checkout/shipment path consumes the rows; ADMIN refused", async () => {

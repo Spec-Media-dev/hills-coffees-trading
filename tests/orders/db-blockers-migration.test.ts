@@ -11,7 +11,7 @@ import { describe, expect, it } from "vitest";
  * exact guarded rollback and a write-free preflight.
  */
 const MIGRATION = "supabase/migrations/20260913100000_feature_007_db_blockers.sql";
-const ROLLBACK = "supabase/migrations/20260913100000_feature_007_db_blockers.rollback.sql";
+const ROLLBACK = "supabase/rollback/20260913100000_feature_007_db_blockers.rollback.sql";
 const PREFLIGHT = "supabase/maintenance/20260913_feature_007_db_blockers_preflight.sql";
 const MARKER = "app.checkout_reservation";
 

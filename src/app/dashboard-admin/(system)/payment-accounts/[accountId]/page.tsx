@@ -2,7 +2,7 @@ import { AdminAccessDenied } from "@/components/admin/access-denied";
 import { AdminDateTime } from "@/components/admin/compliance/date-time";
 import { RecordForm } from "@/components/admin/catalogue/record-form";
 import { paymentAccountFields } from "@/components/admin/system/fields";
-import { ActiveBadge, AttributionGapNotice, HighRiskNotice, NoDeleteNote } from "@/components/admin/system/notices";
+import { ActiveBadge, HighRiskNotice, NoDeleteNote } from "@/components/admin/system/notices";
 import { SystemNotFound, systemTrail } from "@/components/admin/system/page-parts";
 import { PageHeader } from "@/components/app/page-header";
 import { AppBilingual } from "@/components/locale/app-bilingual";
@@ -61,7 +61,6 @@ export default async function PaymentAccountPage({ params }: { params: Promise<{
           </dl>
         </section>
       )}
-      <AttributionGapNotice />
       <NoDeleteNote />
     </div>
   );

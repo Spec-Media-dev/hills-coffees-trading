@@ -62,7 +62,7 @@ export function RoleChangePanel({ userId, currentRole }: { userId: string; curre
       action={changeRole}
       feedbackFor={feedbackFor}
       heading={roles.change.heading}
-      lead={tApp.admin.system.common.attributionGap}
+      lead={tApp.admin.system.common.changesRecorded}
       submitLabel={roles.change.submit}
       confirmTitle={roles.change.confirmTitle}
       confirmDescription={roles.change.confirmDescription}

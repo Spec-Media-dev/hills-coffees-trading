@@ -2,7 +2,8 @@
 -- Feature 010 T010 / DB-OPEN-22 — COMPLIANCE may read organizations; its (already existing) update
 -- path is narrowed to exactly the approved compliance status operations.
 -- Human-approved direction (Feature 010 RUN J, 2026-09-19): "SELECT + narrow guard".
--- Rollback: 20260919130000_feature_010_db_open_22_compliance_organization_read.rollback.sql (paired).
+-- Rollback: supabase/rollback/20260919130000_feature_010_db_open_22_compliance_organization_read.rollback.sql (paired; kept
+-- OUTSIDE supabase/migrations/ so the Supabase CLI never treats it as a migration).
 -- Apply: Supabase SQL Editor (repository convention — no CLI/DB URL in this environment), then run
 -- supabase/maintenance/20260919_feature_010_db_open_22_postflight.sql (every row ok).
 -- ══════════════════════════════════════════════════════════════════════════════════════════════

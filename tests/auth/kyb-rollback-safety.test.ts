@@ -10,7 +10,7 @@ import { describe, expect, it } from "vitest";
  * migration is not applied anywhere in this run; the rollback file has never actually executed
  * against a real database. These tests prove the SQL TEXT contains the intended refusal guards.
  */
-const ROLLBACK_PATH = "supabase/migrations/20260911010000_feature_003_kyb_foundation.rollback.sql";
+const ROLLBACK_PATH = "supabase/rollback/20260911010000_feature_003_kyb_foundation.rollback.sql";
 const MIGRATION_PATH = "supabase/migrations/20260911010000_feature_003_kyb_foundation.sql";
 const rollbackSql = readFileSync(ROLLBACK_PATH, "utf8");
 const migrationSql = readFileSync(MIGRATION_PATH, "utf8");
