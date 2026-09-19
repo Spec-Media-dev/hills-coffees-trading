@@ -305,7 +305,11 @@ describe("T029 — payment accounts: admin read, super-admin write, high-risk + 
   });
 
   it("no member/public route or module touches payment accounts; the pages show the high-risk and OPS-01 notices; the read-only ADMIN statement exists", () => {
-    for (const segment of ["payment-accounts", "payments", "bank"]) expect(existsSync(path.join(root, "src/app/dashboard", segment)), segment).toBe(false);
+    // `payments` was removed from this list: Feature 008 T022 (commit 3234458, 2026-09-17) legitimately added the
+    // member payment-STATE routes `/dashboard/payments` and `/dashboard/payments/[orderId]`. Their exact shape is
+    // pinned in `finance-delegation.test.tsx`; what THIS test guards — that no member/public route or module
+    // touches payment ACCOUNTS (bank fields) — is still enforced for those routes by the content scan just below.
+    for (const segment of ["payment-accounts", "bank"]) expect(existsSync(path.join(root, "src/app/dashboard", segment)), segment).toBe(false);
     for (const file of [...walk("src/app/dashboard"), ...walk("src/app/(public)"), ...walk("lib/finance"), ...walk("lib/public"), ...walk("components/dashboard")]) {
       expect(stripComments(source(file)), file).not.toMatch(/payment_accounts|paymentAccounts|\biban\b|swift_code/);
     }

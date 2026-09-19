@@ -219,10 +219,15 @@ describe("T013 / T015 honesty — finance areas stay dependency-blocked, not fak
     expect(ar.admin?.states?.blockers?.["feature-008-finance-layer"]).toMatch(/008/);
   });
 
-  it("no member Finance route exists: no /dashboard/{payments,payouts,invoices,settlement} segment and no member-side file writes payouts or tax invoices", () => {
-    for (const segment of ["payments", "payouts", "invoices", "settlement", "finance"]) {
+  it("no member Finance route exists beyond Feature 008's approved payment-state routes: no /dashboard/{payouts,invoices,settlement,finance} segment, /dashboard/payments is EXACTLY the two approved pages, and no member-side file writes payouts or tax invoices", () => {
+    for (const segment of ["payouts", "invoices", "settlement", "finance"]) {
       expect(existsSync(path.join(root, "src/app/dashboard", segment)), segment).toBe(false);
     }
+    // Feature 008 T022 (commit 3234458, 2026-09-17) legitimately introduced the member payment-state routes
+    // `/dashboard/payments` and `/dashboard/payments/[orderId]` — this assertion previously (and correctly, at
+    // the time) forbade the whole segment. The contract is now pinned EXACTLY: those two pages and nothing else,
+    // so any additional payments route (or a non-page file) still fails here.
+    expect(walk("src/app/dashboard/payments").sort()).toEqual(["src/app/dashboard/payments/[orderId]/page.tsx", "src/app/dashboard/payments/page.tsx"]);
     const memberFiles = [...walk("src/app/dashboard"), ...walk("lib/orders"), ...walk("lib/finance")];
     for (const file of memberFiles) {
       const src = stripComments(source(file));

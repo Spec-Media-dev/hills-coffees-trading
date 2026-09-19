@@ -12,6 +12,14 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // The exported Hills Coffee design system (`docs/claude-design/`, one baseline commit, never edited;
+    // `CLAUDE.md` classes it as "exported ... design system and UI references"). It is reference material,
+    // not application source: its UI-kit JSX files are standalone browser scripts that share components
+    // through `window` globals (`Object.assign(window, { ... })`), so `react/jsx-no-undef` flags them by
+    // design (121 of its 124 errors); it ships its own lint config (`_adherence.oxlintrc.json`) and a
+    // generated bundle/manifest; and nothing in `lib/`, `src/`, `components/`, `tests/` or `scripts/`
+    // imports it. It is the ONLY lintable content under `docs/`. Application and test code stays linted.
+    "docs/claude-design/**",
   ]),
 ]);
 
