@@ -58,7 +58,7 @@ export type AdminAreaGroupKey = (typeof ADMIN_AREA_GROUP_KEYS)[number];
 export type AdminAreaAvailability = "live" | "planned" | "blocked";
 
 /** Recorded reasons an area cannot be worked yet — each cites the owning feature or open item. */
-export type AdminAreaBlocker = "feature-008-finance-layer" | "feature-012-dispute-layer" | "feature-012-audit-layer";
+export type AdminAreaBlocker = "feature-008-finance-layer" | "feature-012-audit-layer";
 
 export const ADMIN_AREA_KEYS = [
   "kyb", "organizations", "listings", "disputes",
@@ -103,7 +103,7 @@ export const ADMIN_AREAS: readonly AdminArea[] = [
   { key: "kyb", group: "compliance", href: "/dashboard-admin/kyb", roleFunction: "is_compliance_operator", icon: "badge-check", availability: "live", phase: 3 },
   { key: "organizations", group: "compliance", href: "/dashboard-admin/organizations", roleFunction: "is_compliance_operator", icon: "building-2", availability: "live", phase: 3 },
   { key: "listings", group: "compliance", href: "/dashboard-admin/listings", roleFunction: "is_compliance_operator", icon: "tag", availability: "live", phase: 4 },
-  { key: "disputes", group: "compliance", href: "/dashboard-admin/disputes", roleFunction: "is_compliance_operator", icon: "shield", availability: "blocked", phase: 4, blocker: "feature-012-dispute-layer" },
+  { key: "disputes", group: "compliance", href: "/dashboard-admin/disputes", roleFunction: "is_compliance_operator", icon: "shield", availability: "live", phase: 4 },
 
   // ── Warehouse ─────────────────────────────────────────────────────────────────────────────────
   { key: "shipments", group: "warehouse", href: "/dashboard-admin/shipments", roleFunction: "is_warehouse_operator", icon: "truck", availability: "live", phase: 6 },

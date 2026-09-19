@@ -15,7 +15,7 @@ import { FOUNDATION_FIXTURES, cleanupSuperAdminFixture, createAnonymousFixtureCl
  * STATIC half: every live list page declares an empty state and an error state; every live detail
  * page declares a not-found state; every page re-verifies its own guard (`AdminAccessDenied` —
  * anonymous → redirect, member → `no-operational-role`, wrong role → `forbidden`); blocked areas
- * (Feature 008 finance, Feature 012 disputes) stay blocked placeholders; the route-level `loading`
+ * (Feature 008 finance) stay blocked placeholders (disputes became live with T012 over Feature 012); the route-level `loading`
  * and `error` boundaries exist and the error boundary renders NO raw text; every recorded domain
  * state / capability gap keeps its explicit marker.
  *
@@ -48,7 +48,7 @@ const PAGES = walk(ADMIN).filter((f) => f.endsWith("/page.tsx"));
 const isDetail = (f: string) => /\[[a-zA-Z]+\]\/page\.tsx$/.test(f) && !/\/new\/page\.tsx$/.test(f);
 const isCreate = (f: string) => /\/new\/page\.tsx$/.test(f);
 const DETAIL_PAGES = PAGES.filter(isDetail);
-const LIST_PAGES = PAGES.filter((f) => !isDetail(f) && !isCreate(f) && !/\/account\/|dashboard-admin\/page\.tsx$/.test(f) && !/\(finance\)|disputes/.test(f));
+const LIST_PAGES = PAGES.filter((f) => !isDetail(f) && !isCreate(f) && !/\/account\/|dashboard-admin\/page\.tsx$/.test(f) && !/\(finance\)/.test(f));
 
 const cookieState = vi.hoisted(() => ({ value: undefined as string | undefined }));
 vi.mock("next/headers", () => ({
@@ -140,9 +140,9 @@ function pageProps(file: string, id: string) {
 const modulePath = (file: string) => `@/${file.replace(/\.tsx$/, "")}`;
 
 describe("T036 — STATIC: every current surface declares its applicable states", () => {
-  it("scans the real route tree (18 list pages incl. overview-free groups, 16 detail pages) and every page guards itself", () => {
+  it("scans the real route tree (19 list pages incl. overview-free groups, 17 detail pages) and every page guards itself", () => {
     expect(LIST_PAGES.length).toBeGreaterThanOrEqual(16);
-    expect(DETAIL_PAGES.length).toBe(16);
+    expect(DETAIL_PAGES.length).toBe(17);
     for (const file of PAGES.filter((f) => !/dashboard-admin\/page\.tsx$|\/account\//.test(f))) {
       const page = source(file);
       expect(page, file).toMatch(/<AdminAccessDenied|<AdminAreaPlaceholder/);
@@ -184,11 +184,11 @@ describe("T036 — STATIC: every current surface declares its applicable states"
     expect(denied).toContain('kind="forbidden"');
   });
 
-  it("blocked areas stay blocked placeholders (Feature 008 finance ×3, Feature 012 disputes) — no fake queue, no sample rows", () => {
+  it("blocked areas stay blocked placeholders (Feature 008 finance ×3) — no fake queue, no sample rows; disputes is live over Feature 012 (T012)", () => {
     const blocked = ADMIN_AREAS.filter((a) => a.availability === "blocked").map((a) => a.key).sort();
-    expect(blocked).toEqual(["disputes", "invoices", "payments", "payouts"]);
+    expect(blocked).toEqual(["invoices", "payments", "payouts"]);
     for (const key of ["payments", "payouts", "invoices"]) expect(source(ADMIN, "(finance)", key, "page.tsx")).toContain(`<AdminAreaPlaceholder areaKey="${key}" />`);
-    expect(source(ADMIN, "(compliance)", "disputes", "page.tsx")).toContain('<AdminAreaPlaceholder areaKey="disputes" />');
+    expect(source(ADMIN, "(compliance)", "disputes", "page.tsx")).not.toContain("AdminAreaPlaceholder");
     const placeholder = source("components", "admin", "area-placeholder.tsx");
     expect(placeholder).toContain('kind="blocked"');
     expect(placeholder).toContain('kind="planned"');
@@ -230,7 +230,7 @@ describe("T036 — STATIC: every current surface declares its applicable states"
 });
 
 describe("T036 — LIVE: not-found, empty and error states on the real surfaces (disposable SUPER_ADMIN)", () => {
-  it("every detail page renders `not-found` for a nil UUID and for a malformed id — 16 pages × 2 ids, no crash, no fabricated record", async () => {
+  it("every detail page renders `not-found` for a nil UUID and for a malformed id — 17 pages × 2 ids, no crash, no fabricated record", async () => {
     for (const file of DETAIL_PAGES) {
       for (const id of [NIL, "not-a-uuid"]) {
         await withLiveClient(superAdmin, async () => {
@@ -259,8 +259,8 @@ describe("T036 — LIVE: not-found, empty and error states on the real surfaces 
 
   it("a simulated database failure renders the inline `error` state on every list page whose read Feature 010 owns, and never a raw message", async () => {
     const failing = failingClient(superAdmin);
-    const ownReads = LIST_PAGES.filter((f) => /\(catalogue\)|\(system\)|\/kyb\/page|\/listings\/page|\/organizations\/page|\(audit\)/.test(f));
-    expect(ownReads.length).toBeGreaterThanOrEqual(13);
+    const ownReads = LIST_PAGES.filter((f) => /\(catalogue\)|\(system\)|\/kyb\/page|\/listings\/page|\/organizations\/page|\/disputes\/page|\(audit\)/.test(f));
+    expect(ownReads.length).toBeGreaterThanOrEqual(14);
     for (const file of ownReads) {
       await withLiveClient(failing, async () => {
         const { default: Page } = await import(modulePath(file));
@@ -275,7 +275,7 @@ describe("T036 — LIVE: not-found, empty and error states on the real surfaces 
 
   it("a simulated database failure on a detail page throws an INTERNAL read code (caught by the route error boundary), never the raw message", async () => {
     const failing = failingClient(superAdmin);
-    for (const file of DETAIL_PAGES.filter((f) => /\(catalogue\)|\(system\)|\/kyb\/|\/listings\//.test(f))) {
+    for (const file of DETAIL_PAGES.filter((f) => /\(catalogue\)|\(system\)|\/kyb\/|\/listings\/|\/disputes\//.test(f))) {
       const outcome = await withLiveClient(failing, async () => {
         const { default: Page } = await import(modulePath(file));
         try {

@@ -253,7 +253,6 @@ export const en = {
         },
         blockers: {
           "feature-008-finance-layer": "Feature 008 has not yet supplied its finance decision layer (payment review queue, settlement decision, payout management, invoice recording). The console never calls settlement directly.",
-          "feature-012-dispute-layer": "Feature 012 has not yet supplied the dispute domain layer, and no compliance freeze path exists in the database (DB-OPEN-09). The console will compose that layer, never a parallel dispute engine.",
           "feature-012-audit-layer": "Feature 012 has not yet supplied the audit/history layer, and the audit log is not readable by the Auditor role (DB-OPEN-06). The console will compose that layer read-only.",
         },
         backToOverview: "Back to overview",
@@ -622,6 +621,74 @@ export const en = {
             },
           },
         },
+        /**
+         * Feature 010 T012 — the dispute review surface, composed ONLY from Feature 012's dispute layer
+         * (`lib/disputes/read.ts` operator reads + `lib/disputes/compliance.ts` named transitions →
+         * the database's `transition_dispute()`). Status labels reuse `disputes.status`. Every
+         * "frozen" string says what the record says — no order/shipment/payment effect (DB-OPEN-09).
+         */
+        disputes: {
+          title: "Dispute review",
+          description: "Disputes raised by members on their orders, oldest first. Every row is a real dispute read under your own authorization.",
+          breadcrumb: "Dispute review",
+          columns: { dispute: "Dispute", order: "Order", status: "Status", opened: "Opened", updated: "Updated", open: "Open" },
+          filters: { actionable: "Awaiting action", all: "All disputes" },
+          orderReferenceOnly: "Order reference only",
+          empty: { title: "No disputes in this view", description: "No dispute matches this view right now. Nothing is hidden or simulated." },
+          freezeNote: {
+            heading: "What a dispute status does",
+            body: "A dispute status — including Frozen — applies to the dispute record only. Changing it does not hold, stop or change the order, its shipment, payment, settlement, inventory or delivery (DB-OPEN-09). Any action on the order itself is a separate operational decision.",
+          },
+          detail: {
+            title: "Dispute",
+            disputeId: "Dispute ID",
+            order: "Order",
+            orderUnreadable: "Your role cannot read this order's details under the current database policies, so only its reference is shown. Nothing is bypassed.",
+            openedBy: "Raised by (user)",
+            openedByOrganization: "Raised for organization",
+            openedAt: "Opened",
+            updatedAt: "Last updated",
+            resolvedAt: "Decided",
+            resolvedBy: "Decided by",
+            correlation: "Correlation reference",
+            reasonHeading: "Member's description",
+            resolutionHeading: "Recorded outcome",
+            resolutionPending: "No resolution or rejection has been recorded yet.",
+            evidence: {
+              heading: "Evidence notes",
+              none: "No evidence note has been added.",
+              addedBy: "Added by",
+              filesUnavailable: "Evidence files cannot be stored yet (DB-BLOCK-01), so only written notes exist.",
+            },
+            history: {
+              heading: "Transition history",
+              lead: "Every status change as the database recorded it: who made it, the reason, and when. Entries cannot be edited or removed.",
+              none: "No status change has been recorded yet.",
+              actor: "Changed by",
+            },
+            decision: {
+              heading: "Record a status change",
+              lead: "Choose exactly one next status. A reason is required; it is recorded with your name and the time. The database enforces the approved transitions and refuses a change if the dispute moved meanwhile.",
+              notDecidable: "This dispute is {status}. No further status change is possible.",
+              options: {
+                UNDER_REVIEW: { label: "Under review", description: "Starts the compliance review, or resumes it after a freeze." },
+                FROZEN: { label: "Frozen", description: "Marks the dispute record as frozen while something is awaited. Record label only — it does not hold the order, shipment, payment, settlement, inventory or delivery." },
+                RESOLVED: { label: "Resolved", description: "Records the outcome. Your reason becomes the resolution shown to the member, written once." },
+                REJECTED: { label: "Rejected", description: "Rejects the dispute. Your reason becomes the recorded rejection shown to the member, written once." },
+                CLOSED: { label: "Closed", description: "Closes a decided dispute. The recorded outcome is kept unchanged; no further change is possible." },
+              },
+              reason: {
+                label: "Reason",
+                hint: "Between 10 and 2,000 characters. Recorded in the transition history in your name. For Resolved and Rejected it is also the outcome the member sees.",
+                required: "A reason of at least 10 characters is required.",
+                tooLong: "Keep the reason under 2,000 characters.",
+              },
+              submit: "Record status change",
+              confirmTitle: "Record this status change?",
+              confirmDescription: "“{decision}” will be recorded against this dispute in your name. It cannot be undone.",
+            },
+          },
+        },
         feedback: {
           kybDecisionRecorded: "Decision recorded.",
           kybDecisionStale: "This application changed before your decision was applied. Review the current state and try again.",
@@ -641,6 +708,11 @@ export const en = {
           listingDecisionStale: "This listing changed before your decision was applied. Review the current state and try again.",
           listingDecisionFailed: "The listing decision could not be recorded. Nothing was changed.",
           listingHistoryIncomplete: "The listing status changed, but the review row could not be written. Report this.",
+          disputeTransitionRecorded: "Status change recorded in the dispute's transition history.",
+          disputeTransitionStale: "This dispute changed before your change was applied. Review the current status and try again. Nothing was changed.",
+          disputeTransitionRefused: "This status change is not allowed from the dispute's current status. Nothing was changed.",
+          disputeTransitionFailed: "The status change could not be recorded. Nothing was changed.",
+          disputeNotFound: "This dispute does not exist or is not readable by your role. Nothing was changed.",
           validationError: "Check the highlighted field.",
         },
       },
@@ -1286,7 +1358,7 @@ export const en = {
           log: "The platform audit log: not readable under the approved policy (DB-OPEN-06).",
           kyb: "KYB applications, documents and reviews: not readable — compliance-only under the approved policy.",
           finance: "Payments, proofs and financial snapshots: readable by policy, but their read layer belongs to Feature 008 (currently per-order only); an audit view is composed once it supplies list reads.",
-          disputes: "Disputes: readable by policy; the dispute domain (Feature 012) is not implemented yet.",
+          disputes: "Disputes and their transition history: readable by policy through Feature 012's auditor reads; this console does not yet include an auditor dispute view.",
           shipments: "Shipments: not readable — warehouse and order parties only.",
         },
         listings: {

@@ -3,7 +3,15 @@
 **Input**: [spec.md](./spec.md), [plan.md](./plan.md), `docs/architecture/DATABASE-CAPABILITY-MAP.md`,
 `.specify/memory/constitution.md` (v2.0.0), SRS §14 (OPS-01, OPS-02), §3.1, §13.5.
 
-**Status**: **RUN H complete (2026-09-17) — Phase 11 T036, T037 RECORDED; Phase 12 T038–T041 VERIFIED (typecheck/build/diff-check exit 0; lint at baseline; tests 1666/1672 exit 0 after the Feature 009 stale-assertion repair) /
+**Status**: **Dispute-unblock run (2026-09-19) — 33 / 48.** Feature 012 closed (28/28; DB-OPEN-23 resolved by the
+database-authoritative `transition_dispute()` + append-only `dispute_status_history`). **T012 COMPLETE** — the
+Compliance dispute review surface (`/dashboard-admin/disputes` queue + `/[disputeId]` detail, `recordDisputeTransition`
+Server Action) composes ONLY Feature 012's layer; live + Chrome/axe proven. **T032** — dispute half now proven live
+through the console; the task stays OPEN on `Depends: T014` (Feature 008 `decidePayment()`). **T033** — still PARTIAL
+(Phases 3–9 not closed: T010, T013–T015, T027, T029); its dispute coverage is added. DB-OPEN-09 unchanged (no freeze
+path anywhere). Remaining closure blockers: T010 (DB-OPEN-22), T013–T015/T031/T032 (Feature 008), T027/T029
+(DB-OPEN-21), T033 (Phases 3–9), T047/T048, and therefore T038–T041.
+**RUN H complete (2026-09-17) — Phase 11 T036, T037 RECORDED; Phase 12 T038–T041 VERIFIED (typecheck/build/diff-check exit 0; lint at baseline; tests 1666/1672 exit 0 after the Feature 009 stale-assertion repair) /
 PROVEN / RECONCILED but NOT closable on their literal dependencies; 32 / 48.** T036 (state coverage —
 `tests/admin/state-coverage.test.tsx`, 14 tests: every list page owns an honest `empty` AND `error` state,
 all 16 detail pages render `not-found` for nil/malformed ids, unauthorized/forbidden/no-operational-role are
@@ -581,7 +589,7 @@ scope has no owning task (flagged for RUN B planning, not silently added).
     missing SUSPENDED branch (findings above) means the DB does not refuse a seller ARCHIVE from
     SUSPENDED (code reading, not exercised).
 
-- [ ] T012 [P] **BLOCKED — 012 domain layer absent.** Implement the dispute review surface (queue +
+- [x] T012 [P] Implement the dispute review surface (queue +
   status transitions) only by composing 012's domain layer.
   - Req: FR-006 | Depends: T004, 012's layer
   - Verify: dispute status changes record reason and actor; only compliance-permitted roles may act;
@@ -595,6 +603,30 @@ scope has no owning task (flagged for RUN B planning, not silently added).
     .test.tsx` asserts no `from("disputes")` write exists in `lib/admin`). **Feature 012 must supply**
     a dispute read DTO + a reviewed transition function that records actor and reason, and the
     approved freeze mechanism, before T012 can be composed.
+  - **Dispute-unblock run (2026-09-19) — COMPLETE (literal Verify met).** Feature 012 now supplies the read DTOs
+    (`listDisputesForCompliance`, `getDisputeForCompliance`, `getDisputeEvidenceForOperator`,
+    `getDisputeStatusHistoryForOperator`) and six named transition operations backed by the database's
+    `transition_dispute()` (compliance + MFA, reason required, compare-and-set, approved graph, write-once
+    resolution, one `dispute_status_history` row with actor = `auth.uid()`). The console composes ONLY that layer:
+    `src/app/dashboard-admin/(compliance)/disputes/page.tsx` (queue, awaiting-action/all, order reference stated
+    unreadable for a pure COMPLIANCE role), `…/[disputeId]/page.tsx` (record, member text via `UntrustedText`,
+    evidence notes, the database-written transition history, record-only freeze note), `…/actions.ts`
+    (`recordDisputeTransition` — the chosen next status selects exactly one named Feature 012 operation; anything
+    else is a validation error; `expectedStatus` always passed) and `components/admin/compliance/dispute-decision-panel.tsx`
+    (options = Feature 012's `DISPUTE_TRANSITIONS[status]`, passed from the server page; reason required, 10–2,000;
+    outcomes/closing confirmed). `disputes` area flipped to `live`; the stale `feature-012-dispute-layer` blocker
+    and its copy removed. **Verify**: (1) "status changes record reason and actor" — live, `tests/admin/decisions.test.ts`
+    + `tests/admin/disputes-console.test.tsx` (history rows: actor, from→to, exact reason, time; rendered as
+    "Changed by: You"); (2) "only compliance-permitted roles may act" — member/unrelated member/WAREHOUSE/FINANCE/
+    AUDITOR/anonymous → `compliance_not_capable` through the action, WAREHOUSE/FINANCE/AUDITOR `forbidden` and member
+    `no-operational-role` on the page, and the database function refuses them (`forbidden`); (3) "no parallel 010
+    dispute engine or freeze path exists" — `tests/admin/compliance-pages.test.tsx` pins no `.from(`/`.rpc(`/
+    `createClient`/service role/order-shipment-payment-inventory import in any console dispute file, and the
+    fixture business snapshot is byte-identical after every decision. **DB-OPEN-09 stays OPEN**: the Verify asks
+    that NO freeze path exists (met); an approved freeze MECHANISM still does not exist, and the console says so
+    (FROZEN is a record label only) — nothing is simulated. Browser: `tests/browser/feature010-t012.browser.mjs`
+    — 32 surfaces (EN/AR × light/dark × 390/1366 × queue, all, FROZEN detail, not-found), 0 axe violations, keyboard
+    ring, reason-field validation, alertdialog (Escape cancels, confirm records), no console/page/request errors.
 
 ---
 
@@ -1046,6 +1078,17 @@ scope has no owning task (flagged for RUN B planning, not silently added).
     once, INCLUDING a two-operator concurrency race for each); payment decisions proven honestly
     absent (no `decidePayment`); dispute decisions proven honestly absent (Feature 012/T012 not
     started, `disputes` area still `blocked`). Nothing fabricated. Stays unchecked.
+  - **Dispute-unblock run (2026-09-19) — dispute half PROVEN; task still BLOCKED (Depends: T014 unmet).** The
+    "honestly absent" dispute test is replaced by six LIVE tests through the console's own `recordDisputeTransition`:
+    a valid review → resolve → close path records actor/from/to/exact reason/time once per change (resolution
+    written once, `resolved_at` = the history row's time) and a repeat is refused `dispute_stale` with nothing
+    recorded; member, unrelated member, WAREHOUSE, FINANCE, AUDITOR and anonymous → `compliance_not_capable`; an
+    unapproved pair refused by the console AND by `transition_dispute()` directly (`invalid_dispute_transition`),
+    an unknown status / missing observed status / short reason → validation error; a stale decision refused; two
+    independent COMPLIANCE sessions (per-request session binding) racing the same OPEN dispute → exactly one
+    success, one history row, loser `dispute_stale`; zero order/shipment/payment/reservation/history/custody change.
+    `npm test -- admin/decisions` → 11/11. The payment half remains honestly absent (no `decidePayment()`); per the
+    literal `Depends: T014`, T032 stays UNCHECKED.
   - Codex: GPT-5.6 Sol — High · Claude: Opus — High
   - Why: attribution and single-effect semantics for irreversible operational decisions.
 
@@ -1059,6 +1102,10 @@ scope has no owning task (flagged for RUN B planning, not silently added).
     dynamically, not hand-maintained). This is the honest, exhaustive proof available today; it
     cannot cover surfaces that do not exist (T010/T012/T013–T015/T027/T029 remain open). Stays
     unchecked pending those.
+  - **Dispute-unblock run (2026-09-19) — still PARTIAL (Depends: Phases 3–9 unmet).** Feature 012's closure removes
+    T012 from the open list only: the console dispute surface and the Feature 012 files it composes are now scanned
+    (no `.delete(`), `disputes`/`dispute_evidence` carry no DELETE grant, and the `dispute_status_history` migration
+    grants SELECT only. Still open: T010, T013–T015, T027, T029 — so exhaustive Phase 3–9 coverage cannot be claimed.
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — High
   - Why: OPS-02 compliance across a broad surface.
 

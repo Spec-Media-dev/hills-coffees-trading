@@ -1,6 +1,6 @@
 // Feature 010 RUN H (Phase 11, T037) — console-WIDE real Chrome + axe pass over the CURRENT surfaces of
 // every group (overview/account, compliance, warehouse, catalogue, audit, system) plus the blocked
-// finance/dispute placeholders and the not-found / no-operational-role / anonymous states, across
+// finance placeholders (disputes: live since T012) and the not-found / no-operational-role / anonymous states, across
 // EN/AR × light/dark × 390/1366/1920. Per surface: axe clean (colour contrast on), exactly one <main>,
 // an h1, correct lang/dir + theme, no horizontal overflow, every status badge text-labelled, no raw
 // database/RLS/provider text, no long identifier overflowing its container. Then: keyboard traversal
@@ -174,7 +174,7 @@ try {
     { group: "compliance", key: "organizations", path: "/dashboard-admin/organizations/", en: /Organizations/, ar: /المنظمات/ },
     { group: "compliance", key: "listing-queue", path: "/dashboard-admin/listings/", en: /Listing review/, ar: /مراجعة القوائم/ },
     { group: "compliance", key: "listing-detail", path: `/dashboard-admin/listings/${FIXTURES.offerPendingReview}/`, en: /Record a decision/, ar: /تسجيل قرار/ },
-    { group: "compliance", key: "disputes-blocked", path: "/dashboard-admin/disputes/", en: /Waiting on a dependency/, ar: /بانتظار اعتمادية/, state: "blocked" },
+    { group: "compliance", key: "disputes", path: "/dashboard-admin/disputes/", en: /Dispute review/, ar: /مراجعة النزاعات/ }, // live since T012 (Feature 012 layer); full proof: feature010-t012.browser.mjs
     { group: "warehouse", key: "shipments", path: "/dashboard-admin/shipments/", en: /Shipments/, ar: /الشحنات/ },
     { group: "warehouse", key: "shipment-detail", path: `${shipmentPath}/`.replace(/\/\/$/, "/"), en: /Warehouse operations/, ar: /عمليات المستودع/ },
     { group: "warehouse", key: "inventory", path: "/dashboard-admin/inventory/", en: /On hand \(gross\)/, ar: /الموجود \(الإجمالي\)/ },

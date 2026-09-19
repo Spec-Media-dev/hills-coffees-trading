@@ -242,11 +242,46 @@ describe("T011 — listing review pages (live, COMPLIANCE)", () => {
   }, LIVE_TIMEOUT_MS);
 });
 
-describe("T012 — disputes remain honestly blocked", () => {
-  it("the disputes route still renders the blocked placeholder (Feature 012 absent), and no dispute mutation exists in the console", () => {
-    expect(source("src", "app", "dashboard-admin", "(compliance)", "disputes", "page.tsx")).toContain('<AdminAreaPlaceholder areaKey="disputes" />');
-    for (const file of ["lib/admin/decisions.ts", "lib/admin/compliance.ts"]) {
-      expect(source(file)).not.toMatch(/from\("disputes"\)|dispute_evidence/);
+describe("T012 — the dispute surface composes Feature 012's layer; no parallel dispute engine or freeze path", () => {
+  const DISPUTE_FILES = [
+    ["src", "app", "dashboard-admin", "(compliance)", "disputes", "page.tsx"],
+    ["src", "app", "dashboard-admin", "(compliance)", "disputes", "[disputeId]", "page.tsx"],
+    ["src", "app", "dashboard-admin", "(compliance)", "disputes", "actions.ts"],
+    ["components", "admin", "compliance", "dispute-decision-panel.tsx"],
+  ];
+  const strip = (code: string) => code.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+
+  it("reads come only from lib/disputes/read (operator audience), writes only through lib/disputes/compliance's named operations", () => {
+    const queue = source(...DISPUTE_FILES[0]!);
+    const detail = source(...DISPUTE_FILES[1]!);
+    const action = strip(source(...DISPUTE_FILES[2]!));
+    expect(queue).toContain("listDisputesForCompliance(");
+    expect(detail).toContain("getDisputeForCompliance(disputeId)");
+    expect(detail).toContain('getDisputeEvidenceForOperator("compliance", dispute.id)');
+    expect(detail).toContain('getDisputeStatusHistoryForOperator("compliance", dispute.id)');
+    // The panel's options are Feature 012's own graph, never a Feature 010 copy of it.
+    expect(detail).toContain("targets={DISPUTE_TRANSITIONS[dispute.status]}");
+    expect(action).toMatch(/import \{ beginReview, closeDispute, markFrozen, rejectDispute, resolveDispute, resumeReview, type DisputeTransitionOutcome \} from "@\/lib\/disputes\/compliance"/);
+    for (const segments of DISPUTE_FILES) {
+      const code = strip(source(...segments));
+      const file = segments.join("/");
+      expect(code, file).not.toMatch(/\.from\(|\.rpc\(|createClient|SERVICE_ROLE|service_role/);
+      // No freeze path: nothing reaches an order/shipment/payment/inventory/settlement surface.
+      expect(code, file).not.toMatch(/lib\/(orders|delivery|finance|inventory)\/|DISPUTED/);
     }
+    for (const file of ["lib/admin/decisions.ts", "lib/admin/compliance.ts"]) {
+      expect(source(file)).not.toMatch(/from\("disputes"\)|dispute_evidence|dispute_status_history|transition_dispute/);
+    }
+  });
+
+  it("the action maps the chosen next status to exactly one named operation and refuses anything else (no generic status setter); stale protection is always on", () => {
+    const action = strip(source(...DISPUTE_FILES[2]!));
+    expect(action.match(/case "[A-Z_]+":/g)).toEqual(['case "UNDER_REVIEW":', 'case "FROZEN":', 'case "RESOLVED":', 'case "REJECTED":', 'case "CLOSED":']);
+    expect(action).toContain('fieldErrors: { status: ["DECISION_REQUIRED"] }');
+    expect(action).toContain('fieldErrors: { expectedStatus: ["EXPECTED_STATUS_REQUIRED"] }');
+    expect(action).toContain('(expectedStatus === "FROZEN" ? resumeReview : beginReview)');
+    const panel = source(...DISPUTE_FILES[3]!);
+    expect(panel).toContain("hiddenFields={{ disputeId, expectedStatus: status }}");
+    expect(panel).toContain("reasonRequired: true");
   });
 });

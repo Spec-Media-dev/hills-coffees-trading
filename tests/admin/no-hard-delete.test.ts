@@ -16,13 +16,17 @@ import { describe, expect, it } from "vitest";
  * covered automatically). That is the honest, exhaustive proof available TODAY.
  *
  * The literal `Depends: Phases 3–9` is **NOT fully satisfied**: T010 (organizations COMPLIANCE
- * policy), T012 (Feature 012 dispute layer), T013–T015 (Feature 008 finance layer), T027 and T029
- * (both PARTIAL on DB-OPEN-21, the UPDATE-attribution gap) remain open. A no-delete proof cannot
- * honestly claim to cover a payment-review queue, a settlement decision surface, a dispute domain or
- * an organizations write surface that DOES NOT EXIST — there is nothing there to grep. No delete
- * path is introduced anywhere merely to give this test something to check. T033 therefore stays
- * PARTIAL: the current-console proof passes and is recorded below, but full Phase 3–9 coverage
- * cannot be claimed until those five tasks close. `npm test -- admin/no-hard-delete` passes today.
+ * policy), T013–T015 (Feature 008 finance layer), T027 and T029 (both PARTIAL on DB-OPEN-21, the
+ * UPDATE-attribution gap) remain open. A no-delete proof cannot honestly claim to cover a
+ * payment-review queue, a settlement decision surface or an organizations write surface that DOES NOT
+ * EXIST — there is nothing there to grep. No delete path is introduced anywhere merely to give this
+ * test something to check. T033 therefore stays PARTIAL.
+ *
+ * T012 (disputes) closed in the Feature 010 dispute-unblock run (2026-09-19) and IS covered below:
+ * the console dispute surface composes Feature 012's layer (`lib/disputes/read.ts`,
+ * `lib/disputes/compliance.ts`), so those composed files are scanned too, and the dispute tables carry
+ * no DELETE grant (`dispute_status_history` additionally refuses DELETE in its own trigger —
+ * live-proven by Feature 012). `npm test -- admin/no-hard-delete` passes today.
  */
 
 const root = process.cwd();
@@ -110,9 +114,25 @@ describe("T033 — no console path (current disk state) issues a runtime .delete
     }
   });
 
-  it("the Phase 3–9 dependency is honestly NOT fully closed — T010/T012/T013–T015/T027/T029 remain open, so this proof cannot and does not claim exhaustive Phase 3–9 coverage", async () => {
+  it("T012 dispute surface: the console composes Feature 012's layer, and neither the console files nor the composed Feature 012 files issue a .delete(); the dispute tables carry no DELETE grant", () => {
+    const composed = ["lib/disputes/read.ts", "lib/disputes/compliance.ts", ...CONSOLE_FILES.filter((file) => /disputes|dispute-/.test(file))];
+    expect(composed.length).toBeGreaterThanOrEqual(6);
+    for (const file of composed) expect(stripComments(source(file)), file).not.toMatch(/\.delete\(/);
+    const { table_grants } = schemaReport();
+    for (const table of ["disputes", "dispute_evidence"]) {
+      const grantees = table_grants.filter((g) => g.table_name === table && g.privilege === "DELETE").map((g) => g.grantee);
+      expect(grantees, table).not.toContain("authenticated");
+      expect(grantees, table).not.toContain("anon");
+    }
+    // `dispute_status_history` post-dates the baseline report: its migration grants SELECT only.
+    const migration = stripComments(source("supabase", "migrations", "20260919120000_feature_012_dispute_status_history.sql").replace(/--[^\n]*/g, ""));
+    expect(migration).toMatch(/grant select on table public\.dispute_status_history to authenticated;/);
+    expect(migration).not.toMatch(/grant[^;]*delete[^;]*dispute_status_history/i);
+  });
+
+  it("the Phase 3–9 dependency is honestly NOT fully closed — T010/T013–T015/T027/T029 remain open, so this proof cannot and does not claim exhaustive Phase 3–9 coverage", async () => {
     const tasks = source("specs", "010-admin-operations-console", "tasks.md");
-    for (const task of ["T010", "T012", "T013", "T014", "T015", "T027", "T029"]) {
+    for (const task of ["T010", "T013", "T014", "T015", "T027", "T029"]) {
       expect(tasks, task).toMatch(new RegExp(`- \\[ \\] ${task}\\b`));
     }
   });
