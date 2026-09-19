@@ -9,7 +9,7 @@ import { DisputeStatusBadge } from "@/components/disputes/dispute-status-badge";
 import { RaiseDisputeForm } from "@/components/disputes/raise-dispute-form";
 import { AppBilingual } from "@/components/locale/app-bilingual";
 import { StateScreen } from "@/components/layout/state-screen";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { appCopy } from "@/lib/app/copy";
 import { getRequestIdentity } from "@/lib/auth/dal";
@@ -166,9 +166,9 @@ export default async function DisputesPage({ searchParams }: { searchParams: Pro
             {page > 0 || hasMore ? (
               <div className="flex items-center justify-between gap-4">
                 {page > 0 ? (
-                  <Button variant="outline" nativeButton={false} render={<Link href={`/dashboard/disputes?page=${page - 1}`} />}>
+                  <Link href={`/dashboard/disputes?page=${page - 1}`} className={buttonVariants({ variant: "outline" })}>
                     <AppBilingual pick={(c) => c.orders.list.pagination.previous} />
-                  </Button>
+                  </Link>
                 ) : (
                   <Button variant="outline" disabled>
                     <AppBilingual pick={(c) => c.orders.list.pagination.previous} />
@@ -178,9 +178,9 @@ export default async function DisputesPage({ searchParams }: { searchParams: Pro
                   <AppBilingual pick={(c) => c.orders.list.pagination.pageLabel.replace("{page}", String(page + 1))} />
                 </span>
                 {hasMore ? (
-                  <Button variant="outline" nativeButton={false} render={<Link href={`/dashboard/disputes?page=${page + 1}`} />}>
+                  <Link href={`/dashboard/disputes?page=${page + 1}`} className={buttonVariants({ variant: "outline" })}>
                     <AppBilingual pick={(c) => c.orders.list.pagination.next} />
-                  </Button>
+                  </Link>
                 ) : (
                   <Button variant="outline" disabled>
                     <AppBilingual pick={(c) => c.orders.list.pagination.next} />

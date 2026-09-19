@@ -17,7 +17,7 @@ import { createClient } from "@/lib/supabase/server";
  * Feature 012 RUN A (T002) — SERVER-ONLY scoped dispute and evidence reads (imports
  * `lib/supabase/server`, which pulls in `next/headers` — never import from a Client Component).
  * Every read runs under the caller's own request-scoped, RLS-respecting session: no service-role
- * key, no `unstable_cache`/`"use cache"`/`cacheTag`/`cacheLife` — dispute data is private conflict
+ * key, and no Next.js data-cache API of any kind — dispute data is private conflict
  * data, re-read fresh on every call (FR-013, SEC-003).
  *
  * ══════════════════════════════════════════════════════════════════════════════════════════════

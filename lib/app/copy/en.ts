@@ -2406,6 +2406,11 @@ export const en = {
         resolutionPending: "No resolution has been recorded yet.",
         viewOrder: "View order",
         affectedHeading: "Affected order",
+        notFound: {
+          title: "Dispute not found",
+          description: "This dispute doesn't exist or isn't available to your organization.",
+          backAction: "Back to disputes",
+        },
         orderStatusLabel: "Order status",
         orderStatusNote: "The order's status is managed by its own workflow. Raising or reviewing this dispute did not change it.",
       },

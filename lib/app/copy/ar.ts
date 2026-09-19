@@ -2227,6 +2227,11 @@ export const ar: DeepPartial<AppCopy> = {
         resolutionPending: "لم تُسجَّل أي تسوية بعد.",
         viewOrder: "عرض الطلب",
         affectedHeading: "الطلب المتأثر",
+        notFound: {
+          title: "النزاع غير موجود",
+          description: "هذا النزاع غير موجود أو غير متاح لمؤسستك.",
+          backAction: "العودة إلى النزاعات",
+        },
         orderStatusLabel: "حالة الطلب",
         orderStatusNote: "تُدار حالة الطلب عبر سير عمله الخاص. لم يؤدِّ رفع هذا النزاع أو مراجعته إلى تغييرها.",
       },

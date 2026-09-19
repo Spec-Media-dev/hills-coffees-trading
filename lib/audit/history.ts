@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server";
  * Feature 012 RUN C (T013) — THE single, SERVER-ONLY, read-only query owner for the platform's four
  * history tables. Features 005/006/007 delegate to these functions (T016) instead of keeping their
  * own copies of the same query. Every read runs under the caller's own request-scoped session: no
- * service role, no `unstable_cache`/`"use cache"`/`cacheTag`, and — by construction — NO write: this
+ * service role, no Next.js data-cache API, and — by construction — NO write: this
  * module never calls `insert`/`update`/`upsert`/`delete`/`rpc` (FR-003, FR-010, OPS-02, LOT-03).
  *
  * ══════════════════════════════════════════════════════════════════════════════════════════════

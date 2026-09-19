@@ -3,7 +3,7 @@
 **Input**: [spec.md](./spec.md), [plan.md](./plan.md), `docs/architecture/DATABASE-CAPABILITY-MAP.md`,
 `.specify/memory/constitution.md` (v2.0.0), SRS §8 (MKT-07), §13.5, §14 (OPS-02), §46.
 
-**Status**: RUN C (2026-09-19) — 21/28 complete (RUN A: T001–T003, T006, T019; RUN B: T005, T007–T012, T021, T022; RUN C: T013–T018, T020); T004 remains PARTIAL (unchanged). Phases 7–8 (T023–T028) not started.
+**Status**: RUN D (2026-09-19) — 23/28 complete (RUN A–C + T023, T024). T004 PARTIAL (DB-OPEN-23, human decision required). T025–T028: work done and verification GREEN for Feature 012, but NOT checked — `Depends: all` / `Depends: T025` unmet while T004 is PARTIAL (T025 also has pre-existing non-012 lint/test failures).
 reconciliation only, no code**: the "008 implemented" clause below is CLARIFIED, not removed — see the
 note immediately after this block. RUN A (T001–T004, T006, T018, T019) is GO while Feature 008 remains
 7/39 (see clarification).
@@ -297,18 +297,33 @@ layer.
 
 ## Phase 7 — States, accessibility, RTL
 
-- [ ] T023 State coverage (loading, empty, error, unauthorized, suspended, each dispute state) plus
+- [X] T023 State coverage (loading, empty, error, unauthorized, suspended, each dispute state) plus
   honest empty states that distinguish "nothing here" from "not permitted".
   - Req: FR-015, FR-016 | Depends: Phases 2–4
   - Verify: each state renders; permission-limited surfaces explain themselves
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — High
   - Why: the empty-vs-forbidden distinction requires deliberate copy, not a default empty state.
+  - **RUN D (2026-09-19) — COMPLETE.** `tests/disputes/state-coverage.test.tsx` (16) renders every current surface
+    in each applicable state: shared loading / error (raw message never shown) ; disputes list unauthorized / forbidden
+    (blocked user, suspended org) / honest empty / no-orders / all six statuses ; detail unauthorized / forbidden /
+    not-found (new disputes-specific not-found — previously the shared page said "Position not found") / six status
+    descriptions / evidence empty, text-only, file-reference + DB-BLOCK-01 ; notifications unauthorized / forbidden /
+    honest empty + DB-BLOCK-04 / real rows without read state ; preferences unauthorized / forbidden / not-saved vs
+    saved / validation + signed-out codes ; history visible vs empty ; DB-OPEN-06 auditor explanation vs not-permitted.
+    Copy scan: no hardcoded UI text in Feature 012 JSX.
 
-- [ ] T024 Accessibility and RTL pass across dispute, notification and history surfaces.
+- [X] T024 Accessibility and RTL pass across dispute, notification and history surfaces.
   - Req: FR-015 | Depends: Phases 2–4
   - Verify: a11y check clean; grep for physical CSS properties returns nothing; timelines are navigable by keyboard
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — Medium
   - Why: mechanical but broad.
+  - **RUN D (2026-09-19) — COMPLETE.** `tests/browser/feature012-rund.browser.mjs`: 108 surfaces (9 surfaces × EN/AR ×
+    light/dark × 390/1366/1920) — axe 0 violations (colour contrast on), correct lang/dir, one `<main>`, 0 overflow,
+    textual badges, named non-interactive timelines, correlation ids inside the viewport, no focusable aria-disabled
+    control, every focusable named; keyboard traversal of the dispute detail (EN 19 stops, AR/390 10 stops) all
+    visibly focused, no trap; exact-field validation with `aria-invalid` + `role=alert` in EN and AR. Static: 0
+    physical-direction class tokens in 694 scanned. Listing-detail history not browser-renderable (no member-owned
+    listing can exist — Feature 006's recorded gap); no audit-access route exists (render-tested).
 
 ---
 
@@ -319,6 +334,15 @@ layer.
   - Verify: four exit-0 results
   - Codex: GPT-5.6 Sol — Low · Claude: Sonnet — Low
   - Why: mechanical execution.
+  - **RUN D (2026-09-19) — commands run; NOT CHECKED (dependency unmet).** `Depends: all` is unmet while T004 is
+    PARTIAL (DB-OPEN-23). Results: `npm run typecheck` exit 0 · `npm run build` exit 0 · `git diff --check` exit 0 ·
+    `npm run lint` **exit 1** — all 124 errors are in `docs/claude-design/` (the exported design-kit reference, unchanged
+    since baseline `f71b911`; not product code); `eslint lib src components tests scripts` → 0 errors, 1 pre-existing
+    Feature 006 warning. `npm test` cannot run monolithically (OOM-killed on this machine), so the complete suite ran as
+    non-overlapping directory batches — 160/160 files, 1,804 tests: 1,795 passed, 6 skipped (Feature 009's opt-in live
+    gates), **3 failed, all pre-existing Feature 010 admin tests** (two assert no `/dashboard/payments` route, stale since
+    Feature 008 commit `3234458`; one expects an empty `shipping_rules`, which holds a RUN F residue row). Every Feature
+    012 test passed. So T025's literal Verify ("four exit-0 results") is also unmet (lint + test), independent of T004.
 
 - [ ] T026 Confirm no simulated capabilities were introduced: no notification generation/read-state, no
   application-side dispute freeze, no evidence byte storage, no fabricated audit access.
@@ -326,12 +350,20 @@ layer.
   - Verify: targeted greps plus a review pass; each blocked capability is explained in-product rather than faked
   - Codex: GPT-5.6 Sol — Medium · Claude: Opus — High
   - Why: this feature has four blocked capabilities — confirming none was quietly simulated is the central integrity check.
+  - **RUN D (2026-09-19) — proof GREEN; NOT CHECKED (Depends: T025, which cannot close).** No notification
+    generation/read state/unread count/local-storage state/synthesis; no app-side freeze; no evidence bytes (inert seam,
+    file-asset count + buckets unchanged); no fabricated auditor access (DB-OPEN-06 explained, no fallback) — proven by
+    `honest-limitations` (15, mutation-proven), `immutability` (10), `escaping`, `run-b-live`, `audit/history`, `state-coverage`.
 
 - [ ] T027 Confirm no service-role usage, no caching of private data, no public exposure.
   - Req: SEC-003, SEC-005, FR-013 | Depends: T025
   - Verify: `grep -rn "SERVICE_ROLE\|cacheTag\|unstable_cache" lib/disputes lib/notifications lib/audit src/app/dashboard/disputes` returns nothing
   - Codex: GPT-5.6 Sol — Low · Claude: Sonnet — Low
   - Why: mechanical constitutional checks.
+  - **RUN D (2026-09-19) — proof GREEN; NOT CHECKED (Depends: T025).** The literal grep returns nothing (two doc
+    comments that named the APIs were reworded); extended scan over every Feature 012 path is clean; `/dashboard` is
+    `noindex`, disallowed in `robots`, absent from the sitemap; no public route imports the Feature 012 libs; logs carry
+    only SQLSTATE codes; no analytics calls.
 
 - [ ] T028 Update the roadmap for 012 and ensure DB-BLOCK-04 (expanded) and DB-OPEN-09 are recorded in
   `docs/architecture/DATABASE-CAPABILITY-MAP.md` with SRS citations.
@@ -339,6 +371,10 @@ layer.
   - Verify: both entries present and accurate; MKT-07 marked as not fully satisfiable until resolved
   - Codex: GPT-5.6 Sol — Low · Claude: Opus — High
   - Why: these gaps affect a release-relevant SRS requirement; accurate recording is a governance duty.
+  - **RUN D (2026-09-19) — documentation reconciled; NOT CHECKED (Depends: T025).** Capability map: DB-BLOCK-01
+    (dispute scope still OPEN), DB-BLOCK-04, DB-OPEN-06, DB-OPEN-09 each carry a dated "STILL OPEN" note; new
+    **DB-OPEN-23** records the T004 attribution / missing transition-guard gap with options. Roadmap: 012 row updated
+    (23/28, NOT closed), blocker table updated, **MKT-07 marked NOT fully satisfiable**.
 
 ---
 
