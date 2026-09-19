@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { DISPUTE_STATUSES } from "@/lib/disputes/types";
+
 /**
  * Feature 012 RUN A — input schemas for the dispute write boundaries. CLIENT-SAFE (zod only): the
  * raise form uses these for inline validation, and the Server Action / domain layer re-parses with
@@ -38,15 +40,33 @@ export const DisputeEvidenceNoteInput = z.object({
 });
 export type DisputeEvidenceNoteInput = z.infer<typeof DisputeEvidenceNoteInput>;
 
-export const DisputeReferenceInput = z.object({
-  disputeId: reference("invalidReference"),
-});
-export type DisputeReferenceInput = z.infer<typeof DisputeReferenceInput>;
+/**
+ * The status the operator SAW when choosing the action (optional). When given, the transition is a
+ * compare-and-set on it — the database refuses (`dispute_stale`) if another operator moved the
+ * dispute first. When omitted, the domain layer reads the current status itself and uses that.
+ */
+const expectedStatus = z.enum(DISPUTE_STATUSES).optional();
 
-/** Resolution/rejection text, stored in `disputes.resolution` (the only reason column the schema has). */
+/**
+ * Feature 012 RUN E (T004 / DB-OPEN-23) — every status transition that is not an outcome carries a
+ * REASON, persisted in `dispute_status_history.reason` by `transition_dispute()` together with the
+ * actor (`auth.uid()`), the from/to status and the time.
+ */
+export const DisputeTransitionInput = z.object({
+  disputeId: reference("invalidReference"),
+  reason: z.string().trim().min(DISPUTE_TEXT_MIN, "reasonTooShort").max(DISPUTE_TEXT_MAX, "reasonTooLong"),
+  expectedStatus,
+});
+export type DisputeTransitionInput = z.infer<typeof DisputeTransitionInput>;
+
+/**
+ * Resolution/rejection text: it is BOTH the transition's reason (in `dispute_status_history`) and the
+ * dispute's recorded outcome (`disputes.resolution`, written once).
+ */
 export const DisputeOutcomeInput = z.object({
   disputeId: reference("invalidReference"),
   resolution: z.string().trim().min(DISPUTE_TEXT_MIN, "resolutionTooShort").max(DISPUTE_TEXT_MAX, "resolutionTooLong"),
+  expectedStatus,
 });
 export type DisputeOutcomeInput = z.infer<typeof DisputeOutcomeInput>;
 

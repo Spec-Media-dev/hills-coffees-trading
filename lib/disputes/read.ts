@@ -3,6 +3,8 @@ import { DisputeReadError } from "@/lib/disputes/errors";
 import {
   isDisputeStatus,
   type DisputeEvidenceDTO,
+  type DisputeStatusHistoryDTO,
+  type MemberDisputeStatusHistoryDTO,
   type DisputeStatus,
   type MemberDisputeDetailDTO,
   type MemberDisputeSummaryDTO,
@@ -334,4 +336,46 @@ async function readEvidence(disputeId: string): Promise<readonly DisputeEvidence
   const { data, error } = await supabase.from("dispute_evidence").select(EVIDENCE_SELECT).eq("dispute_id", disputeId).order("created_at", { ascending: true }).order("id", { ascending: true });
   if (error) throw new DisputeReadError();
   return ((data ?? []) as EvidenceRow[]).map(toEvidence);
+}
+
+// ── Feature 012 RUN E (T004 / DB-OPEN-23) — dispute status history ────────────────────────────────
+//
+// `dispute_status_history` RLS (`dispute_status_history_view`) mirrors `dispute_evidence_view`: the
+// parent dispute's own visibility. Each audience reaches it ONLY through its own already-scoped
+// dispute read above, so history is never reachable for a dispute the audience cannot see.
+
+const STATUS_HISTORY_SELECT = "id, dispute_id, from_status, to_status, actor_user_id, reason, correlation_id, created_at";
+
+type StatusHistoryRow = { id: string; dispute_id: string; from_status: string; to_status: string; actor_user_id: string; reason: string; correlation_id: string | null; created_at: string };
+
+async function readStatusHistory(disputeId: string): Promise<readonly DisputeStatusHistoryDTO[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("dispute_status_history").select(STATUS_HISTORY_SELECT).eq("dispute_id", disputeId).order("created_at", { ascending: true }).order("id", { ascending: true });
+  if (error) throw new DisputeReadError();
+  return ((data ?? []) as StatusHistoryRow[])
+    .filter((row) => isDisputeStatus(row.from_status) && isDisputeStatus(row.to_status))
+    .map((row) => ({
+      id: row.id,
+      disputeId: row.dispute_id,
+      fromStatus: row.from_status as DisputeStatus,
+      toStatus: row.to_status as DisputeStatus,
+      actorUserId: row.actor_user_id,
+      reason: row.reason,
+      correlationId: row.correlation_id,
+      createdAt: row.created_at,
+    }));
+}
+
+/** A member's view of one of the acting organization's own disputes' transitions; `null` when the dispute is not visible. */
+export async function getDisputeStatusHistoryForMember({ organizationId, userId, disputeId }: { organizationId: string; userId: string; disputeId: string }): Promise<readonly MemberDisputeStatusHistoryDTO[] | null> {
+  const dispute = await getDisputeForMember({ organizationId, userId, disputeId });
+  if (!dispute) return null;
+  return (await readStatusHistory(dispute.id)).map(({ actorUserId, ...rest }) => ({ ...rest, byYou: actorUserId === userId }));
+}
+
+/** The compliance / auditor view (with the actor's profile id); `null` when the role is refused or the dispute is not visible. */
+export async function getDisputeStatusHistoryForOperator(audience: OperatorAudience, disputeId: string): Promise<readonly DisputeStatusHistoryDTO[] | null> {
+  const dispute = await getForOperator(audience, disputeId);
+  if (!dispute) return null;
+  return readStatusHistory(dispute.id);
 }

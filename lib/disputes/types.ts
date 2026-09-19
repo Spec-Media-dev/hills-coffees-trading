@@ -11,9 +11,10 @@
  * `docs/architecture/DATABASE-CAPABILITY-MAP.md`). The column default is `'OPEN'`. No synonym, no
  * extra value, no "generic" status is ever represented.
  *
- * `FROZEN` IS A LABEL ON THE DISPUTE RECORD ONLY (DB-OPEN-09): no trigger exists on `disputes`, so a
- * dispute in any status — including `FROZEN` — has no effect on the affected order, shipment,
- * payment, settlement, inventory or trading. Nothing typed here implies otherwise.
+ * `FROZEN` IS A LABEL ON THE DISPUTE RECORD ONLY (DB-OPEN-09): the only trigger on `disputes`
+ * (`trg_disputes_transition_guard`, RUN E) guards the dispute's own transitions and writes nothing
+ * else, so a dispute in any status — including `FROZEN` — has no effect on the affected order,
+ * shipment, payment, settlement, inventory or trading. Nothing typed here implies otherwise.
  */
 import type { OrderStatus } from "@/lib/orders/validation";
 
@@ -104,6 +105,25 @@ export type DisputeEvidenceDTO = {
   uploadedBy: string;
   createdAt: string;
 };
+
+/**
+ * Feature 012 RUN E (T004 / DB-OPEN-23) — one row of `dispute_status_history`, written ONLY by the
+ * database's `transition_dispute()` (append-only). The operator view carries the actor's profile id;
+ * the member view reduces it to "was it you" (`byYou`) and never exposes an operator's id. `reason` is
+ * untrusted text (render with `UntrustedText`).
+ */
+export type DisputeStatusHistoryDTO = {
+  id: string;
+  disputeId: string;
+  fromStatus: DisputeStatus;
+  toStatus: DisputeStatus;
+  actorUserId: string;
+  reason: string;
+  correlationId: string | null;
+  createdAt: string;
+};
+
+export type MemberDisputeStatusHistoryDTO = Omit<DisputeStatusHistoryDTO, "actorUserId"> & { byYou: boolean };
 
 /** A paginated member list, same shape convention as `lib/orders/validation.ts#PaginatedOrders`. */
 export type PaginatedDisputes<T> = { rows: readonly T[]; hasMore: boolean; page: number; pageSize: number };

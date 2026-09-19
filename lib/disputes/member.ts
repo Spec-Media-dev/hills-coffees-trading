@@ -22,7 +22,7 @@ import { ACTION_FEEDBACK, type ActionFeedbackResult } from "@/lib/types/action-f
  *   one. A correction is a new evidence note, never an edit (FR-003, OPS-02).
  * - NO FREEZE, NO SIDE EFFECT. Raising a dispute writes ONE `disputes` row and nothing else — no
  *   order, shipment, payment, reservation, inventory or settlement write, and no automatic freeze
- *   (DB-OPEN-09: no trigger exists on `disputes`; the database performs no freeze, so neither does
+ *   (DB-OPEN-09: no trigger on `disputes` writes any other table; the database performs no freeze, so neither does
  *   the application).
  * - NO FILE. `file_asset_id` is never set — evidence files cannot be stored (DB-BLOCK-01); the file
  *   seam is T005, not RUN A.
@@ -78,7 +78,7 @@ export async function raiseDispute({
 
   if (error || !data) return { ok: false, code: mapDisputeWriteError(error, "raise") };
   if (data.status !== DISPUTE_INITIAL_STATUS) {
-    // Unreachable against the approved schema (default `OPEN`, no trigger); fail loudly rather than
+    // Unreachable against the approved schema (default `OPEN`; the RUN E guard trigger also refuses any other initial status); fail loudly rather than
     // report an unexpected initial status as a normal success.
     return { ok: false, code: ACTION_FEEDBACK.DISPUTE_RAISE_FAILED };
   }

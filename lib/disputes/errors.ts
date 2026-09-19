@@ -4,9 +4,10 @@ import { ACTION_FEEDBACK, type ActionFeedbackCode } from "@/lib/types/action-fee
  * Feature 012 RUN A (T001) — the dispute domain's safe error mapping.
  *
  * WHAT THE DATABASE CAN ACTUALLY RAISE ON THESE TABLES (read from the live schema report, never
- * guessed): `disputes` and `dispute_evidence` have NO triggers at all, so there is no custom
- * `RAISE EXCEPTION` vocabulary to translate. The only failures a write can produce are PostgreSQL's
- * own SQLSTATE classes:
+ * guessed): in the baseline `disputes` and `dispute_evidence` have NO triggers, so their writes fail
+ * only with PostgreSQL's own SQLSTATE classes (below). Since RUN E (T004 / DB-OPEN-23) the dispute
+ * TRANSITION path additionally raises its own named exceptions — mapped first, in
+ * `TRANSITION_EXCEPTIONS`. The SQLSTATE classes:
  *   - `42501` — an RLS `WITH CHECK` refusal (`disputes_create`, `dispute_evidence_add`) or no
  *     `UPDATE` policy matching the caller (`disputes_ops_update` is `is_compliance_operator()` only);
  *   - `23503` — a foreign key (`disputes_order_id_fkey`, `…_opened_by_organization_id_fkey`,
@@ -51,7 +52,37 @@ function sqlState(error: RawDatabaseError): string | null {
   return typeof code === "string" && code.length > 0 ? code : null;
 }
 
+/**
+ * Feature 012 RUN E (T004 / DB-OPEN-23) — the exceptions raised by the authoritative transition path
+ * (`transition_dispute()` and the `trg_disputes_transition_guard` / `trg_dispute_status_history_append_only`
+ * triggers, migration `20260919120000_feature_012_dispute_status_history.sql`). Matched on the raised
+ * text itself (SQLSTATE `P0001`), exactly like `lib/orders/errors.ts`, so each refusal keeps its meaning.
+ */
+const TRANSITION_EXCEPTIONS: Record<string, ActionFeedbackCode> = {
+  forbidden: ACTION_FEEDBACK.COMPLIANCE_NOT_CAPABLE,
+  mfa_step_up_required: ACTION_FEEDBACK.MFA_STEP_UP_REQUIRED,
+  dispute_reason_required: ACTION_FEEDBACK.VALIDATION_ERROR,
+  dispute_reason_too_long: ACTION_FEEDBACK.VALIDATION_ERROR,
+  dispute_not_found: ACTION_FEEDBACK.DISPUTE_NOT_FOUND,
+  dispute_stale: ACTION_FEEDBACK.DISPUTE_STALE,
+  invalid_dispute_transition: ACTION_FEEDBACK.DISPUTE_TRANSITION_REFUSED,
+  dispute_resolution_already_recorded: ACTION_FEEDBACK.DISPUTE_TRANSITION_REFUSED,
+  dispute_changes_only_through_workflow: ACTION_FEEDBACK.DISPUTE_TRANSITION_REFUSED,
+  dispute_intake_is_immutable: ACTION_FEEDBACK.DISPUTE_TRANSITION_REFUSED,
+  dispute_status_history_is_append_only: ACTION_FEEDBACK.DISPUTE_TRANSITION_REFUSED,
+  // Raised only for an INSERT that is not a fresh OPEN dispute — unreachable through `raiseDispute`.
+  dispute_must_start_open: ACTION_FEEDBACK.DISPUTE_RAISE_FAILED,
+};
+
+function raisedMessage(error: RawDatabaseError): string | null {
+  if (!error || typeof error !== "object") return null;
+  const message = "message" in error ? error.message : undefined;
+  return typeof message === "string" && message.length > 0 ? message : null;
+}
+
 export function mapDisputeWriteError(error: RawDatabaseError, operation: DisputeWriteOperation): ActionFeedbackCode {
+  const raised = raisedMessage(error);
+  if (raised && Object.hasOwn(TRANSITION_EXCEPTIONS, raised)) return TRANSITION_EXCEPTIONS[raised]!;
   const code = sqlState(error);
   switch (code) {
     case "42501":

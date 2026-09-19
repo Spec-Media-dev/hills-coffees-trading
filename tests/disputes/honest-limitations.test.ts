@@ -138,7 +138,10 @@ describe("DB-OPEN-09 — no automatic freeze is claimed or implemented", () => {
       const code = stripComments(read(file));
       expect(code, file).not.toMatch(/\.from\(\s*["'`](orders|order_shipments|order_items|payments|payouts|inventory_positions|inventory_reservations|storage_allocations|coffee_offers)["'`]\s*\)/);
       expect(code, file).not.toMatch(/status:\s*["'`]DISPUTED["'`]/);
-      expect(code, file).not.toMatch(/\.rpc\(/);
+      // RUN E (T004 / DB-OPEN-23): the ONLY database function any dispute file calls is the
+      // authoritative, graph-enforcing `transition_dispute` — and only from the compliance layer.
+      const rpcs = [...code.matchAll(/\.rpc\(\s*["'`]?([\w-]*)/g)].map((match) => match[1]);
+      expect(rpcs, file).toEqual(file.replaceAll("\\", "/").endsWith("lib/disputes/compliance.ts") ? ["transition_dispute"] : []);
     }
   });
 });
@@ -146,6 +149,7 @@ describe("DB-OPEN-09 — no automatic freeze is claimed or implemented", () => {
 /** A fake Supabase client that records every table write and answers reads from canned rows. */
 function recordingClient(reads: Record<string, unknown>) {
   const writes: Array<{ table: string; op: string }> = [];
+  const rpcs: Array<{ fn: string; args: Record<string, unknown> }> = [];
   const client = {
     from(table: string) {
       const builder: Record<string, unknown> = {};
@@ -165,12 +169,18 @@ function recordingClient(reads: Record<string, unknown>) {
       builder.then = (resolve: (value: unknown) => void) => resolve(result());
       return builder;
     },
-    rpc: async () => ({ data: true, error: null }),
+    rpc: async (fn: string, args: Record<string, unknown>) => {
+      rpcs.push({ fn, args });
+      return {
+        data: { dispute_id: args.p_dispute_id, from_status: args.p_expected_status, to_status: args.p_to_status, history_id: "h1", recorded_at: "2026-09-19T00:00:00Z" },
+        error: null,
+      };
+    },
   };
-  return { client, writes };
+  return { client, writes, rpcs };
 }
 
-describe("Runtime: raising a dispute and every compliance transition write ONLY the disputes table", () => {
+describe("Runtime: raising a dispute writes ONLY the disputes table; every compliance transition is ONE call to transition_dispute", () => {
   const state = vi.hoisted(() => ({ client: null as unknown }));
   beforeEach(() => {
     vi.resetModules();
@@ -195,20 +205,34 @@ describe("Runtime: raising a dispute and every compliance transition write ONLY 
     expect(writes).toEqual([{ table: "disputes", op: "insert" }]);
   });
 
-  it("markFrozen / resolveDispute / closeDispute: each writes one UPDATE on disputes and nothing else", async () => {
+  it("markFrozen / resolveDispute / closeDispute: no direct table write — exactly one transition_dispute call carrying the reason", async () => {
     const id = "12000000-0000-4000-8000-0000000000aa";
-    for (const [operation, from, input] of [
-      ["markFrozen", "UNDER_REVIEW", { disputeId: id }],
-      ["resolveDispute", "FROZEN", { disputeId: id, resolution: "Partial credit agreed with the seller." }],
-      ["closeDispute", "RESOLVED", { disputeId: id }],
+    for (const [operation, from, to, input, reason] of [
+      ["markFrozen", "UNDER_REVIEW", "FROZEN", { disputeId: id, reason: "Awaiting the independent moisture test." }, "Awaiting the independent moisture test."],
+      ["resolveDispute", "FROZEN", "RESOLVED", { disputeId: id, resolution: "Partial credit agreed with the seller." }, "Partial credit agreed with the seller."],
+      ["closeDispute", "RESOLVED", "CLOSED", { disputeId: id, reason: "Credit note issued; dispute closed." }, "Credit note issued; dispute closed."],
     ] as const) {
-      const { client, writes } = recordingClient({ disputes: { id, status: from, resolution: from === "RESOLVED" ? "x" : null, resolved_at: from === "RESOLVED" ? "2026-01-01" : null }, "disputes:update": { id, status: "X" } });
+      const { client, writes, rpcs } = recordingClient({ disputes: { id, status: from } });
       state.client = client;
       const compliance = await import("@/lib/disputes/compliance");
       const result = await (compliance[operation] as (value: unknown) => Promise<{ ok: boolean }>)(input);
-      expect(result.ok, operation).toBe(true);
-      expect(writes, operation).toEqual([{ table: "disputes", op: "update" }]);
+      expect(result, operation).toMatchObject({ ok: true, data: { fromStatus: from, toStatus: to, attribution: "recorded", historyId: "h1" } });
+      expect(writes, operation).toEqual([]);
+      expect(rpcs, operation).toEqual([{ fn: "transition_dispute", args: { p_dispute_id: id, p_expected_status: from, p_to_status: to, p_reason: reason } }]);
     }
+  });
+
+  it("a transition without a reason is refused before any database call", async () => {
+    const id = "12000000-0000-4000-8000-0000000000aa";
+    const { client, writes, rpcs } = recordingClient({ disputes: { id, status: "OPEN" } });
+    state.client = client;
+    const compliance = await import("@/lib/disputes/compliance");
+    for (const operation of ["beginReview", "markFrozen", "resumeReview", "closeDispute"] as const) {
+      expect(await compliance[operation]({ disputeId: id }), operation).toMatchObject({ ok: false, code: "validation_error" });
+      expect(await compliance[operation]({ disputeId: id, reason: "   " }), operation).toMatchObject({ ok: false, code: "validation_error" });
+    }
+    expect(writes).toEqual([]);
+    expect(rpcs).toEqual([]);
   });
 });
 

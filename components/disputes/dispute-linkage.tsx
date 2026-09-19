@@ -10,7 +10,7 @@ import type { MemberDisputeSummaryDTO } from "@/lib/disputes/types";
  * what the data actually says (DB-OPEN-09, FR-007, SC-005):
  *
  * - The record's OWN status is whatever its own workflow set. A dispute never changes it: no trigger
- *   exists on `disputes`, and COMPLIANCE has no write path to `orders`/`order_shipments`. So this
+ *   on `disputes` writes any other table, and COMPLIANCE has no write path to `orders`/`order_shipments`. So this
  *   component never infers "frozen/held" from a dispute, and never infers a dispute from a status.
  * - When the record's own status IS `DISPUTED`, that fact is stated as the record's own status — and
  *   explicitly NOT as a consequence of raising a dispute.

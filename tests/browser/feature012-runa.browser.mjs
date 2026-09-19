@@ -77,9 +77,9 @@ const complianceRest = restClientFor(complianceSession);
 
 /**
  * Fixture disputes in each of the six statuses. Raised under the BUYER's own session (the
- * `disputes_create` authority T003 uses), moved under the disposable COMPLIANCE session along the
- * SAME approved transition path and column allowlist `lib/disputes/compliance.ts` enforces (proven
- * through that module itself in tests/disputes/role-restriction.test.ts).
+ * `disputes_create` authority T003 uses), moved under the disposable COMPLIANCE session through the
+ * SAME database transition function `lib/disputes/compliance.ts` calls (`transition_dispute`, RUN E),
+ * proven through that module itself in tests/disputes/role-restriction.test.ts.
  */
 async function disputeInStatus(target) {
   const [row] = await buyerRest.call("POST", "disputes", {
@@ -87,10 +87,13 @@ async function disputeInStatus(target) {
     prefer: "return=representation",
   });
   const path = { OPEN: [], UNDER_REVIEW: ["UNDER_REVIEW"], FROZEN: ["UNDER_REVIEW", "FROZEN"], RESOLVED: ["UNDER_REVIEW", "RESOLVED"], REJECTED: ["REJECTED"], CLOSED: ["UNDER_REVIEW", "RESOLVED", "CLOSED"] }[target];
+  // RUN E (T004): a dispute's status changes ONLY through `transition_dispute` (a direct PATCH is
+  // refused by `trg_disputes_transition_guard`); an outcome's reason is also its recorded resolution.
+  let from = "OPEN";
   for (const status of path) {
-    const now = new Date().toISOString();
-    const outcome = status === "RESOLVED" || status === "REJECTED" ? { resolution: `Browser proof outcome for ${target}.`, resolved_by: complianceRest.userId, resolved_at: now } : {};
-    await complianceRest.call("PATCH", `disputes?id=eq.${row.id}`, { body: { status, updated_at: now, ...outcome } });
+    const reason = status === "RESOLVED" || status === "REJECTED" ? `Browser proof outcome for ${target}.` : `Browser proof: ${from} to ${status}.`;
+    await complianceRest.call("POST", "rpc/transition_dispute", { body: { p_dispute_id: row.id, p_expected_status: from, p_to_status: status, p_reason: reason } });
+    from = status;
   }
   return row.id;
 }

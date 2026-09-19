@@ -1,60 +1,45 @@
 import { checkRoleFunctionAccess } from "@/lib/admin/guards";
 import { mapDisputeWriteError } from "@/lib/disputes/errors";
 import { isDisputeStatus, type DisputeStatus } from "@/lib/disputes/types";
-import { DisputeOutcomeInput, DisputeReferenceInput } from "@/lib/disputes/validation";
+import { DisputeOutcomeInput, DisputeTransitionInput } from "@/lib/disputes/validation";
 import { createClient } from "@/lib/supabase/server";
 import { ACTION_FEEDBACK, type ActionFeedbackResult } from "@/lib/types/action-feedback";
 
 /**
- * Feature 012 RUN A (T004) — the COMPLIANCE-only dispute review/resolution domain layer that
- * Feature 010's console will consume (FR-002, FR-012, SEC-002). Six NAMED operations, each with a
- * fixed target status. There is no generic "set status" function, no status parameter, and no
- * export that skips the authority check — the only way to change a dispute's status in this
- * codebase is through one of the operations below.
+ * Feature 012 (T004) — the COMPLIANCE-only dispute review/resolution domain layer that Feature 010's
+ * console consumes (FR-002, FR-012, SEC-002). Six NAMED operations, each with a fixed target status.
+ * There is no generic "set status" function, no status parameter, and no export that skips the
+ * authority check.
  *
  * ══════════════════════════════════════════════════════════════════════════════════════════════
- * AUTHORITY (two independent layers)
+ * THE DATABASE IS THE AUTHORITY (RUN E, 2026-09-19 — DB-OPEN-23 closed by migration
+ * `20260919120000_feature_012_dispute_status_history.sql`)
  * ══════════════════════════════════════════════════════════════════════════════════════════════
  *
- * 1. Application: `checkRoleFunctionAccess("is_compliance_operator")` — authenticated, MFA step-up
- *    satisfied, holds an operational role, and a LIVE `is_compliance_operator()` call returns true.
- *    Members, WAREHOUSE, FINANCE and AUDITOR are refused with `COMPLIANCE_NOT_CAPABLE` before any
- *    query. (The database function is hierarchical — ADMIN/SUPER_ADMIN also pass it; this layer
- *    follows the database's answer and adds no role of its own.)
- * 2. Database: `disputes_ops_update` (UPDATE, USING + WITH CHECK `is_compliance_operator()`). For
- *    any other caller an UPDATE matches zero rows — the row is unchanged.
+ * Every transition goes through ONE database function, `transition_dispute(p_dispute_id,
+ * p_expected_status, p_to_status, p_reason)` (SECURITY DEFINER), which in a single transaction:
+ * requires `is_compliance_operator()` + `mfa_satisfied()`; requires a non-empty reason; locks the
+ * dispute; refuses unless the current status equals the status the operator saw (`dispute_stale`);
+ * refuses any pair outside the approved graph (`invalid_dispute_transition`); writes the resolution,
+ * `resolved_by` and `resolved_at` exactly once for RESOLVED/REJECTED; updates the dispute; and
+ * appends one `dispute_status_history` row with the actor (`auth.uid()` — never client-supplied),
+ * from/to status, reason, correlation id and time. A BEFORE UPDATE trigger on `disputes`
+ * (`validate_dispute_transition`) refuses ANY other update — so the existing `disputes_ops_update`
+ * policy alone can no longer change a dispute, and bypassing this module changes nothing.
  *
- * ══════════════════════════════════════════════════════════════════════════════════════════════
- * WHAT THE DATABASE DOES NOT ENFORCE — AND THEREFORE THIS FILE DOES (recorded, not hidden)
- * ══════════════════════════════════════════════════════════════════════════════════════════════
+ * THIS MODULE'S ROLE: authorise early (`checkRoleFunctionAccess("is_compliance_operator")` —
+ * members, WAREHOUSE, FINANCE and AUDITOR get `COMPLIANCE_NOT_CAPABLE` before any query), validate
+ * input with keyed messages, pre-check the graph so an obviously invalid request never reaches the
+ * database, and map every database refusal to a safe code. `DISPUTE_TRANSITIONS` below is the SAME
+ * graph the database enforces (pinned by `tests/disputes/transition-history.test.ts` against the
+ * migration text) — it is a convenience for callers and UI, never the boundary.
  *
- * `disputes` has NO trigger (live schema report): no transition guard, no `updated_at` maintenance,
- * no audit-log trigger, and `disputes_ops_update` lets a compliance operator write ANY column. So:
- *   - TRANSITIONS are enforced here only (`DISPUTE_TRANSITIONS` below) — a conservative,
- *     application-owned policy; the database itself would accept any of the six values from any
- *     status for a compliance caller. Every update is a compare-and-set on the status the operator
- *     saw (`.eq("status", from)`), so a concurrent decision is refused as `DISPUTE_STALE`.
- *   - COLUMNS are allowlisted here: only `status`, `updated_at`, and — for RESOLVED/REJECTED only —
- *     `resolution`, `resolved_by`, `resolved_at`. `order_id`, `reason`, `opened_by_*` and
- *     `correlation_id` are never written by this module.
- *   - NON-DESTRUCTIVE: a resolution is written exactly once (`resolution IS NULL AND resolved_at IS
- *     NULL` guard), and no transition leaves RESOLVED/REJECTED except to CLOSED, which keeps the
- *     recorded resolution intact. Nothing is deleted; nothing earlier is overwritten.
- *
- * ATTRIBUTION — HONEST ABOUT THE SCHEMA: the only actor/reason/timestamp columns on `disputes` are
- * `resolution`, `resolved_by`, `resolved_at` (plus `updated_at`). RESOLVED and REJECTED therefore
- * record actor + reason + timestamp. `beginReview`, `markFrozen`, `resumeReview` and `closeDispute`
- * can record ONLY `updated_at`: there is no per-transition history table and no column for their
- * actor or reason, so none is collected (collecting a reason and discarding it would be dishonest).
- * Each result reports which case applied (`attribution`). This is a recorded capability gap for
- * RUN A's closure report — not solved here (no schema change in this feature).
- *
- * `FROZEN` IS A RECORD LABEL ONLY (DB-OPEN-09): `markFrozen` changes `disputes.status` and nothing
- * else. It does not — and under the approved policies cannot — hold or change the affected order,
- * shipment, payment, settlement, inventory or trading. No order/shipment write exists in this file.
+ * `FROZEN` IS A RECORD LABEL ONLY (DB-OPEN-09, unchanged): `markFrozen` changes `disputes.status` and
+ * records history — nothing else. No order/shipment/payment/inventory write exists here or in the
+ * database function.
  */
 
-/** The application-owned transition policy. `CLOSED` is terminal. Frozen at module load. */
+/** The approved transition graph — identical to `transition_dispute()`'s. `CLOSED` is terminal. */
 export const DISPUTE_TRANSITIONS: Readonly<Record<DisputeStatus, readonly DisputeStatus[]>> = Object.freeze({
   OPEN: Object.freeze(["UNDER_REVIEW", "FROZEN", "REJECTED"] as const),
   UNDER_REVIEW: Object.freeze(["FROZEN", "RESOLVED", "REJECTED"] as const),
@@ -69,76 +54,70 @@ export function isApprovedDisputeTransition(from: DisputeStatus, to: DisputeStat
 }
 
 /**
- * `recorded` — actor (`resolved_by`), reason (`resolution`) and timestamp (`resolved_at`) persisted.
- * `timestamp-only` — only `updated_at` persisted; the schema has no column for this transition's
- * actor or reason (see header).
+ * Every transition now records actor + reason + timestamp in `dispute_status_history` (DB-OPEN-23
+ * resolved), so there is exactly one attribution outcome. The type is kept so callers that rendered
+ * the previous `"timestamp-only"` case fail to compile rather than silently mislabel.
  */
-export type TransitionAttribution = "recorded" | "timestamp-only";
+export type TransitionAttribution = "recorded";
 
 export type DisputeTransitionOutcome = {
   disputeId: string;
   fromStatus: DisputeStatus;
   toStatus: DisputeStatus;
   attribution: TransitionAttribution;
+  historyId: string;
   recordedAt: string;
 };
 
 type Target = "UNDER_REVIEW" | "FROZEN" | "RESOLVED" | "REJECTED" | "CLOSED";
 
-async function transition(disputeId: string, to: Target, outcome: { resolution: string } | null): Promise<ActionFeedbackResult<DisputeTransitionOutcome>> {
+type RpcOutcome = { dispute_id: string; from_status: string; to_status: string; history_id: string; recorded_at: string };
+
+async function transition({ disputeId, reason, expectedStatus }: { disputeId: string; reason: string; expectedStatus?: DisputeStatus }, to: Target): Promise<ActionFeedbackResult<DisputeTransitionOutcome>> {
   const access = await checkRoleFunctionAccess("is_compliance_operator");
   if (!access.ok) return { ok: false, code: ACTION_FEEDBACK.COMPLIANCE_NOT_CAPABLE };
 
   const supabase = await createClient();
-  const { data: current, error: readError } = await supabase.from("disputes").select("id, status, resolution, resolved_at").eq("id", disputeId).maybeSingle();
+  const { data: current, error: readError } = await supabase.from("disputes").select("id, status").eq("id", disputeId).maybeSingle();
   if (readError) return { ok: false, code: mapDisputeWriteError(readError, "transition") };
   if (!current || !isDisputeStatus(current.status)) return { ok: false, code: ACTION_FEEDBACK.DISPUTE_NOT_FOUND };
 
-  const from = current.status;
+  // The status the operator saw wins; otherwise the status just read. Either way the database
+  // re-checks it under a row lock, so a concurrent change between here and there is refused as stale.
+  const from = expectedStatus ?? current.status;
+  if (from !== current.status) return { ok: false, code: ACTION_FEEDBACK.DISPUTE_STALE };
   if (!isApprovedDisputeTransition(from, to)) return { ok: false, code: ACTION_FEEDBACK.DISPUTE_TRANSITION_REFUSED };
-  if (outcome && (current.resolution !== null || current.resolved_at !== null)) {
-    // A resolution is write-once; never overwrite a recorded outcome.
-    return { ok: false, code: ACTION_FEEDBACK.DISPUTE_TRANSITION_REFUSED };
-  }
 
-  const recordedAt = new Date().toISOString();
-  const patch: Record<string, string> = { status: to, updated_at: recordedAt };
-  if (outcome) {
-    patch.resolution = outcome.resolution;
-    patch.resolved_by = access.identity.userId;
-    patch.resolved_at = recordedAt;
-  }
-
-  let update = supabase.from("disputes").update(patch).eq("id", disputeId).eq("status", from);
-  if (outcome) update = update.is("resolution", null).is("resolved_at", null);
-  const { data: updated, error } = await update.select("id, status").maybeSingle();
-
+  const { data, error } = await supabase.rpc("transition_dispute", { p_dispute_id: disputeId, p_expected_status: from, p_to_status: to, p_reason: reason });
   if (error) return { ok: false, code: mapDisputeWriteError(error, "transition") };
-  if (!updated) return { ok: false, code: ACTION_FEEDBACK.DISPUTE_STALE };
+  const outcome = data as RpcOutcome | null;
+  if (!outcome || outcome.dispute_id !== disputeId || outcome.to_status !== to || !isDisputeStatus(outcome.from_status)) {
+    return { ok: false, code: ACTION_FEEDBACK.DISPUTE_TRANSITION_FAILED };
+  }
 
   return {
     ok: true,
     code: ACTION_FEEDBACK.DISPUTE_TRANSITION_RECORDED,
-    data: { disputeId, fromStatus: from, toStatus: to, attribution: outcome ? "recorded" : "timestamp-only", recordedAt },
+    data: { disputeId, fromStatus: outcome.from_status, toStatus: to, attribution: "recorded", historyId: outcome.history_id, recordedAt: outcome.recorded_at },
   };
 }
 
-function referenceOf(input: unknown): { ok: true; disputeId: string } | { ok: false; result: ActionFeedbackResult<DisputeTransitionOutcome> } {
-  const parsed = DisputeReferenceInput.safeParse(input);
+function withReason(input: unknown): { ok: true; value: DisputeTransitionInput } | { ok: false; result: ActionFeedbackResult<DisputeTransitionOutcome> } {
+  const parsed = DisputeTransitionInput.safeParse(input);
   if (!parsed.success) return { ok: false, result: { ok: false, code: ACTION_FEEDBACK.VALIDATION_ERROR, fieldErrors: parsed.error.flatten().fieldErrors } };
-  return { ok: true, disputeId: parsed.data.disputeId };
+  return { ok: true, value: parsed.data };
 }
 
-function outcomeOf(input: unknown): { ok: true; disputeId: string; resolution: string } | { ok: false; result: ActionFeedbackResult<DisputeTransitionOutcome> } {
+function withOutcome(input: unknown): { ok: true; value: DisputeOutcomeInput } | { ok: false; result: ActionFeedbackResult<DisputeTransitionOutcome> } {
   const parsed = DisputeOutcomeInput.safeParse(input);
   if (!parsed.success) return { ok: false, result: { ok: false, code: ACTION_FEEDBACK.VALIDATION_ERROR, fieldErrors: parsed.error.flatten().fieldErrors } };
-  return { ok: true, disputeId: parsed.data.disputeId, resolution: parsed.data.resolution };
+  return { ok: true, value: parsed.data };
 }
 
-/** OPEN → UNDER_REVIEW. Timestamp only (no actor/reason column exists for this transition). */
+/** OPEN → UNDER_REVIEW. `{ disputeId, reason, expectedStatus? }`. */
 export async function beginReview(input: unknown) {
-  const ref = referenceOf(input);
-  return ref.ok ? transition(ref.disputeId, "UNDER_REVIEW", null) : ref.result;
+  const parsed = withReason(input);
+  return parsed.ok ? transition(parsed.value, "UNDER_REVIEW") : parsed.result;
 }
 
 /**
@@ -146,30 +125,30 @@ export async function beginReview(input: unknown) {
  * payment, settlement, inventory or trading effect exists or is implied (DB-OPEN-09).
  */
 export async function markFrozen(input: unknown) {
-  const ref = referenceOf(input);
-  return ref.ok ? transition(ref.disputeId, "FROZEN", null) : ref.result;
+  const parsed = withReason(input);
+  return parsed.ok ? transition(parsed.value, "FROZEN") : parsed.result;
 }
 
-/** FROZEN → UNDER_REVIEW. Timestamp only. */
+/** FROZEN → UNDER_REVIEW. `{ disputeId, reason, expectedStatus? }`. */
 export async function resumeReview(input: unknown) {
-  const ref = referenceOf(input);
-  return ref.ok ? transition(ref.disputeId, "UNDER_REVIEW", null) : ref.result;
+  const parsed = withReason(input);
+  return parsed.ok ? transition(parsed.value, "UNDER_REVIEW") : parsed.result;
 }
 
-/** UNDER_REVIEW | FROZEN → RESOLVED, recording resolution text, `resolved_by` and `resolved_at` once. */
+/** UNDER_REVIEW | FROZEN → RESOLVED. The resolution is both the transition's reason and the recorded outcome (written once). */
 export async function resolveDispute(input: unknown) {
-  const parsed = outcomeOf(input);
-  return parsed.ok ? transition(parsed.disputeId, "RESOLVED", { resolution: parsed.resolution }) : parsed.result;
+  const parsed = withOutcome(input);
+  return parsed.ok ? transition({ disputeId: parsed.value.disputeId, reason: parsed.value.resolution, expectedStatus: parsed.value.expectedStatus }, "RESOLVED") : parsed.result;
 }
 
-/** OPEN | UNDER_REVIEW | FROZEN → REJECTED, recording the reason, `resolved_by` and `resolved_at` once. */
+/** OPEN | UNDER_REVIEW | FROZEN → REJECTED. The rejection reason is both the transition's reason and the recorded outcome (written once). */
 export async function rejectDispute(input: unknown) {
-  const parsed = outcomeOf(input);
-  return parsed.ok ? transition(parsed.disputeId, "REJECTED", { resolution: parsed.resolution }) : parsed.result;
+  const parsed = withOutcome(input);
+  return parsed.ok ? transition({ disputeId: parsed.value.disputeId, reason: parsed.value.resolution, expectedStatus: parsed.value.expectedStatus }, "REJECTED") : parsed.result;
 }
 
-/** RESOLVED | REJECTED → CLOSED. The recorded resolution is preserved unchanged. Timestamp only. */
+/** RESOLVED | REJECTED → CLOSED. The recorded resolution is preserved unchanged. `{ disputeId, reason, expectedStatus? }`. */
 export async function closeDispute(input: unknown) {
-  const ref = referenceOf(input);
-  return ref.ok ? transition(ref.disputeId, "CLOSED", null) : ref.result;
+  const parsed = withReason(input);
+  return parsed.ok ? transition(parsed.value, "CLOSED") : parsed.result;
 }

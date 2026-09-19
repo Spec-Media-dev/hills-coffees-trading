@@ -512,6 +512,17 @@ export function cleanupDisputeTestRows(): Record<string, unknown> {
 export function inspectDisputeFixtures(): Record<string, unknown> {
   return runJsonFixtureCommand("--inspect-dispute-fixtures");
 }
+/** Feature 012 RUN E — `dispute_status_history` rows of the tagged disputes + the table-wide count. */
+export function inspectDisputeStatusHistory(): Record<string, unknown> {
+  return runJsonFixtureCommand("--inspect-dispute-status-history");
+}
+/**
+ * Feature 012 RUN E — privileged (service-role, RLS-bypassing) attempts to UPDATE/DELETE/forge history
+ * and to UPDATE a dispute directly; only the database triggers can refuse them. Setup/proof only.
+ */
+export function probeDisputeHistoryGuards(): Record<string, unknown> {
+  return runJsonFixtureCommand("--probe-dispute-history-guards");
+}
 /** Feature 012 RUN B — one tagged, test-only notification for the buyer-only user (see the seed script's own note). */
 export const NOTIFICATION_FIXTURE = { id: "12000000-0000-4000-8000-0000000000b1", titlePrefix: "[F012-RUN-B]" } as const;
 export function seedNotificationFixture(): void {

@@ -3207,6 +3207,62 @@ async function inspectDisputeFixtures(admin: SupabaseClient): Promise<Record<str
 }
 
 /**
+ * Feature 012 RUN E (T004 / DB-OPEN-23) — read-only view of `dispute_status_history` for the tagged
+ * fixture disputes, plus the table-wide row count (so a run can prove no stray history rows remain
+ * once the tagged disputes are removed — history cascades with its dispute by FK).
+ */
+async function inspectDisputeStatusHistory(admin: SupabaseClient): Promise<Record<string, unknown>> {
+  const { data: disputes, error } = await admin.from("disputes").select("id").in("order_id", [...DISPUTE_FIXTURE_ORDER_IDS]).like("reason", `${DISPUTE_TEST_REASON_PREFIX}%`);
+  if (error) throw new SafeFixtureError("Feature 012 dispute history inspection failed (disputes).");
+  const disputeIds = (disputes ?? []).map((row) => row.id as string);
+  const history = disputeIds.length > 0
+    ? await admin.from("dispute_status_history").select("id, dispute_id, from_status, to_status, actor_user_id, reason, correlation_id, created_at").in("dispute_id", disputeIds).order("created_at").order("id")
+    : { data: [], error: null };
+  if (history.error) throw new SafeFixtureError("Feature 012 dispute history inspection failed (history).");
+  const { count, error: countError } = await admin.from("dispute_status_history").select("id", { count: "exact", head: true });
+  if (countError) throw new SafeFixtureError("Feature 012 dispute history inspection failed (count).");
+  return { taggedDisputeIds: disputeIds, history: history.data, totalHistoryRows: count ?? 0 };
+}
+
+/**
+ * Feature 012 RUN E (T004 / DB-OPEN-23) — proves the database guards hold even against the SERVICE
+ * ROLE (which bypasses RLS entirely, so only the triggers can refuse). Uses the newest history row of
+ * a tagged fixture dispute and attempts, in order: a history UPDATE, a history DELETE, a forged
+ * history INSERT, and a direct dispute status UPDATE. Each must be refused with the trigger's named
+ * exception, and the targeted rows must be byte-identical afterwards. Prints only exception names.
+ */
+async function probeDisputeHistoryGuards(admin: SupabaseClient): Promise<Record<string, unknown>> {
+  const snapshot = await inspectDisputeStatusHistory(admin);
+  const rows = snapshot.history as Array<Record<string, unknown>>;
+  const target = rows[rows.length - 1];
+  if (!target) throw new SafeFixtureError("Feature 012 dispute history probe needs at least one tagged history row.");
+  const disputeId = target.dispute_id as string;
+  const { data: disputeBefore, error: beforeError } = await admin.from("disputes").select("*").eq("id", disputeId).single();
+  if (beforeError) throw new SafeFixtureError("Feature 012 dispute history probe could not read its dispute.");
+
+  const name = (error: { message?: string } | null) => (error ? (error.message ?? "error") : null);
+  const historyUpdate = await admin.from("dispute_status_history").update({ reason: "forbidden RUN E append-only probe" }).eq("id", target.id as string).select("id");
+  const historyDelete = await admin.from("dispute_status_history").delete().eq("id", target.id as string).select("id");
+  const historyInsert = await admin
+    .from("dispute_status_history")
+    .insert({ dispute_id: disputeId, from_status: "OPEN", to_status: "CLOSED", actor_user_id: target.actor_user_id, reason: "forged RUN E history row" })
+    .select("id");
+  const disputeUpdate = await admin.from("disputes").update({ status: disputeBefore.status === "CLOSED" ? "OPEN" : "CLOSED" }).eq("id", disputeId).select("id");
+
+  const after = await inspectDisputeStatusHistory(admin);
+  const { data: disputeAfter, error: afterError } = await admin.from("disputes").select("*").eq("id", disputeId).single();
+  if (afterError) throw new SafeFixtureError("Feature 012 dispute history probe could not re-read its dispute.");
+  return {
+    historyUpdate: { refusal: name(historyUpdate.error), rows: historyUpdate.data?.length ?? 0 },
+    historyDelete: { refusal: name(historyDelete.error), rows: historyDelete.data?.length ?? 0 },
+    historyInsert: { refusal: name(historyInsert.error), rows: historyInsert.data?.length ?? 0 },
+    disputeUpdate: { refusal: name(disputeUpdate.error), rows: disputeUpdate.data?.length ?? 0 },
+    historyUnchanged: JSON.stringify(after.history) === JSON.stringify(snapshot.history),
+    disputeUnchanged: JSON.stringify(disputeAfter) === JSON.stringify(disputeBefore),
+  };
+}
+
+/**
  * Feature 012 RUN B — notification ISOLATION fixture (privileged, test-only). The product can never
  * create a notification (DB-BLOCK-04: SELECT-only policy, no generating trigger), so the only way to
  * prove "a user sees ONLY their own notifications" against a real row is for this fixture script to
@@ -3757,6 +3813,14 @@ async function main(): Promise<void> {
   }
   if (process.argv.includes("--cleanup-notification-test-rows")) {
     console.log(JSON.stringify(await cleanupNotificationTestRows(admin)));
+    return;
+  }
+  if (process.argv.includes("--inspect-dispute-status-history")) {
+    console.log(JSON.stringify(await inspectDisputeStatusHistory(admin)));
+    return;
+  }
+  if (process.argv.includes("--probe-dispute-history-guards")) {
+    console.log(JSON.stringify(await probeDisputeHistoryGuards(admin)));
     return;
   }
   if (process.argv.includes("--inspect-dispute-fixtures")) {

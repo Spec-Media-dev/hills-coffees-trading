@@ -271,19 +271,19 @@ describe("T003 — member raises a dispute through the approved authority (live)
 });
 
 describe("T004 — compliance transitions and resolution (live, disposable COMPLIANCE operator)", () => {
-  it("walks OPEN → UNDER_REVIEW → FROZEN → UNDER_REVIEW → RESOLVED → CLOSED, recording actor/reason/timestamp where the schema has columns for them", async () => {
+  it("walks OPEN → UNDER_REVIEW → FROZEN → UNDER_REVIEW → RESOLVED → CLOSED; every transition records actor/reason/timestamp (RUN E: dispute_status_history)", async () => {
     const id = await raiseAsBuyer("Moisture reading on arrival exceeds the contract specification.");
 
     const steps = await withLiveClient(compliance, async () => {
       const ops = await import("@/lib/disputes/compliance");
-      const review = await ops.beginReview({ disputeId: id });
-      const frozen = await ops.markFrozen({ disputeId: id });
-      const resumed = await ops.resumeReview({ disputeId: id });
+      const review = await ops.beginReview({ disputeId: id, reason: "Moisture complaint accepted for review." });
+      const frozen = await ops.markFrozen({ disputeId: id, reason: "Awaiting the independent moisture test." });
+      const resumed = await ops.resumeReview({ disputeId: id, reason: "Independent moisture test received." });
       const resolved = await ops.resolveDispute({ disputeId: id, resolution: "Moisture test confirmed; partial credit agreed with the seller." });
       return { review, frozen, resumed, resolved };
     });
-    expect(steps.review).toMatchObject({ ok: true, data: { fromStatus: "OPEN", toStatus: "UNDER_REVIEW", attribution: "timestamp-only" } });
-    expect(steps.frozen).toMatchObject({ ok: true, data: { fromStatus: "UNDER_REVIEW", toStatus: "FROZEN", attribution: "timestamp-only" } });
+    expect(steps.review).toMatchObject({ ok: true, data: { fromStatus: "OPEN", toStatus: "UNDER_REVIEW", attribution: "recorded" } });
+    expect(steps.frozen).toMatchObject({ ok: true, data: { fromStatus: "UNDER_REVIEW", toStatus: "FROZEN", attribution: "recorded" } });
     expect(steps.resumed).toMatchObject({ ok: true, data: { fromStatus: "FROZEN", toStatus: "UNDER_REVIEW" } });
     expect(steps.resolved).toMatchObject({ ok: true, code: "dispute_transition_recorded", data: { fromStatus: "UNDER_REVIEW", toStatus: "RESOLVED", attribution: "recorded" } });
 
@@ -294,9 +294,9 @@ describe("T004 — compliance transitions and resolution (live, disposable COMPL
 
     const closing = await withLiveClient(compliance, async () => {
       const ops = await import("@/lib/disputes/compliance");
-      return { closed: await ops.closeDispute({ disputeId: id }), reResolve: await ops.resolveDispute({ disputeId: id, resolution: "Attempt to overwrite the recorded outcome." }), reopen: await ops.beginReview({ disputeId: id }) };
+      return { closed: await ops.closeDispute({ disputeId: id, reason: "Credit note issued; dispute closed." }), reResolve: await ops.resolveDispute({ disputeId: id, resolution: "Attempt to overwrite the recorded outcome." }), reopen: await ops.beginReview({ disputeId: id, reason: "Attempt to reopen a closed dispute." }) };
     });
-    expect(closing.closed).toMatchObject({ ok: true, data: { fromStatus: "RESOLVED", toStatus: "CLOSED", attribution: "timestamp-only" } });
+    expect(closing.closed).toMatchObject({ ok: true, data: { fromStatus: "RESOLVED", toStatus: "CLOSED", attribution: "recorded" } });
     expect(closing.reResolve).toEqual({ ok: false, code: "dispute_transition_refused" });
     expect(closing.reopen).toEqual({ ok: false, code: "dispute_transition_refused" });
 
@@ -318,11 +318,11 @@ describe("T004 — compliance transitions and resolution (live, disposable COMPL
     const results = await withLiveClient(compliance, async () => {
       const ops = await import("@/lib/disputes/compliance");
       return {
-        closeOpen: await ops.closeDispute({ disputeId: id }),
+        closeOpen: await ops.closeDispute({ disputeId: id, reason: "Attempt to close an open dispute." }),
         resolveOpen: await ops.resolveDispute({ disputeId: id, resolution: "Cannot resolve before review." }),
         shortReason: await ops.rejectDispute({ disputeId: id, resolution: "no" }),
-        missing: await ops.beginReview({ disputeId: "12000000-0000-4000-8000-0000000000ff" }),
-        malformed: await ops.beginReview({ disputeId: "not-a-uuid" }),
+        missing: await ops.beginReview({ disputeId: "12000000-0000-4000-8000-0000000000ff", reason: "Review of a dispute that does not exist." }),
+        malformed: await ops.beginReview({ disputeId: "not-a-uuid", reason: "Review with a malformed reference." }),
         rejected: await ops.rejectDispute({ disputeId: id, resolution: "Duplicate of an existing dispute on the same order." }),
       };
     });
@@ -388,12 +388,12 @@ describe("T019 — only COMPLIANCE changes dispute status: every other role is r
       const results = await withLiveClient(client, async () => {
         const ops = await import("@/lib/disputes/compliance");
         return [
-          await ops.beginReview({ disputeId: targetId }),
-          await ops.markFrozen({ disputeId: targetId }),
-          await ops.resumeReview({ disputeId: targetId }),
+          await ops.beginReview({ disputeId: targetId, reason: `Unauthorized review attempt by ${label}.` }),
+          await ops.markFrozen({ disputeId: targetId, reason: `Unauthorized freeze attempt by ${label}.` }),
+          await ops.resumeReview({ disputeId: targetId, reason: `Unauthorized resume attempt by ${label}.` }),
           await ops.resolveDispute({ disputeId: targetId, resolution: `Unauthorized resolution attempt by ${label}.` }),
           await ops.rejectDispute({ disputeId: targetId, resolution: `Unauthorized rejection attempt by ${label}.` }),
-          await ops.closeDispute({ disputeId: targetId }),
+          await ops.closeDispute({ disputeId: targetId, reason: `Unauthorized close attempt by ${label}.` }),
         ];
       });
       for (const result of results) expect(result, label).toEqual({ ok: false, code: "compliance_not_capable" });
@@ -430,7 +430,7 @@ describe("T019 — only COMPLIANCE changes dispute status: every other role is r
   it("positive control: the same database UPDATE path succeeds for COMPLIANCE through the domain layer", async () => {
     const result = await withLiveClient(compliance, async () => {
       const ops = await import("@/lib/disputes/compliance");
-      return ops.beginReview({ disputeId: targetId });
+      return ops.beginReview({ disputeId: targetId, reason: "Positive control: compliance begins review." });
     });
     expect(result).toMatchObject({ ok: true, data: { fromStatus: "OPEN", toStatus: "UNDER_REVIEW" } });
     expect((await readDisputeAsCompliance(targetId))?.status).toBe("UNDER_REVIEW");

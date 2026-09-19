@@ -282,8 +282,8 @@ describe("T007 — linkage reflects the real record state; creating and updating
   it("after raising, adding evidence and compliance FREEZING the dispute, every order/shipment/payment/reservation/history/custody/inventory row is byte-identical", async () => {
     const frozen = await as(compliance, async () => {
       const ops = await import("@/lib/disputes/compliance");
-      const review = await ops.beginReview({ disputeId });
-      const freeze = await ops.markFrozen({ disputeId });
+      const review = await ops.beginReview({ disputeId, reason: "RUN B linkage proof: review opened." });
+      const freeze = await ops.markFrozen({ disputeId, reason: "RUN B linkage proof: dispute frozen (record label only)." });
       return { review, freeze };
     });
     expect(frozen.review.ok).toBe(true);

@@ -3,7 +3,7 @@
 **Input**: [spec.md](./spec.md), [plan.md](./plan.md), `docs/architecture/DATABASE-CAPABILITY-MAP.md`,
 `.specify/memory/constitution.md` (v2.0.0), SRS §8 (MKT-07), §13.5, §14 (OPS-02), §46.
 
-**Status**: RUN D (2026-09-19) — 23/28 complete (RUN A–C + T023, T024). T004 PARTIAL (DB-OPEN-23, human decision required). T025–T028: work done and verification GREEN for Feature 012, but NOT checked — `Depends: all` / `Depends: T025` unmet while T004 is PARTIAL (T025 also has pre-existing non-012 lint/test failures).
+**Status**: RUN E (2026-09-19) — **28/28 complete. Feature 012 CLOSED.** T004 completed by the human-approved migration `20260919120000_feature_012_dispute_status_history.sql` (DB-OPEN-23 RESOLVED); T025–T028 verified after it. Still OPEN and correctly represented (not blockers for these tasks): DB-BLOCK-01 (dispute evidence bytes), DB-BLOCK-04, DB-OPEN-06, DB-OPEN-09 (MKT-07 not fully satisfiable).
 reconciliation only, no code**: the "008 implemented" clause below is CLARIFIED, not removed — see the
 note immediately after this block. RUN A (T001–T004, T006, T018, T019) is GO while Feature 008 remains
 7/39 (see clarification).
@@ -67,7 +67,7 @@ layer.
   - Codex: GPT-5.6 Sol — High · Claude: Opus — High
   - Why: defines the member's entire write surface into the accountability system; over-exposure would let members alter dispute outcomes.
 
-- [ ] T004 [PS3] Implement `lib/disputes/compliance.ts` — status transitions and resolution recording
+- [X] T004 [PS3] Implement `lib/disputes/compliance.ts` — status transitions and resolution recording
   (`is_compliance_operator()` only), consumed by 010, with no bypass export.
   - Req: FR-002, FR-012, SEC-002 | Depends: T001, T002
   - Verify: non-compliance roles refused in the app and by RLS; every transition records actor, reason and timestamp
@@ -87,6 +87,20 @@ layer.
     an approved database change (a dispute status-history table or equivalent) — not made here.
     Also recorded: the database enforces NO dispute transition rule (compliance may write any status/column
     under `disputes_ops_update`); `DISPUTE_TRANSITIONS` is application-owned policy.
+  - **RUN E (2026-09-19) — COMPLETE (Verify met literally, not weakened).** Human-approved option (i) of DB-OPEN-23:
+    migration `supabase/migrations/20260919120000_feature_012_dispute_status_history.sql` (applied by the human
+    operator; postflight 12/12 ok; rollback file alongside) adds append-only `dispute_status_history`, the
+    `transition_dispute()` SECURITY DEFINER function (compliance + MFA, reason required, row lock + compare-and-set,
+    the approved graph, write-once resolution, one history row with actor = `auth.uid()`), and two guard triggers
+    (history append-only even for the service role; any `disputes` UPDATE outside the function refused). All six
+    named operations now require a reason and call only `transition_dispute`; `attribution` is always `"recorded"`.
+    No backfill (no authoritative prior data; 0 history rows at postflight). Live proof
+    `tests/disputes/transition-history.test.ts` 13/13: all 11 edges, one correctly attributed row each (actor,
+    from, to, exact reason, timestamp = returned `recorded_at`, dispute + correlation id); all 25 unapproved pairs
+    refused by the database; stale + two-session race (one winner); member / unrelated / blocked / WAREHOUSE /
+    FINANCE / AUDITOR `forbidden`, anonymous cannot execute; raw COMPLIANCE UPDATE refused; history
+    INSERT/UPDATE/DELETE refused for every session and the service role; earlier history byte-identical; RLS read
+    audiences exact. Verify half 1 re-proven by `role-restriction.test.ts` (13/13).
 
 - [X] T005 [PS2] Implement the evidence file seam — private `file_assets` metadata only, inert until a
   Storage bucket is approved (DB-BLOCK-01).
@@ -329,7 +343,7 @@ layer.
 
 ## Phase 8 — Verification & closure
 
-- [ ] T025 Run `npm run lint`, `npm run typecheck`, `npm test`, `npm run build`.
+- [X] T025 Run `npm run lint`, `npm run typecheck`, `npm test`, `npm run build`.
   - Req: — | Depends: all
   - Verify: four exit-0 results
   - Codex: GPT-5.6 Sol — Low · Claude: Sonnet — Low
@@ -343,8 +357,13 @@ layer.
     gates), **3 failed, all pre-existing Feature 010 admin tests** (two assert no `/dashboard/payments` route, stale since
     Feature 008 commit `3234458`; one expects an empty `shipping_rules`, which holds a RUN F residue row). Every Feature
     012 test passed. So T025's literal Verify ("four exit-0 results") is also unmet (lint + test), independent of T004.
+  - **RUN E (2026-09-19) — COMPLETE.** `npm run lint` exit 0 (0 errors, 1 pre-existing Feature 006 warning) ·
+    `npm run typecheck` exit 0 · `npm run build` exit 0 · `git diff --check` exit 0. `npm test` (= `vitest run`) cannot
+    run monolithically on this machine (OOM), so its complete file set (`vitest list --filesOnly`: 161 files) ran as
+    nine sequential, non-overlapping batches, each exit 0, no kill: 159 files passed + 2 skipped (Feature 009's opt-in
+    live gates) = 161, each exactly once (diffed against the list); 1,818 tests: 1,812 passed, 6 skipped, 0 failed.
 
-- [ ] T026 Confirm no simulated capabilities were introduced: no notification generation/read-state, no
+- [X] T026 Confirm no simulated capabilities were introduced: no notification generation/read-state, no
   application-side dispute freeze, no evidence byte storage, no fabricated audit access.
   - Req: SC-005, SC-006, FR-005, FR-016 | Depends: T025
   - Verify: targeted greps plus a review pass; each blocked capability is explained in-product rather than faked
@@ -354,8 +373,14 @@ layer.
     generation/read state/unread count/local-storage state/synthesis; no app-side freeze; no evidence bytes (inert seam,
     file-asset count + buckets unchanged); no fabricated auditor access (DB-OPEN-06 explained, no fallback) — proven by
     `honest-limitations` (15, mutation-proven), `immutability` (10), `escaping`, `run-b-live`, `audit/history`, `state-coverage`.
+  - **RUN E (2026-09-19) — COMPLETE.** Re-run after T004: targeted greps find only explanatory comments; `honest-limitations`
+    (16 — now also pins that the ONLY RPC any dispute file calls is `transition_dispute`, from `compliance.ts`, and that
+    a transition without a reason never reaches the database) passes. The new history/transition capability writes no
+    order/shipment/payment/inventory row (static + live side-effect snapshot) — FROZEN stays a record label (DB-OPEN-09);
+    no notification is generated (DB-BLOCK-04); no evidence bytes (DB-BLOCK-01); AUDITOR `audit_logs` access still
+    explained, not faked (DB-OPEN-06).
 
-- [ ] T027 Confirm no service-role usage, no caching of private data, no public exposure.
+- [X] T027 Confirm no service-role usage, no caching of private data, no public exposure.
   - Req: SEC-003, SEC-005, FR-013 | Depends: T025
   - Verify: `grep -rn "SERVICE_ROLE\|cacheTag\|unstable_cache" lib/disputes lib/notifications lib/audit src/app/dashboard/disputes` returns nothing
   - Codex: GPT-5.6 Sol — Low · Claude: Sonnet — Low
@@ -364,8 +389,14 @@ layer.
     comments that named the APIs were reworded); extended scan over every Feature 012 path is clean; `/dashboard` is
     `noindex`, disallowed in `robots`, absent from the sitemap; no public route imports the Feature 012 libs; logs carry
     only SQLSTATE codes; no analytics calls.
+  - **RUN E (2026-09-19) — COMPLETE.** Literal grep returns nothing (exit 1). Broader scan (service role, admin client,
+    `use cache`/`cacheLife`/`revalidate`, local/session storage, analytics) over every Feature 012 lib/route/component:
+    nothing. Feature 012 components are imported only under `src/app/dashboard`. `dispute_status_history`: `anon` has no
+    privilege, `authenticated` SELECT only, read policy = the dispute's own audiences (live: unrelated org, WAREHOUSE,
+    FINANCE, blocked read `[]`; anonymous refused); `transition_dispute` not executable by `anon`; database refusals
+    reach the UI only as mapped codes.
 
-- [ ] T028 Update the roadmap for 012 and ensure DB-BLOCK-04 (expanded) and DB-OPEN-09 are recorded in
+- [X] T028 Update the roadmap for 012 and ensure DB-BLOCK-04 (expanded) and DB-OPEN-09 are recorded in
   `docs/architecture/DATABASE-CAPABILITY-MAP.md` with SRS citations.
   - Req: spec Open items | Depends: T025
   - Verify: both entries present and accurate; MKT-07 marked as not fully satisfiable until resolved
@@ -375,6 +406,9 @@ layer.
     (dispute scope still OPEN), DB-BLOCK-04, DB-OPEN-06, DB-OPEN-09 each carry a dated "STILL OPEN" note; new
     **DB-OPEN-23** records the T004 attribution / missing transition-guard gap with options. Roadmap: 012 row updated
     (23/28, NOT closed), blocker table updated, **MKT-07 marked NOT fully satisfiable**.
+  - **RUN E (2026-09-19) — COMPLETE.** DB-BLOCK-04 and DB-OPEN-09 entries unchanged, present with SRS citations; MKT-07
+    still marked NOT fully satisfiable (no automatic freeze). DB-OPEN-23 marked RESOLVED in the capability map and the
+    roadmap blocker table with the exact mechanism; roadmap 012 row → COMPLETE 28/28. DB-BLOCK-01, DB-OPEN-06 untouched.
 
 ---
 
