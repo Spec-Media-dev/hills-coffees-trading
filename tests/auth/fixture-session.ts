@@ -549,6 +549,12 @@ export function cleanupRunECreatedRows(): Record<string, unknown> {
   return runJsonFixtureCommand("--cleanup-run-e-created-rows");
 }
 
+/** Database hygiene M2 — read-only: per M2 table, is `updated_at` readable / row count / NULL count (see the seed script). */
+export type UpdatedAtInspection = Record<string, { readable: boolean; rows: number; nullUpdatedAt: number }>;
+export function inspectUpdatedAtColumns(): UpdatedAtInspection {
+  return runJsonFixtureCommand("--inspect-updated-at-columns") as unknown as UpdatedAtInspection;
+}
+
 /** Feature 010 RUN F — creates/reactivates the disposable SUPER_ADMIN (role exactly SUPER_ADMIN). */
 export function prepareSuperAdminFixture(): void {
   runFixtureScript(["--prepare-super-admin-fixture"]);

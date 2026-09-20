@@ -237,6 +237,22 @@ commission is always read from the `order_financials` snapshot — never derived
 
 ---
 
+## 8a. `updated_at` convention (Database hygiene M2 — **APPLIED and VERIFIED 2026-09-20**)
+
+Rule: a genuinely **mutable** table carries `updated_at timestamptz NOT NULL DEFAULT now()` maintained by the shared
+`set_updated_at()` BEFORE UPDATE trigger (`trg_<table>_updated_at`) — the **database**, never application code, owns the value.
+Append-only / history / event / immutable tables never get one. Migration `supabase/migrations/20260920140000_database_hygiene_updated_at.sql`
+(rollback `supabase/rollback/…`, postflight `supabase/maintenance/20260920_database_hygiene_updated_at_postflight.sql`) covers exactly 13 tables:
+**column + trigger** — `kyb_documents`, `order_items`, `coffee_media`, `warehouse_locations`, `coffee_types`, `coffee_varieties`, `processing_methods`,
+`packaging_types`, `tags`; **trigger only** (column pre-existed but nothing maintained it) — `origins`, `regions`, `warehouses`, `offer_sensory_notes`.
+Existing rows: group B keeps every value; group A rows carry `created_at` (a lower bound — "tracking starts here"), `warehouse_locations` (no `created_at`) the migration time.
+No RLS, grant, enum, `updated_by` or audit change. Deliberately **untouched**: the 30 append-only/immutable tables listed in the migration header and the ambiguous
+`inventory_reservations`, `storage_allocations`, `shipment_items`, `payouts`, `notification_preferences`, `notification_deliveries`, `organization_members`, `disputes`
+(decision needed — M3). Pinned by `tests/database/updated-at-consistency.test.ts`.
+**Applied with `supabase db push --linked`; postflight 12/12 `ok`; `supabase migration list` Local = Remote through `20260920140000`; live proof `tests/database/updated-at-consistency-live.test.ts` 6/6** (real console edits on `regions`, `origins`, `warehouses`, `tags`, `warehouse_locations`, `coffee_media` and a real `kyb_documents` UPDATE all advance `updated_at`; a client-supplied backdate is overridden by the trigger; unrelated columns and rows unchanged; append-only tables still have no column; access unchanged).
+
+---
+
 ## 9. Recorded BLOCKERS and OPEN ITEMS (do **not** resolve with a migration)
 
 These are genuine gaps between SRS intent and the approved baseline, surfaced during 002–012

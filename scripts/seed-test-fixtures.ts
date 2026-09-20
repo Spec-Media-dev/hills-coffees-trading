@@ -3358,6 +3358,22 @@ async function cleanupRunECreatedRows(admin: SupabaseClient): Promise<void> {
 }
 
 /**
+ * Database hygiene M2 — READ-ONLY. For each of the 13 tables that carry a DB-owned `updated_at` reports whether the
+ * column is readable (PostgREST resolves it, i.e. it exists), how many rows exist and how many have a NULL value
+ * (must be 0: the column is NOT NULL). Nothing is written.
+ */
+const M2_UPDATED_AT_TABLES = ["kyb_documents", "order_items", "coffee_media", "warehouse_locations", "coffee_types", "coffee_varieties", "processing_methods", "packaging_types", "tags", "origins", "regions", "warehouses", "offer_sensory_notes"] as const;
+async function inspectUpdatedAtColumns(admin: SupabaseClient): Promise<void> {
+  const report: Record<string, { readable: boolean; rows: number; nullUpdatedAt: number }> = {};
+  for (const table of M2_UPDATED_AT_TABLES) {
+    const all = await admin.from(table).select("updated_at", { count: "exact", head: true });
+    const nulls = await admin.from(table).select("updated_at", { count: "exact", head: true }).is("updated_at", null);
+    report[table] = { readable: !all.error && !nulls.error, rows: all.count ?? -1, nullUpdatedAt: nulls.count ?? -1 };
+  }
+  console.log(JSON.stringify(report));
+}
+
+/**
  * Feature 010 RUN E (KYB review coherence) — stages `completeDraft`'s TRADE_LICENSE document into a
  * given persisted state so the live suite can prove the server-side approval gate against a REAL
  * row (PENDING / REJECTED / an expired ACCEPTED document). `kyb_documents` has no RLS-granted update
@@ -3825,6 +3841,10 @@ async function main(): Promise<void> {
   }
   if (process.argv.includes("--cleanup-run-e-created-rows")) {
     await cleanupRunECreatedRows(admin);
+    return;
+  }
+  if (process.argv.includes("--inspect-updated-at-columns")) {
+    await inspectUpdatedAtColumns(admin);
     return;
   }
   if (process.argv.includes("--prepare-super-admin-fixture")) {
