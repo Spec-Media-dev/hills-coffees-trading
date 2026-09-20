@@ -674,6 +674,85 @@ export const en = {
   },
 
   /**
+   * Feature 011 — pricing & reference data presentation (T007–T010). Public, server-rendered chrome around
+   * external reference benchmarks. EVERY displayed benchmark carries source, raw unit, raw currency, observation
+   * timestamp, time zone, delay type and the reference-only statement (AC-06). Raw values are shown exactly as
+   * recorded — no currency or unit conversion is applied anywhere (DB-OPEN-08).
+   */
+  pricing: {
+    listLabel: "Reference price benchmarks",
+    referenceOnly: "Reference information, not an offer.",
+    fields: {
+      source: "Source",
+      value: "Reported value",
+      unit: "Unit",
+      currency: "Currency",
+      observed: "Observed",
+      timeZone: "Time zone",
+      delay: "Data timing",
+    },
+    delayTypes: {
+      REAL_TIME: "Real time",
+      DELAYED: "Delayed",
+      DAILY: "Daily",
+      MANUAL: "Manually entered",
+    },
+    delayMinutes: "minutes of delay",
+    commodities: {
+      ARABICA: "Arabica",
+      ROBUSTA: "Robusta",
+      ICO_INDICATOR: "ICO indicator",
+    },
+    rawValuesNote:
+      "Values are shown exactly as recorded by the source, in the source's own unit and currency. No currency or unit conversion is applied.",
+    stale: {
+      title: "Stale reference data",
+      body: "This feed is flagged as stale, so its last value is not shown as current.",
+      lastSuccess: "Last successful observation",
+    },
+    unavailable: {
+      label: "Reference price",
+      noSource: {
+        title: "Reference pricing is not published yet",
+        body: "No approved reference source is available. A reference benchmark appears here once Hills publishes one.",
+      },
+      noObservation: {
+        title: "No reference observation available",
+        body: "An approved source exists, but it has not published an observation to show. Nothing is estimated in its place.",
+      },
+      incomplete: {
+        title: "Reference price withheld",
+        body: "A value is only ever shown together with its full disclosure, and this one is incomplete.",
+      },
+      readFailed: {
+        title: "Reference pricing is temporarily unavailable",
+        body: "Reference pricing could not be loaded right now. No value is shown and none is estimated.",
+      },
+      lastSuccess: "Last successful observation",
+    },
+    basis: {
+      title: "Price basis (explanation only)",
+      lead: "How the benchmark and the recorded differentials relate. This explains a basis — it is not a quote and not an offer.",
+      benchmarkHeading: "Benchmark",
+      differentialsHeading: "Recorded differentials",
+      notSummed:
+        "Amounts are shown as recorded, each in its own unit and currency. They are not added together, netted or converted.",
+      effective: "Effective",
+      from: "from",
+      until: "until",
+      openEnded: "no end date",
+      types: {
+        ORIGIN: "Origin",
+        QUALITY: "Quality",
+        CERTIFICATION: "Certification",
+        CROP: "Crop",
+        COMMERCIAL: "Commercial",
+        OTHER: "Other",
+      },
+    },
+  },
+
+  /**
    * Authentication experience (Feature 003, T004–T010). Public, non-indexable routes under
    * `src/app/(auth)/`. No account-existence disclosure lives in this copy — every failure path uses
    * the SAME generic strings regardless of cause (spec FR-002, SC-005).

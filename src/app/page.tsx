@@ -12,7 +12,7 @@ import { InteractiveStorySection } from "@/components/public/interactive-story-s
 import { OriginsShowcase } from "@/components/public/origins-showcase";
 import { ProcessJourney } from "@/components/public/process-journey";
 import { PublicShell } from "@/components/public/public-shell";
-import { ReferencePrice } from "@/components/public/reference-price";
+import { ReferencePriceSection } from "@/components/pricing/reference-price-section";
 import { PUBLIC_ROUTES } from "@/components/public/routes";
 import { TraceabilityBand } from "@/components/public/traceability-band";
 import { Icon } from "@/components/ui/icon";
@@ -57,14 +57,16 @@ import { canonicalUrl } from "@/lib/public/site";
  *
  * ── DATA AND HONESTY ─────────────────────────────────────────────────────────────────────────────
  *
- * The only database read is the public origins index, through Block A's verified read layer
- * (`lib/public/*`, anonymous client under RLS, explicit column allowlist), for the showcase. The
- * coffee sections are deliberately static and editorial until record photography exists (MEDIA-01)
- * — see `coffee-showcase.tsx` — and hand off to the real dynamic `/coffee/` index. No grade, cup
- * score, crop year, quantity, MOQ, availability, seller, warehouse or price appears anywhere on
- * this page. Nothing is fabricated: empty states say so plainly, no statistic, certification or
- * partner count is invented, and the reference band renders the honest unavailable state
- * (PRICE-011).
+ * Two database reads, both anonymous under RLS with explicit column allowlists: the public origins
+ * index, through Block A's verified read layer (`lib/public/*`), for the showcase, and — since
+ * Feature 011 — the licence-gated reference-price contract (`lib/pricing/*`) for the reference
+ * band. The coffee sections are deliberately static and editorial until record photography exists
+ * (MEDIA-01) — see `coffee-showcase.tsx` — and hand off to the real dynamic `/coffee/` index. No
+ * grade, cup score, crop year, quantity, MOQ, availability, seller, warehouse or EXECUTABLE price
+ * appears anywhere on this page; the only price-like figure is a disclosure-complete reference
+ * benchmark (information, never an offer) or an honest unavailable/stale state. Nothing is
+ * fabricated: empty states say so plainly, and no statistic, certification or partner count is
+ * invented. PRICE-011 is supplied by Feature 011.
  *
  * Server Component. Client JavaScript on this page is limited to the documented islands —
  * `AnimatedHero` (7), `InteractiveStorySection` (8), `OriginsShowcase` (9) — plus the motion
@@ -187,8 +189,10 @@ export default async function HomePage() {
       <ProcessJourney />
 
       {/*
-        9 — Reference information. A wide, deliberately locked data stage. The component renders only
-        the honest unavailable state; no number, source, timestamp or licence claim exists (PRICE-011).
+        9 — Reference information (Feature 011). Rendered through the licence-gated presentation
+        contract: a benchmark appears ONLY with source, unit, currency, observation timestamp, time
+        zone, delay type and the reference-only statement; otherwise the honest stale/unavailable
+        state. Raw values exactly as recorded — no currency or unit conversion (DB-OPEN-08).
       */}
       <section className="bg-secondary py-[clamp(4rem,8vw,8rem)] text-foreground">
         <div className="hc-container flex flex-col gap-10">
@@ -203,7 +207,7 @@ export default async function HomePage() {
               <Bilingual pick={(c) => c.home.reference.lead} />
             </p>
           </div>
-          <ReferencePrice />
+          <ReferencePriceSection />
         </div>
       </section>
 

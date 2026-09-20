@@ -555,6 +555,33 @@ export function inspectUpdatedAtColumns(): UpdatedAtInspection {
   return runJsonFixtureCommand("--inspect-updated-at-columns") as unknown as UpdatedAtInspection;
 }
 
+/**
+ * Feature 011 — disposable pricing fixtures (fixed ids, `F011-` codes) for the live reference-price proof, and their
+ * removal. Written with the privileged seed script; the product never writes these tables.
+ */
+export const PRICING_FIXTURES = {
+  codePrefix: "F011-",
+  approved: { id: "f0110000-0000-4000-8000-000000000001", code: "F011-APPROVED" },
+  stale: { id: "f0110000-0000-4000-8000-000000000002", code: "F011-STALE" },
+  pending: { id: "f0110000-0000-4000-8000-000000000003", code: "F011-PENDING" },
+  restricted: { id: "f0110000-0000-4000-8000-000000000004", code: "F011-RESTRICTED" },
+  disabled: { id: "f0110000-0000-4000-8000-000000000005", code: "F011-DISABLED" },
+  inactive: { id: "f0110000-0000-4000-8000-000000000006", code: "F011-INACTIVE" },
+  differentialIds: [
+    "f0110000-0000-4000-8000-0000000000d1",
+    "f0110000-0000-4000-8000-0000000000d2",
+    "f0110000-0000-4000-8000-0000000000d3",
+    "f0110000-0000-4000-8000-0000000000d4",
+    "f0110000-0000-4000-8000-0000000000d5",
+  ],
+} as const;
+export function seedPricingFixtures(): void {
+  runFixtureScript(["--seed-pricing-fixtures"]);
+}
+export function cleanupPricingFixtures(): Record<string, unknown> {
+  return runJsonFixtureCommand("--cleanup-pricing-fixtures");
+}
+
 /** Feature 010 RUN F — creates/reactivates the disposable SUPER_ADMIN (role exactly SUPER_ADMIN). */
 export function prepareSuperAdminFixture(): void {
   runFixtureScript(["--prepare-super-admin-fixture"]);

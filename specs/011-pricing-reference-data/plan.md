@@ -1,7 +1,7 @@
 # Implementation Plan: Pricing & Reference Data
 
 **Feature**: `011-pricing-reference-data` | **Date**: 2026-09-08 | **Spec**: [spec.md](./spec.md)
-**Status**: Planning prepared — implementation NOT started
+**Status**: Implemented (RUN A, 2026-09-20 — 18 / 22 tasks); DB-BLOCK-10 remainder migration APPLIED and live-verified (2026-09-20)
 
 ## Summary
 
@@ -27,14 +27,18 @@ entity) are recorded, and no conversion or quote workflow is invented around the
 | Public differentials | `price_differentials` SELECT `price_differentials_public_read` (`is_active`) |
 | Administration | `price_*_admin` policies (`is_platform_admin()`) |
 
-**Not available**: FX/conversion storage (DB-OPEN-08); Hills quote entity.
+**Not available**: FX/conversion storage (DB-OPEN-08); Hills quote entity (QUOTE-OPEN-01).
+
+**Anonymous read prerequisite (DB-BLOCK-10 remainder, verified live 2026-09-20)**: the three `price_*_admin` policies are `TO public`, so `anon` aborts with
+`42501 permission denied for function is_platform_admin` on every read — the policies in the table above are unreachable for the anonymous role until
+`20260920160000_feature_011_db_block_10_price_policy_scope.sql` narrows the admin policies to `authenticated`.
 
 ## Constitution Check
 
 | Principle | Status | Note |
 |---|---|---|
 | I Scope boundary | PASS | Reference data is information-only; never presented as executable |
-| III Database authority | PASS | Zero schema change; FX and quote gaps recorded |
+| III Database authority | PASS | No schema change. ONE policy-scope migration (`20260920160000_feature_011_db_block_10_price_policy_scope.sql`: three `ALTER POLICY … TO authenticated`, no expression/grant change) for the DB-BLOCK-10 remainder, self-checking with rollback + postflight; FX and quote gaps recorded |
 | VII Public/private boundary | PASS | Only public price tables; SEC-001 keeps member pricing out |
 | VIII Server-side enforcement | PASS | SEC-003 — licence gating at the read layer |
 | XI Caching | PASS | FR-007/FR-008 — public cacheable, freshness-safe |
@@ -70,6 +74,7 @@ lib/pricing/
 ├── sources.ts        # NEW — licence-gated source/observation reads (cached, tagged)
 ├── differentials.ts  # NEW — active differential reads + basis composition
 ├── freshness.ts      # NEW — staleness/last-success resolution
+├── cache.ts          # NEW — the `reference-prices` tag, TTL and `revalidateReferencePrices()`
 └── presentation.ts   # NEW — the contract 002 consumes
 
 components/pricing/   # NEW — reference price display (disclosure-complete),
@@ -101,3 +106,5 @@ tests/pricing/        # NEW — type separation, disclosure, licence gating, sta
 | **No quote entity** | Hills quote price type has no data model | Type declared, workflow not invented; recorded for a product decision |
 | **No ingestion scheduler** | Observations must be entered administratively | Recorded; no unapproved infrastructure added |
 | Cached staleness misrepresentation | Legal/commercial exposure | Freshness metadata travels with the cached DTO (FR-008) |
+| **DB-BLOCK-10 remainder** — `price_*_admin` policies `TO public` | Every anonymous read failed (42501) | **RESOLVED 2026-09-20**: migration `20260920160000_…` (role scope of three policies) applied; postflight 9/9; live 20/20 |
+| **No price administration in Feature 010** | `revalidateReferencePrices()` has no caller; cache is TTL-only | Recorded; T013 open until 010 gains the surface (or a human accepts the hook) |

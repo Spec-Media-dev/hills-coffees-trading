@@ -3374,6 +3374,86 @@ async function inspectUpdatedAtColumns(admin: SupabaseClient): Promise<void> {
 }
 
 /**
+ * Feature 011 — disposable PRICING fixtures for the live reference-price proof (`tests/pricing/reference-prices-live.test.ts`).
+ * Fixed ids / `F011-` codes so they are re-creatable and removable, and never collide with real data:
+ *   sources        one APPROVED+active (two KC observations + an exchange-rate one that must never be displayed), one APPROVED+active
+ *                  with a STALE ROBUSTA observation, and one each PENDING / RESTRICTED / DISABLED / inactive-APPROVED (each with a
+ *                  distinct observation value that must never leak);
+ *   differentials  two ACTIVE general ones (ORIGIN 12.50, QUALITY 0.75), one INACTIVE, one EXPIRED, one COFFEE-scoped (the RUN E
+ *                  proof coffee — must not appear in the general scope).
+ * Written with the service role (this script is outside the Next.js build graph); the product never writes these tables.
+ */
+const F011_SOURCES = {
+  approved: { id: "f0110000-0000-4000-8000-000000000001", code: "F011-APPROVED" },
+  stale: { id: "f0110000-0000-4000-8000-000000000002", code: "F011-STALE" },
+  pending: { id: "f0110000-0000-4000-8000-000000000003", code: "F011-PENDING" },
+  restricted: { id: "f0110000-0000-4000-8000-000000000004", code: "F011-RESTRICTED" },
+  disabled: { id: "f0110000-0000-4000-8000-000000000005", code: "F011-DISABLED" },
+  inactive: { id: "f0110000-0000-4000-8000-000000000006", code: "F011-INACTIVE" },
+} as const;
+const F011_DIFFERENTIAL_IDS = [
+  "f0110000-0000-4000-8000-0000000000d1",
+  "f0110000-0000-4000-8000-0000000000d2",
+  "f0110000-0000-4000-8000-0000000000d3",
+  "f0110000-0000-4000-8000-0000000000d4",
+  "f0110000-0000-4000-8000-0000000000d5",
+] as const;
+
+async function cleanupPricingFixtures(admin: SupabaseClient): Promise<void> {
+  const removed: Record<string, number> = {};
+  const fixed = Object.values(F011_SOURCES).map((s) => s.id);
+  // also any `F011-` source a live proof created on the fly (e.g. the administrator write-path proof), with its observations
+  const tagged = await admin.from("price_sources").select("id").like("code", "F011-%");
+  if (tagged.error) throw new SafeFixtureError("pricing fixture cleanup failed (lookup).");
+  const ids = [...new Set([...fixed, ...(tagged.data ?? []).map((row) => row.id as string)])];
+  const obs = await admin.from("price_observations").delete().in("price_source_id", ids).select("id");
+  if (obs.error) throw new SafeFixtureError("pricing fixture cleanup failed (observations).");
+  removed.observations = obs.data?.length ?? 0;
+  const diffs = await admin.from("price_differentials").delete().in("id", [...F011_DIFFERENTIAL_IDS]).select("id");
+  if (diffs.error) throw new SafeFixtureError("pricing fixture cleanup failed (differentials).");
+  removed.differentials = diffs.data?.length ?? 0;
+  const srcs = await admin.from("price_sources").delete().or(`id.in.(${ids.join(",")}),code.like.F011-%`).select("id");
+  if (srcs.error) throw new SafeFixtureError("pricing fixture cleanup failed (sources).");
+  removed.sources = srcs.data?.length ?? 0;
+  console.log(JSON.stringify({ removed }));
+}
+
+async function seedPricingFixtures(admin: SupabaseClient): Promise<void> {
+  await cleanupPricingFixtures(admin);
+  const S = F011_SOURCES;
+  const sources = await admin.from("price_sources").insert([
+    { id: S.approved.id, name: "F011 Approved Source", code: S.approved.code, source_type: "ICE_ARABICA", licence_status: "APPROVED", delay_type: "DELAYED", delay_minutes: 15, is_active: true },
+    { id: S.stale.id, name: "F011 Stale Source", code: S.stale.code, source_type: "ICE_ROBUSTA", licence_status: "APPROVED", delay_type: "DAILY", is_active: true },
+    { id: S.pending.id, name: "F011 Pending Source", code: S.pending.code, source_type: "ICE_ARABICA", licence_status: "PENDING", delay_type: "DELAYED", is_active: true },
+    { id: S.restricted.id, name: "F011 Restricted Source", code: S.restricted.code, source_type: "ICE_ARABICA", licence_status: "RESTRICTED", delay_type: "DELAYED", is_active: true },
+    { id: S.disabled.id, name: "F011 Disabled Source", code: S.disabled.code, source_type: "ICE_ARABICA", licence_status: "DISABLED", delay_type: "DELAYED", is_active: true },
+    { id: S.inactive.id, name: "F011 Inactive Source", code: S.inactive.code, source_type: "ICE_ARABICA", licence_status: "APPROVED", delay_type: "DELAYED", is_active: false },
+  ]);
+  if (sources.error) throw new SafeFixtureError("pricing fixture seeding failed (sources).");
+  const obs = await admin.from("price_observations").insert([
+    { price_source_id: S.approved.id, symbol: "KC", commodity_type: "ARABICA", raw_value: "240.5", raw_currency: "USD", raw_unit: "cents/lb", observed_at: "2026-08-31T12:00:00Z", is_stale: false },
+    { price_source_id: S.approved.id, symbol: "KC", commodity_type: "ARABICA", raw_value: "250.125", raw_currency: "USD", raw_unit: "cents/lb", observed_at: "2026-09-01T12:00:00Z", is_stale: false },
+    { price_source_id: S.approved.id, symbol: "EURUSD", commodity_type: "FX", raw_value: "1.0812", raw_currency: "USD", raw_unit: "rate", observed_at: "2026-09-01T12:00:00Z", is_stale: false },
+    { price_source_id: S.stale.id, symbol: "RC", commodity_type: "ROBUSTA", raw_value: "4100.10", raw_currency: "USD", raw_unit: "USD/MT", observed_at: "2026-08-20T09:30:00Z", is_stale: true },
+    { price_source_id: S.pending.id, symbol: "KC", commodity_type: "ARABICA", raw_value: "111.111", raw_currency: "USD", raw_unit: "cents/lb", observed_at: "2026-09-01T12:00:00Z", is_stale: false },
+    { price_source_id: S.restricted.id, symbol: "KC", commodity_type: "ARABICA", raw_value: "222.222", raw_currency: "USD", raw_unit: "cents/lb", observed_at: "2026-09-01T12:00:00Z", is_stale: false },
+    { price_source_id: S.disabled.id, symbol: "KC", commodity_type: "ARABICA", raw_value: "333.333", raw_currency: "USD", raw_unit: "cents/lb", observed_at: "2026-09-01T12:00:00Z", is_stale: false },
+    { price_source_id: S.inactive.id, symbol: "KC", commodity_type: "ARABICA", raw_value: "444.444", raw_currency: "USD", raw_unit: "cents/lb", observed_at: "2026-09-01T12:00:00Z", is_stale: false },
+  ]);
+  if (obs.error) throw new SafeFixtureError("pricing fixture seeding failed (observations).");
+  const D = F011_DIFFERENTIAL_IDS;
+  const diffs = await admin.from("price_differentials").insert([
+    { id: D[0], differential_type: "ORIGIN", amount: "12.50", currency: "USD", unit: "KG", effective_from: "2026-08-01T00:00:00Z", is_active: true, notes: "F011 internal note" },
+    { id: D[1], differential_type: "QUALITY", amount: "0.75", currency: "USD", unit: "KG", effective_from: "2026-08-01T00:00:00Z", effective_until: "2099-01-01T00:00:00Z", is_active: true },
+    { id: D[2], differential_type: "CROP", amount: "9.99", currency: "USD", unit: "KG", effective_from: "2026-08-01T00:00:00Z", is_active: false },
+    { id: D[3], differential_type: "COMMERCIAL", amount: "7.77", currency: "USD", unit: "KG", effective_from: "2020-01-01T00:00:00Z", effective_until: "2020-12-31T00:00:00Z", is_active: true },
+    { id: D[4], differential_type: "CERTIFICATION", amount: "5.55", currency: "USD", unit: "KG", effective_from: "2026-08-01T00:00:00Z", is_active: true, coffee_id: CATALOGUE_IDS.coffeeRunEProof },
+  ]);
+  if (diffs.error) throw new SafeFixtureError("pricing fixture seeding failed (differentials).");
+  console.log(JSON.stringify({ seeded: { sources: 6, observations: 8, differentials: 5 } }));
+}
+
+/**
  * Feature 010 RUN E (KYB review coherence) — stages `completeDraft`'s TRADE_LICENSE document into a
  * given persisted state so the live suite can prove the server-side approval gate against a REAL
  * row (PENDING / REJECTED / an expired ACCEPTED document). `kyb_documents` has no RLS-granted update
@@ -3845,6 +3925,14 @@ async function main(): Promise<void> {
   }
   if (process.argv.includes("--inspect-updated-at-columns")) {
     await inspectUpdatedAtColumns(admin);
+    return;
+  }
+  if (process.argv.includes("--seed-pricing-fixtures")) {
+    await seedPricingFixtures(admin);
+    return;
+  }
+  if (process.argv.includes("--cleanup-pricing-fixtures")) {
+    await cleanupPricingFixtures(admin);
     return;
   }
   if (process.argv.includes("--prepare-super-admin-fixture")) {

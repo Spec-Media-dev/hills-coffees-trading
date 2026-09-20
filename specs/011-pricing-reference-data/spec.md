@@ -2,7 +2,7 @@
 
 **Feature Directory**: `specs/011-pricing-reference-data`
 **Created**: 2026-09-08
-**Status**: Planning prepared — implementation NOT started
+**Status**: Implemented (RUN A, 2026-09-20 — 18 / 22 tasks; see `tasks.md`); the DB-BLOCK-10 remainder migration is APPLIED and live-verified (2026-09-20)
 **Primary surfaces**: Public Website (`/`, via 002) + Member Portal (price context) + Admin
 (`/dashboard-admin`, via 010)
 **Depends on**: 001; consumed by 002 (public presentation), 006/007 (commercial price context),
@@ -229,6 +229,20 @@ after revalidation; as a non-admin, confirm refusal.
 
 ## Open items / blockers
 
+- **DB-BLOCK-10 remainder — RESOLVED 2026-09-20 (applied; postflight 9/9; live 20/20).** Original finding — the anonymous role could not read the three pricing tables (VERIFIED LIVE before the fix): each of
+  `price_sources`, `price_observations`, `price_differentials` carries a `price_*_admin` policy `FOR ALL TO public USING
+  (is_platform_admin())`. `is_platform_admin()` is not executable by `anon`, and because the public-read predicates are not literal
+  `true` the admin branch is evaluated, so an anonymous `SELECT` aborts `42501 permission denied for function is_platform_admin` — the
+  same fault DB-BLOCK-10 fixed for the catalogue tables (whose migration explicitly deferred these three to this feature). Resolved by
+  `supabase/migrations/20260920160000_feature_011_db_block_10_price_policy_scope.sql` — `ALTER POLICY … TO authenticated` on exactly those three policies; expressions, grants, `warehouses` and every
+  other policy untouched; self-checking, with rollback and postflight. **Until it was applied every anonymous read failed closed** and the
+  public surface showed the honest `read_failed` state. (`warehouses` carries the same policy shape but this feature does not read it, so it is
+  deliberately NOT changed.)
+- **QUOTE-OPEN-01 — no Hills quote entity** (recorded centrally in `DATABASE-CAPABILITY-MAP.md`): `HillsQuotePrice` is declared and unconstructable.
+- **Feature 010 has no price-administration surface** (FR-011 says administration is delivered through 010, but none of its 48 tasks covers
+  sources/observations/differentials): `revalidateReferencePrices()` exists and the tag is registered, but nothing calls it yet — the cache is
+  TTL-only (300s). This is why `tasks.md` T013 stays open.
+
 - **Market-data licensing (SRS §18, §12)**: redistribution rights are a Sprint 0 legal/vendor
   decision. Until a source's licence is approved, nothing from it may be displayed. This is enforced
   by FR-002 but the underlying business approval is external.
@@ -243,6 +257,19 @@ after revalidation; as a non-admin, confirm refusal.
   the approved schema has no quote entity (orders reference `coffee_offers` prices). The RFQ→quote
   workflow therefore has no data model — recorded here because this feature owns the price-type
   taxonomy. Requires a product/database decision before a quote workflow can exist.
+
+## Assumptions recorded during implementation (RUN A)
+
+- **Licence gate**: `licence_status = 'APPROVED'` AND `is_active` is the ONLY displayability condition; enforced by RLS, by the query and by the mapper. A source's stored
+  `delay_type = 'REAL_TIME'` is shown as such only because the source passed that gate (no redistribution permission is invented beyond the approved licence state).
+- **What counts as a benchmark**: observations of commodity type `ARABICA`, `ROBUSTA`, `ICO_INDICATOR` only. Exchange-rate (`FX`) and `OTHER` observations are never requested — an exchange-rate
+  observation is exactly the input a conversion would need (DB-OPEN-08) and `OTHER` is not an Arabica/Robusta/ICO benchmark.
+- **Time zone**: observation instants are presented in UTC, stated next to every timestamp. No age threshold is invented for "stale": the stored `is_stale` flag decides, and the observation
+  timestamp is always shown.
+- **Stale figures are withheld**: a stale feed shows source, symbol and last-success timestamp — no value.
+- **Exact values**: `raw_value` / `amount` are read as `numeric::text` and displayed as stored (the columns' fixed scale means `250.125` is stored and shown as `250.125000`).
+- **Differentials** shown publicly: active, in-period, NOT lot-scoped (a lot identity is private), free-text `notes` never published; scope is explicit (general / one coffee / one origin by slug).
+  A basis is composed only from a CURRENT benchmark plus in-period differentials, is marked explanatory, and is never summed.
 
 ## Dependencies
 

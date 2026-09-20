@@ -63,6 +63,21 @@ is the platform-wide index that document points back to.
 | `public-origin:{slug}` | 002 | one origin detail DTO | 3600s | catalogue mutations — Feature 010 (not implemented) | TTL only |
 | `public-taxonomy` | 002 | types / varieties / processing / packaging / tags | 86400s | catalogue mutations — Feature 010 (not implemented) | TTL only |
 
+## Registered cache tags (Feature 011 T013)
+
+Added additively, one row per the rule below. The reference-price layer (`lib/pricing/*`) reads only public,
+slow-changing, licence-gated reference data with the ANONYMOUS client under RLS, so a single shared entry is safe
+for every visitor (no key part or value varies by user, session, organization or role).
+
+| Tag | Feature | Covers | `revalidate` (TTL ceiling) | Invalidation owner | Status today |
+|---|---|---|---|---|---|
+| `reference-prices` | 011 | approved-source benchmark snapshot; one source's observations; active differentials (per scope) | 300s | price administration — Feature 010 must call `revalidateReferencePrices()` (`lib/pricing/cache.ts`); that surface does not exist yet | TTL only |
+
+Freshness travels with the cached value: every record carries its own `observedAt`, `isStale` and the cache
+entry's `readAt`, and the presentation contract re-derives current / stale / unavailable on every render, so a cache
+hit can never present stale data as current (FR-008). Failed reads throw inside the cached function and are never
+stored. Feature 002's `cache-proof` allow-list is intentionally NOT extended (its five-entry contract is pinned).
+
 ## Adding a new cache entry (for later features)
 
 1. Confirm the data is public and non-authorization-sensitive, or is scoped so its cache key cannot
