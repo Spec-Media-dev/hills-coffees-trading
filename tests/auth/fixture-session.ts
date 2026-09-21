@@ -695,6 +695,82 @@ export function ageCheckoutHold(orderId: string): void {
   runFixtureScript([`--age-checkout-hold=${orderId}`]);
 }
 
+/**
+ * Feature 006 live-chain fixtures (T015 / T018 / T023 / T024). The chain is built ONLY with real primitives
+ * (Features 007/009's checkout, warehouse and settlement functions, Feature 006's own actions); these helpers are the
+ * approved setup/teardown/inspection boundary around it — never runtime code, never a writer of business state.
+ * `prepareF006LiveFixtures()` seeds Feature 009's standing Hills fixture listing (idempotent) and the reviewed
+ * disposable ADMIN; `cleanupF006LiveFixtures()` removes every F006 row, restores the shared delivery baseline and
+ * de-privileges the ADMIN. GATED: the live blocks run only with `F006_LIVE_PROOF=1`, because a settlement leaves
+ * append-only ownership events behind that nothing may delete.
+ */
+export const F006_LIVE = process.env.F006_LIVE_PROOF === "1";
+export const F006_FIXTURES = {
+  titlePrefix: "F006L ",
+  /** Feature 009's standing Hills fixture (reused — no new lot exists). */
+  hillsLotId: "09000000-0000-4000-8000-000000000001",
+  hillsOfferId: "09000000-0000-4000-8000-000000000003",
+  hillsOrganizationId: "05000000-0000-4000-8000-000000000001",
+} as const;
+
+export function prepareF006LiveFixtures(): void {
+  runFixtureScript(["--prepare-f006-live-fixtures"]);
+}
+export function cleanupF006LiveFixtures(): Record<string, unknown> {
+  return runJsonFixtureCommand("--cleanup-f006-live-fixtures");
+}
+export function inspectF006Residue(): Record<string, unknown> {
+  return runJsonFixtureCommand("--inspect-f006-residue");
+}
+export function inspectF006RowCounts(): Record<string, number> {
+  return runJsonFixtureCommand("--inspect-f006-rowcounts") as Record<string, number>;
+}
+
+export type F006OfferInspection = {
+  offer: {
+    id: string;
+    status: string;
+    is_visible: boolean;
+    quantity_kg: number;
+    reserved_quantity_kg: number;
+    filled_quantity_kg: number;
+    seller_organization_id: string;
+    seller_type: string;
+    lot_id: string;
+    created_by: string;
+    source_purchase_order_item_id: string | null;
+  } | null;
+  sellerPosition: { id: string; available_quantity_kg: number; reserved_quantity_kg: number } | null;
+  statusHistory: Array<{ old_status: string | null; new_status: string; changed_by: string | null; reason: string | null; created_at: string }>;
+  reviews: Array<{ decision: string; reviewer_user_id: string | null; reason: string | null }>;
+  orderItems: Array<{ id: string; order_id: string; quantity_kg: number }>;
+  activeReservationCount: number;
+  activeReservationKg: number;
+};
+export function inspectF006Offer(offerId: string): F006OfferInspection {
+  return runJsonFixtureCommand(`--inspect-f006-offer=${offerId}`) as unknown as F006OfferInspection;
+}
+
+export type DeliveryOrderInspection = {
+  order: { id: string; status: string; buyer_organization_id: string } | null;
+  items: Array<{ id: string; offer_id: string; lot_id: string; quantity_kg: number }>;
+  shipments: Array<{ id: string; status: string; settlement_verified_at: string | null }>;
+  shipmentItems: Array<{ id: string; shipment_id: string; reserved_quantity_kg: number }>;
+  allocations: Array<{ id: string; order_item_id: string; quantity_kg: number; status: string }>;
+  payment: { id: string; status: string; amount: number } | null;
+  activeReservation: { id: string; status: string; expires_at: string } | null;
+};
+export function inspectDeliveryOrder(orderId: string): DeliveryOrderInspection {
+  return runJsonFixtureCommand(`--inspect-delivery-order=${orderId}`) as unknown as DeliveryOrderInspection;
+}
+export function inspectDeliveryPositionByLotOwner(lotId: string, organizationId: string): { id: string; available_quantity_kg: number; reserved_quantity_kg: number } | null {
+  const line = runFixtureScript([`--inspect-delivery-position-by-lot-owner=${lotId}:${organizationId}`], { captureOutput: true })
+    .trim()
+    .split(/\r?\n/)
+    .find((candidate) => candidate.startsWith("{") || candidate === "null");
+  return line === undefined || line === "null" ? null : (JSON.parse(line) as { id: string; available_quantity_kg: number; reserved_quantity_kg: number });
+}
+
 function runFixtureScript(args: readonly string[], options: { captureOutput?: boolean } = {}): string {
   loadTestEnvironment();
   const output = execFileSync(

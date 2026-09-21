@@ -2811,6 +2811,258 @@ async function seedPhantomReservation(admin: SupabaseClient, ownerOrganizationId
 }
 
 // ---------------------------------------------------------------------------
+// Feature 006 live-chain fixtures (T015 / T018 / T023 / T024)
+// ---------------------------------------------------------------------------
+
+/**
+ * Feature 006's live proofs need a REAL member-seller listing, which needs a REAL settled purchase. The database
+ * offers no shortcut (`validate_offer_transition` checks the MEMBER_SELLER purchase provenance on every write), so the
+ * chain is built with the same real primitives Features 007/009 already use — nothing here writes business state:
+ *
+ *   Hills listing (Feature 009's standing `offerDeliveryMain`/`lotMain` fixture, reused — no new lot is created)
+ *     → buyer-and-seller org buys through the real 007 checkout        (`checkout_order`)
+ *     → settled by the standing FINANCE fixture                         (`admin_review_payment`)
+ *     → the org owns a position + a PAID order = valid provenance       (its shipment is then cancelled to free stock)
+ *     → the org lists it (real `createListingDraft`), submits, compliance approves/publishes
+ *     → the buyer-only org buys from THAT listing and it is settled again (reserve → fill).
+ *
+ * This section adds NO writer of business state. It adds only: an exact-scope residue read, an exact-scope cleanup, and
+ * read-only inspections. Every listing the proofs create carries the `F006L ` title prefix; every order/position is
+ * found structurally (an order whose items sit on the dedicated fixture offer or on an `F006L ` listing, not a T013
+ * order) and verified against the two documented buyer fixtures BEFORE any DELETE. `inventory_ownership_events` is
+ * append-only by trigger (`prevent_ownership_event_mutation`) and `audit_logs` is retained by policy — both are
+ * reported, never deleted.
+ */
+const F006_LISTING_TITLE_PREFIX = "F006L ";
+const f006BuyerOrganizationIds = [ORGANIZATION_IDS.buyerOnly, ORGANIZATION_IDS.buyerAndSeller] as const;
+
+type F006Residue = {
+  scopeProblems: string[];
+  listings: Array<{ id: string; seller_organization_id: string; lot_id: string; title: string | null; created_by: string; source_purchase_order_item_id: string | null; status: string }>;
+  orders: Array<{ id: string; order_code: string; buyer_organization_id: string; created_by: string; status: string }>;
+  orderItems: Array<{ id: string; order_id: string; offer_id: string; lot_id: string; seller_organization_id: string }>;
+  storageAllocations: Array<{ id: string; order_item_id: string | null; owner_organization_id: string; lot_id: string; warehouse_id: string; warehouse_location_id: string | null }>;
+  payouts: Array<{ id: string; order_id: string; seller_organization_id: string }>;
+  proformas: Array<{ id: string; order_id: string }>;
+  positions: Array<{ id: string; lot_id: string; owner_organization_id: string; warehouse_id: string | null; warehouse_location_id: string | null }>;
+  immutableOwnershipEvents: Array<{ id: string; order_item_id: string | null }>;
+};
+
+function throwF006ReadError(): never {
+  throw new SafeFixtureError("Feature 006 fixture inspection failed; no cleanup was performed.");
+}
+
+async function readF006Residue(admin: SupabaseClient): Promise<F006Residue> {
+  const actors = await getT013FixtureActors(admin);
+  const permittedUsers = new Set([actors.buyerOnlyUserId, actors.buyerAndSellerUserId]);
+  const permittedOrganizations = new Set<string>(f006BuyerOrganizationIds);
+
+  const { data: listingRows, error: listingError } = await admin
+    .from("coffee_offers")
+    .select("id, seller_organization_id, lot_id, title, created_by, source_purchase_order_item_id, status")
+    .like("title", `${F006_LISTING_TITLE_PREFIX}%`);
+  if (listingError) throwF006ReadError();
+  const listings = listingRows ?? [];
+  const listingIds = listings.map((row) => row.id as string);
+
+  const { data: itemRows, error: itemError } = await admin
+    .from("order_items")
+    .select("id, order_id, offer_id, lot_id, seller_organization_id")
+    .in("offer_id", [DELIVERY_FIXTURE_IDS.offerDeliveryMain, ...listingIds]);
+  if (itemError) throwF006ReadError();
+  const candidateOrderIds = [...new Set((itemRows ?? []).map((row) => row.order_id as string))];
+
+  let orders: F006Residue["orders"] = [];
+  if (candidateOrderIds.length > 0) {
+    const { data, error } = await admin.from("orders").select("id, order_code, buyer_organization_id, created_by, status").in("id", candidateOrderIds);
+    if (error) throwF006ReadError();
+    // T013's own tagged orders belong to T013's cleanup, never to this one.
+    orders = (data ?? []).filter((row) => !String(row.order_code).startsWith(T013_ORDER_PREFIX));
+  }
+  const orderIds = orders.map((row) => row.id);
+  const orderItems = (itemRows ?? []).filter((row) => orderIds.includes(row.order_id as string)) as F006Residue["orderItems"];
+  const itemIds = orderItems.map((row) => row.id);
+
+  const empty = { data: [], error: null };
+  const [allocationsResult, payoutsResult, proformasResult, eventsResult, positionsResult] = await Promise.all([
+    itemIds.length === 0 ? Promise.resolve(empty) : admin.from("storage_allocations").select("id, order_item_id, owner_organization_id, lot_id, warehouse_id, warehouse_location_id").in("order_item_id", itemIds),
+    orderIds.length === 0 ? Promise.resolve(empty) : admin.from("payouts").select("id, order_id, seller_organization_id").in("order_id", orderIds),
+    orderIds.length === 0 ? Promise.resolve(empty) : admin.from("proforma_invoices").select("id, order_id").in("order_id", orderIds),
+    itemIds.length === 0 ? Promise.resolve(empty) : admin.from("inventory_ownership_events").select("id, order_item_id").in("order_item_id", itemIds),
+    admin.from("inventory_positions").select("id, lot_id, owner_organization_id, warehouse_id, warehouse_location_id").eq("lot_id", DELIVERY_FIXTURE_IDS.lotMain).in("owner_organization_id", [...f006BuyerOrganizationIds]),
+  ]);
+  if (allocationsResult.error || payoutsResult.error || proformasResult.error || eventsResult.error || positionsResult.error) throwF006ReadError();
+
+  const residue: F006Residue = {
+    scopeProblems: [],
+    listings: listings as F006Residue["listings"],
+    orders,
+    orderItems,
+    storageAllocations: (allocationsResult.data ?? []) as F006Residue["storageAllocations"],
+    payouts: (payoutsResult.data ?? []) as F006Residue["payouts"],
+    proformas: (proformasResult.data ?? []) as F006Residue["proformas"],
+    positions: (positionsResult.data ?? []) as F006Residue["positions"],
+    immutableOwnershipEvents: (eventsResult.data ?? []) as F006Residue["immutableOwnershipEvents"],
+  };
+
+  const permittedItems = new Set(itemIds);
+  const permittedOffers = new Set<string>([DELIVERY_FIXTURE_IDS.offerDeliveryMain, ...listingIds]);
+  if (residue.listings.some((row) => row.seller_organization_id !== ORGANIZATION_IDS.buyerAndSeller || row.lot_id !== DELIVERY_FIXTURE_IDS.lotMain || row.created_by !== actors.buyerAndSellerUserId || (row.source_purchase_order_item_id !== null && !permittedItems.has(row.source_purchase_order_item_id)))) {
+    residue.scopeProblems.push("an F006L listing does not match its documented identity (seller org, lot, creator, purchase provenance)");
+  }
+  if (residue.orders.some((row) => !permittedOrganizations.has(row.buyer_organization_id) || !permittedUsers.has(row.created_by))) residue.scopeProblems.push("an order on the fixture offers is not one of the two documented buyer fixtures'");
+  if (residue.orderItems.some((row) => !permittedOffers.has(row.offer_id) || row.lot_id !== DELIVERY_FIXTURE_IDS.lotMain)) residue.scopeProblems.push("an order item is not on the dedicated fixture lot/offers");
+  if (residue.storageAllocations.some((row) => !permittedOrganizations.has(row.owner_organization_id) || row.lot_id !== DELIVERY_FIXTURE_IDS.lotMain || row.warehouse_id !== INVENTORY_FIXTURE_IDS.warehouse || row.warehouse_location_id !== null)) residue.scopeProblems.push("a storage allocation is not on the exact fixture custody key");
+  if (residue.payouts.some((row) => row.seller_organization_id !== ORGANIZATION_IDS.buyerAndSeller)) residue.scopeProblems.push("a payout is not owed to the documented seller fixture");
+  if (residue.positions.some((row) => row.warehouse_id !== INVENTORY_FIXTURE_IDS.warehouse || row.warehouse_location_id !== null)) residue.scopeProblems.push("a buyer position is not on the exact fixture custody key");
+  return residue;
+}
+
+function f006ResidueSummary(residue: F006Residue): Record<string, unknown> {
+  return {
+    listings: residue.listings.length,
+    orders: residue.orders.length,
+    orderStatusCounts: residue.orders.reduce<Record<string, number>>((counts, order) => ({ ...counts, [order.status]: (counts[order.status] ?? 0) + 1 }), {}),
+    orderItems: residue.orderItems.length,
+    storageAllocations: residue.storageAllocations.length,
+    payouts: residue.payouts.length,
+    proformas: residue.proformas.length,
+    buyerPositions: residue.positions.length,
+    immutableOwnershipEvents: residue.immutableOwnershipEvents.length,
+    scopeProblems: residue.scopeProblems,
+  };
+}
+
+/**
+ * Removes exactly the residue `readF006Residue` proved to be in scope, in the only order the foreign keys allow:
+ * orders that BUY an F006L listing → the listings → the remaining orders (which the listings' provenance pointed at).
+ * The FK graph has no cascade on `payouts`, `storage_allocations` or `proforma_invoice_items`, so those go first.
+ * `inventory_ownership_events` (append-only) and `audit_logs` are retained and reported.
+ */
+async function cleanupF006BusinessRows(admin: SupabaseClient): Promise<Record<string, unknown>> {
+  const residue = await readF006Residue(admin);
+  if (residue.scopeProblems.length > 0) throw new SafeFixtureError("Feature 006 cleanup scope mismatch; refusing to mutate any fixture row.");
+
+  const listingIds = residue.listings.map((row) => row.id);
+  const ordersBuyingListings = [...new Set(residue.orderItems.filter((row) => listingIds.includes(row.offer_id)).map((row) => row.order_id))];
+  const remainingOrders = residue.orders.map((row) => row.id).filter((id) => !ordersBuyingListings.includes(id));
+
+  const proformaIds = residue.proformas.map((row) => row.id);
+  if (proformaIds.length > 0) {
+    const { data, error } = await admin.from("proforma_invoice_items").select("id").in("proforma_id", proformaIds);
+    if (error) throw new SafeFixtureError("Feature 006 cleanup could not read proforma items; nothing further was removed.");
+    await deleteExactIds(admin, "proforma_invoice_items", (data ?? []).map((row) => row.id as string), "F006 proforma invoice items");
+  }
+  await deleteExactIds(admin, "storage_allocations", residue.storageAllocations.map((row) => row.id), "F006 storage allocations");
+  await deleteExactIds(admin, "payouts", residue.payouts.map((row) => row.id), "F006 payouts");
+  await deleteExactIds(admin, "orders", ordersBuyingListings, "F006 orders on resale listings");
+  await deleteExactIds(admin, "coffee_offers", listingIds, "F006 resale listings");
+  await deleteExactIds(admin, "orders", remainingOrders, "F006 orders on the Hills fixture listing");
+  await deleteExactIds(admin, "inventory_positions", residue.positions.map((row) => row.id), "F006 buyer positions");
+
+  const after = await readF006Residue(admin);
+  if (after.listings.length !== 0 || after.orders.length !== 0 || after.positions.length !== 0 || after.scopeProblems.length !== 0) {
+    throw new SafeFixtureError("Feature 006 cleanup postcondition failed; fixture state was not left clean.");
+  }
+  return { before: f006ResidueSummary(residue), after: f006ResidueSummary(after), retainedImmutableOwnershipEvents: residue.immutableOwnershipEvents.length, businessFixtureResidue: "zero" };
+}
+
+const F006_COUNTED_TABLES = [
+  "coffee_offers",
+  "listing_status_history",
+  "listing_reviews",
+  "orders",
+  "order_items",
+  "order_status_history",
+  "order_shipments",
+  "shipment_items",
+  "payments",
+  "payment_reviews",
+  "payouts",
+  "proforma_invoices",
+  "proforma_invoice_items",
+  "inventory_positions",
+  "inventory_reservations",
+  "inventory_reservation_items",
+  "storage_allocations",
+  "inventory_ownership_events",
+  "audit_logs",
+  "organization_members",
+  "file_assets",
+] as const;
+
+/** TEST-ONLY read-only row counts (plus active platform admins / all profiles) — the before/after evidence for cleanup. */
+async function inspectF006RowCounts(admin: SupabaseClient): Promise<void> {
+  const counts: Record<string, number> = {};
+  for (const table of F006_COUNTED_TABLES) {
+    const { count, error } = await admin.from(table).select("*", { count: "exact", head: true });
+    if (error) throw new SafeFixtureError(`Row count failed for ${table}.`);
+    counts[table] = count ?? -1;
+  }
+  const admins = await admin.from("platform_admins").select("user_id", { count: "exact", head: true }).eq("is_active", true);
+  const profiles = await admin.from("profiles").select("id", { count: "exact", head: true });
+  if (admins.error || profiles.error) throw new SafeFixtureError("Row count failed for platform_admins/profiles.");
+  counts.platform_admins_active = admins.count ?? -1;
+  counts.profiles = profiles.count ?? -1;
+  console.log(JSON.stringify(counts));
+}
+
+/**
+ * TEST-ONLY read-only snapshot of ONE listing: the stored columns, the ACTIVE reservation items behind its reserved
+ * mirror, its seller's position for the lot, its history/review rows and the order items that bought it. The
+ * reservation tables are admin-only by RLS (DB-OPEN-12), so this is the approved way for a release-blocking test to
+ * see them; no runtime member code reads them.
+ */
+async function inspectF006Offer(admin: SupabaseClient, offerId: string): Promise<void> {
+  if (!/^[0-9a-f-]{36}$/i.test(offerId)) throw new SafeFixtureError("--inspect-f006-offer requires a UUID.");
+  const { data: offer, error: offerError } = await admin
+    .from("coffee_offers")
+    .select("id, status, is_visible, quantity_kg, reserved_quantity_kg, filled_quantity_kg, seller_organization_id, seller_type, lot_id, warehouse_id, warehouse_location_id, created_by, source_purchase_order_item_id")
+    .eq("id", offerId)
+    .maybeSingle();
+  if (offerError) throw new SafeFixtureError("Feature 006 offer inspection failed.");
+  if (!offer) {
+    console.log(JSON.stringify({ offer: null }));
+    return;
+  }
+  let positionQuery = admin
+    .from("inventory_positions")
+    .select("id, available_quantity_kg, reserved_quantity_kg")
+    .eq("lot_id", offer.lot_id)
+    .eq("owner_organization_id", offer.seller_organization_id)
+    .eq("warehouse_id", offer.warehouse_id);
+  positionQuery = offer.warehouse_location_id === null ? positionQuery.is("warehouse_location_id", null) : positionQuery.eq("warehouse_location_id", offer.warehouse_location_id);
+  const [history, reviews, items, position] = await Promise.all([
+    admin.from("listing_status_history").select("old_status, new_status, changed_by, reason, created_at").eq("offer_id", offerId).order("created_at", { ascending: true }),
+    admin.from("listing_reviews").select("decision, reviewer_user_id, reason").eq("offer_id", offerId),
+    admin.from("order_items").select("id, order_id, quantity_kg").eq("offer_id", offerId),
+    positionQuery.maybeSingle(),
+  ]);
+  for (const result of [history, reviews, items, position]) if (result.error) throw new SafeFixtureError("Feature 006 offer inspection failed.");
+
+  const { data: active, error: activeError } = await admin.from("inventory_reservations").select("id").eq("status", "ACTIVE");
+  if (activeError) throw new SafeFixtureError("Feature 006 offer inspection failed.");
+  const activeIds = (active ?? []).map((row) => row.id as string);
+  let activeReservationItems: Array<{ reservation_id: string; quantity_kg: number }> = [];
+  if (activeIds.length > 0) {
+    const { data, error } = await admin.from("inventory_reservation_items").select("reservation_id, quantity_kg").eq("offer_id", offerId).in("reservation_id", activeIds);
+    if (error) throw new SafeFixtureError("Feature 006 offer inspection failed.");
+    activeReservationItems = (data ?? []) as typeof activeReservationItems;
+  }
+  console.log(
+    JSON.stringify({
+      offer,
+      sellerPosition: position.data ?? null,
+      statusHistory: history.data ?? [],
+      reviews: reviews.data ?? [],
+      orderItems: items.data ?? [],
+      activeReservationCount: new Set(activeReservationItems.map((row) => row.reservation_id)).size,
+      activeReservationKg: activeReservationItems.reduce((total, row) => total + Number(row.quantity_kg), 0),
+    })
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Supabase admin access
 // ---------------------------------------------------------------------------
 
@@ -3925,6 +4177,46 @@ async function main(): Promise<void> {
     const business = await cleanupT013BusinessResidue(admin);
     const adminFixture = await cleanupT013DeliveryAdminFixture(admin);
     console.log(JSON.stringify({ business, adminFixture }));
+    return;
+  }
+
+  // Feature 006 live-chain fixtures (T015/T018/T023/T024) — composed from the reviewed T013 lifecycle, never a second
+  // privileged architecture. PREPARE refuses over any residue (T013's or F006's); CLEANUP removes the F006 rows first
+  // (the T013 scope check would otherwise refuse their untagged orders), then restores the shared delivery baseline and
+  // removes the disposable ADMIN exactly as T013 does.
+  if (process.argv.includes("--inspect-f006-residue")) {
+    console.log(JSON.stringify(f006ResidueSummary(await readF006Residue(admin))));
+    return;
+  }
+  if (process.argv.includes("--inspect-f006-rowcounts")) {
+    await inspectF006RowCounts(admin);
+    return;
+  }
+  const inspectF006OfferArgument = process.argv.find((argument) => argument.startsWith("--inspect-f006-offer="));
+  if (inspectF006OfferArgument) {
+    await inspectF006Offer(admin, inspectF006OfferArgument.slice("--inspect-f006-offer=".length));
+    return;
+  }
+  if (process.argv.includes("--prepare-f006-live-fixtures")) {
+    const f006 = await readF006Residue(admin);
+    const t013 = await readT013Residue(admin);
+    if (f006.scopeProblems.length > 0 || f006.listings.length !== 0 || f006.orders.length !== 0 || f006.positions.length !== 0) {
+      throw new SafeFixtureError("Feature 006 live fixture preparation refused while F006 business residue exists; run --cleanup-f006-live-fixtures first.");
+    }
+    if (t013.scopeProblems.length > 0 || t013.orders.length !== 0 || t013.allDeliveryOfferItems.length !== 0 || t013.paymentProofAssets.length !== 0 || t013.buyerPositions.length !== 0) {
+      throw new SafeFixtureError("Feature 006 live fixture preparation refused while T013 business residue exists; run --cleanup-t013-residue first.");
+    }
+    await seedDeliveryFixtures(admin);
+    await createT013DeliveryAdminFixture(admin, requireEnv("TEST_FIXTURE_PASSWORD"));
+    return;
+  }
+  if (process.argv.includes("--cleanup-f006-live-fixtures")) {
+    const f006 = await cleanupF006BusinessRows(admin);
+    const business = await cleanupT013BusinessResidue(admin);
+    // Safe to run when PREPARE never did (a failed setup): an ADMIN identity that holds no capability is already clean.
+    const adminState = await inspectDisposableOperatorFixture(admin, T013_DELIVERY_ADMIN_FIXTURE);
+    const adminFixture = adminState.activeCapability === true ? await cleanupT013DeliveryAdminFixture(admin) : { adminFixture: "already-clean", activeAdminPrivilege: false, role: "ADMIN" };
+    console.log(JSON.stringify({ f006, business, adminFixture }));
     return;
   }
 

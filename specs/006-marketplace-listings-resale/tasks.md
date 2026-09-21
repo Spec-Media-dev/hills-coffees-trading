@@ -3,18 +3,19 @@
 **Input**: [spec.md](./spec.md), [plan.md](./plan.md), `docs/architecture/DATABASE-CAPABILITY-MAP.md`,
 `.specify/memory/constitution.md` (v2.0.0), SRS §8 (MKT-01..MKT-07), AC-01/AC-02.
 
-**Status**: T001–T011, T013–T014, T016–T017, T019–T022, T025–T032 implemented and verified (RUN A:
-T001–T008; RUN B: T009–T011, T013–T014; RUN C: T016–T017, T019–T021, T025–T026; CLOSURE RUN
-2026-09-21: T022 ✅ DB-BLOCK-07 resolved, T027–T032 ✅; T018 re-opened per literal Verify criteria).
-**T012 is a KNOWN BLOCKER** (product decision pending — see T012 entry). **T015/T023 are BLOCKED LIVE
-PROOF** (implementation complete, successful-transition + `listing_status_history` write not provable
-live under the settled-order ceiling — no change since 2026-09-13). **T018 is RE-OPENED** (seller
-detail render component complete via `AvailabilityBar`, but literal Verify criteria require live 007
-reservation and 008 settlement proof which was not executed). **T024 is DEFERRED** (requires live
-Feature 007 expired-reservation fixture and Feature 008 settlement data; pure-arithmetic coverage
-complete in T005). See `IMPLEMENTATION-HANDOFF.md` for full evidence and open gaps. **27/32 tasks
-complete (5 open/unverified: T012 product decision, T015 blocked-live-proof, T018 re-opened live proof,
-T023 blocked-live-proof, T024 deferred live fixture).**
+**Status**: **LIVE-FIXTURE CLOSURE RUN 2026-09-21 — 31/32 tasks complete; only T012 is open.** T015, T018, T023 and T024
+are now proven LIVE against the real database with a disposable, fully-removed fixture chain (`tests/listings/live-chain.ts`
+— see T015): a real own-organization listing built on a genuinely settled purchase, driven through the real Feature 007
+checkout, the currently authoritative settlement primitive (`admin_review_payment`), the real Feature 006 actions and the
+real compliance console, with every `listing_status_history` row written by the database trigger. The earlier "settled-order
+ceiling" (no MEMBER_SELLER row can exist, no settled order can be constructed) no longer holds — Features 007 and 009 are
+CLOSED and their reviewed live proofs walk real orders to `PAID`. The live blocks are GATED behind `F006_LIVE_PROOF=1`
+(`F006_LIVE_PROOF=1 npx vitest run tests/listings` → 23 files / 191 tests; without the flag 175 pass and 16 skip) because
+a settlement leaves append-only `inventory_ownership_events` that nothing may delete. **T012 remains a KNOWN BLOCKER**
+(product-owner decision on SOLD_OUT buyer visibility — deliberately not decided or touched in this run).
+Earlier history: T001–T011, T013–T014, T016–T017, T019–T022, T025–T032 implemented and verified (RUN A: T001–T008; RUN B:
+T009–T011, T013–T014; RUN C: T016–T017, T019–T021, T025–T026; CLOSURE RUN 2026-09-21: T022 ✅ DB-BLOCK-07 resolved, T027–T032 ✅).
+See `IMPLEMENTATION-HANDOFF.md` for the full evidence trail.
 **Prerequisite**: 001, 003, 004, 005 implemented.
 
 ## Task format
@@ -248,7 +249,7 @@ T023 blocked-live-proof, T024 deferred live fixture).**
     unreachable live for the same settled-order reason `eligibility.test.ts` already documents; see
     `IMPLEMENTATION-HANDOFF.md` §0/§11).
 
-- [ ] T015 [PS3] [**BLOCKED LIVE PROOF, recorded 2026-09-13**] Implement submit-for-review (`DRAFT → PENDING_REVIEW`) via a permitted write the
+- [x] T015 [PS3] [**LIVE PROOF COMPLETE 2026-09-21** — the 2026-09-13 blocker below is superseded] Implement submit-for-review (`DRAFT → PENDING_REVIEW`) via a permitted write the
   `validate_offer_transition` trigger accepts.
   - Req: FR-009, PS3 | Depends: T014
   - Verify: successful submit records a `listing_status_history` row written by the database; a forbidden transition is refused by the trigger and surfaced as a safe error
@@ -278,6 +279,29 @@ T023 blocked-live-proof, T024 deferred live fixture).**
     standard applied to T023, T015 is corrected from `[x]` to `[ ]` `[BLOCKED LIVE PROOF]` -- the
     implementation itself is unchanged and correct; only the acceptance status was overstated.
     Closes alongside T023 once a genuinely submittable/transitionable own-org listing exists.
+  - **LIVE PROOF COMPLETE (2026-09-21, live-fixture closure run)** — `tests/listings/transitions.test.ts`, describe
+    "T015 + T023 — LIVE own-organization listing lifecycle" (7 tests, `F006_LIVE_PROOF=1`). **Fixture architecture (shared with
+    T018/T023/T024, `tests/listings/live-chain.ts`)** — no migration, no policy/trigger/grant change, no service-role product
+    logic, no mocked database contract, no fake payment provider; every write is a real, RLS-respecting primitive:
+    (1) orgB (buyer-and-seller) buys 20 kg from Feature 009's standing Hills fixture listing through the real Feature 007 flow
+    (`createDraftOrder` → `addOrderItem` → shipment plan → `executeCheckout`); the standing WAREHOUSE fixture marks the shipment
+    READY; (2) the order is settled by `admin_review_payment()` (run by the standing FINANCE fixture) — the two order-status
+    transitions that precede it (`HOLD → PAYMENT_PROOF_SUBMITTED → PAYMENT_UNDER_REVIEW`) are made by Feature 009's reviewed
+    disposable ADMIN, exactly as in `tests/delivery/t017-record-delivery-live.test.ts`, because the buyer-facing
+    `submit_payment_proof()` cannot advance a fresh HOLD order (documented and reproduced by Feature 009,
+    `tests/delivery/t013-live-proof.test.ts`); (3) settlement delivery-reserves the shipment (Feature 009), so the WAREHOUSE fixture
+    cancels it, freeing the stock (Feature 009's reviewed T013 scenario 9); (4) orgB now owns an unreserved position and a `PAID`
+    order = valid provenance, and lists it through the real `createListingDraft`. **Proven live**: (1) the seller org owns the
+    listing and its creator is orgB's user; (2) provenance is valid — its `source_purchase_order_item_id` belongs to a `PAID` order
+    whose buyer is orgB, same lot; (3) the initial state is `DRAFT` with no history row (the INSERT writes none); (4) the real
+    `submitListingForReview` succeeds; (5) the state becomes `PENDING_REVIEW`; (6) exactly one `listing_status_history` row
+    (`DRAFT → PENDING_REVIEW`, `changed_by` = orgB's user) was written BY THE DATABASE TRIGGER and is readable by the seller;
+    (7) other organizations cannot perform or observe it — the buyer-only org (refused `seller_not_capable`, raw update 0 rows) AND
+    a second SELLER-CAPABLE org (Multi Org B, `listing_transition_refused`, raw update 0 rows); another org reads neither the
+    listing nor its history; a repeat submit is refused with no second history row; (8) cleanup removed every row (see the
+    cleanup paragraph in T024). **Forbidden transitions surfaced as safe errors**: the actions return only
+    `seller_not_capable`/`listing_transition_refused`; the trigger's own refusals (`compliance_required_for_listing_state`,
+    `invalid_listing_transition`) are asserted at the raw-SQL layer.
 
 ---
 
@@ -323,7 +347,7 @@ T023 blocked-live-proof, T024 deferred live fixture).**
     `notFound()`. `tests/listings/transitions.test.ts` (below, T023) proves every FORBIDDEN
     transition path for these SAME actions live.
 
-- [ ] T018 [PS5] [**RE-OPENED 2026-09-21 — render component complete, awaiting live reservation/settlement proof**] Render fill progression on seller listings (reserved excluded, partial fill, sold
+- [x] T018 [PS5] [**COMPLETE 2026-09-21 — render component + live reservation/settlement proof**] Render fill progression on seller listings (reserved excluded, partial fill, sold
   out) from `fills.ts`.
   - Req: FR-011, PS5 | Depends: T005, T016
   - Verify: reserving via 007 reduces actionable quantity; settling via 008 increases filled quantity and flips state
@@ -342,7 +366,28 @@ T023 blocked-live-proof, T024 deferred live fixture).**
       Feature 008 increasing filled quantity and flipping state was NOT executed in this run. Under the
       settled-order ceiling and without live settlement fixtures in Feature 006, this end-to-end proof
       has not been executed live. In accordance with strict literal Verify criteria, T018 is re-opened
-      as `[ ]` pending live reservation and settlement test fixtures.
+      as `[ ]` pending live reservation and settlement test fixtures. **(Superseded by the live proof below.)**
+  - **LIVE PROOF COMPLETE (2026-09-21, live-fixture closure run)** — `tests/listings/fills.test.ts`, describe "T018 + T024 — LIVE …"
+    (`F006_LIVE_PROOF=1`), over a real PUBLISHED own-org listing (12 kg @ 11 USD/kg, published through the real actors:
+    seller submit → COMPLIANCE `decideListing` APPROVED → COMPLIANCE `APPROVED → PUBLISHED`), bought by orgA through the real
+    Feature 007 flow. Stored columns (privileged read-only snapshot) / the seller's position / the buyer's actionable view /
+    the seller page's `AvailabilityBar` figures, in sequence: **start** quantity 12 · reserved 0 · filled 0 · PUBLISHED · position
+    20/0 · buyer remaining 12 · seller page 12/0/0/12 → **reserve 5 kg via `executeCheckout`** reserved 5 · filled 0 · PUBLISHED ·
+    position reserved 5 · 1 ACTIVE reservation of 5 kg · buyer remaining **7** · seller page 12/5/0/7 → **settle**
+    (`admin_review_payment`) reserved 0 · **filled 5** · **PARTIALLY_FILLED** · visible · position available 15 / reserved 0 ·
+    exactly one new append-only ownership event · history gains `PUBLISHED → PARTIALLY_FILLED` (trigger-written) · seller page
+    12/0/5/7, the approved "Partially filled" label and the timeline entry render → after two holds were expired (T024) →
+    **reserve + settle the last 7 kg**: filled 12 · reserved 0 · **SOLD_OUT** · `is_visible` false · position available 8 ·
+    history `PARTIALLY_FILLED → SOLD_OUT` · seller page 12/0/12/0 with the "Sold out" label.
+    **HONEST NOTE ON "settling via 008"**: Feature 008's payment/finance application layer does NOT exist (`lib/finance/funding.ts`
+    is a controlled-unavailable seam) and none of it is claimed. The settlement primitive that is authoritative today — and the
+    one whose stored effect (`coffee_offers.filled_quantity_kg`/`reserved_quantity_kg`/`status`) this task's Verify is about — is
+    the database function `admin_review_payment()`, Feature 007's function as rewritten by Feature 009's migration
+    (`20260914120000_feature_009_db_block_07.sql`), run here by the standing FINANCE fixture. The fill/state flip is
+    database-owned, so the literal effect is proven; when Feature 008's layer lands it must reach the same function.
+    **UI proof scope**: the seller page is rendered live with the real page component, real components and real rows (jsdom).
+    No real-browser/axe pass was run in this run — this task's Verify names no UI-visual criterion, and the disposable chain
+    is built and removed inside the test process rather than persisting for a running server.
 
 - [x] T019 [PS6] Implement `src/app/dashboard/sales/page.tsx` — seller sales outcomes reconciling to
   underlying order items with unit and currency.
@@ -413,7 +458,7 @@ T023 blocked-live-proof, T024 deferred live fixture).**
     comment in `lib/listings/eligibility.ts` has been updated to reflect the resolution. All four
     refusal paths proven, `npm test -- listings/eligibility` exits 0.
 
-- [ ] T023 [P] [**BLOCKED LIVE PROOF — recorded 2026-09-13**] Write `tests/listings/transitions.test.ts`:
+- [x] T023 [P] [**LIVE PROOF COMPLETE 2026-09-21** — the 2026-09-13 blocker below is superseded] Write `tests/listings/transitions.test.ts`:
   permitted transitions succeed and record history; forbidden transitions are refused by the
   database trigger.
   - Req: FR-009 | Depends: T015, T017
@@ -434,9 +479,27 @@ T023 blocked-live-proof, T024 deferred live fixture).**
     weakened to manufacture a passing test. The successful-transition RESULT SHAPE is separately
     proven with fake clients in `create-action-eligible.test.ts`/`submit-action-success.test.ts` —
     explicitly NOT a claim that the database's `listing_status_history` write was re-verified
-    end-to-end. **T023 is left `[ ]`** — its literal task verification cannot be fully met this run.
+    end-to-end. **T023 is left `[ ]`** — its literal task verification cannot be fully met this run. **(Superseded by the live proof below.)**
+  - **LIVE PROOF COMPLETE (2026-09-21)** — the same chain and file as T015 (one shared fixture, no duplicated setup). One real
+    own-org listing is driven through EVERY transition its actors may legitimately make, asserting the trigger-written history
+    row for each, and the refusals in between. **Permitted, history recorded in order with the right actor**:
+    `DRAFT → PENDING_REVIEW` (seller) · `PENDING_REVIEW → REJECTED` (COMPLIANCE via the console's real `decideListing`, reason
+    copied into the history row) · `REJECTED → DRAFT` (seller remediation) · `DRAFT → PENDING_REVIEW` (seller) ·
+    `PENDING_REVIEW → APPROVED` (COMPLIANCE) · `APPROVED → ARCHIVED` (seller withdraw) — six rows, `changed_by` verified per
+    row; two `listing_reviews` rows; the seller's stock is never moved by a listing transition. **Forbidden, refused by the
+    database trigger** (raw update under the seller's own session, so the trigger — not an application guard — is what refuses):
+    from `DRAFT`: `APPROVED`/`PUBLISHED`/`SUSPENDED`/`REJECTED` → `compliance_required_for_listing_state`, `SOLD_OUT` →
+    `invalid_listing_transition`; from `PENDING_REVIEW`: `APPROVED`/`PUBLISHED` → `compliance_required_for_listing_state`,
+    `ARCHIVED`/`PARTIALLY_FILLED` → `invalid_listing_transition`; from `REJECTED`: `PENDING_REVIEW` → `invalid_listing_transition`;
+    from `APPROVED`: the seller publishing → `compliance_required_for_listing_state`. Action-level refusals (`seller_not_capable`,
+    `listing_transition_refused`) for the buyer-only org, a second seller-capable org, and the REJECTED-only remediation on a
+    non-REJECTED listing. After every refusal the status, history and stock are asserted unchanged. The 8 pre-existing ungated
+    forbidden-path tests are unchanged. **Findings recorded, not acted on**: (a) the Feature 010 compliance console offers no
+    `PUBLISHED` control (`decideListing` covers APPROVED/REJECTED/SUSPENDED only) — the COMPLIANCE fixture published with the
+    direct `APPROVED → PUBLISHED` update its role is granted; (b) `validate_offer_transition`'s state-machine block runs on UPDATE
+    only and has no branch for `ARCHIVED`/`SUSPENDED`/`SOLD_OUT` sources — no assertion here depends on either.
 
-- [ ] T024 [P] [**DEFERRED — awaiting live settlement fixture**] Write `tests/listings/fills.test.ts`:
+- [x] T024 [P] [**LIVE PROOF COMPLETE 2026-09-21** — the deferral below is superseded] Write `tests/listings/fills.test.ts`:
   reserved excluded from actionable quantity; partial fill and sold-out derive from stored columns;
   expiry restores quantity exactly once.
   - Req: FR-011, PS5, SC-003 | Depends: T005, T018
@@ -449,7 +512,32 @@ T023 blocked-live-proof, T024 deferred live fixture).**
     beyond T005's existing proof: "expiry restores quantity exactly once" — this requires a live,
     seeded expired-reservation fixture from Feature 007 (`expire_order_hold()`) and a live settled
     fill from Feature 008. Neither exists as a deterministic test fixture today. Deferred until a
-    live checkout+settlement fixture is available. Pure-arithmetic coverage is COMPLETE in T005.
+    live checkout+settlement fixture is available. Pure-arithmetic coverage is COMPLETE in T005. **(Superseded by the live proof below.)**
+  - **LIVE PROOF COMPLETE (2026-09-21)** — same file/chain as T018; the pure T005 arithmetic tests are kept unchanged. On the
+    PARTIALLY_FILLED listing (12 kg, 5 kg already filled): two real holds (3 kg + 2 kg, real `executeCheckout`) reduce
+    actionable quantity 7 → 2 (reserved 5, filled 5; position reserved 5, two ACTIVE reservations). The 3 kg hold's reservation
+    is aged (`ageCheckoutHold`, the approved test-only backdating — it releases nothing itself) and expired through the real
+    `ensureHoldFresh` → **`expire_order_hold()`**: reserved 5 → 2, remaining 2 → 5 — exactly 3 kg restored on the listing AND the
+    seller position; that reservation is `EXPIRED`, its order `EXPIRED`; the OTHER hold stays `ACTIVE`/`HOLD` and the settled
+    fill stays 5. **Exactly once**: retrying the application path (`expiredNow: false`), two direct `expire_order_hold` calls and
+    three CONCURRENT direct calls all return no error and leave the full snapshot byte-identical; all quantities stay ≥ 0;
+    quantity = filled + reserved + remaining and position reserved = listing reserved and position available = stock − filled
+    hold at every step (no drift). Expiring the second hold restores the last 2 kg (remaining 7, reserved 0), again idempotent,
+    with the earlier settled order still `PAID`.
+  - **CLEANUP PROOF (all four tasks)** — the blocks capture row counts of 21 tables before and after
+    (`inspectF006RowCounts`) and the final test of each asserts every table is back to its pre-run count EXCEPT the two that
+    are append-only by design. Measured (both runs, repeated identically): T015/T023 block — `inventory_ownership_events` +1,
+    `audit_logs` +41; T018/T024 block — `inventory_ownership_events` +3 (the provenance purchase and the 5 kg and 7 kg
+    settlements), `audit_logs` +107. Everything else — users/profiles, memberships, organizations, lots, listings (+ their
+    status history and reviews), orders/items/status history, shipments, payments, payouts, proforma invoices, reservations,
+    storage allocations, positions, platform admins — is exactly at its baseline. The disposable ADMIN and COMPLIANCE
+    operators are de-privileged (`activeAdminPrivilege: false`, capability removed; their auth identities are retained
+    blocked-and-banned because immutable audit rows reference them — the same reviewed T013 lifecycle). Feature 009's standing Hills
+    fixture listing/position are restored to their seeded baseline by the reviewed T013 restore; no new lot was created.
+    Tooling added (test/setup only, never runtime): `scripts/seed-test-fixtures.ts` `--prepare-f006-live-fixtures`,
+    `--cleanup-f006-live-fixtures`, `--inspect-f006-{residue,rowcounts,offer}` (exact-scope, FK-ordered, scope-verified before any
+    DELETE); `tests/auth/fixture-session.ts` wrappers; `tests/orders/live-helpers.ts` gained an optional trailing `offerId`
+    (default unchanged); `tests/listings/live-chain.ts`.
 
 - [x] T025 [P] Write `tests/listings/isolation.test.ts`: seller A never sees seller B's non-published
   listings, documents or status history.
@@ -561,7 +649,7 @@ T023 blocked-live-proof, T024 deferred live fixture).**
     `inspectCheckoutOrder` uses the approved privileged-script pattern, never exposed in runtime
     member code. Negotiation gap is spec.md §Open items. Roadmap updated to reflect 27/32 complete
     (5 open/unverified: T012 product decision, T015/T023 blocked-live-proof, T018 re-opened live proof,
-    T024 deferred live fixture).
+    T024 deferred live fixture). **(2026-09-21 live-fixture closure run: now 31/32 — only T012 open; roadmap row updated.)**
 
 ---
 

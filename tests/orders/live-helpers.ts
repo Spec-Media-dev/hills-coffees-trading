@@ -14,9 +14,10 @@ export type WithLiveClient = <T>(client: SupabaseClient, run: () => Promise<T>) 
 /**
  * Builds a DRAFT order with one item + a REQUESTED shipment plan through RUN A's own production paths.
  * `plannedKg` (RUN D, T025) plans a DIFFERENT quantity than ordered, to reach the database's own
- * `shipment_quantities_do_not_match_order` refusal; it defaults to the ordered quantity.
+ * `shipment_quantities_do_not_match_order` refusal; it defaults to the ordered quantity. `offerId` (Feature 006
+ * live-chain proofs) defaults to Feature 007's dedicated checkout listing — every existing caller is unchanged.
  */
-export async function buildRequestedOrder(withLiveClient: WithLiveClient, client: SupabaseClient, organizationId: string, quantityKg: number, plannedKg: number = quantityKg): Promise<{ orderId: string; shipmentId: string }> {
+export async function buildRequestedOrder(withLiveClient: WithLiveClient, client: SupabaseClient, organizationId: string, quantityKg: number, plannedKg: number = quantityKg, offerId: string = CHECKOUT_FIXTURES.offerCheckout): Promise<{ orderId: string; shipmentId: string }> {
   return withLiveClient(client, async () => {
     const { createDraftOrder, addOrderItem } = await import("@/lib/orders/drafts");
     const { createShipment, addShipmentItem, requestShipment } = await import("@/src/app/dashboard/orders/[orderId]/shipment/actions");
@@ -25,7 +26,7 @@ export async function buildRequestedOrder(withLiveClient: WithLiveClient, client
 
     const order = await createDraftOrder({ organizationId, userId });
     if (!order.ok) throw new Error(`setup: ${order.code}`);
-    const item = await addOrderItem({ organizationId, orderId: order.data.id, offerId: CHECKOUT_FIXTURES.offerCheckout, quantityKg });
+    const item = await addOrderItem({ organizationId, orderId: order.data.id, offerId, quantityKg });
     if (!item.ok) throw new Error(`setup: ${item.code}`);
 
     const shipmentForm = new FormData();
@@ -70,15 +71,15 @@ export async function markShipmentReadyAsWarehouse(shipmentId: string): Promise<
   if (error) throw new Error(`warehouse READY transition refused: ${error.message}`);
 }
 
-export async function buildReadyOrder(withLiveClient: WithLiveClient, client: SupabaseClient, organizationId: string, quantityKg: number): Promise<string> {
-  const { orderId, shipmentId } = await buildRequestedOrder(withLiveClient, client, organizationId, quantityKg);
+export async function buildReadyOrder(withLiveClient: WithLiveClient, client: SupabaseClient, organizationId: string, quantityKg: number, offerId: string = CHECKOUT_FIXTURES.offerCheckout): Promise<string> {
+  const { orderId, shipmentId } = await buildRequestedOrder(withLiveClient, client, organizationId, quantityKg, quantityKg, offerId);
   await markShipmentReadyAsWarehouse(shipmentId);
   return orderId;
 }
 
 /** Runs the real checkout through `executeCheckout` and returns the HOLD order's id. */
-export async function buildHoldOrder(withLiveClient: WithLiveClient, client: SupabaseClient, organizationId: string, quantityKg: number): Promise<string> {
-  const orderId = await buildReadyOrder(withLiveClient, client, organizationId, quantityKg);
+export async function buildHoldOrder(withLiveClient: WithLiveClient, client: SupabaseClient, organizationId: string, quantityKg: number, offerId: string = CHECKOUT_FIXTURES.offerCheckout): Promise<string> {
+  const orderId = await buildReadyOrder(withLiveClient, client, organizationId, quantityKg, offerId);
   const result = await withLiveClient(client, async () => {
     const { executeCheckout } = await import("@/lib/orders/checkout");
     return executeCheckout(orderId);
