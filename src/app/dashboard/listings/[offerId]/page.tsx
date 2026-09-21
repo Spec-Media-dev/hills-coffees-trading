@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import { PageHeader } from "@/components/app/page-header";
 import { HistoryTimeline, actorFor } from "@/components/audit/history-timeline";
+import { AvailabilityBar } from "@/components/listings/availability-bar";
 import { ListingStatusBadge } from "@/components/listings/listing-status-badge";
 import { AppBilingual } from "@/components/locale/app-bilingual";
 import { InlineAlert } from "@/components/ui/inline-alert";
@@ -10,6 +11,7 @@ import { Separator } from "@/components/ui/separator";
 import { StateScreen } from "@/components/layout/state-screen";
 import { appCopy } from "@/lib/app/copy";
 import { getRequestIdentity } from "@/lib/auth/dal";
+import { projectFillState } from "@/lib/listings/fills";
 import { getListingStatusHistory, getManagedListingById } from "@/lib/listings/manage";
 
 import { ListingEditForm } from "./listing-edit-form";
@@ -63,6 +65,17 @@ export default async function SellerListingDetailPage({
 
   const isEditable = (EDITABLE_STATUSES as readonly string[]).includes(listing.status) && listing.status !== "REJECTED";
   const isWithdrawable = (WITHDRAWABLE_STATUSES as readonly string[]).includes(listing.status);
+  /**
+   * Feature 006 T018 — fill projection for the seller view. Uses the same `projectFillState` the
+   * buyer detail page (T010) already uses, over the already-fetched ManagedListing DTO fields.
+   * `reserved_quantity_kg` now includes delivery holds (DB-BLOCK-07 resolved by Feature 009 — see
+   * `lib/listings/eligibility.ts`'s own T022 reconciliation note). No extra DB read.
+   */
+  const fillProjection = projectFillState({
+    quantityKg: listing.quantityKg,
+    reservedQuantityKg: listing.reservedQuantityKg,
+    filledQuantityKg: listing.filledQuantityKg,
+  });
 
   return (
     <div className="flex flex-col gap-8">
@@ -124,6 +137,19 @@ export default async function SellerListingDetailPage({
             </dl>
           </section>
         )}
+
+        <Separator />
+
+        {/* Feature 006 T018 — fill progression, same AvailabilityBar the buyer detail page uses. */}
+        <section className="flex flex-col gap-3" aria-label={appCopy.marketplace.detail.availabilityHeading}>
+          <h2 className="text-lg font-semibold text-foreground">
+            <AppBilingual pick={(c) => c.marketplace.detail.availabilityHeading} />
+          </h2>
+          <AvailabilityBar projection={fillProjection} />
+          <p className="text-[length:var(--text-micro)] text-muted-foreground">
+            <AppBilingual pick={(c) => c.marketplace.detail.advisoryNote} />
+          </p>
+        </section>
 
         <Separator />
 

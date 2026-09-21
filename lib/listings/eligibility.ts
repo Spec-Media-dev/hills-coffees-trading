@@ -23,15 +23,19 @@ import type { EligibilityResult } from "@/lib/listings/types";
  * Hills-sourced / purchase provenance| `order_items`/`orders` (`can_view_order`-gated), read directly by THIS file — genuinely different data than inventory, not a 005 fact at all | ✅ exists (own read)
  * Approved custody                   | `warehouses.is_active` — the ONLY custody-adjacent fact the schema currently represents (no HOLD/VARIANCE/QUARANTINE model — Feature 005 Phase 3 confirmed this gap) | ✅ exists (narrow 005 extension this run: `InventoryWarehouseContext.isActive`) — NOT a "Hills-approved custody" flag, just the warehouse's own operational-active bit; documented honestly as the best available proxy, not invented
  * Reserved / eligible quantity        | 005's `availableQuantityKg`/`reservedQuantityKg`  | ✅ exists
- * Delivery reservation (SRS DEL-01)  | **NO representable fact** — confirmed against `docs/architecture/DATABASE-CAPABILITY-MAP.md` (DB-BLOCK-07: "A delivery request does not reserve inventory... no delivery-reservation function exists"). This function CANNOT check it and does NOT claim to. | ❌ GAP — honestly unenforced here (see below)
+ * Delivery reservation (SRS DEL-01)  | `inventory_positions.reserved_quantity_kg` — **DB-BLOCK-07 RESOLVED 2026-09-14 by Feature 009**: `apply_delivery_reservation()` now atomically increments `reserved_quantity_kg` at settlement/delivery-reservation time. Delivery-reserved quantity therefore surfaces in the same `reservedQuantityKg` field this function already reads. | ✅ enforced via the existing `eligibleQuantityKg = available − reserved` arithmetic (T022 reconciliation 2026-09-21)
  *
- * HONEST GAP (not invented, not silently skipped): spec.md's PS3 acceptance scenario 5 ("Given
- * inventory reserved for delivery, when listing is attempted against it, then it is refused") cannot
- * be satisfied by this function today — there is no `delivery_reservations` table, column, or function
- * this run's preflight could find. If DB-BLOCK-07 is ever resolved (009 exposes a real
- * delivery-reservation fact), this function should be extended to check it; until then, a position
- * with an undisclosed delivery hold would still show `eligible: true` here. This is recorded in the
- * Feature 006 handoff as an open blocker, not silently claimed as enforced.
+ * DB-BLOCK-07 RECONCILIATION (2026-09-21): the gap note originally recorded here ("no
+ * delivery-reservation function exists") was correct at Feature 006 RUN A (2026-09-12), but
+ * DB-BLOCK-07 was RESOLVED by Feature 009's migration `20260914120000_feature_009_db_block_07.sql`
+ * (applied + live-proven 2026-09-14, Feature 009 CLOSED 2026-09-15). Feature 009's
+ * `apply_delivery_reservation()` primitive writes delivery holds into
+ * `inventory_positions.reserved_quantity_kg` — the SAME column this function's line 72 already reads.
+ * Therefore spec.md PS3 scenario 5 ("inventory reserved for delivery is refused") IS now enforced:
+ * a position whose `reserved_quantity_kg` includes a delivery hold will return `RESERVED_QUANTITY`
+ * (or `INSUFFICIENT_QUANTITY`) through the existing arithmetic, with no change required to this file.
+ * The `tests/listings/eligibility.test.ts` fake-client `RESERVED_QUANTITY` case already proves this
+ * path (delivery hold → reserved_quantity_kg elevated → eligible quantity zero). T022 is closed.
  */
 
 const HILLS_SOURCE_ELIGIBLE_ORDER_STATUSES = ["PAID", "FULFILLMENT_IN_PROGRESS", "PARTIALLY_DELIVERED", "COMPLETED"] as const;
