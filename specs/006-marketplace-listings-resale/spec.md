@@ -91,8 +91,11 @@ price per kg with currency, and remaining availability.
    quantity, price per kg with currency, and seller type (Hills or member) as permitted.
 2. Given a `PARTIALLY_FILLED` listing, when displayed, then remaining quantity (listed − filled −
    reserved) is shown clearly and is the quantity a buyer may act on.
-3. Given a `SOLD_OUT` or `SUSPENDED` listing, when reached directly, then it renders its state and
-   offers no purchase action.
+3. Given a `SOLD_OUT` listing: per explicit product owner decision (2026-09-21), SOLD_OUT listings
+   must NOT appear in buyer-facing browse/list pages; if reached directly by URL by a buyer,
+   `notFound()`/404 is returned, no buyer detail page is rendered, and no purchase action is exposed.
+   Given a `SUSPENDED` listing, when reached directly, then it renders its state and offers no
+   purchase action.
 4. Given any listing figure, when a member acts on it, then the action re-validates authoritative
    availability in the database (advisory-UI rule).
 
@@ -130,7 +133,10 @@ buyer views.
 **Acceptance scenarios**
 
 1. Given each of `DRAFT`, `PENDING_REVIEW`, `APPROVED`, `REJECTED`, `PUBLISHED`, `PARTIALLY_FILLED`,
-   `SUSPENDED`, `SOLD_OUT`, `ARCHIVED`, when viewed, then the exact approved label renders.
+   `SUSPENDED`, `SOLD_OUT`, `ARCHIVED`, when viewed in authorized management or browse surfaces,
+   then the exact approved label renders. (For `SOLD_OUT`, buyer-facing browse and direct reads
+   return `notFound()`/404 per product owner decision; seller/admin management views render the
+   approved `SOLD_OUT` badge).
 2. Given `REJECTED`, when the seller views it, then the compliance-recorded reason is shown with a
    route to remediate.
 3. Given `SUSPENDED`, when any member views it, then no purchase action is offered and the state is
@@ -273,6 +279,10 @@ items and ownership events.
 - **DB-OPEN-05** may limit lot detail on listing pages (same degradation approach as 005).
 - Whether a suspended seller organization automatically suspends its live listings is a compliance
   workflow question owned by 010; this feature must not invent an automatic transition.
+- **SOLD_OUT buyer visibility (RESOLVED 2026-09-21)**: Product owner decision confirmed that `SOLD_OUT`
+  listings must NOT appear in buyer browse/list pages, and direct URLs from buyers return `notFound()`/404
+  with no purchase action. Seller and admin views retain management visibility. Enforced by database RLS
+  policy `member_read_published_offers` and `src/app/dashboard/coffee/[offerId]/page.tsx`.
 
 ## Dependencies
 

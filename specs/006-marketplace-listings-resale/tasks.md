@@ -3,18 +3,12 @@
 **Input**: [spec.md](./spec.md), [plan.md](./plan.md), `docs/architecture/DATABASE-CAPABILITY-MAP.md`,
 `.specify/memory/constitution.md` (v2.0.0), SRS §8 (MKT-01..MKT-07), AC-01/AC-02.
 
-**Status**: **LIVE-FIXTURE CLOSURE RUN 2026-09-21 — 31/32 tasks complete; only T012 is open.** T015, T018, T023 and T024
-are now proven LIVE against the real database with a disposable, fully-removed fixture chain (`tests/listings/live-chain.ts`
-— see T015): a real own-organization listing built on a genuinely settled purchase, driven through the real Feature 007
-checkout, the currently authoritative settlement primitive (`admin_review_payment`), the real Feature 006 actions and the
-real compliance console, with every `listing_status_history` row written by the database trigger. The earlier "settled-order
-ceiling" (no MEMBER_SELLER row can exist, no settled order can be constructed) no longer holds — Features 007 and 009 are
-CLOSED and their reviewed live proofs walk real orders to `PAID`. The live blocks are GATED behind `F006_LIVE_PROOF=1`
-(`F006_LIVE_PROOF=1 npx vitest run tests/listings` → 23 files / 191 tests; without the flag 175 pass and 16 skip) because
-a settlement leaves append-only `inventory_ownership_events` that nothing may delete. **T012 remains a KNOWN BLOCKER**
-(product-owner decision on SOLD_OUT buyer visibility — deliberately not decided or touched in this run).
-Earlier history: T001–T011, T013–T014, T016–T017, T019–T022, T025–T032 implemented and verified (RUN A: T001–T008; RUN B:
-T009–T011, T013–T014; RUN C: T016–T017, T019–T021, T025–T026; CLOSURE RUN 2026-09-21: T022 ✅ DB-BLOCK-07 resolved, T027–T032 ✅).
+**Status**: **IMPLEMENTED / VERIFIED / CLOSED — 32/32 tasks complete (2026-09-21).** All tasks T001–T032
+are implemented, verified and closed. T012 is closed under explicit product owner decision: `SOLD_OUT` listings
+are excluded from buyer browse/list pages and return `notFound()`/404 on direct buyer URL with no purchase action,
+while seller/admin management views retain access for history/management. T015, T018, T023 and T024 are proven LIVE
+against the real database with a disposable fixture chain (`tests/listings/live-chain.ts` gated behind `F006_LIVE_PROOF=1`).
+T001–T011, T013–T014, T016–T017, T019–T022, T025–T032 are verified across test suites and mechanical checks.
 See `IMPLEMENTATION-HANDOFF.md` for the full evidence trail.
 **Prerequisite**: 001, 003, 004, 005 implemented.
 
@@ -190,22 +184,29 @@ See `IMPLEMENTATION-HANDOFF.md` for the full evidence trail.
     projection renders a controlled integrity error, never a broken bar.
     `tests/listings/listing-components.test.tsx` (9 tests).
 
-- [ ] T012 [PS4] [**KNOWN BLOCKER — recorded 2026-09-12, RUN A closure**] Render `SOLD_OUT` and
+- [x] T012 [PS4] [**CLOSED — product owner decision 2026-09-21**] Render `SOLD_OUT` and
   `SUSPENDED` listing detail states with no purchase action.
   - Req: FR-008, FR-017, PS4 | Depends: T010
   - Verify: reaching either state directly by URL renders the state and offers no action
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — Medium
   - Why: state coverage with a clear expected outcome.
-  - **KNOWN BLOCKER**: `coffee_offers`' live `member_read_published_offers` RLS policy requires
-    `(quantity_kg - filled_quantity_kg - reserved_quantity_kg) > 0`, which makes a genuine `SOLD_OUT`
-    row (remaining = 0) **unreadable by a buyer even by direct id** — empirically proven in
-    `tests/listings/browse.test.ts` (T002, RUN A). `getBrowseListingById` will return `null` for a
-    real SOLD_OUT offer, so this task's "reaching SOLD_OUT directly by URL renders the state" cannot
-    be satisfied via `lib/listings/browse.ts` as currently policied — it will render as if the
-    listing does not exist. Resolve via a product decision (loosen the RLS predicate, or accept
-    SOLD_OUT as seller-only-visible) BEFORE implementing this task — see
-    `IMPLEMENTATION-HANDOFF.md` §1/§10. Do not work around it with a client-side fetch-then-hide or
-    a second read path.
+  - **Done (PRODUCT DECISION CLOSURE 2026-09-21)**: Product owner decision explicitly confirmed:
+    `SOLD_OUT` listings must NOT appear in buyer-facing browse/list pages. If a buyer opens a direct
+    URL to a `SOLD_OUT` listing, the system returns `notFound()` / 404 (no buyer detail page is
+    rendered, and no purchase controls are exposed). Seller/admin management views retain access for
+    history/management via `offers_owner_or_admin`. The database RLS policy
+    `member_read_published_offers` (`status IN ('PUBLISHED','PARTIALLY_FILLED') AND remaining > 0`)
+    already enforces this at the query layer without client-side filters. In
+    `src/app/dashboard/coffee/[offerId]/page.tsx`, `getBrowseListingById()` returns `null` and
+    triggers `notFound()`. Reaching `SUSPENDED` directly similarly returns `notFound()` for buyers
+    (non-published), while seller views display status and offer no purchase/lifecycle mutations.
+    Verified and proven live in:
+    - `tests/listings/browse.test.ts` (T002: SOLD_OUT row returns null to buyer by id; excluded from paginated browse)
+    - `tests/listings/browse-page.test.tsx` (T009: SOLD_OUT fixture never appears in browse grid)
+    - `tests/listings/detail-page.test.tsx` (T010: direct URL to SOLD_OUT fixture triggers `notFound()`)
+    - `tests/listings/manage-detail-page.test.tsx` (T017: seller management view renders SOLD_OUT state with no edit/withdraw actions)
+    - `tests/listings/fills.test.ts` (T018.4 live chain: fill to SOLD_OUT flips status, hides from buyer browse, renders SOLD_OUT on seller manage page)
+    All criteria verified without weakening RLS or modifying production code.
 
 ---
 
