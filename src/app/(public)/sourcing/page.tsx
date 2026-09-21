@@ -10,7 +10,6 @@ import {
   LEAD,
 } from "@/components/public/section";
 import { PUBLIC_ROUTES } from "@/components/public/site-header";
-import { Button } from "@/components/ui/button";
 import { copy } from "@/lib/public/copy";
 import { canonicalUrl } from "@/lib/public/site";
 
@@ -68,11 +67,11 @@ export default function SourcingPage() {
         className={`hc-container grid gap-10 py-[clamp(3rem,7vw,6rem)] lg:grid-cols-[minmax(0,1fr)_minmax(18rem,0.85fr)] lg:items-center lg:gap-16`}
       >
         <div className="flex flex-col gap-5">
-          <span className={`${EYEBROW} text-[var(--gold-on-light)]`}>
+          <span className={`${EYEBROW} text-[var(--hc-accent)] dark:text-[var(--gold-on-dark)]`}>
             <Bilingual pick={(c) => c.sourcing.eyebrow} />
           </span>
           <h1 className={HEADING_2}><Bilingual pick={(c) => c.sourcing.title} /></h1>
-          <span aria-hidden="true" className="h-px w-16 bg-[var(--gold-on-light)]" />
+          <span aria-hidden="true" className="h-px w-16 bg-[var(--hc-accent)] opacity-85" />
           <p className={`${LEAD} text-muted-foreground text-pretty`}>
             <Bilingual pick={(c) => c.sourcing.lead} />
           </p>
@@ -154,14 +153,12 @@ export default function SourcingPage() {
               <Bilingual pick={(c) => c.sourcing.cta.lead} />
             </p>
           </div>
-          <Button
-            variant="accent"
-            className="shrink-0"
-            nativeButton={false}
-            render={<Link href={PUBLIC_ROUTES.contact} />}
+          <Link
+            href={PUBLIC_ROUTES.contact}
+            className="hc-btn-accent shrink-0"
           >
             <Bilingual pick={(c) => c.cta.requestAnOffer} />
-          </Button>
+          </Link>
         </div>
       </div>
     </article>

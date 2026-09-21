@@ -94,17 +94,19 @@ export default async function HomePage() {
       {/* 1 — Hero */}
       <Hero />
 
-      {/* 2 — Commercial intent: three pathways, side by side. */}
-      <section className="bg-background py-[clamp(4rem,8vw,8.5rem)] text-foreground">
-        <div className="hc-container flex flex-col gap-12">
-          <div className="flex max-w-[46rem] flex-col gap-3">
-            <span className="hc-eyebrow text-[var(--gold-on-light)] dark:text-[var(--gold-on-dark)]">
+      {/* 2 — Commercial intent: asymmetric editorial pathways */}
+      <section className="bg-background py-[clamp(5rem,9vw,9.5rem)] text-foreground">
+        <div className="hc-public-container flex flex-col gap-14">
+          <div className="flex max-w-[50rem] flex-col items-start gap-4 sm:gap-5">
+            <div className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-3.5 py-1.5 text-xs font-semibold uppercase tracking-wider text-[var(--hc-accent)] dark:text-[var(--gold-on-dark)] shadow-sm">
+              <span className="size-1.5 rounded-full bg-[var(--hc-accent)]" />
               <Bilingual pick={(c) => c.home.intents.eyebrow} />
-            </span>
-            <h2 className="hc-heading-2 font-semibold text-balance">
+            </div>
+            <h2 className="font-heading text-[clamp(2.25rem,1.7rem+3vw,4.5rem)] font-semibold leading-[1.06] tracking-[-0.025em] text-balance">
               <Bilingual pick={(c) => c.home.intents.title} />
             </h2>
-            <p className="hc-body-lg max-w-[58ch] text-muted-foreground text-pretty">
+            <span aria-hidden="true" className="h-0.5 w-14 bg-[var(--hc-accent)]" />
+            <p className="max-w-[48ch] text-[clamp(1rem,0.95rem+0.25vw,1.1875rem)] leading-[1.7] text-muted-foreground text-pretty">
               <Bilingual pick={(c) => c.home.intents.lead} />
             </p>
           </div>
@@ -128,37 +130,40 @@ export default async function HomePage() {
         it in its dark tone. The panel's inline padding equals the page gutter so the track's
         full-bleed edges land exactly on the panel's edges.
       */}
-      <section className="bg-background py-[clamp(3rem,6vw,6rem)] text-foreground">
-        <div className="hc-container">
-          <div className="relative isolate overflow-hidden rounded-[var(--radius-2xl)] bg-[var(--forest-700)] px-[var(--gutter-page)] py-[clamp(3rem,6vw,5.5rem)] text-[var(--brand-cream)]">
+      <section className="bg-background py-[clamp(4rem,7vw,7.5rem)] text-foreground">
+        <div className="hc-public-container">
+          <div className="relative isolate overflow-hidden rounded-[var(--radius-2xl)] border border-[rgba(242,245,235,0.12)] bg-[var(--hc-forest)] px-[var(--gutter-page)] py-[clamp(3.5rem,7vw,6.5rem)] text-[#f2f5eb] shadow-[0_24px_64px_rgba(18,35,20,0.15)]">
             <div aria-hidden="true" className="absolute inset-0 -z-10">
               <Image
                 src="/images/farm-landscape.jpg"
                 alt=""
                 fill
                 sizes="(min-width: 1536px) 1536px, 100vw"
-                className="object-cover object-[50%_60%] opacity-[0.22]"
+                className="object-cover object-[50%_60%] opacity-[0.25]"
               />
-              <span className="absolute inset-0 bg-[linear-gradient(180deg,color-mix(in_srgb,var(--forest-700)_20%,transparent)_0%,color-mix(in_srgb,var(--forest-700)_78%,transparent)_55%,var(--forest-700)_100%)]" />
+              <span className="absolute inset-0 bg-[linear-gradient(180deg,rgba(18,35,20,0.4)_0%,rgba(18,35,20,0.85)_55%,rgba(18,35,20,0.98)_100%)]" />
+              <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_60%_50%_at_50%_40%,rgba(164,72,25,0.12),transparent_70%)]" />
             </div>
 
             <div className="flex flex-col gap-10">
               <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
-                <div className="flex max-w-[44rem] flex-col gap-3">
-                  <span className="hc-eyebrow text-[var(--gold-on-dark)]">
+                <div className="flex max-w-[46rem] flex-col items-start gap-4">
+                  <div className="inline-flex items-center gap-2 rounded-full border border-[rgba(242,245,235,0.2)] bg-[rgba(18,35,20,0.65)] px-3.5 py-1.5 text-xs font-semibold uppercase tracking-wider text-[#f2f5eb] backdrop-blur-md">
+                    <span className="size-1.5 rounded-full bg-[var(--hc-accent)]" />
                     <Bilingual pick={(c) => c.home.featuredOrigins.eyebrow} />
-                  </span>
-                  <h2 className="hc-heading-2 font-semibold text-balance">
+                  </div>
+                  <h2 className="font-heading text-[clamp(2.25rem,1.7rem+3vw,4.25rem)] font-semibold leading-[1.06] tracking-[-0.025em] text-[#f2f5eb] text-balance">
                     <Bilingual pick={(c) => c.home.featuredOrigins.title} />
                   </h2>
-                  <p className="hc-body-lg max-w-[56ch] text-[color-mix(in_srgb,var(--brand-cream)_74%,transparent)] text-pretty">
+                  <span aria-hidden="true" className="h-0.5 w-14 bg-[var(--hc-accent)]" />
+                  <p className="max-w-[48ch] text-[clamp(1rem,0.95rem+0.25vw,1.1875rem)] leading-[1.7] text-[rgba(242,245,235,0.82)] text-pretty">
                     <Bilingual pick={(c) => c.home.featuredOrigins.lead} />
                   </p>
                 </div>
                 {origins.length > 0 ? (
                   <Link
                     href={PUBLIC_ROUTES.origins}
-                    className="group/cta inline-flex min-h-11 shrink-0 items-center gap-2 text-[length:var(--text-small)] font-semibold text-[var(--brand-cream)] underline-offset-4 decoration-[var(--gold-on-dark)] decoration-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--gold-on-dark)]"
+                    className="group/cta inline-flex min-h-11 shrink-0 items-center gap-2 text-sm font-semibold text-[#f2f5eb] underline-offset-4 decoration-[var(--hc-accent)] decoration-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--hc-accent)]"
                   >
                     <Bilingual pick={(c) => c.home.featuredOrigins.action} />
                     <Icon
@@ -173,7 +178,7 @@ export default async function HomePage() {
               {origins.length > 0 ? (
                 <OriginsShowcase origins={origins} tone="dark" />
               ) : (
-                <p className="hc-body text-[color-mix(in_srgb,var(--brand-cream)_74%,transparent)]">
+                <p className="text-sm text-[rgba(242,245,235,0.74)]">
                   <Bilingual pick={(c) => c.home.featuredOrigins.empty} />
                 </p>
               )}
@@ -194,16 +199,18 @@ export default async function HomePage() {
         zone, delay type and the reference-only statement; otherwise the honest stale/unavailable
         state. Raw values exactly as recorded — no currency or unit conversion (DB-OPEN-08).
       */}
-      <section className="bg-secondary py-[clamp(4rem,8vw,8rem)] text-foreground">
-        <div className="hc-container flex flex-col gap-10">
-          <div className="flex max-w-[46rem] flex-col gap-3">
-            <span className="hc-eyebrow text-[var(--gold-on-light)] dark:text-[var(--gold-on-dark)]">
+      <section className="bg-secondary py-[clamp(4.5rem,8vw,8.5rem)] text-foreground">
+        <div className="hc-public-container flex flex-col gap-10">
+          <div className="flex max-w-[48rem] flex-col items-start gap-4">
+            <div className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-3.5 py-1.5 text-xs font-semibold uppercase tracking-wider text-[var(--hc-accent)] shadow-sm">
+              <span className="size-1.5 rounded-full bg-[var(--hc-accent)]" />
               <Bilingual pick={(c) => c.home.reference.eyebrow} />
-            </span>
-            <h2 className="hc-heading-2 font-semibold text-balance">
+            </div>
+            <h2 className="font-heading text-[clamp(2.25rem,1.7rem+3vw,4.25rem)] font-semibold leading-[1.06] tracking-[-0.025em] text-balance">
               <Bilingual pick={(c) => c.home.reference.title} />
             </h2>
-            <p className="hc-body-lg max-w-[58ch] text-muted-foreground text-pretty">
+            <span aria-hidden="true" className="h-0.5 w-14 bg-[var(--hc-accent)]" />
+            <p className="max-w-[50ch] text-[clamp(1rem,0.95rem+0.25vw,1.1875rem)] leading-[1.7] text-muted-foreground text-pretty">
               <Bilingual pick={(c) => c.home.reference.lead} />
             </p>
           </div>

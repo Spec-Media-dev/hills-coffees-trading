@@ -212,7 +212,7 @@ export function InteractiveStorySection() {
         <div className="grid gap-10 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)] lg:items-center lg:gap-20">
           <div className="order-2 flex flex-col gap-10 lg:order-1">
             <div className="flex max-w-[40rem] flex-col gap-3">
-              <span className="hc-eyebrow text-[var(--gold-on-dark)]">{t.home.story.eyebrow}</span>
+              <span className="hc-eyebrow text-[var(--hc-accent)]">{t.home.story.eyebrow}</span>
               <h2 className="hc-heading-2 font-semibold text-balance">{t.home.story.title}</h2>
               <p className="hc-body-lg max-w-[56ch] text-[color-mix(in_srgb,var(--brand-cream)_74%,transparent)] text-pretty">
                 {t.home.story.lead}
@@ -232,16 +232,16 @@ export function InteractiveStorySection() {
                     >
                       <span
                         data-rail-fill
-                        className="absolute inset-0 origin-top bg-[var(--gold-on-dark)]"
+                        className="absolute inset-0 origin-top bg-[var(--hc-accent)]"
                         style={{ transform: "scaleY(0)" }}
                       />
                       <span
                         style={{ insetInlineStart: "-5px" }}
                         className={`absolute top-0 size-[11px] rounded-full border transition-[background-color,border-color,box-shadow] duration-[var(--dur-base)] ${
                           isActive
-                            ? "border-[var(--gold-on-dark)] bg-[var(--gold-on-dark)] shadow-[0_0_0_4px_color-mix(in_srgb,var(--gold-on-dark)_22%,transparent)]"
+                            ? "border-[var(--hc-accent)] bg-[var(--hc-accent)] shadow-[0_0_0_4px_color-mix(in_srgb,var(--hc-accent)_22%,transparent)]"
                             : index < active
-                              ? "border-[var(--gold-on-dark)] bg-[var(--forest-900)]"
+                              ? "border-[var(--hc-accent)] bg-[var(--forest-900)]"
                               : "border-[color-mix(in_srgb,var(--brand-cream)_35%,transparent)] bg-[var(--forest-900)]"
                         }`}
                       />
@@ -251,13 +251,13 @@ export function InteractiveStorySection() {
                       type="button"
                       onClick={() => select(index)}
                       aria-current={isActive ? "true" : undefined}
-                      className="group/story flex-1 rounded-[var(--radius-sm)] pb-7 text-start focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--gold-on-dark)]"
+                      className="group/story flex-1 rounded-[var(--radius-sm)] pb-7 text-start focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--hc-accent)]"
                     >
                       <span className="flex min-h-11 items-baseline gap-4">
                         <span
                           dir="ltr"
-                          className={`font-heading text-[length:var(--text-meta)] tabular-nums transition-colors duration-[var(--dur-base)] ${
-                            isActive ? "text-[var(--gold-on-dark)]" : "text-[color-mix(in_srgb,var(--brand-cream)_45%,transparent)]"
+                          className={`font-heading text-[length:var(--text-meta)] font-semibold tabular-nums transition-colors duration-[var(--dur-base)] ${
+                            isActive ? "text-[var(--gold-on-dark)]" : "text-[color-mix(in_srgb,var(--brand-cream)_55%,transparent)]"
                           }`}
                         >
                           {pad(index + 1)}
@@ -266,7 +266,7 @@ export function InteractiveStorySection() {
                           className={`font-heading text-[length:var(--text-h3)] font-semibold leading-[var(--lh-heading)] tracking-[var(--tracking-heading)] transition-colors duration-[var(--dur-base)] ${
                             isActive
                               ? "text-[var(--brand-cream)]"
-                              : "text-[color-mix(in_srgb,var(--brand-cream)_58%,transparent)] group-hover/story:text-[color-mix(in_srgb,var(--brand-cream)_85%,transparent)]"
+                              : "text-[color-mix(in_srgb,var(--brand-cream)_65%,transparent)] group-hover/story:text-[color-mix(in_srgb,var(--brand-cream)_90%,transparent)]"
                           }`}
                         >
                           {item.title}
@@ -275,8 +275,8 @@ export function InteractiveStorySection() {
                       <span
                         className={`mt-1.5 block max-w-[46ch] ps-[calc(1.5rem+1rem)] text-[length:var(--text-small)] leading-[1.7] text-pretty transition-[opacity,color] duration-[var(--dur-base)] ${
                           isActive
-                            ? "text-[color-mix(in_srgb,var(--brand-cream)_74%,transparent)]"
-                            : "text-[color-mix(in_srgb,var(--brand-cream)_42%,transparent)]"
+                            ? "text-[color-mix(in_srgb,var(--brand-cream)_88%,transparent)]"
+                            : "text-[color-mix(in_srgb,var(--brand-cream)_55%,transparent)]"
                         }`}
                       >
                         {item.body}

@@ -90,7 +90,7 @@ export default function AboutPage() {
         </div>
 
         <div className="hc-container flex min-h-[min(72svh,40rem)] flex-col justify-end gap-6 pb-[clamp(3rem,7vw,6rem)] pt-[clamp(4rem,10vw,7rem)]">
-          <span className="hc-eyebrow text-[var(--gold-on-dark)]">
+          <span className="hc-eyebrow text-[var(--gold-on-dark)] font-semibold tracking-wider">
             <Bilingual pick={(c) => c.about.eyebrow} />
           </span>
           <h1 className="hc-display max-w-[16ch] font-semibold text-balance">
@@ -106,7 +106,7 @@ export default function AboutPage() {
       <section className="bg-secondary py-[clamp(4rem,8vw,8.5rem)] text-foreground">
         <div className="hc-container grid gap-12 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:gap-20">
           <div className="flex flex-col gap-6 lg:sticky lg:top-[calc(var(--header-h)+2rem)] lg:self-start">
-            <span aria-hidden="true" className="h-px w-16 bg-[var(--gold-on-light)] dark:bg-[var(--gold-on-dark)]" />
+            <span aria-hidden="true" className="h-px w-16 bg-[var(--hc-accent)] opacity-85" />
             <p className="font-heading text-[length:var(--text-h2)] font-semibold leading-[var(--lh-heading)] tracking-[var(--tracking-heading)] text-balance">
               <Bilingual pick={(c) => c.site.tagline} />
             </p>
@@ -125,7 +125,7 @@ export default function AboutPage() {
                   <span
                     dir="ltr"
                     aria-hidden="true"
-                    className="font-heading text-[length:var(--text-meta)] font-semibold tabular-nums text-[var(--gold-on-light)] dark:text-[var(--gold-on-dark)]"
+                    className="font-heading text-[length:var(--text-meta)] font-semibold tabular-nums text-[var(--hc-accent)]"
                   >
                     {String(index + 1).padStart(2, "0")}
                   </span>
@@ -169,14 +169,14 @@ export default function AboutPage() {
           <div className="mt-2 flex flex-wrap gap-3">
             <Link
               href={PUBLIC_ROUTES.contact}
-              className="inline-flex h-[var(--control-h-lg)] items-center justify-center gap-2 rounded-[var(--radius-md)] border border-[var(--sand-100)] bg-[var(--sand-100)] px-7 text-sm font-semibold text-[var(--forest-800)] transition-[background-color,border-color,transform] duration-[var(--dur-fast)] hover:border-[var(--sand-200)] hover:bg-[var(--sand-200)] active:translate-y-px focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--gold-on-dark)] motion-reduce:transform-none"
+              className="hc-btn-accent"
             >
               <Bilingual pick={(c) => c.cta.requestAnOffer} />
               <Icon name="arrow-right" data-directional-icon="true" className="size-4" />
             </Link>
             <Link
               href={PUBLIC_ROUTES.sourcing}
-              className="inline-flex h-[var(--control-h-lg)] items-center justify-center rounded-[var(--radius-md)] border border-[color-mix(in_srgb,var(--brand-cream)_45%,transparent)] px-7 text-sm font-semibold text-[var(--brand-cream)] transition-[background-color,transform] duration-[var(--dur-fast)] hover:bg-[color-mix(in_srgb,var(--brand-cream)_12%,transparent)] active:translate-y-px focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--gold-on-dark)] motion-reduce:transform-none"
+              className="hc-btn-outline text-[#f2f5eb] border-[rgba(242,245,235,0.35)] hover:bg-[rgba(242,245,235,0.1)]"
             >
               <Bilingual pick={(c) => c.megaMenu.sourcing.primary} />
             </Link>

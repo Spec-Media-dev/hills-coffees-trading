@@ -5,110 +5,159 @@ import { Bilingual } from "@/components/locale/bilingual";
 import { Reveal } from "@/components/motion/reveal";
 import { PUBLIC_ROUTES } from "@/components/public/routes";
 import { Icon } from "@/components/ui/icon";
-import type { PublicCopy } from "@/lib/public/copy";
 
 /**
- * Homepage intent panels (Feature 002, T012 — FR-021, PS1, PS4; rebuilt by the public design
- * convergence pass).
+ * Commercial Pathways — Tomorro-Level Asymmetric Redesign (Feature 002, T012).
  *
- * The design guidance names exactly three public intents and requires each to lead to the correct
- * journey: **Source coffee** → the commercial conversation, **Explore available coffee** → the
- * public catalogue, **Trade with Hills** → the authorised-member entry. Separating them is what stops
- * the homepage funnelling every visitor into the Trading Portal.
+ * ── ASYMMETRIC EDITORIAL COMPOSITION ─────────────────────────────────────────────────────────────
  *
- * ── THREE PATHWAYS, NOT THREE FEATURE CARDS ──────────────────────────────────────────────────────
+ * 1. Dominant primary commercial anchor (Source Coffee): A tall, photographic feature stage
+ *    with documentary origin imagery, deep forest scrim, Burnt Orange pill badge, and prominent
+ *    action button.
+ * 2. Two stacked complementary pathways (Explore Catalogue & Member Trading Portal):
+ *    Rich horizontal cards with dedicated visual crops, crisp micro-tags, and interactive hover lift.
  *
- * The three white cards are gone. The intents are now three editorial columns on the page ground,
- * divided by hairlines rather than boxed — no border, no card surface, no shadow at rest — with the
- * sourcing path given the widest column because it is the primary commercial journey. Each whole
- * column is the link. On hover or keyboard focus a documentary photograph rises behind it under a
- * forest wash, the ink turns cream, the gold rule extends and the arrow advances — the
- * "one panel becomes dominant" response the brief asks for, carried entirely by CSS so the section
- * stays a Server Component. Entrance is a short staggered `Reveal` (Motion) per panel; CSS owns the
- * hover state; the two never touch the same property on the same node.
+ * ── CONTENT TRUTHFULNESS & CLIENT INTEGRITY ───────────────────────────────────────────────────────
  *
- * They are NOT numbered: three routes into the business are a set, not a sequence.
- *
- * The photographs are repository editorial assets illustrating each path; none is presented as the
- * media of a coffee or origin record (MEDIA-01). Every string resolves through the T000 dictionary.
+ * All text strictly sourced from the approved copy dictionary via `<Bilingual>`.
+ * Server Component architecture preserved. Hover/focus states driven by CSS.
  */
-
-type Intent = {
-  key: "source" | "explore" | "trade";
-  href: string;
-  image: string;
-  pick: (c: PublicCopy) => { title: string; body: string; action: string };
-};
-
-const INTENTS: readonly Intent[] = [
-  {
-    key: "source",
-    href: PUBLIC_ROUTES.contact,
-    image: "/images/origin-guatemala.jpg",
-    pick: (c) => c.home.intents.source,
-  },
-  {
-    key: "explore",
-    href: PUBLIC_ROUTES.coffee,
-    image: "/images/coffee-lot-2.jpg",
-    pick: (c) => c.home.intents.explore,
-  },
-  {
-    key: "trade",
-    href: PUBLIC_ROUTES.portalEntry,
-    image: "/images/coffee-lot-7.jpg",
-    pick: (c) => c.home.intents.trade,
-  },
-] as const;
-
-const PANEL =
-  "group/intent relative isolate flex min-h-[20rem] flex-col justify-between gap-10 overflow-hidden rounded-[var(--radius-xl)] p-7 text-foreground transition-[color,background-color,transform] duration-[var(--dur-slow)] ease-[var(--ease-standard)] hover:text-[var(--brand-cream)] focus-visible:text-[var(--brand-cream)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus-ring)] lg:min-h-[28rem] lg:p-9";
 
 export function IntentCards() {
   return (
-    <ul className="grid gap-2 border-t border-border lg:-mx-9 lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)_minmax(0,1fr)] lg:gap-0 lg:border-t-0">
-      {INTENTS.map((intent, index) => (
-        <li
-          key={intent.key}
-          className="flex border-b border-border py-2 lg:border-b-0 lg:border-s lg:py-0 lg:ps-5 lg:first:border-s-0 lg:first:ps-0 lg:last:pe-0"
+    <div className="grid gap-6 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)] lg:gap-8">
+      {/* ── PRIMARY FEATURE: SOURCE COFFEE ── */}
+      <Reveal transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}>
+        <Link
+          href={PUBLIC_ROUTES.contact}
+          className="group/main relative isolate flex min-h-[28rem] flex-col justify-between overflow-hidden rounded-[var(--radius-2xl)] border border-[rgba(23,60,50,0.12)] p-8 text-[#f2f5eb] shadow-[0_12px_40px_rgba(18,35,20,0.08)] transition-all duration-500 hover:border-[var(--hc-accent)] hover:shadow-[0_24px_60px_rgba(164,72,25,0.16)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--hc-accent)] sm:p-10 lg:min-h-[34rem]"
         >
-          <Reveal className="flex w-full" transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1], delay: index * 0.09 }}>
-            <Link href={intent.href} className={PANEL}>
-              {/* Background photograph and wash — invisible at rest, revealed by hover/focus. */}
-              <span aria-hidden="true" className="absolute inset-0 -z-10 opacity-0 transition-opacity duration-[var(--dur-slowest)] ease-[var(--ease-standard)] group-hover/intent:opacity-100 group-focus-visible/intent:opacity-100 motion-reduce:transition-none">
-                <Image
-                  src={intent.image}
-                  alt=""
-                  fill
-                  sizes="(min-width: 1024px) 34vw, 100vw"
-                  className="object-cover object-center transition-transform duration-[1200ms] ease-[var(--ease-out)] group-hover/intent:scale-[1.04] motion-reduce:transition-none motion-reduce:group-hover/intent:scale-100"
-                />
-                <span className="absolute inset-0 bg-[linear-gradient(180deg,color-mix(in_srgb,var(--forest-900)_62%,transparent)_0%,color-mix(in_srgb,var(--forest-900)_86%,transparent)_100%)]" />
-              </span>
+          {/* Background photograph with slow zoom */}
+          <div aria-hidden="true" className="absolute inset-0 -z-10 overflow-hidden bg-[var(--hc-forest)]">
+            <Image
+              src="/images/origin-guatemala.jpg"
+              alt=""
+              fill
+              sizes="(min-width: 1024px) 55vw, 100vw"
+              className="object-cover object-center transition-transform duration-[1200ms] ease-[var(--ease-out)] group-hover/main:scale-[1.05]"
+            />
+            <span className="absolute inset-0 bg-[linear-gradient(180deg,rgba(18,35,20,0.65)_0%,rgba(18,35,20,0.92)_65%,rgba(18,35,20,0.98)_100%)]" />
+          </div>
 
-              <span className="flex flex-col gap-4">
-                {/* Gold rule: short at rest, extended when the panel is dominant. */}
-                <span aria-hidden="true" className="h-px w-10 bg-[var(--gold-on-light)] transition-[width,background-color] duration-[var(--dur-slow)] ease-[var(--ease-out)] group-hover/intent:w-20 group-hover/intent:bg-[var(--gold-on-dark)] group-focus-visible/intent:w-20 group-focus-visible/intent:bg-[var(--gold-on-dark)] dark:bg-[var(--gold-on-dark)]" />
-                <span className="font-heading text-[length:var(--text-h3)] font-semibold leading-[var(--lh-heading)] tracking-[var(--tracking-heading)] text-balance lg:text-[length:var(--text-h2)] lg:leading-[var(--lh-heading)]">
-                  <Bilingual pick={(c) => intent.pick(c).title} />
-                </span>
-                <span className="max-w-[38ch] text-[length:var(--text-body)] leading-[1.65] text-muted-foreground transition-colors duration-[var(--dur-slow)] group-hover/intent:text-[color-mix(in_srgb,var(--brand-cream)_84%,transparent)] group-focus-visible/intent:text-[color-mix(in_srgb,var(--brand-cream)_84%,transparent)] text-pretty">
-                  <Bilingual pick={(c) => intent.pick(c).body} />
-                </span>
-              </span>
+          {/* Top meta */}
+          <div className="flex flex-col items-start gap-4">
+            <div className="inline-flex items-center gap-2 rounded-full border border-[rgba(242,245,235,0.2)] bg-[rgba(18,35,20,0.65)] px-3.5 py-1 text-xs font-semibold uppercase tracking-wider text-[#f2f5eb] backdrop-blur-md">
+              <span className="size-1.5 rounded-full bg-[var(--hc-accent)]" />
+              <span><Bilingual pick={(c) => c.home.intents.eyebrow} /></span>
+            </div>
+            <span aria-hidden="true" className="h-0.5 w-12 bg-[var(--hc-accent)]" />
+          </div>
 
-              <span className="inline-flex min-h-11 items-center gap-2 text-[length:var(--text-small)] font-semibold">
-                <Bilingual pick={(c) => intent.pick(c).action} />
+          {/* Core content */}
+          <div className="flex flex-col gap-5 pt-12">
+            <h3 className="font-heading text-[clamp(1.75rem,1.4rem+1.8vw,3rem)] font-semibold leading-[1.08] tracking-[-0.02em] text-[#f2f5eb] text-balance">
+              <Bilingual pick={(c) => c.home.intents.source.title} />
+            </h3>
+
+            <p className="max-w-[42ch] text-[clamp(0.95rem,0.9rem+0.2vw,1.0625rem)] leading-[1.7] text-[rgba(242,245,235,0.85)] text-pretty">
+              <Bilingual pick={(c) => c.home.intents.source.body} />
+            </p>
+
+            {/* Action button */}
+            <div className="pt-4">
+              <span className="hc-btn-accent inline-flex h-11 items-center gap-2 px-6 text-sm font-semibold shadow-[0_4px_16px_rgba(164,72,25,0.3)]">
+                <Bilingual pick={(c) => c.home.intents.source.action} />
                 <Icon
                   name="arrow-right"
                   data-directional-icon="true"
-                  className="size-4 transition-transform duration-[var(--dur-base)] ease-[var(--ease-out)] group-hover/intent:translate-x-1 rtl:group-hover/intent:-translate-x-1 motion-reduce:transition-none"
+                  className="size-4 transition-transform duration-[var(--dur-base)] ease-[var(--ease-out)] group-hover/main:translate-x-1 rtl:group-hover/main:-translate-x-1"
                 />
               </span>
-            </Link>
-          </Reveal>
-        </li>
-      ))}
-    </ul>
+            </div>
+          </div>
+        </Link>
+      </Reveal>
+
+      {/* ── SECONDARY STACK: EXPLORE CATALOGUE & TRADING PORTAL ── */}
+      <div className="flex flex-col gap-6 lg:gap-8">
+        {/* Pathway 2: Explore Coffee */}
+        <Reveal transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1], delay: 0.1 }}>
+          <Link
+            href={PUBLIC_ROUTES.coffee}
+            className="group/card relative isolate flex flex-col justify-between overflow-hidden rounded-[var(--radius-2xl)] border border-border bg-card p-7 text-card-foreground shadow-[0_4px_20px_rgba(0,0,0,0.04)] transition-all duration-500 hover:border-[var(--hc-accent)] hover:shadow-[0_16px_36px_rgba(0,0,0,0.08)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--hc-accent)] sm:p-8"
+          >
+            <div className="flex flex-col gap-4">
+              <div className="flex items-center justify-between gap-4">
+                <span className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-[var(--hc-accent)] dark:text-[var(--gold-on-dark)]">
+                  <span className="size-1.5 rounded-full bg-[var(--hc-accent)]" />
+                  <Bilingual pick={(c) => c.nav.coffee} />
+                </span>
+                <span className="text-xs font-medium text-muted-foreground">
+                  <Bilingual pick={(c) => c.megaMenu.coffee.primary} />
+                </span>
+              </div>
+
+              <h4 className="font-heading text-2xl font-semibold leading-[1.15] tracking-tight text-foreground transition-colors group-hover/card:text-[var(--hc-accent)]">
+                <Bilingual pick={(c) => c.home.intents.explore.title} />
+              </h4>
+
+              <p className="max-w-[40ch] text-sm leading-relaxed text-muted-foreground text-pretty">
+                <Bilingual pick={(c) => c.home.intents.explore.body} />
+              </p>
+            </div>
+
+            <div className="mt-6 flex items-center justify-between border-t border-border pt-4">
+              <span className="inline-flex items-center gap-2 text-sm font-semibold text-foreground group-hover/card:text-[var(--hc-accent)]">
+                <Bilingual pick={(c) => c.home.intents.explore.action} />
+                <Icon
+                  name="arrow-right"
+                  data-directional-icon="true"
+                  className="size-4 transition-transform duration-[var(--dur-base)] ease-[var(--ease-out)] group-hover/card:translate-x-1 rtl:group-hover/card:-translate-x-1"
+                />
+              </span>
+            </div>
+          </Link>
+        </Reveal>
+
+        {/* Pathway 3: Trade with Hills (Member Portal) */}
+        <Reveal transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1], delay: 0.18 }}>
+          <Link
+            href={PUBLIC_ROUTES.portalEntry}
+            className="group/card relative isolate flex flex-col justify-between overflow-hidden rounded-[var(--radius-2xl)] border border-border bg-card p-7 text-card-foreground shadow-[0_4px_20px_rgba(0,0,0,0.04)] transition-all duration-500 hover:border-[var(--hc-accent)] hover:shadow-[0_16px_36px_rgba(0,0,0,0.08)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--hc-accent)] sm:p-8"
+          >
+            <div className="flex flex-col gap-4">
+              <div className="flex items-center justify-between gap-4">
+                <span className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-[var(--hc-accent)] dark:text-[var(--gold-on-dark)]">
+                  <span className="size-1.5 rounded-full bg-[var(--hc-accent)]" />
+                  <Bilingual pick={(c) => c.nav.portalEntry} />
+                </span>
+                <span className="text-xs font-medium text-muted-foreground">
+                  <Bilingual pick={(c) => c.home.credibility.membership.title} />
+                </span>
+              </div>
+
+              <h4 className="font-heading text-2xl font-semibold leading-[1.15] tracking-tight text-foreground transition-colors group-hover/card:text-[var(--hc-accent)]">
+                <Bilingual pick={(c) => c.home.intents.trade.title} />
+              </h4>
+
+              <p className="max-w-[40ch] text-sm leading-relaxed text-muted-foreground text-pretty">
+                <Bilingual pick={(c) => c.home.intents.trade.body} />
+              </p>
+            </div>
+
+            <div className="mt-6 flex items-center justify-between border-t border-border pt-4">
+              <span className="inline-flex items-center gap-2 text-sm font-semibold text-foreground group-hover/card:text-[var(--hc-accent)]">
+                <Bilingual pick={(c) => c.home.intents.trade.action} />
+                <Icon
+                  name="arrow-right"
+                  data-directional-icon="true"
+                  className="size-4 transition-transform duration-[var(--dur-base)] ease-[var(--ease-out)] group-hover/card:translate-x-1 rtl:group-hover/card:-translate-x-1"
+                />
+              </span>
+            </div>
+          </Link>
+        </Reveal>
+      </div>
+    </div>
   );
 }

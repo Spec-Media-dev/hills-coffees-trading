@@ -10,7 +10,6 @@ import { LanguageSwitcher } from "@/components/locale/language-switcher";
 import { useLocale } from "@/components/locale/locale-provider";
 import { PRIMARY_NAV, PUBLIC_ROUTES } from "@/components/public/routes";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
-import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { IconButton } from "@/components/ui/icon-button";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
@@ -85,7 +84,7 @@ export function MobileNav({ auth }: { auth: MobileNavAuthState }) {
             id="hc-menu-trigger"
             aria-label={labels.controls.openMenu}
             aria-expanded={open}
-            className="rounded-[var(--radius-sm)] lg:hidden"
+            className="rounded-[var(--radius-sm)] xl:hidden"
           />
         }
       >
@@ -95,12 +94,21 @@ export function MobileNav({ auth }: { auth: MobileNavAuthState }) {
       <SheetContent
         side="inline-end"
         showCloseButton={false}
-        className="w-[var(--drawer-w)] gap-0 bg-[var(--surface-page)] p-0 sm:max-w-[var(--drawer-w)]"
+        className="fixed inset-y-0 end-0 h-full max-h-screen w-[var(--drawer-w)] gap-0 bg-[var(--hc-forest)] text-[#f2f5eb] border-s border-[rgba(242,245,235,0.14)] p-0 sm:max-w-[var(--drawer-w)] overflow-hidden shadow-2xl"
       >
-        <div className="flex items-center justify-between border-b border-border px-5 py-3">
-          <SheetTitle className="hc-eyebrow text-muted-foreground">
-            {labels.controls.menuTitle}
-          </SheetTitle>
+        {/* Ambient radial warmth (PDF Guidelines §03) */}
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(ellipse_90%_50%_at_100%_0%,rgba(164,72,25,0.2),transparent_70%)]"
+        />
+
+        <div className="flex items-center justify-between border-b border-[rgba(242,245,235,0.12)] px-5 py-4">
+          <div className="flex items-center gap-2">
+            <span className="size-2 rounded-full bg-[var(--hc-accent)]" />
+            <SheetTitle className="hc-eyebrow text-[var(--gold-on-dark)] font-semibold tracking-wider">
+              {labels.controls.menuTitle}
+            </SheetTitle>
+          </div>
           {/* Explicit close control rather than the Sheet default, so it sits in the header row and
               keeps a full 44px target. */}
           <IconButton
@@ -108,20 +116,22 @@ export function MobileNav({ auth }: { auth: MobileNavAuthState }) {
             variant="text"
             aria-label={labels.controls.closeMenu}
             onClick={() => setOpen(false)}
+            className="text-[#f2f5eb] hover:bg-[var(--hc-moss)] hover:text-[#ffffff]"
           >
             <Icon name="x" className="size-5" />
           </IconButton>
         </div>
 
-        <nav aria-label={labels.a11y.primaryNavigation} className="flex flex-1 flex-col gap-1 overflow-y-auto p-3">
+        <nav aria-label={labels.a11y.primaryNavigation} className="flex flex-1 flex-col gap-1.5 overflow-y-auto p-4">
           {PRIMARY_NAV.map((item) => (
             <Link
               key={item.href}
               href={item.href}
               aria-current={isCurrent(item.href) ? "page" : undefined}
-              className="flex min-h-[3.25rem] items-center rounded-[var(--radius-sm)] px-4 text-[length:var(--text-body)] font-medium text-foreground transition-colors duration-[var(--dur-fast)] hover:bg-[color-mix(in_srgb,transparent,var(--forest-700)_7%)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus-ring)] aria-[current=page]:bg-[color-mix(in_srgb,transparent,var(--forest-700)_8%)] aria-[current=page]:font-semibold"
+              className="flex min-h-[3.25rem] items-center justify-between rounded-[var(--radius-sm)] border-s-2 border-transparent px-4 text-[length:var(--text-body)] font-medium text-[rgba(242,245,235,0.88)] transition-all duration-[var(--dur-fast)] hover:bg-[var(--hc-moss)] hover:text-[#ffffff] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--hc-accent)] aria-[current=page]:border-[var(--hc-accent)] aria-[current=page]:bg-[var(--hc-moss)] aria-[current=page]:text-[#ffffff] aria-[current=page]:font-semibold"
             >
-              {labels.nav[item.key]}
+              <span>{labels.nav[item.key]}</span>
+              <Icon name="chevron-right" data-directional-icon="true" className="size-4 opacity-50" />
             </Link>
           ))}
 
@@ -131,7 +141,7 @@ export function MobileNav({ auth }: { auth: MobileNavAuthState }) {
                 <Link
                   href="/dashboard/"
                   aria-current={isCurrent("/dashboard/") ? "page" : undefined}
-                  className="mt-1 flex min-h-[3.25rem] items-center gap-2 rounded-[var(--radius-sm)] border-t border-border px-4 pt-3 text-[length:var(--text-body)] font-medium text-foreground transition-colors duration-[var(--dur-fast)] hover:bg-[color-mix(in_srgb,transparent,var(--forest-700)_7%)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus-ring)]"
+                  className="mt-2 flex min-h-[3.25rem] items-center gap-2 rounded-[var(--radius-sm)] border-t border-[rgba(242,245,235,0.12)] px-4 pt-3 text-[length:var(--text-body)] font-medium text-[#f2f5eb] transition-colors duration-[var(--dur-fast)] hover:bg-[var(--hc-moss)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--hc-accent)]"
                 >
                   <Icon name="layout-grid" className="size-4" />
                   {labels.account.dashboard}
@@ -141,7 +151,7 @@ export function MobileNav({ auth }: { auth: MobileNavAuthState }) {
                 <Link
                   href="/dashboard-admin/"
                   aria-current={isCurrent("/dashboard-admin/") ? "page" : undefined}
-                  className="flex min-h-[3.25rem] items-center gap-2 rounded-[var(--radius-sm)] px-4 text-[length:var(--text-body)] font-medium text-foreground transition-colors duration-[var(--dur-fast)] hover:bg-[color-mix(in_srgb,transparent,var(--forest-700)_7%)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus-ring)]"
+                  className="flex min-h-[3.25rem] items-center gap-2 rounded-[var(--radius-sm)] px-4 text-[length:var(--text-body)] font-medium text-[#f2f5eb] transition-colors duration-[var(--dur-fast)] hover:bg-[var(--hc-moss)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--hc-accent)]"
                 >
                   <Icon name="shield" className="size-4" />
                   {labels.account.adminConsole}
@@ -150,25 +160,25 @@ export function MobileNav({ auth }: { auth: MobileNavAuthState }) {
               <button
                 type="button"
                 onClick={() => setLogoutDialogOpen(true)}
-                className="flex min-h-[3.25rem] items-center gap-2 rounded-[var(--radius-sm)] px-4 text-start text-[length:var(--text-body)] font-medium text-destructive transition-colors duration-[var(--dur-fast)] hover:bg-destructive/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus-ring)]"
+                className="flex min-h-[3.25rem] items-center gap-2 rounded-[var(--radius-sm)] px-4 text-start text-[length:var(--text-body)] font-medium text-destructive transition-colors duration-[var(--dur-fast)] hover:bg-destructive/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--hc-accent)]"
               >
                 <Icon name="log-out" className="size-4" />
                 {labels.account.signOut}
               </button>
             </>
           ) : (
-            <div className="mt-1 flex flex-col border-t border-border pt-1">
+            <div className="mt-2 flex flex-col border-t border-[rgba(242,245,235,0.12)] pt-2">
               <Link
                 href="/sign-in/"
                 aria-current={isCurrent("/sign-in/") ? "page" : undefined}
-                className="flex min-h-[3.25rem] items-center rounded-[var(--radius-sm)] px-4 text-[length:var(--text-body)] font-medium text-muted-foreground transition-colors duration-[var(--dur-fast)] hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus-ring)]"
+                className="flex min-h-[3.25rem] items-center rounded-[var(--radius-sm)] px-4 text-[length:var(--text-body)] font-medium text-[rgba(242,245,235,0.85)] transition-colors duration-[var(--dur-fast)] hover:text-[#ffffff] hover:bg-[var(--hc-moss)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--hc-accent)]"
               >
                 {labels.account.signIn}
               </Link>
               <Link
                 href="/sign-up/"
                 aria-current={isCurrent("/sign-up/") ? "page" : undefined}
-                className="flex min-h-[3.25rem] items-center rounded-[var(--radius-sm)] px-4 text-[length:var(--text-body)] font-medium text-muted-foreground transition-colors duration-[var(--dur-fast)] hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus-ring)]"
+                className="flex min-h-[3.25rem] items-center rounded-[var(--radius-sm)] px-4 text-[length:var(--text-body)] font-medium text-[rgba(242,245,235,0.85)] transition-colors duration-[var(--dur-fast)] hover:text-[#ffffff] hover:bg-[var(--hc-moss)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--hc-accent)]"
               >
                 {labels.account.signUp}
               </Link>
@@ -176,16 +186,20 @@ export function MobileNav({ auth }: { auth: MobileNavAuthState }) {
           )}
         </nav>
 
-        <div className="mt-auto flex flex-col gap-4 border-t border-border p-5">
+        <div className="mt-auto flex flex-col gap-4 border-t border-[rgba(242,245,235,0.14)] p-5">
           {auth.signedIn ? (
             <div className="flex items-center gap-3">
               <UserAvatar displayName={auth.displayName} size="sm" />
-              <span className="truncate text-sm font-medium text-foreground">{auth.displayName}</span>
+              <span className="truncate text-sm font-medium text-[#f2f5eb]">{auth.displayName}</span>
             </div>
           ) : null}
-          <Button size="lg" className="w-full" nativeButton={false} render={<Link href={PUBLIC_ROUTES.contact} />}>
+          <Link
+            href={PUBLIC_ROUTES.contact}
+            onClick={() => setOpen(false)}
+            className="hc-btn-accent w-full text-center shadow-[0_4px_16px_rgba(164,72,25,0.4)]"
+          >
             {labels.cta.requestAnOffer}
-          </Button>
+          </Link>
           <div className="flex items-center gap-3">
             <ThemeToggle />
             <LanguageSwitcher />

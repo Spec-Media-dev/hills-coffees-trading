@@ -8,73 +8,111 @@ import { Icon } from "@/components/ui/icon";
 import { copy } from "@/lib/public/copy";
 
 /**
- * Final commercial CTA — the closing moment (public design convergence pass; board 3 concept 6 and
- * board 2's closing panel for the *shape*).
+ * Final Commercial Closing Stage — Tomorro-Level Visual Redesign & Approved Content.
  *
- * ── A BRANDED MOMENT, NOT A LINE AND A BUTTON ────────────────────────────────────────────────────
+ * ── MONUMENTAL BRANDED CLOSING STAGE ─────────────────────────────────────────────────────────────
  *
- * Deep-forest ground; a large photograph of ripe cherries beside green coffee on jute
- * (`origin-yemen.jpg`) filling the inline-end under a forest wash; the display headline and the
- * approved lead on the inline-start; a two-button hierarchy (cream primary, outlined secondary);
- * and the closing brand line held under a gold hairline. The section enters with one quiet
- * `Reveal` — the page's last motion, kept deliberately still after everything before it.
+ * 1. Deep Forest backdrop (#122314) that flows seamlessly into the Deep Forest footer.
+ * 2. Warm ambient radial ember glow (rgba(164, 72, 25, 0.12)) behind the closing proposition.
+ * 3. Documentary origin photography (`origin-yemen.jpg`) filling the background under atmospheric
+ *    forest grading.
+ * 4. Sculptural headline hierarchy with Burnt Orange (#a44819) badge, hairline rule, and high-impact
+ *    action cluster.
+ * 5. Integrated commercial dialogue panel strictly using approved bilingual copy from `copy.footer.*`.
  *
- * The message is the approved `home.rfq` copy. No contact detail, quote, statistic or partner row
- * from the boards is reproduced (contract §14.1). The photograph is editorial, never record media.
+ * ── MOTION ───────────────────────────────────────────────────────────────────────────────────────
+ *
+ * Server Component. Entrance animation driven by Motion `Reveal`.
  */
+
 export function FinalCta() {
   return (
-    <section className="relative isolate overflow-hidden bg-[var(--forest-800)] text-[var(--brand-cream)]">
+    <section className="relative isolate overflow-hidden bg-[var(--hc-forest)] text-[#f2f5eb]">
+      {/* Background photographic atmosphere */}
       <div className="absolute inset-0 -z-10">
         <Image
           src="/images/origin-yemen.jpg"
           alt={copy.home.rfq.imageAlt}
           fill
           sizes="100vw"
-          className="object-cover object-[70%_50%]"
+          className="object-cover object-[70%_45%] opacity-30"
         />
+        {/* Multilayer gradient scrims */}
         <span
           aria-hidden="true"
-          className="absolute inset-0 bg-[linear-gradient(90deg,var(--forest-800)_0%,color-mix(in_srgb,var(--forest-800)_92%,transparent)_38%,color-mix(in_srgb,var(--forest-800)_44%,transparent)_100%)] rtl:bg-[linear-gradient(270deg,var(--forest-800)_0%,color-mix(in_srgb,var(--forest-800)_92%,transparent)_38%,color-mix(in_srgb,var(--forest-800)_44%,transparent)_100%)]"
+          className="absolute inset-0 bg-[linear-gradient(180deg,rgba(18,35,20,0.85)_0%,rgba(18,35,20,0.95)_60%,var(--hc-forest)_100%)]"
         />
-        <span
+        {/* Warm radial ember spotlight */}
+        <div
           aria-hidden="true"
-          className="absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-[var(--forest-800)] to-transparent"
+          className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_60%_50%_at_50%_50%,rgba(164,72,25,0.12),transparent_75%)]"
         />
       </div>
 
-      <div className="hc-container py-[clamp(5rem,11vw,11rem)]">
-        <Reveal className="flex max-w-[40rem] flex-col gap-7" distance={20}>
-          <span className="hc-eyebrow text-[var(--gold-on-dark)]">
-            <Bilingual pick={(c) => c.nav.contact} />
-          </span>
-          <h2 className="hc-display font-semibold text-balance [font-size:clamp(2.5rem,1.4rem+4.2vw,5.5rem)]">
-            <Bilingual pick={(c) => c.home.rfq.title} />
-          </h2>
-          <p className="hc-body-lg max-w-[52ch] text-[color-mix(in_srgb,var(--brand-cream)_78%,transparent)] text-pretty">
-            <Bilingual pick={(c) => c.home.rfq.lead} />
-          </p>
+      <div className="hc-public-container py-[clamp(6rem,11vw,11.5rem)]">
+        <div className="grid gap-12 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)] lg:items-center lg:gap-16">
+          {/* Main proposal column */}
+          <Reveal className="flex flex-col items-start gap-6 sm:gap-7" distance={24}>
+            <div className="inline-flex items-center gap-2 rounded-full border border-[rgba(242,245,235,0.2)] bg-[rgba(18,35,20,0.7)] px-4 py-1.5 text-xs font-semibold uppercase tracking-wider text-[#f2f5eb] backdrop-blur-md shadow-sm">
+              <span className="size-1.5 rounded-full bg-[var(--hc-accent)] animate-pulse" />
+              <Bilingual pick={(c) => c.nav.contact} />
+            </div>
 
-          <div className="mt-2 flex flex-wrap gap-3">
-            <Link
-              href={PUBLIC_ROUTES.contact}
-              className="inline-flex h-[var(--control-h-lg)] items-center justify-center gap-2 rounded-[var(--radius-md)] border border-[var(--sand-100)] bg-[var(--sand-100)] px-7 text-sm font-semibold tracking-[0.005em] text-[var(--forest-800)] transition-[background-color,border-color,transform] duration-[var(--dur-fast)] hover:border-[var(--sand-200)] hover:bg-[var(--sand-200)] active:translate-y-px focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--gold-on-dark)] motion-reduce:transform-none"
-            >
-              <Bilingual pick={(c) => c.cta.requestAnOffer} />
-              <Icon name="arrow-right" data-directional-icon="true" className="size-4" />
-            </Link>
-            <Link
-              href={PUBLIC_ROUTES.coffee}
-              className="inline-flex h-[var(--control-h-lg)] items-center justify-center rounded-[var(--radius-md)] border border-[color-mix(in_srgb,var(--brand-cream)_45%,transparent)] px-7 text-sm font-semibold tracking-[0.005em] text-[var(--brand-cream)] transition-[background-color,transform] duration-[var(--dur-fast)] hover:bg-[color-mix(in_srgb,var(--brand-cream)_12%,transparent)] active:translate-y-px focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--gold-on-dark)] motion-reduce:transform-none"
-            >
-              <Bilingual pick={(c) => c.home.hero.exploreAction} />
-            </Link>
-          </div>
+            <h2 className="font-heading text-[clamp(2.125rem,1.6rem+3.5vw,5.5rem)] font-semibold leading-[1.04] tracking-[-0.03em] text-[#f2f5eb] text-balance [text-shadow:0_2px_32px_rgba(0,0,0,0.45)]">
+              <Bilingual pick={(c) => c.home.rfq.title} />
+            </h2>
 
-          <p className="mt-6 max-w-[34rem] border-t border-[color-mix(in_srgb,var(--gold-on-dark)_45%,transparent)] pt-5 font-heading text-[length:var(--text-body-lg)] leading-[1.5] text-[color-mix(in_srgb,var(--brand-cream)_70%,transparent)]">
-            <Bilingual pick={(c) => c.footer.brandStatement} />
-          </p>
-        </Reveal>
+            <span aria-hidden="true" className="h-0.5 w-16 bg-[var(--hc-accent)]" />
+
+            <p className="max-w-[46ch] text-[clamp(1.0625rem,1rem+0.25vw,1.25rem)] leading-[1.7] text-[rgba(242,245,235,0.86)] text-pretty">
+              <Bilingual pick={(c) => c.home.rfq.lead} />
+            </p>
+
+            <div className="flex flex-col sm:flex-row sm:items-center gap-4 pt-2 w-full sm:w-auto">
+              <Link
+                href={PUBLIC_ROUTES.contact}
+                className="hc-btn-accent h-12 px-8 text-sm font-semibold tracking-[0.01em] shadow-[0_4px_22px_rgba(164,72,25,0.4)] w-full sm:w-auto justify-center"
+              >
+                <Bilingual pick={(c) => c.cta.requestAnOffer} />
+                <Icon name="arrow-right" data-directional-icon="true" className="size-4" />
+              </Link>
+              <Link
+                href={PUBLIC_ROUTES.coffee}
+                className="inline-flex h-12 items-center justify-center gap-2 rounded-[var(--radius-pill)] border border-[rgba(242,245,235,0.3)] bg-[rgba(18,35,20,0.5)] px-6 text-sm font-semibold text-[#f2f5eb] transition-all hover:border-[rgba(242,245,235,0.55)] hover:bg-[rgba(242,245,235,0.12)] backdrop-blur-sm w-full sm:w-auto"
+              >
+                <Bilingual pick={(c) => c.cta.exploreAllCoffee} />
+              </Link>
+            </div>
+          </Reveal>
+
+          {/* Floating Commercial Trust Panel — 100% Approved Content */}
+          <Reveal
+            className="flex flex-col rounded-[var(--radius-2xl)] border border-[rgba(242,245,235,0.16)] bg-[rgba(18,35,20,0.82)] p-6 sm:p-9 shadow-[0_24px_64px_rgba(0,0,0,0.45)] backdrop-blur-xl"
+            distance={24}
+            transition={{ delay: 0.15 }}
+          >
+            <div className="flex flex-col gap-6">
+              <div className="flex items-center justify-between border-b border-[rgba(242,245,235,0.12)] pb-4">
+                <span className="font-heading text-lg font-semibold text-[#f2f5eb]">
+                  <Bilingual pick={(c) => c.footer.commercialHeading} />
+                </span>
+                <span className="text-xs font-semibold uppercase tracking-wider text-[var(--gold-on-dark)]">
+                  <Bilingual pick={(c) => c.footer.locationLine} />
+                </span>
+              </div>
+
+              <p className="text-sm leading-[1.75] text-[rgba(242,245,235,0.88)] text-pretty">
+                <Bilingual pick={(c) => c.footer.commercialBody} />
+              </p>
+
+              <div className="border-t border-[rgba(242,245,235,0.1)] pt-5">
+                <p className="font-heading text-sm leading-relaxed text-[rgba(242,245,235,0.78)] text-pretty">
+                  <Bilingual pick={(c) => c.footer.brandStatement} />
+                </p>
+              </div>
+            </div>
+          </Reveal>
+        </div>
       </div>
     </section>
   );

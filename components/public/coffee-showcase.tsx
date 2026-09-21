@@ -80,7 +80,7 @@ export function CoffeeShowcase() {
       <div className="hc-container flex flex-col gap-12">
         <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
           <div className="flex max-w-[44rem] flex-col gap-3">
-            <span className="hc-eyebrow text-[var(--gold-on-light)] dark:text-[var(--gold-on-dark)]">
+            <span className="hc-eyebrow text-[var(--hc-accent)]">
               <Bilingual pick={(c) => c.home.showcase.eyebrow} />
             </span>
             <h2 className="hc-heading-2 font-semibold text-balance">
@@ -92,7 +92,7 @@ export function CoffeeShowcase() {
           </div>
           <Link
             href={PUBLIC_ROUTES.coffee}
-            className="group/cta inline-flex min-h-11 shrink-0 items-center gap-2 text-[length:var(--text-small)] font-semibold text-foreground underline-offset-4 decoration-[var(--gold-on-light)] decoration-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus-ring)] dark:decoration-[var(--gold-on-dark)]"
+            className="group/cta inline-flex min-h-11 shrink-0 items-center gap-2 text-[length:var(--text-small)] font-semibold text-foreground underline-offset-4 decoration-[var(--hc-accent)] decoration-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--hc-accent)]"
           >
             <Bilingual pick={(c) => c.home.showcase.action} />
             <Icon

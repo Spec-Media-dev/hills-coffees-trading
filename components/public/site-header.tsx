@@ -85,7 +85,7 @@ export { PUBLIC_ROUTES };
 const LOGO_WIDTH = 2624;
 const LOGO_HEIGHT = 996;
 
-const LOGO_CLASS = "block h-auto w-[150px] lg:w-[176px] xl:w-[200px]";
+const LOGO_CLASS = "block h-auto w-[140px] lg:w-[160px] xl:w-[172px] 2xl:w-[200px]";
 
 const NAV_LINK =
   "hc-nav-link relative inline-flex h-[var(--header-h)] shrink-0 items-center gap-1 whitespace-nowrap text-[length:var(--text-small)] font-medium transition-colors duration-[var(--dur-fast)] after:absolute after:inset-x-0 after:bottom-[calc(50%-1.35rem)] after:h-[2px] after:origin-center after:scale-x-0 after:bg-[var(--gold-on-dark)] after:transition-transform after:duration-[var(--dur-fast)] hover:after:scale-x-100 focus-visible:rounded-[var(--radius-xs)] focus-visible:outline-2 focus-visible:outline-offset-[-6px] focus-visible:outline-[var(--focus-ring)]";
@@ -97,15 +97,18 @@ function MegaPanel({ menuKey }: { menuKey: MegaMenuKey }) {
   const panel = MEGA_MENU[menuKey];
   return (
     <div className="hc-mega absolute start-0 top-full z-50 w-[min(44rem,calc(100vw-2*var(--gutter-page)))] pt-2">
-      <div className="grid gap-8 rounded-[var(--radius-xl)] border border-border bg-[var(--surface-raised)] p-7 text-foreground shadow-[var(--shadow-xl)] lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.75fr)_auto]">
+      <div className="grid gap-8 rounded-[var(--radius-xl)] border border-border/80 dark:border-[rgba(242,245,235,0.16)] bg-card/95 dark:bg-[#1c2e20]/95 backdrop-blur-2xl p-7 text-foreground shadow-[0_24px_54px_rgba(0,0,0,0.14)] dark:shadow-[0_28px_68px_rgba(0,0,0,0.65)] lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.75fr)_auto]">
         <div className="flex flex-col gap-3">
-          <p className="font-heading text-[length:var(--text-h3)] font-semibold leading-[var(--lh-heading)] tracking-[var(--tracking-heading)]">
+          <p className="font-heading text-[length:var(--text-h3)] font-semibold leading-[var(--lh-heading)] tracking-[var(--tracking-heading)] text-foreground">
             <Bilingual pick={(c) => c.megaMenu[menuKey].title} />
           </p>
-          <p className="max-w-[40ch] text-[length:var(--text-small)] leading-[1.65] text-muted-foreground">
+          <p className="max-w-[40ch] text-[length:var(--text-small)] leading-[1.65] text-muted-foreground text-pretty">
             <Bilingual pick={(c) => c.megaMenu[menuKey].body} />
           </p>
-          <Link href={panel.primaryHref} className={`${PANEL_LINK} mt-1 self-start`}>
+          <Link
+            href={panel.primaryHref}
+            className={`${PANEL_LINK} mt-1 self-start hover:text-[var(--hc-accent)] dark:hover:text-[var(--gold-on-dark)]`}
+          >
             <Bilingual pick={(c) => c.megaMenu[menuKey].primary} />
             <Icon
               name="arrow-right"
@@ -115,12 +118,16 @@ function MegaPanel({ menuKey }: { menuKey: MegaMenuKey }) {
           </Link>
         </div>
 
-        <div className="flex flex-col gap-1 border-s border-border ps-6">
-          <p className="hc-eyebrow mb-2 text-[var(--gold-on-light)] dark:text-[var(--gold-on-dark)]">
+        <div className="flex flex-col gap-1 border-s border-border/80 dark:border-[rgba(242,245,235,0.14)] ps-6">
+          <p className="hc-eyebrow mb-2 text-[var(--gold-on-light)] dark:text-[var(--gold-on-dark)] font-semibold tracking-wider">
             <Bilingual pick={(c) => c.megaMenu.relatedHeading} />
           </p>
           {panel.related.map((item) => (
-            <Link key={item.href} href={item.href} className={PANEL_LINK}>
+            <Link
+              key={item.href}
+              href={item.href}
+              className={`${PANEL_LINK} hover:text-[var(--hc-accent)] dark:hover:text-[var(--gold-on-dark)]`}
+            >
               <Bilingual pick={(c) => c.nav[item.key]} />
             </Link>
           ))}
@@ -128,7 +135,7 @@ function MegaPanel({ menuKey }: { menuKey: MegaMenuKey }) {
 
         {/* A small editorial crop, never a record's media (MEDIA-01). Decorative: the panel's meaning
             is carried by its text. */}
-        <div className="relative hidden aspect-[4/5] w-[8.5rem] overflow-hidden rounded-[var(--radius-md)] border border-border bg-muted lg:block">
+        <div className="relative hidden aspect-[4/5] w-[8.5rem] overflow-hidden rounded-[var(--radius-md)] border border-border/80 dark:border-[rgba(242,245,235,0.16)] bg-muted shadow-xs lg:block">
           <Image src={panel.image} alt="" fill sizes="8.5rem" className="object-cover object-center" />
         </div>
       </div>
@@ -177,9 +184,9 @@ export async function SiteHeader() {
 
         <nav
           aria-label={copy.a11y.primaryNavigation}
-          className="relative ms-2 hidden min-w-0 lg:block xl:ms-6"
+          className="relative ms-2 hidden min-w-0 xl:block xl:ms-4 2xl:ms-6"
         >
-          <ul className="flex items-center gap-6 xl:gap-7">
+          <ul className="flex items-center gap-3.5 xl:gap-4 2xl:gap-7">
             {PRIMARY_NAV.map((item) => {
               const hasPanel = item.key in MEGA_MENU;
               return (
@@ -201,7 +208,7 @@ export async function SiteHeader() {
         </nav>
 
         {/* Logical margin keeps the action cluster at the trailing edge in both directions. */}
-        <div className="hc-header-tools ms-auto flex shrink-0 items-center gap-2 lg:gap-3">
+        <div className="hc-header-tools ms-auto flex shrink-0 items-center gap-1.5 xl:gap-2 2xl:gap-3">
           <SearchControl />
 
           <div className="hidden items-center gap-2 md:flex">
@@ -232,18 +239,17 @@ export async function SiteHeader() {
               </Link>
               <Link
                 href="/sign-up/"
-                className="hidden h-[var(--control-h)] items-center rounded-[var(--radius-sm)] px-2 text-[length:var(--text-small)] font-medium underline-offset-4 transition-colors duration-[var(--dur-fast)] hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus-ring)] lg:inline-flex"
+                className="hidden h-[var(--control-h)] items-center rounded-[var(--radius-sm)] px-2 text-[length:var(--text-small)] font-medium underline-offset-4 transition-colors duration-[var(--dur-fast)] hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus-ring)] 2xl:inline-flex"
               >
                 <Bilingual pick={(c) => c.account.signUp} />
               </Link>
             </div>
           )}
 
-          {/* The one filled button. Over the hero it is cream-on-photo; settled, it is the primary
-              forest button — both derived from `--hdr-p` in `globals.css` (never gold, contract §3). */}
+          {/* The one filled button: Hills Burnt Orange (#a44819) with crisp white text (HILLS_DESIGN_PLAN.md §8). */}
           <Link
             href={PUBLIC_ROUTES.contact}
-            className="hc-header-cta hidden h-[var(--control-h)] items-center justify-center rounded-[var(--radius-sm)] border px-5 text-sm font-semibold tracking-[0.005em] transition-[color,background-color,border-color,transform] duration-[var(--dur-fast)] active:translate-y-px focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus-ring)] motion-reduce:transform-none sm:inline-flex"
+            className="hc-header-cta hc-btn-accent hidden !h-10 !min-h-10 px-5 text-sm font-semibold tracking-[0.005em] sm:inline-flex"
           >
             <Bilingual pick={(c) => c.cta.requestAnOffer} />
           </Link>

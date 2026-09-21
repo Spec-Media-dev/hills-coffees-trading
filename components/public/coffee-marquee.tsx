@@ -64,7 +64,7 @@ function Strip({ clone }: { clone: boolean }) {
           <Link
             href={PUBLIC_ROUTES.coffee}
             tabIndex={clone ? -1 : undefined}
-            className="group/card relative block aspect-[3/4] overflow-hidden rounded-[var(--radius-lg)] border border-[color-mix(in_srgb,var(--brand-cream)_14%,transparent)] bg-[var(--forest-800)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--gold-on-dark)]"
+            className="group/card relative block aspect-[3/4] overflow-hidden rounded-[var(--radius-lg)] border border-[color-mix(in_srgb,var(--brand-cream)_14%,transparent)] bg-[var(--forest-800)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--hc-accent)]"
           >
             <Image
               src={card.image}
@@ -99,7 +99,7 @@ export function CoffeeMarquee() {
     <section className="relative isolate overflow-hidden bg-[var(--forest-800)] py-[clamp(3.5rem,7vw,6.5rem)] text-[var(--brand-cream)]">
       <div className="hc-container flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
         <div className="flex max-w-[40rem] flex-col gap-3">
-          <span className="hc-eyebrow text-[var(--gold-on-dark)]">
+          <span className="hc-eyebrow text-[var(--hc-accent)]">
             <Bilingual pick={(c) => c.home.marquee.eyebrow} />
           </span>
           <h2 className="hc-heading-2 font-semibold text-balance">
@@ -108,7 +108,7 @@ export function CoffeeMarquee() {
         </div>
         <Link
           href={PUBLIC_ROUTES.coffee}
-          className="group/cta inline-flex h-[var(--control-h)] shrink-0 items-center gap-2 self-start rounded-[var(--radius-sm)] border border-[color-mix(in_srgb,var(--gold-on-dark)_55%,transparent)] px-5 text-sm font-semibold text-[var(--brand-cream)] transition-colors duration-[var(--dur-fast)] hover:bg-[color-mix(in_srgb,var(--brand-cream)_10%,transparent)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--gold-on-dark)] sm:self-auto"
+          className="group/cta inline-flex h-[var(--control-h)] shrink-0 items-center gap-2 self-start rounded-[var(--radius-pill)] border border-[color-mix(in_srgb,var(--hc-accent)_55%,transparent)] px-5 text-sm font-semibold text-[var(--brand-cream)] transition-colors duration-[var(--dur-fast)] hover:bg-[color-mix(in_srgb,var(--brand-cream)_10%,transparent)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--hc-accent)] sm:self-auto"
         >
           <Bilingual pick={(c) => c.cta.exploreAllCoffee} />
           <Icon

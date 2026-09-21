@@ -97,7 +97,7 @@ export default function ContactPage() {
         </div>
 
         <div className="hc-container flex min-h-[min(64svh,36rem)] flex-col justify-end gap-6 pb-[clamp(3rem,7vw,6rem)] pt-[clamp(4rem,10vw,7rem)]">
-          <span className="hc-eyebrow text-[var(--gold-on-dark)]">
+          <span className="hc-eyebrow text-[var(--gold-on-dark)] font-semibold tracking-wider">
             <Bilingual pick={(c) => c.contact.eyebrow} />
           </span>
           <h1 className="hc-display max-w-[14ch] font-semibold text-balance">
@@ -126,7 +126,7 @@ export default function ContactPage() {
                   className="flex h-full flex-col gap-4 py-8 lg:py-10"
                   transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1], delay: index * 0.07 }}
                 >
-                  <span aria-hidden="true" className="h-px w-10 bg-[var(--gold-on-light)] dark:bg-[var(--gold-on-dark)]" />
+                  <span aria-hidden="true" className="h-px w-10 bg-[var(--hc-accent)]" />
                   <h3 className="font-heading text-[length:var(--text-h3)] font-semibold leading-[var(--lh-heading)] tracking-[var(--tracking-heading)]">
                     <Bilingual pick={(c) => intent.pick(c).title} />
                   </h3>
@@ -136,7 +136,7 @@ export default function ContactPage() {
                   {intent.href ? (
                     <Link
                       href={intent.href}
-                      className="group/link mt-auto inline-flex min-h-11 items-center gap-2 pt-2 text-[length:var(--text-small)] font-semibold underline-offset-4 decoration-[var(--gold-on-light)] decoration-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus-ring)] dark:decoration-[var(--gold-on-dark)]"
+                      className="group/link mt-auto inline-flex min-h-11 items-center gap-2 pt-2 text-[length:var(--text-small)] font-semibold underline-offset-4 decoration-[var(--hc-accent)] decoration-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--hc-accent)]"
                     >
                       <Bilingual pick={(c) => intent.pick(c).action ?? ""} />
                       <Icon
@@ -163,9 +163,9 @@ export default function ContactPage() {
             server-rendered wrapper only supplies the heading through Bilingual, exactly like every
             other server-rendered string on this page.
           */}
-          <div className="flex flex-col gap-6 rounded-[var(--radius-xl)] border border-[color-mix(in_srgb,var(--gold-on-light)_45%,transparent)] bg-card p-7 shadow-[var(--shadow-md)] sm:p-9 dark:border-[color-mix(in_srgb,var(--gold-on-dark)_40%,transparent)] dark:shadow-none">
+          <div className="flex flex-col gap-6 rounded-[var(--radius-xl)] border border-[color-mix(in_srgb,var(--hc-accent)_35%,transparent)] bg-card p-7 shadow-[var(--shadow-md)] sm:p-9 dark:border-[color-mix(in_srgb,var(--hc-accent)_30%,transparent)] dark:shadow-none">
             <div className="flex flex-col gap-2">
-              <span className="hc-eyebrow text-[var(--gold-on-light)] dark:text-[var(--gold-on-dark)]">
+              <span className="hc-eyebrow text-[var(--hc-accent)] dark:text-[var(--gold-on-dark)]">
                 <Bilingual pick={(c) => c.contact.rfq.heading} />
               </span>
               <p className="max-w-[56ch] text-[length:var(--text-body)] leading-[1.7] text-muted-foreground text-pretty">
@@ -179,7 +179,7 @@ export default function ContactPage() {
             <h2 className="font-heading text-[length:var(--text-h3)] font-semibold leading-[var(--lh-heading)] tracking-[var(--tracking-heading)]">
               <Bilingual pick={(c) => c.contact.detailsHeading} />
             </h2>
-            <p className="font-heading text-[length:var(--text-h2)] font-semibold leading-[var(--lh-heading)] tracking-[var(--tracking-heading)] text-[var(--gold-on-light)] dark:text-[var(--gold-on-dark)]">
+            <p className="font-heading text-[length:var(--text-h2)] font-semibold leading-[var(--lh-heading)] tracking-[var(--tracking-heading)] text-[var(--hc-accent)] dark:text-[var(--gold-on-dark)]">
               <Bilingual pick={(c) => c.footer.locationLine} />
             </p>
             <p className="max-w-[48ch] text-[length:var(--text-body)] leading-[1.7] text-muted-foreground text-pretty">

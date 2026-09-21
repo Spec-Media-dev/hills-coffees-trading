@@ -36,7 +36,7 @@ export type PublicShellProps = {
 
 export function PublicShell({ children }: PublicShellProps) {
   return (
-    <div className="flex min-h-full flex-1 flex-col bg-background text-foreground">
+    <div className="hc-public flex min-h-full flex-1 flex-col bg-[var(--hc-bone)] text-[var(--hc-olive)]">
       {/*
         Skip link: visually hidden until focused, then pinned to the top of the viewport. It is the
         first focusable element on every public page, so a keyboard or screen-reader visitor can jump

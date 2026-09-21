@@ -9,7 +9,6 @@ import {
   LEAD,
 } from "@/components/public/section";
 import { PUBLIC_ROUTES } from "@/components/public/site-header";
-import { Button } from "@/components/ui/button";
 import { copy } from "@/lib/public/copy";
 import { canonicalUrl } from "@/lib/public/site";
 
@@ -71,20 +70,23 @@ export default function PortalEntryPage() {
         </div>
 
         <div className="flex max-w-[46rem] flex-col items-start gap-5 text-start">
-        <span className={`${EYEBROW} text-[var(--gold-on-light)]`}>
+        <span className={`${EYEBROW} text-[var(--hc-accent)] dark:text-[var(--gold-on-dark)]`}>
           <Bilingual pick={(c) => c.portalEntry.eyebrow} />
         </span>
         <h1 className={HEADING_2}><Bilingual pick={(c) => c.portalEntry.title} /></h1>
-        <span aria-hidden="true" className="h-px w-16 bg-[var(--gold-on-light)]" />
+        <span aria-hidden="true" className="h-px w-16 bg-[var(--hc-accent)] opacity-85" />
         <p className={`${LEAD} text-muted-foreground text-pretty`}>
           <Bilingual pick={(c) => c.portalEntry.lead} />
         </p>
         <p className="max-w-[58ch] text-[0.9375rem] leading-[1.6] text-muted-foreground text-pretty">
           <Bilingual pick={(c) => c.portalEntry.body} />
         </p>
-        <Button className="mt-2" nativeButton={false} render={<Link href={PUBLIC_ROUTES.contact} />}>
+        <Link
+          href={PUBLIC_ROUTES.contact}
+          className="hc-btn-accent mt-2"
+        >
           <Bilingual pick={(c) => c.portalEntry.action} />
-        </Button>
+        </Link>
         </div>
       </div>
     </article>

@@ -232,7 +232,11 @@ export function RfqForm() {
       ) : null}
 
       <FormActionBar className="justify-start bg-transparent backdrop-blur-none">
-        <Button type="submit" disabled={isPending}>
+        <Button
+          type="submit"
+          disabled={isPending}
+          className="hc-btn-accent rounded-[var(--radius-pill)] border-transparent"
+        >
           {isPending ? copy.submitting : copy.submit}
         </Button>
         {isOtherError ? (

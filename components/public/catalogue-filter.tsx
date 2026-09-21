@@ -132,9 +132,9 @@ export function CatalogueFilter({ coffees }: { coffees: PublicCoffeeSummary[] })
   };
 
   const chip = (active: boolean) =>
-    `inline-flex min-h-11 items-center rounded-[var(--radius-pill)] border px-4 text-[length:var(--text-meta)] font-medium transition-colors duration-[var(--dur-fast)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus-ring)] ${
+    `inline-flex min-h-11 items-center rounded-[var(--radius-pill)] border px-4 text-[length:var(--text-meta)] font-medium transition-colors duration-[var(--dur-fast)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--hc-accent)] ${
       active
-        ? "border-primary bg-primary text-primary-foreground"
+        ? "border-[var(--hc-accent)] bg-[var(--hc-accent)] text-[#ffffff] font-semibold"
         : "border-border bg-card text-muted-foreground hover:border-[var(--border-strong)] hover:text-foreground"
     }`;
 

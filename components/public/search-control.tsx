@@ -98,29 +98,29 @@ export function SearchControl({ className }: { className?: string }) {
              * Below `xl` it collapses to the compact icon control so the bar keeps its rhythm.
              */
             className={cn(
-              "gap-2.5 rounded-[var(--radius-pill)] px-4 font-medium text-muted-foreground xl:w-[15.5rem] xl:justify-start xl:ps-4 xl:pe-5",
+              "h-10 w-10 justify-center rounded-[var(--radius-pill)] p-0 text-muted-foreground transition-all duration-[var(--dur-fast)] hover:border-[var(--hc-accent)] hover:text-foreground xl:h-10 xl:w-[10.5rem] xl:justify-start xl:gap-2.5 xl:ps-3 xl:pe-3.5 2xl:w-[15rem] 2xl:ps-3.5 2xl:pe-4",
               className,
             )}
           />
         }
       >
-        <Icon name="search" className="size-4 shrink-0" />
+        <Icon name="search" className="size-4 shrink-0 opacity-80" />
         {/* The label is visible on desktop and decorative beside the icon elsewhere; the accessible
             name always comes from `aria-label` above, so meaning is never carried by the icon alone. */}
-        <span className="hidden truncate text-[length:var(--text-small)] font-normal xl:inline">
+        <span className="hidden truncate text-start text-[length:var(--text-small)] font-normal opacity-90 xl:inline">
           {labels.searchFieldLabel}
         </span>
       </DialogTrigger>
 
       <DialogContent
-        className="top-[12vh] max-w-xl translate-y-0 gap-5 p-6 sm:p-7"
+        className="top-[12vh] max-w-xl translate-y-0 gap-5 rounded-[var(--radius-2xl)] border border-border/80 dark:border-[rgba(242,245,235,0.16)] bg-card/95 dark:bg-[#1c2e20]/95 backdrop-blur-2xl p-6 sm:p-8 shadow-2xl"
         // Base UI restores focus to the trigger on close; this places it usefully on open, so the
         // visitor can type immediately rather than tabbing into the field.
         initialFocus={fieldRef}
       >
         <DialogHeader>
-          <DialogTitle>{labels.searchTitle}</DialogTitle>
-          <DialogDescription>{labels.searchHint}</DialogDescription>
+          <DialogTitle className="font-heading text-[length:var(--text-h3)] font-semibold">{labels.searchTitle}</DialogTitle>
+          <DialogDescription className="text-muted-foreground">{labels.searchHint}</DialogDescription>
         </DialogHeader>
 
         <form onSubmit={onSubmit} className="flex flex-col gap-4" role="search">
@@ -140,10 +140,14 @@ export function SearchControl({ className }: { className?: string }) {
               onChange={(event) => setTerm(event.target.value)}
               placeholder={labels.searchPlaceholder}
               autoComplete="off"
-              className="h-[var(--control-h)] rounded-[var(--radius-pill)] ps-11"
+              className="h-[var(--control-h)] rounded-[var(--radius-pill)] ps-11 border-border/80 dark:border-[rgba(242,245,235,0.16)] focus-visible:border-[var(--hc-accent)]"
             />
           </div>
-          <Button type="submit" size="default" className="self-stretch sm:self-end">
+          <Button
+            type="submit"
+            size="default"
+            className="self-stretch sm:self-end rounded-[var(--radius-pill)] border-transparent bg-[var(--hc-accent)] text-[#ffffff] hover:bg-[var(--hc-accent-hover)] font-semibold shadow-[0_2px_12px_rgba(164,72,25,0.35)]"
+          >
             {labels.searchSubmit}
           </Button>
         </form>

@@ -145,8 +145,8 @@ export function OriginsShowcase({
   const labels = t.origins.showcase;
   const controlClass =
     tone === "dark"
-      ? "border-[color-mix(in_srgb,var(--brand-cream)_40%,transparent)] text-[var(--brand-cream)] hover:bg-[color-mix(in_srgb,var(--brand-cream)_12%,transparent)] focus-visible:outline-[var(--gold-on-dark)]"
-      : undefined;
+      ? "border-[color-mix(in_srgb,var(--brand-cream)_40%,transparent)] text-[var(--brand-cream)] hover:bg-[color-mix(in_srgb,var(--brand-cream)_12%,transparent)] focus-visible:outline-[var(--hc-accent)]"
+      : "focus-visible:outline-[var(--hc-accent)]";
 
   return (
     <div className="flex flex-col gap-8">
@@ -184,7 +184,7 @@ export function OriginsShowcase({
             className={`h-px flex-1 ${tone === "dark" ? "bg-[color-mix(in_srgb,var(--brand-cream)_22%,transparent)]" : "bg-border"}`}
           >
             <span
-              className={`block h-px transition-[width] duration-[var(--dur-fast)] ${tone === "dark" ? "bg-[var(--gold-on-dark)]" : "bg-[var(--gold-on-light)] dark:bg-[var(--gold-on-dark)]"}`}
+              className="block h-px transition-[width] duration-[var(--dur-fast)] bg-[var(--hc-accent)]"
               style={{ width: `${Math.max(8, progress * 100)}%` }}
             />
           </div>

@@ -435,37 +435,51 @@
 
 .hc-header {
   --hdr-p: 1;
-  --hdr-ink: color-mix(in srgb, var(--foreground) calc(var(--hdr-p) * 100%), var(--brand-cream));
+  --hdr-ink: color-mix(in srgb, var(--foreground) calc(var(--hdr-p) * 100%), #f2f5eb);
   --hdr-ink-muted: color-mix(
     in srgb,
     var(--muted-foreground) calc(var(--hdr-p) * 100%),
-    color-mix(in srgb, var(--brand-cream) 84%, transparent)
+    rgba(242, 245, 235, 0.82)
   );
   --hdr-line: color-mix(
     in srgb,
     var(--border-strong) calc(var(--hdr-p) * 100%),
-    color-mix(in srgb, var(--brand-cream) 42%, transparent)
+    rgba(242, 245, 235, 0.18)
   );
   --hdr-hover-wash: color-mix(
     in srgb,
     color-mix(in srgb, transparent, var(--forest-700) 8%) calc(var(--hdr-p) * 100%),
-    color-mix(in srgb, var(--brand-cream) 12%, transparent)
+    rgba(242, 245, 235, 0.1)
   );
   background-color: color-mix(
     in srgb,
-    var(--surface-page) calc(var(--hdr-p) * 88%),
-    color-mix(in srgb, var(--forest-900) 42%, transparent)
+    var(--surface-page) calc(var(--hdr-p) * 92%),
+    rgba(14, 38, 32, 0.65)
   );
-  border-bottom-color: color-mix(in srgb, var(--border) calc(var(--hdr-p) * 70%), transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--border) calc(var(--hdr-p) * 60%), rgba(242, 245, 235, 0.12));
   color: var(--hdr-ink);
+  backdrop-filter: blur(16px) saturate(150%);
+  -webkit-backdrop-filter: blur(16px) saturate(150%);
 }
 
-.hc-header .hc-nav-link { color: var(--hdr-ink-muted); }
+/* Guarantee dark opener headers initialize with 0 so text and logo are cream/high-contrast by default */
+.hc-header:has(+ main [data-page-opener="dark"]) {
+  --hdr-p: 0;
+}
+
+.hc-header .hc-nav-link {
+  color: var(--hdr-ink-muted);
+  border-radius: var(--radius-sm);
+  padding-inline: 0.5rem;
+}
 .hc-header .hc-nav-link:hover,
 .hc-header .hc-nav-link:focus-visible,
-.hc-nav-item:focus-within > .hc-nav-link { color: var(--hdr-ink); }
+.hc-nav-item:focus-within > .hc-nav-link {
+  color: var(--hdr-ink);
+  background-color: var(--hdr-hover-wash);
+}
 .hc-header .hc-nav-link::after {
-  background-color: color-mix(in srgb, var(--gold-on-light) calc(var(--hdr-p) * 100%), var(--gold-on-dark));
+  background-color: color-mix(in srgb, var(--hc-accent) calc(var(--hdr-p) * 100%), var(--gold-on-dark));
 }
 .dark .hc-header .hc-nav-link::after { background-color: var(--gold-on-dark); }
 
@@ -476,19 +490,37 @@
 .hc-header-tools :is(a, button):not(.hc-header-cta) {
   color: var(--hdr-ink);
   border-color: var(--hdr-line);
+  transition: color var(--dur-fast) var(--ease-standard),
+              background-color var(--dur-fast) var(--ease-standard),
+              border-color var(--dur-fast) var(--ease-standard),
+              transform var(--dur-fast) var(--ease-standard);
 }
-.hc-header-tools :is(a, button):not(.hc-header-cta):hover { background-color: var(--hdr-hover-wash); }
+.hc-header-tools :is(a, button):not(.hc-header-cta):hover {
+  background-color: var(--hdr-hover-wash);
+}
 .hc-header-tools button[aria-label] svg { color: var(--hdr-ink); }
 
-/* The one filled button: cream over the photograph, the primary forest button once settled. */
+/* The one filled button: Hills Burnt Orange (#a44819) with crisp white text */
 .hc-header-cta {
-  background-color: color-mix(in srgb, var(--primary) calc(var(--hdr-p) * 100%), var(--sand-100));
-  border-color: color-mix(in srgb, var(--primary) calc(var(--hdr-p) * 100%), var(--sand-100));
-  color: color-mix(in srgb, var(--primary-foreground) calc(var(--hdr-p) * 100%), var(--forest-800));
+  background-color: var(--hc-accent) !important;
+  border-color: transparent !important;
+  color: #ffffff !important;
+  box-shadow: 0 2px 12px rgba(164, 72, 25, 0.32);
+  border-radius: var(--hc-radius-pill);
+  transition: background-color var(--dur-fast) var(--ease-standard),
+              transform var(--dur-fast) var(--ease-standard),
+              box-shadow var(--dur-fast) var(--ease-standard);
 }
 .hc-header-cta:hover {
-  background-color: color-mix(in srgb, var(--primary-hover) calc(var(--hdr-p) * 100%), var(--sand-200));
-  border-color: color-mix(in srgb, var(--primary-hover) calc(var(--hdr-p) * 100%), var(--sand-200));
+  background-color: var(--hc-accent-hover) !important;
+  border-color: transparent !important;
+  color: #ffffff !important;
+  box-shadow: 0 4px 18px -2px rgba(164, 72, 25, 0.5);
+  transform: translateY(-1px);
+}
+.hc-header-cta:active {
+  background-color: var(--hc-accent-active) !important;
+  transform: translateY(0);
 }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -651,6 +683,320 @@
 
 [data-sonner-toast][data-mounted="false"] {
   transform: translateY(10px);
+}
+
+/*
+ * ── CULTIVATED PRECISION: PUBLIC TOKEN SCOPE (HILLS_DESIGN_PLAN.md §6) ───────────
+ *
+ * Scoped specifically to public surfaces via `.hc-public` so that protected dashboard,
+ * admin, finance, inventory, and auth surfaces remain entirely unperturbed.
+ */
+.hc-public {
+  /* Color roles */
+  --hc-forest: #122314;
+  --hc-moss: #273f2b;
+  --hc-olive: #30322a;
+  --hc-sage: #7e8371;
+  --hc-fern: #b7bda5;
+  /* Primary Accent: Hills Burnt Orange (#a44819) */
+  --hc-accent: #a44819;
+  --hc-accent-hover: #8c3a12;
+  --hc-accent-active: #77310e;
+  --hc-accent-wash: #fdf5f0;
+  --hc-burnt: #a44819;
+  --hc-burnt-hover: #8c3a12;
+  /* Compatibility aliases mapping to Burnt Orange */
+  --hc-sprout: #a44819;
+  --hc-verdant: #8c3a12;
+  --hc-sprout-wash: #fdf5f0;
+  --hc-mist-green: #d9deca;
+  --hc-bone: #f2f5eb;
+  --hc-white: #ffffff;
+  --hc-soft-mist: #dcdfe3;
+  --hc-carbon: #222222;
+  --hc-focus-ring: #a44819;
+
+  /* Typography scale */
+  --hc-font-hero: clamp(2.125rem, 1.5rem + 3.8vw, 7.25rem);
+  --hc-font-h1: clamp(2.5rem, 4vw, 5rem);
+  --hc-font-h2: clamp(2rem, 2.8vw, 3.5rem);
+  --hc-font-h3: clamp(1.375rem, 1.5vw, 2rem);
+  --hc-font-body-lg: 1.125rem;
+  --hc-font-body: 1rem;
+  --hc-font-label: 0.75rem;
+
+  --hc-lh-hero: 1.0;
+  --hc-lh-h1: 1.08;
+  --hc-lh-h2: 1.14;
+  --hc-lh-h3: 1.25;
+  --hc-lh-body-lg: 1.6;
+  --hc-lh-body: 1.65;
+  --hc-lh-label: 1.25;
+
+  /* Layout & Container tokens */
+  --hc-container-max: 75rem; /* 1200px */
+  --hc-container-wide: 90rem; /* 1440px */
+  --hc-gutter: clamp(1rem, 3vw, 1.5rem);
+  --hc-section-y: clamp(3.5rem, 7vw, 8rem);
+
+  /* Radius tokens */
+  --hc-radius-control: 10px;
+  --hc-radius-panel: 16px;
+  --hc-radius-hero: 24px;
+  --hc-radius-pill: 999px;
+
+  /* Shadows */
+  --hc-shadow-subtle: 0 2px 8px -2px rgba(18, 35, 20, 0.08), 0 1px 4px -1px rgba(18, 35, 20, 0.04);
+  --hc-shadow-card: 0 8px 24px -6px rgba(18, 35, 20, 0.12), 0 2px 6px -1px rgba(18, 35, 20, 0.06);
+  --hc-shadow-elevated: 0 20px 48px -12px rgba(18, 35, 20, 0.28), 0 4px 12px -2px rgba(18, 35, 20, 0.1);
+  --hc-shadow-nav: 0 4px 20px -4px rgba(18, 35, 20, 0.16);
+
+  /* Borders */
+  --hc-border-hairline: 1px solid var(--hc-mist-green);
+  --hc-border-dark-hairline: 1px solid rgba(242, 245, 235, 0.12);
+
+  /* Semantic public canvas & text mappings */
+  --hc-canvas: var(--hc-bone);
+  --hc-surface-card: #ffffff;
+  --hc-surface-elevated: #ffffff;
+  --hc-ink: var(--hc-olive);
+  --hc-ink-muted: var(--hc-sage);
+
+  /* Base public background & foreground mapping */
+  background-color: var(--hc-canvas);
+  color: var(--hc-ink);
+}
+
+/* Dark mode preferences in public scope */
+.dark .hc-public {
+  --hc-canvas: #142217;
+  --hc-surface-card: #1c2e20;
+  --hc-surface-elevated: #223727;
+  --hc-ink: #f2f5eb;
+  --hc-ink-muted: #b7bda5;
+  --hc-bone: #f2f5eb; /* Preserved physical bone hue: never dark green */
+  --hc-white: #ffffff;
+  --hc-olive: #f2f5eb;
+  --hc-sage: #c7cebe;
+  --hc-mist-green: rgba(242, 245, 235, 0.16);
+  --hc-soft-mist: rgba(242, 245, 235, 0.18);
+  --hc-border-hairline: 1px solid rgba(242, 245, 235, 0.16);
+  --hc-border-dark-hairline: 1px solid rgba(242, 245, 235, 0.16);
+  --hc-shadow-subtle: 0 2px 8px -2px rgba(0, 0, 0, 0.4);
+  --hc-shadow-card: 0 8px 24px -6px rgba(0, 0, 0, 0.5);
+  --hc-shadow-elevated: 0 20px 48px -12px rgba(0, 0, 0, 0.7);
+  --hc-shadow-nav: 0 4px 20px -4px rgba(0, 0, 0, 0.6);
+  background-color: var(--hc-canvas);
+  color: var(--hc-ink);
+}
+
+/* Surface tokens that guarantee contrast regardless of global theme */
+.hc-stage-forest,
+.hc-stage-moss {
+  --hc-olive: #f2f5eb;
+  --hc-sage: rgba(242, 245, 235, 0.85);
+  --hc-mist-green: rgba(242, 245, 235, 0.16);
+  color: #f2f5eb;
+}
+
+/* Public container classes */
+.hc-public-container {
+  inline-size: 100%;
+  max-inline-size: var(--hc-container-max);
+  margin-inline: auto;
+  padding-inline: var(--hc-gutter);
+}
+
+.hc-public-container-wide {
+  inline-size: 100%;
+  max-inline-size: var(--hc-container-wide);
+  margin-inline: auto;
+  padding-inline: var(--hc-gutter);
+}
+
+/* Public typography classes */
+.hc-type-hero {
+  font-family: var(--font-display);
+  font-size: var(--hc-font-hero);
+  line-height: var(--hc-lh-hero);
+  letter-spacing: -0.03em;
+  font-weight: 700;
+}
+
+.hc-type-h1 {
+  font-family: var(--font-display);
+  font-size: var(--hc-font-h1);
+  line-height: var(--hc-lh-h1);
+  letter-spacing: -0.02em;
+  font-weight: 700;
+}
+
+.hc-type-h2 {
+  font-family: var(--font-display);
+  font-size: var(--hc-font-h2);
+  line-height: var(--hc-lh-h2);
+  letter-spacing: -0.015em;
+  font-weight: 600;
+}
+
+.hc-type-h3 {
+  font-family: var(--font-display);
+  font-size: var(--hc-font-h3);
+  line-height: var(--hc-lh-h3);
+  letter-spacing: -0.01em;
+  font-weight: 600;
+}
+
+.hc-type-body-lg {
+  font-family: var(--font-ui);
+  font-size: var(--hc-font-body-lg);
+  line-height: var(--hc-lh-body-lg);
+}
+
+.hc-type-body {
+  font-family: var(--font-ui);
+  font-size: var(--hc-font-body);
+  line-height: var(--hc-lh-body);
+}
+
+.hc-type-label {
+  font-family: var(--font-ui);
+  font-size: var(--hc-font-label);
+  line-height: var(--hc-lh-label);
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+[dir="rtl"] .hc-type-hero,
+[dir="rtl"] .hc-type-h1,
+[dir="rtl"] .hc-type-h2,
+[dir="rtl"] .hc-type-h3 {
+  letter-spacing: 0;
+}
+
+[dir="rtl"] .hc-type-label {
+  letter-spacing: 0.04em;
+}
+
+/* Public stage surfaces */
+.hc-stage-forest {
+  background-color: var(--hc-forest);
+  color: var(--hc-bone);
+}
+
+.hc-stage-moss {
+  background-color: var(--hc-moss);
+  color: var(--hc-bone);
+}
+
+.hc-stage-bone {
+  background-color: var(--hc-bone);
+  color: var(--hc-olive);
+}
+
+.hc-stage-white {
+  background-color: var(--hc-white);
+  color: var(--hc-olive);
+}
+
+/* Public Buttons (HILLS_DESIGN_PLAN.md §10 & §11) */
+.hc-btn-sprout,
+.hc-btn-accent {
+  display: inline-flex;
+  min-height: 48px;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: var(--hc-radius-pill);
+  background-color: var(--hc-accent);
+  color: #ffffff; /* High contrast: #ffffff on #a44819 provides >6.2:1 WCAG AA contrast */
+  padding-inline: 1.5rem;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  letter-spacing: 0.005em;
+  border: 1px solid transparent;
+  transition: background-color var(--dur-fast) var(--ease-standard),
+              color var(--dur-fast) var(--ease-standard),
+              transform var(--dur-fast) var(--ease-standard),
+              box-shadow var(--dur-fast) var(--ease-standard);
+  cursor: pointer;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.hc-btn-sprout:hover,
+.hc-btn-accent:hover {
+  background-color: var(--hc-accent-hover);
+  color: #ffffff;
+  box-shadow: 0 4px 14px -2px rgba(164, 72, 25, 0.35);
+}
+
+.hc-btn-sprout:active,
+.hc-btn-accent:active {
+  background-color: var(--hc-accent-active);
+  transform: translateY(1px);
+}
+
+.hc-btn-forest {
+  display: inline-flex;
+  min-height: 48px;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: var(--hc-radius-pill);
+  background-color: var(--hc-forest);
+  color: var(--hc-bone);
+  padding-inline: 1.5rem;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  letter-spacing: 0.005em;
+  border: 1px solid rgba(242, 245, 235, 0.16);
+  transition: background-color var(--dur-fast) var(--ease-standard),
+              color var(--dur-fast) var(--ease-standard),
+              transform var(--dur-fast) var(--ease-standard);
+  cursor: pointer;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.hc-btn-forest:hover {
+  background-color: var(--hc-moss);
+}
+
+.hc-btn-forest:active {
+  transform: translateY(1px);
+}
+
+.hc-btn-outline {
+  display: inline-flex;
+  min-height: 48px;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: var(--hc-radius-pill);
+  background-color: transparent;
+  color: inherit;
+  padding-inline: 1.5rem;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  border: 1px solid currentColor;
+  opacity: 0.85;
+  transition: opacity var(--dur-fast) var(--ease-standard),
+              background-color var(--dur-fast) var(--ease-standard),
+              transform var(--dur-fast) var(--ease-standard);
+  cursor: pointer;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.hc-btn-outline:hover {
+  opacity: 1;
+  background-color: rgba(255, 255, 255, 0.08);
+}
+
+.hc-btn-outline:active {
+  transform: translateY(1px);
 }
 
 @media (prefers-reduced-motion: reduce) {

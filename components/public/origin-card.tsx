@@ -38,20 +38,20 @@ export type OriginCardTone = "light" | "dark";
 
 const CARD_TONE: Record<OriginCardTone, { link: string; watermark: string; region: string; name: string; body: string; arrow: string }> = {
   light: {
-    link: "border-border bg-card hover:border-[var(--border-strong)] hover:shadow-[var(--shadow-md)] focus-visible:outline-[var(--focus-ring)]",
+    link: "border-border bg-card hover:border-[var(--border-strong)] hover:shadow-[var(--shadow-md)] focus-visible:outline-[var(--hc-accent)]",
     watermark: "text-foreground/[0.05] group-hover:text-foreground/[0.08]",
-    region: "text-[var(--gold-on-light)] dark:text-[var(--gold-on-dark)]",
+    region: "text-[var(--hc-accent)]",
     name: "text-foreground",
     body: "text-muted-foreground",
-    arrow: "text-muted-foreground group-hover:text-foreground",
+    arrow: "text-muted-foreground group-hover:text-[var(--hc-accent)]",
   },
   dark: {
-    link: "min-h-[20rem] border-[color-mix(in_srgb,var(--brand-cream)_16%,transparent)] bg-[color-mix(in_srgb,var(--brand-cream)_6%,transparent)] hover:border-[color-mix(in_srgb,var(--gold-on-dark)_60%,transparent)] hover:bg-[color-mix(in_srgb,var(--brand-cream)_9%,transparent)] focus-visible:outline-[var(--gold-on-dark)] supports-[backdrop-filter]:[backdrop-filter:blur(12px)] sm:min-h-[22rem]",
-    watermark: "text-[color-mix(in_srgb,var(--brand-cream)_7%,transparent)] group-hover:text-[color-mix(in_srgb,var(--gold-on-dark)_16%,transparent)]",
-    region: "text-[var(--gold-on-dark)]",
+    link: "min-h-[20rem] border-[color-mix(in_srgb,var(--brand-cream)_16%,transparent)] bg-[color-mix(in_srgb,var(--brand-cream)_6%,transparent)] hover:border-[color-mix(in_srgb,var(--hc-accent)_60%,transparent)] hover:bg-[color-mix(in_srgb,var(--brand-cream)_9%,transparent)] focus-visible:outline-[var(--hc-accent)] supports-[backdrop-filter]:[backdrop-filter:blur(12px)] sm:min-h-[22rem]",
+    watermark: "text-[color-mix(in_srgb,var(--brand-cream)_7%,transparent)] group-hover:text-[color-mix(in_srgb,var(--hc-accent)_20%,transparent)]",
+    region: "text-[var(--hc-accent)]",
     name: "text-[var(--brand-cream)]",
     body: "text-[color-mix(in_srgb,var(--brand-cream)_70%,transparent)]",
-    arrow: "text-[color-mix(in_srgb,var(--brand-cream)_60%,transparent)] group-hover:text-[var(--gold-on-dark)]",
+    arrow: "text-[color-mix(in_srgb,var(--brand-cream)_60%,transparent)] group-hover:text-[var(--hc-accent)]",
   },
 };
 

@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { Bilingual } from "@/components/locale/bilingual";
 import { CatalogueFilter } from "@/components/public/catalogue-filter";
 import { JsonLd } from "@/components/public/json-ld";
+import { PageOpening } from "@/components/public/page-opening";
 import { getPublicCoffeeIndex } from "@/lib/public/coffees";
 import { copy } from "@/lib/public/copy";
 import {
@@ -89,21 +90,12 @@ export default async function CoffeeIndexPage() {
   return (
     <>
       <JsonLd json={jsonLd} />
-      {/* Page opening — the forest band that ties every public index to the homepage hero. */}
-      <section data-page-opener="dark" className="-mt-[var(--header-h)] bg-sidebar pt-[var(--header-h)] text-sidebar-foreground">
-        <div className="hc-container flex flex-col gap-5 py-[clamp(3rem,6vw,5.5rem)]">
-          <span className="hc-eyebrow text-[var(--gold-on-dark)]">
-            <Bilingual pick={(c) => c.coffee.index.eyebrow} />
-          </span>
-          <h1 className="font-heading text-[length:var(--text-h1)] font-semibold leading-[var(--lh-display)] tracking-[var(--tracking-display)] text-balance">
-            <Bilingual pick={(c) => c.coffee.index.title} />
-          </h1>
-          <span aria-hidden="true" className="h-px w-16 bg-[var(--gold-on-dark)]" />
-          <p className="hc-body-lg max-w-[58ch] text-sidebar-foreground/85 text-pretty">
-            <Bilingual pick={(c) => c.coffee.index.lead} />
-          </p>
-        </div>
-      </section>
+      <PageOpening
+        tone="forest"
+        eyebrow={<Bilingual pick={(c) => c.coffee.index.eyebrow} />}
+        title={<Bilingual pick={(c) => c.coffee.index.title} />}
+        lead={<Bilingual pick={(c) => c.coffee.index.lead} />}
+      />
 
       <section className="bg-background py-[clamp(3rem,6vw,6rem)] text-foreground">
         <div className="hc-container">

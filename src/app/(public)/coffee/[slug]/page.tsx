@@ -7,7 +7,6 @@ import { JsonLd } from "@/components/public/json-ld";
 import { MediaPlaceholder } from "@/components/public/media-placeholder";
 import { PUBLIC_ROUTES } from "@/components/public/routes";
 import { Icon } from "@/components/ui/icon";
-import { Button } from "@/components/ui/button";
 import { getPublicCoffeeBySlug } from "@/lib/public/coffees";
 import { copy } from "@/lib/public/copy";
 import {
@@ -138,18 +137,28 @@ export default async function CoffeeDetailPage({ params }: PageProps) {
     <article>
       <JsonLd json={jsonLd} />
       {/* ── IDENTITY ── the forest band, matching the homepage hero's ground and rhythm ── */}
-      <section data-page-opener="dark" className="-mt-[var(--header-h)] bg-sidebar pt-[var(--header-h)] text-sidebar-foreground">
+      <section data-page-opener="dark" className="relative isolate -mt-[var(--header-h)] overflow-hidden bg-[var(--hc-forest)] pt-[var(--header-h)] text-[#f2f5eb]">
+        {/* Subtle radial warmth & brand arch watermark (PDF Guidelines §03, §05) */}
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(ellipse_75%_65%_at_85%_15%,rgba(164,72,25,0.18),transparent_70%)]"
+        />
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute -bottom-20 end-8 -z-10 h-96 w-72 rounded-t-[10rem] border border-[rgba(242,245,235,0.06)] bg-gradient-to-b from-transparent to-[rgba(242,245,235,0.02)]"
+        />
+
         <div className="hc-container grid gap-10 py-[clamp(2.5rem,6vw,5rem)] lg:grid-cols-[minmax(0,1.15fr)_minmax(16rem,0.85fr)] lg:items-center lg:gap-16">
           <div className="flex flex-col items-start gap-5">
             <Link
               href={PUBLIC_ROUTES.coffee}
-              className="inline-flex min-h-11 items-center gap-2 rounded-[var(--radius-sm)] text-[length:var(--text-small)] font-medium text-sidebar-foreground/75 underline-offset-4 transition-colors duration-[var(--dur-fast)] hover:text-sidebar-foreground hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--sidebar-ring)]"
+              className="inline-flex min-h-11 items-center gap-2 rounded-[var(--radius-sm)] text-[length:var(--text-small)] font-medium text-[rgba(242,245,235,0.85)] underline-offset-4 transition-colors duration-[var(--dur-fast)] hover:text-[#ffffff] hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--hc-accent)]"
             >
-              <Icon name="chevron-left" className="size-4" />
+              <Icon name="chevron-left" data-directional-icon="true" className="size-4" />
               <Bilingual pick={(c) => c.coffee.detail.backToIndex} />
             </Link>
 
-            <span className="hc-eyebrow text-[var(--gold-on-dark)]">
+            <span className="hc-eyebrow text-[var(--gold-on-dark)] font-semibold tracking-wider">
               {origin ? (
                 <>
                   {origin.name}
@@ -160,27 +169,24 @@ export default async function CoffeeDetailPage({ params }: PageProps) {
               )}
             </span>
 
-            <h1 className="font-heading text-[length:var(--text-h1)] font-semibold leading-[var(--lh-display)] tracking-[var(--tracking-display)] text-balance">
+            <h1 className="font-heading text-[length:var(--text-h1)] font-semibold leading-[var(--lh-display)] tracking-[var(--tracking-display)] text-balance text-[#ffffff]">
               {coffee.name}
             </h1>
 
-            <span aria-hidden="true" className="h-px w-16 bg-[var(--gold-on-dark)]" />
+            <span aria-hidden="true" className="h-0.5 w-16 bg-[var(--hc-accent)] opacity-100" />
 
             {coffee.description ? (
-              <p className="hc-body-lg max-w-[52ch] text-sidebar-foreground/85 text-pretty">
+              <p className="hc-body-lg max-w-[52ch] text-[rgba(242,245,235,0.92)] text-pretty">
                 {coffee.description}
               </p>
             ) : null}
 
-            <Button
-              size="lg"
-              variant="accent"
-              className="mt-2"
-              nativeButton={false}
-              render={<Link href={PUBLIC_ROUTES.contact} />}
+            <Link
+              href={PUBLIC_ROUTES.contact}
+              className="hc-btn-accent mt-2"
             >
               <Bilingual pick={(c) => c.cta.requestAnOffer} />
-            </Button>
+            </Link>
           </div>
 
           {/*
@@ -188,7 +194,7 @@ export default async function CoffeeDetailPage({ params }: PageProps) {
             homepage's editorial media treatment so the empty state still reads as designed rather
             than as something missing.
           */}
-          <div className="overflow-hidden rounded-[var(--radius-arch)] border border-sidebar-border/70">
+          <div className="overflow-hidden rounded-[var(--radius-arch)] border border-[rgba(242,245,235,0.18)] bg-black/20 backdrop-blur-xs">
             <MediaPlaceholder aspectRatio="4 / 5" className="rounded-none border-0" />
           </div>
         </div>
@@ -201,14 +207,14 @@ export default async function CoffeeDetailPage({ params }: PageProps) {
             <h2 className="hc-heading-3 font-semibold">
               <Bilingual pick={(c) => c.coffee.detail.specHeading} />
             </h2>
-            <dl className="flex flex-col border-t border-border">
+            <dl className="flex flex-col border-t border-border/80 dark:border-[rgba(242,245,235,0.14)]">
               {specifications.map((spec) => (
                 <div
                   key={spec.label}
-                  className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1 border-b border-border py-4 text-[length:var(--text-small)]"
+                  className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1 border-b border-border/80 dark:border-[rgba(242,245,235,0.14)] py-4 text-[length:var(--text-small)]"
                 >
-                  <dt className="text-muted-foreground">{spec.label}</dt>
-                  <dd className="font-medium text-foreground">{orNotSpecified(spec.value)}</dd>
+                  <dt className="text-foreground/75 dark:text-[rgba(242,245,235,0.8)] font-medium">{spec.label}</dt>
+                  <dd className="font-semibold text-foreground dark:text-[#ffffff]">{orNotSpecified(spec.value)}</dd>
                 </div>
               ))}
             </dl>
@@ -235,7 +241,7 @@ export default async function CoffeeDetailPage({ params }: PageProps) {
           <div className="flex flex-col gap-10">
             {/* Origin connection — an editorial panel that routes onward, not a table row. */}
             <div className="flex flex-col gap-4 rounded-[var(--radius-lg)] border border-border bg-card p-7">
-              <h2 className="hc-eyebrow text-[var(--gold-on-light)] dark:text-[var(--gold-on-dark)]">
+              <h2 className="hc-eyebrow text-[var(--hc-accent)]">
                 <Bilingual pick={(c) => c.coffee.detail.originConnectionHeading} />
               </h2>
               {origin ? (
@@ -259,7 +265,7 @@ export default async function CoffeeDetailPage({ params }: PageProps) {
                   </dl>
                   <Link
                     href={`/origins/${origin.slug}/`}
-                    className="mt-1 inline-flex min-h-11 items-center gap-2 self-start rounded-[var(--radius-sm)] text-[length:var(--text-small)] font-medium text-foreground underline underline-offset-4 decoration-[var(--gold-on-light)] hover:decoration-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus-ring)] dark:decoration-[var(--gold-on-dark)]"
+                    className="mt-1 inline-flex min-h-11 items-center gap-2 self-start rounded-[var(--radius-sm)] text-[length:var(--text-small)] font-medium text-foreground underline underline-offset-4 decoration-[var(--hc-accent)] hover:decoration-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--hc-accent)]"
                   >
                     <Bilingual pick={(c) => c.coffee.detail.originLinkAction} />
                     <Icon name="arrow-right" className="size-4" />
@@ -322,15 +328,12 @@ export default async function CoffeeDetailPage({ params }: PageProps) {
               <Bilingual pick={(c) => c.coffee.detail.rfqLead} />
             </p>
           </div>
-          <Button
-            size="lg"
-            variant="accent"
-            className="shrink-0"
-            nativeButton={false}
-            render={<Link href={PUBLIC_ROUTES.contact} />}
+          <Link
+            href={PUBLIC_ROUTES.contact}
+            className="hc-btn-accent shrink-0"
           >
             <Bilingual pick={(c) => c.cta.requestAnOffer} />
-          </Button>
+          </Link>
         </div>
       </section>
     </article>

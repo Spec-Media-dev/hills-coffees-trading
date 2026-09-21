@@ -61,10 +61,10 @@ const ACCOUNT_LINKS: readonly FooterLink[] = [
 ];
 
 const GROUP_HEADING =
-  "hc-eyebrow border-t border-[color-mix(in_srgb,var(--gold-on-dark)_55%,transparent)] pt-4 text-[var(--gold-on-dark)]";
+  "hc-eyebrow border-t-2 border-[var(--hc-accent)] pt-4 text-[#f2f5eb] font-semibold tracking-wider";
 
 const FOOTER_LINK =
-  "group/footer inline-flex min-h-11 items-center gap-2 rounded-[var(--radius-xs)] text-[length:var(--text-small)] text-[color-mix(in_srgb,var(--brand-cream)_78%,transparent)] transition-colors duration-[var(--dur-fast)] hover:text-[var(--brand-cream)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--gold-on-dark)]";
+  "group/footer inline-flex min-h-11 items-center gap-2 rounded-[var(--radius-xs)] text-[length:var(--text-small)] text-[rgba(242,245,235,0.85)] transition-colors duration-[var(--dur-fast)] hover:text-[#ffffff] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--hc-accent)]";
 
 function LinkColumn({
   heading,
@@ -98,8 +98,8 @@ function LinkColumn({
 
 export function SiteFooter() {
   return (
-    <footer className="relative isolate overflow-hidden border-t border-[color-mix(in_srgb,var(--brand-cream)_10%,transparent)] bg-[var(--forest-900)] text-[var(--brand-cream)]">
-      <div className="hc-container py-[clamp(4rem,8vw,7rem)]">
+    <footer className="relative isolate overflow-hidden border-t border-[rgba(242,245,235,0.12)] bg-[#122314] text-[#f2f5eb]">
+      <div className="hc-public-container py-[clamp(4rem,8vw,7rem)]">
         <div className="grid gap-x-10 gap-y-12 md:grid-cols-2 lg:grid-cols-[minmax(0,1.5fr)_minmax(8rem,0.6fr)_minmax(8rem,0.6fr)_minmax(8rem,0.6fr)_minmax(15rem,1fr)]">
           {/* Brand block */}
           <div className="flex max-w-md flex-col gap-6">
@@ -110,7 +110,7 @@ export function SiteFooter() {
               height={996}
               className="h-auto w-[176px] xl:w-[208px]"
             />
-            <p className="hc-body max-w-[36ch] text-[color-mix(in_srgb,var(--brand-cream)_78%,transparent)]">
+            <p className="hc-type-body max-w-[36ch] text-[rgba(242,245,235,0.78)]">
               <Bilingual pick={(c) => c.site.tagline} />
             </p>
           </div>
@@ -129,12 +129,12 @@ export function SiteFooter() {
             <p className={`${GROUP_HEADING} w-full`}>
               <Bilingual pick={(c) => c.footer.commercialHeading} />
             </p>
-            <p className="hc-small max-w-[38ch] text-[color-mix(in_srgb,var(--brand-cream)_78%,transparent)]">
+            <p className="hc-type-body text-sm max-w-[38ch] text-[rgba(242,245,235,0.78)]">
               <Bilingual pick={(c) => c.footer.commercialBody} />
             </p>
             <Link
               href={PUBLIC_ROUTES.contact}
-              className="inline-flex h-[var(--control-h)] items-center justify-center gap-2 rounded-[var(--radius-sm)] border border-[var(--sand-100)] bg-[var(--sand-100)] px-5 text-sm font-semibold tracking-[0.005em] text-[var(--forest-800)] transition-[background-color,border-color,transform] duration-[var(--dur-fast)] hover:border-[var(--sand-200)] hover:bg-[var(--sand-200)] active:translate-y-px focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--gold-on-dark)] motion-reduce:transform-none"
+              className="hc-btn-accent"
             >
               <Bilingual pick={(c) => c.cta.requestAnOffer} />
               <Icon name="arrow-right" data-directional-icon="true" className="size-4" />
@@ -145,12 +145,12 @@ export function SiteFooter() {
         {/* The signature line — the approved positioning sentence, set large and quiet. */}
         <p
           aria-hidden="true"
-          className="mt-[clamp(3.5rem,7vw,6rem)] font-heading text-[clamp(1.75rem,1rem+3.4vw,4.25rem)] font-semibold leading-[1.05] tracking-[var(--tracking-display)] text-[color-mix(in_srgb,var(--brand-cream)_45%,transparent)] text-balance"
+          className="mt-[clamp(3.5rem,7vw,6rem)] font-heading text-[clamp(1.75rem,1rem+3.4vw,4.25rem)] font-semibold leading-[1.05] tracking-[var(--tracking-display)] text-[rgba(242,245,235,0.62)] text-balance"
         >
           <Bilingual pick={(c) => c.footer.closingLine} />
         </p>
 
-        <div className="mt-8 flex flex-col gap-2 border-t border-[color-mix(in_srgb,var(--brand-cream)_12%,transparent)] pt-6 text-[length:var(--text-meta)] text-[color-mix(in_srgb,var(--brand-cream)_58%,transparent)] sm:flex-row sm:items-center sm:justify-between">
+        <div className="mt-8 flex flex-col gap-2 border-t border-[rgba(242,245,235,0.12)] pt-6 text-[length:var(--text-meta)] text-[rgba(242,245,235,0.6)] sm:flex-row sm:items-center sm:justify-between">
           <p>
             <Bilingual pick={(c) => c.site.name} />
             <span aria-hidden="true">. </span>

@@ -6,36 +6,23 @@ import { copy } from "@/lib/public/copy";
 import type { PublicCopy } from "@/lib/public/copy";
 
 /**
- * Process / journey editorial section (Phase 5.5, UIF-056 — contract §18.12, §14.1; rebuilt as a
- * drawn journey by the public design convergence pass).
+ * Process / Logistics Journey — Tomorro-Level Visual Redesign (Phase 5.5, UIF-056).
  *
- * ── STILL STATIC, STILL A SERVER COMPONENT ───────────────────────────────────────────────────────
+ * ── ARCHITECTURAL JOURNEY COMPOSITION & APPROVED CONTENT ──────────────────────────────────────────
  *
- * UIF-056 permits a static presentation when a selector adds nothing, and it still adds nothing:
- * the story section already gives the page its one timed selector. So this section renders no
- * selector, introduces no `"use client"` of its own, and contract §16 island 10
- * (`ProcessJourneySection`) is deliberately never created. The only client code it touches is the
- * shared scoped-GSAP reveal (island 5), which is a motion wrapper, not a page island.
+ * 1. Botanical light surface (`bg-background`) providing calm visual rhythm after the dark sections.
+ * 2. High-impact editorial headline with Burnt Orange (#a44819) badge and hairline rule.
+ * 3. 4-Stage Connected Physical Logistics Path:
+ *    - 01 Origin Relationships (`copy.sourcing.relationships`)
+ *    - 02 Quality Documentation (`copy.sourcing.quality`)
+ *    - 03 Controlled Custody (`copy.sourcing.custody`)
+ *    - 04 Regional Logistics (`copy.sourcing.logistics`)
+ *    100% sourced from approved bilingual copy dictionary.
  *
- * ── FROM ROWS TO A PATH ──────────────────────────────────────────────────────────────────────────
+ * ── MOTION & ACCESSIBILITY ───────────────────────────────────────────────────────────────────────
  *
- * The four stages were a numbered row list with thumbnails — a company process list. Board 3
- * concept 2 sets the new shape: a journey. On desktop the four stages stand as image-led columns
- * along one gold path, each numeral a marker on the line; the path is drawn and the stages rise in
- * sequence as the section enters (GSAP, one interaction). On mobile the same path turns vertical
- * down the inline-start with the image beside each stage — a different composition, not a squeeze.
- * Hover lifts each stage's photograph slightly (CSS).
- *
- * ── CONTENT IS APPROVED COPY, NOT AN INVENTED PROCESS ────────────────────────────────────────────
- *
- * The four stages are the reviewed `copy.sourcing.*` pillars — origin relationships, custody,
- * logistics, quality documentation. Nothing describes a step Hills does not operate. Photographs
- * are root-library documentary assets illustrating each stage; the restricted `18`–`21_process_*`
- * crops with burned-in step text are excluded (ASSET-REF-01), and none is a record's media.
- *
- * ── THE NUMERALS ARE TEXT ────────────────────────────────────────────────────────────────────────
- *
- * Rendered as text, never baked into an image, so they mirror under `dir="rtl"` and translate.
+ * Server Component. Entrance animated via `GsapScrollReveal` with drawn vector path and
+ * staggered card rises.
  */
 
 type Stage = {
@@ -45,78 +32,108 @@ type Stage = {
 };
 
 const STAGES: readonly Stage[] = [
-  { key: "relationships", image: "/images/coffee-lot-4.jpg", pick: (c) => c.sourcing.relationships },
-  { key: "custody", image: "/images/coffee-lot-7.jpg", pick: (c) => c.sourcing.custody },
-  { key: "logistics", image: "/images/coffee-lot-1.jpg", pick: (c) => c.sourcing.logistics },
-  { key: "quality", image: "/images/coffee-lot-6.jpg", pick: (c) => c.sourcing.quality },
+  {
+    key: "relationships",
+    image: "/images/coffee-lot-4.jpg",
+    pick: (c) => c.sourcing.relationships,
+  },
+  {
+    key: "quality",
+    image: "/images/coffee-lot-6.jpg",
+    pick: (c) => c.sourcing.quality,
+  },
+  {
+    key: "custody",
+    image: "/images/coffee-lot-7.jpg",
+    pick: (c) => c.sourcing.custody,
+  },
+  {
+    key: "logistics",
+    image: "/images/coffee-lot-1.jpg",
+    pick: (c) => c.sourcing.logistics,
+  },
 ] as const;
 
 export function ProcessJourney() {
   return (
-    <section className="bg-background py-[clamp(4rem,8vw,8.5rem)] text-foreground">
-      <GsapScrollReveal className="hc-container" threshold={0.15}>
-        <div className="flex max-w-[48rem] flex-col gap-3">
-          <span className="hc-eyebrow text-[var(--gold-on-light)] dark:text-[var(--gold-on-dark)]">
+    <section className="bg-background py-[clamp(5rem,9vw,9.5rem)] text-foreground">
+      <GsapScrollReveal className="hc-public-container" threshold={0.12}>
+        {/* Section Header */}
+        <div className="flex max-w-[50rem] flex-col items-start gap-4 sm:gap-5">
+          <div className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-3.5 py-1.5 text-xs font-semibold uppercase tracking-wider text-[var(--hc-accent)] shadow-sm">
+            <span className="size-1.5 rounded-full bg-[var(--hc-accent)]" />
             <Bilingual pick={(c) => c.home.journey.eyebrow} />
-          </span>
-          <h2 className="hc-heading-2 font-semibold text-balance">
+          </div>
+
+          <h2 className="font-heading text-[clamp(2.25rem,1.7rem+3vw,4.5rem)] font-semibold leading-[1.06] tracking-[-0.025em] text-balance">
             <Bilingual pick={(c) => c.home.journey.title} />
           </h2>
-          <p className="hc-body-lg max-w-[58ch] text-muted-foreground text-pretty">
+
+          <span aria-hidden="true" className="h-0.5 w-14 bg-[var(--hc-accent)]" />
+
+          <p className="max-w-[48ch] text-[clamp(1rem,0.95rem+0.25vw,1.1875rem)] leading-[1.7] text-muted-foreground text-pretty">
             <Bilingual pick={(c) => c.home.journey.lead} />
           </p>
         </div>
 
-        <div className="relative mt-14 lg:mt-20">
-          {/* The path. Horizontal along the markers on desktop; vertical down the inline-start below. */}
+        {/* The Logistics Path */}
+        <div className="relative mt-14 sm:mt-20">
+          {/* Horizontal drawn line on desktop */}
           <span
             aria-hidden="true"
             data-draw="x"
-            className="absolute inset-x-0 top-[1.125rem] hidden h-px bg-[var(--gold-on-light)] lg:block dark:bg-[var(--gold-on-dark)]"
+            className="absolute inset-x-0 top-[1.25rem] hidden h-px bg-[linear-gradient(90deg,var(--hc-accent)_0%,rgba(164,72,25,0.3)_100%)] lg:block rtl:bg-[linear-gradient(270deg,var(--hc-accent)_0%,rgba(164,72,25,0.3)_100%)]"
           />
+          {/* Vertical drawn line on mobile */}
           <span
             aria-hidden="true"
             data-draw="y"
-            className="absolute inset-y-0 start-[1.125rem] w-px bg-[var(--gold-on-light)] lg:hidden dark:bg-[var(--gold-on-dark)]"
+            className="absolute inset-y-0 start-[1.25rem] w-px bg-[var(--hc-accent)] opacity-50 lg:hidden"
           />
 
-          <ol className="grid gap-10 lg:grid-cols-4 lg:gap-6">
+          <ol className="grid gap-8 lg:grid-cols-4 lg:gap-6">
             {STAGES.map((stage, index) => (
               <li
                 key={stage.key}
                 data-step
-                className="group/stage relative grid grid-cols-[2.25rem_minmax(0,1fr)] gap-x-5 lg:grid-cols-1 lg:gap-x-0"
+                className="group/stage relative grid grid-cols-[2.5rem_minmax(0,1fr)] gap-x-5 lg:grid-cols-1 lg:gap-x-0"
               >
-                {/* Marker on the path — text numeral, mirrored and translated by the browser. */}
-                <span
-                  dir="ltr"
-                  aria-hidden="true"
-                  className="relative z-10 inline-flex size-9 items-center justify-center rounded-full border border-[var(--gold-on-light)] bg-background font-heading text-[length:var(--text-meta)] font-semibold tabular-nums text-[var(--gold-on-light)] dark:border-[var(--gold-on-dark)] dark:text-[var(--gold-on-dark)]"
-                >
-                  {String(index + 1).padStart(2, "0")}
-                </span>
+                {/* Milestone Node */}
+                <div className="flex items-center gap-3">
+                  <span
+                    dir="ltr"
+                    aria-hidden="true"
+                    className="relative z-10 inline-flex size-10 items-center justify-center rounded-full border-2 border-[var(--hc-accent)] bg-background font-heading text-sm font-semibold tabular-nums text-[var(--hc-accent)] shadow-sm"
+                  >
+                    {String(index + 1).padStart(2, "0")}
+                  </span>
+                </div>
 
-                <div className="flex flex-col gap-5 lg:mt-8">
-                  <div className="relative aspect-[4/3] w-full overflow-hidden rounded-[var(--radius-lg)] border border-border bg-muted">
-                    <Image
-                      src={stage.image}
-                      alt={copy.home.journey.alt[stage.key]}
-                      fill
-                      sizes="(min-width: 1024px) 23vw, 80vw"
-                      className="object-cover object-center transition-transform duration-[1200ms] ease-[var(--ease-out)] group-hover/stage:scale-[1.04] motion-reduce:transition-none motion-reduce:group-hover/stage:scale-100"
-                    />
-                  </div>
-                  <div className="flex flex-col gap-2">
-                    {/* The visible marker is aria-hidden; this is what a screen reader hears. */}
-                    <span className="sr-only">
-                      <Bilingual pick={(c) => c.home.journey.stepLabel} /> {index + 1}
-                    </span>
-                    <h3 className="font-heading text-[length:var(--text-h3)] font-semibold leading-[var(--lh-heading)] tracking-[var(--tracking-heading)]">
-                      <Bilingual pick={(c) => stage.pick(c).title} />
-                    </h3>
-                    <p className="max-w-[40ch] text-[length:var(--text-small)] leading-[1.7] text-muted-foreground text-pretty">
-                      <Bilingual pick={(c) => stage.pick(c).body} />
-                    </p>
+                {/* Stage Card */}
+                <div className="flex flex-col justify-between overflow-hidden rounded-[var(--radius-xl)] border border-border bg-card p-5 shadow-[0_4px_20px_rgba(0,0,0,0.04)] transition-all duration-500 hover:border-[var(--hc-accent)] hover:shadow-[0_16px_36px_rgba(164,72,25,0.1)] lg:mt-6 sm:p-6">
+                  <div className="flex flex-col gap-4">
+                    {/* Documentary photo frame */}
+                    <div className="relative aspect-[16/11] w-full overflow-hidden rounded-[var(--radius-lg)] bg-muted">
+                      <Image
+                        src={stage.image}
+                        alt={copy.home.journey.alt[stage.key]}
+                        fill
+                        sizes="(min-width: 1024px) 23vw, 80vw"
+                        className="object-cover object-center transition-transform duration-[1200ms] ease-[var(--ease-out)] group-hover/stage:scale-[1.06]"
+                      />
+                    </div>
+
+                    <div className="flex flex-col gap-2">
+                      <span className="sr-only">
+                        <Bilingual pick={(c) => c.home.journey.stepLabel} /> {index + 1}
+                      </span>
+                      <h3 className="font-heading text-xl font-semibold leading-[1.2] tracking-tight text-foreground transition-colors group-hover/stage:text-[var(--hc-accent)]">
+                        <Bilingual pick={(c) => stage.pick(c).title} />
+                      </h3>
+                      <p className="text-sm leading-[1.7] text-muted-foreground text-pretty">
+                        <Bilingual pick={(c) => stage.pick(c).body} />
+                      </p>
+                    </div>
                   </div>
                 </div>
               </li>

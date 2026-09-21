@@ -55,7 +55,7 @@ export function CoffeeCard({ coffee, headingLevel = 3 }: CoffeeCardProps) {
     <li className="group">
       <Link
         href={`/coffee/${coffee.slug}/`}
-        className="flex h-full flex-col overflow-hidden rounded-[var(--radius-lg)] border border-border bg-card transition-[border-color,box-shadow,transform] duration-[var(--dur-fast)] hover:-translate-y-0.5 hover:border-[var(--border-strong)] hover:shadow-[var(--shadow-md)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus-ring)] motion-reduce:transform-none"
+        className="flex h-full flex-col overflow-hidden rounded-[var(--radius-lg)] border border-border bg-card transition-[border-color,box-shadow,transform] duration-[var(--dur-fast)] hover:-translate-y-0.5 hover:border-[var(--border-strong)] hover:shadow-[var(--shadow-md)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--hc-accent)] motion-reduce:transform-none"
       >
         {/*
           Record media stays a placeholder: MEDIA-01 is unresolved, and a generic repository
@@ -66,7 +66,7 @@ export function CoffeeCard({ coffee, headingLevel = 3 }: CoffeeCardProps) {
 
         <div className="flex flex-1 flex-col gap-3 p-6">
           {origin ? (
-            <span className="hc-eyebrow text-[var(--gold-on-light)] dark:text-[var(--gold-on-dark)]">
+            <span className="hc-eyebrow text-[var(--hc-accent)] dark:text-[var(--gold-on-dark)]">
               {origin.name}
               {origin.countryCode ? ` · ${origin.countryCode}` : ""}
             </span>
