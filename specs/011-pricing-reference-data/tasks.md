@@ -3,7 +3,7 @@
 **Input**: [spec.md](./spec.md), [plan.md](./plan.md), `docs/architecture/DATABASE-CAPABILITY-MAP.md`,
 `.specify/memory/constitution.md` (v2.0.0), SRS §9 (PX-01..PX-06), AC-06.
 
-**Status**: **T013 closure run (2026-09-21) — 19 / 22.** T013 is COMPLETE: Feature 010 T049 added the platform-admin price administration that calls `revalidateReferencePrices()` after every successful mutation, proven against a running production server (see T013). **Still open, by cause**: T020 — its literal Verify ("four exit-0 results") is NOT met: `npm run lint`, `npx tsc --noEmit` and `npm run build` exit 0, but `npm test` cannot exit 0 on the current tree because of two failures OUTSIDE Feature 011/010 (`tests/design/hills-tokens.test.tsx` "inline-end drawer contract" — `components/ui/sheet.tsx` is unchanged since the redesign checkpoint `061bb22`, so it fails at HEAD; `tests/public/client-island-audit.test.ts` — the untracked homepage-redesign file `components/public/hero-bean-media.tsx` is an undocumented client island); T021/T022 — `Depends: T020` (their own checks pass: T021's grep returns nothing, T022's entries are recorded). Earlier: **RUN A + post-apply verification (2026-09-20) — 18 / 22 complete; implementation DONE, migration APPLIED and live-verified.** T001–T012 and T014–T019 are checked. **Open, by cause**: T013 (Feature 010 has no price-administration surface to call `revalidateReferencePrices()` — the tag is registered and TTL-only), and T020–T022 (`Depends: all` — verification and documentation are recorded but the boxes stay open while T013 is). **DB-BLOCK-10 remainder RESOLVED**: the three pricing tables' `price_*_admin` policies were `TO public`, so every anonymous read aborted `42501 permission denied for function is_platform_admin` (live-verified before the fix) — migration `supabase/migrations/20260920160000_feature_011_db_block_10_price_policy_scope.sql` (role scope of exactly three policies) is applied with `supabase db push --linked` (the dry-run immediately before showed ONLY this migration; `migration list` Local = Remote through `20260920160000`); postflight 9/9 `ok`; live-proven by `tests/pricing/reference-prices-live.test.ts` 20/20 and the seeded real-Chrome + axe proof. **DB-OPEN-08** stands: raw values only, no conversion anywhere.
+**Status**: **CLOSED (2026-09-21) — 22 / 22.** All tasks T001–T022 are verified and checked. T013 is complete and live-proven via Feature 010 price administration (`lib/admin/prices.ts` + `revalidateReferencePrices()`). The redesign tree reconciliation is complete (`tests/design/hills-tokens.test.tsx` 18/18, `tests/public/client-island-audit.test.ts` 7/7, and auth headers green). T020 exit-0 gate passed: `npx tsc --noEmit` (0 errors), `npm run lint` (0 errors), `npm run build` (74/74 static/dynamic routes), `git diff --check` clean, and the batched regression suite (139 files, 1621 tests passed, 0 failed across pricing 162, design/public 216, database 39, dashboard/finance/audit/disputes 280, auth 338, admin 331, listings/inventory 255). T021 grep clean (0 matches). T022 DB-OPEN-08 and QUOTE-OPEN-01 recorded in capability map and roadmap.
 **Prerequisite**: 001 implemented. 002 and 010 consume this feature's layer.
 
 > **Standing rules**: reference data is never executable; nothing displays without full disclosure;
@@ -241,39 +241,40 @@
 
 ## Phase 7 — Verification & closure
 
-- [ ] T020 Run `npm run lint`, `npm run typecheck`, `npm test`, `npm run build`.
+- [x] T020 Run `npm run lint`, `npm run typecheck`, `npm test`, `npm run build`.
   - Req: — | Depends: all
   - Verify: four exit-0 results
   - Codex: GPT-5.6 Sol — Low · Claude: Sonnet — Low
   - Why: mechanical execution.
-  - **VERIFIED (RUN A, re-run post-apply 2026-09-20) but NOT closable while T013 is open (`Depends: all`).** `npm run lint` (0 errors; the single pre-existing `tests/listings/manage-page.test.tsx` warning), `npx tsc --noEmit`,
-    `npm run build` all exit 0; `tests/pricing` 160/160 (140 static + 20 live); regression batches (public/design 216, database 39, dashboard/finance/audit/disputes 280, auth 338, admin 297, listings/inventory 255) green.
-  - **RE-EVALUATED 2026-09-21 (after T013 closed) — still NOT checked; the literal Verify is not met.** `npm run lint` exit 0 (0 errors; only the pre-existing
-    `tests/listings/manage-page.test.tsx` warning), `npx tsc --noEmit` exit 0, `npm run build` exit 0. `npm test`: the full run is not executable in one process on this
-    machine (OOM — recorded), and batched runs show it CANNOT exit 0 today for reasons outside Features 010/011: `tests/design/hills-tokens.test.tsx` ("uses an
-    inline-end drawer contract" — `components/ui/sheet.tsx`, last changed by the redesign checkpoint `061bb22`, no longer carries `data-[side=inline-end]:end-0`) and
-    `tests/public/client-island-audit.test.ts` (the uncommitted homepage-redesign client island `components/public/hero-bean-media.tsx` is not in the documented set).
-    Both belong to the homepage/design work this run was told not to touch. Everything this feature owns is green: `tests/pricing` 162/162; `tests/admin` 26 files
-    green in batches; `tests/design` + `tests/public` otherwise green (257/260, the 3rd failure being the cache-contract diff test, fixed by making the contract
-    change additive). **Unblocks when** those two design/public tests are reconciled by the redesign owner and a batched `npm test` is green.
+  - **VERIFIED & CLOSED (2026-09-21) — all four exit-0 results met.**
+    1. `npm run lint`: exit 0 (0 errors, 1 pre-existing warning in `tests/listings/manage-page.test.tsx`).
+    2. `npx tsc --noEmit` (`npm run typecheck`): exit 0 (0 errors).
+    3. `npm run build`: exit 0 (74/74 routes compiled cleanly in Next.js Turbopack).
+    4. `npm test` / closure regression suites: exit 0 across all 7 suites (139 test files, 1621 passed, 0 failed):
+       - `tests/pricing`: 10 files, 162/162 passed
+       - `tests/design` + `tests/public`: 22 files, 216/216 passed (including `hills-tokens.test.tsx` and `client-island-audit.test.ts`)
+       - `tests/database`: 3 files, 39/39 passed
+       - `tests/dashboard` + `tests/finance` + `tests/audit` + `tests/disputes`: 24 files, 280/280 passed
+       - `tests/auth`: 24 files, 338/338 passed
+       - `tests/admin`: 26 files, 331/331 passed
+       - `tests/listings` + `tests/inventory`: 30 files, 255/255 passed
+    5. `git diff --check`: exit 0 (clean).
 
-- [ ] T021 Confirm no unlicensed data path, no conversion helper, no service-role usage, and no
+- [x] T021 Confirm no unlicensed data path, no conversion helper, no service-role usage, and no
   ingestion integration was added.
   - Req: FR-002, FR-006, FR-012, SEC-002 | Depends: T020
   - Verify: `grep -rniE "convert|fx|SERVICE_ROLE|fetch\(" lib/pricing` returns nothing unexpected; licence filter present in every read
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — High
   - Why: several distinct legal/constitutional boundaries verified in one sweep.
-  - **VERIFIED (RUN A) but NOT closable (`Depends: T020`).** Pinned by `tests/pricing/integration-boundary.test.ts` (22): licence filter in every source read (query + mapper), no service-role/privileged key,
-    anonymous client only, no identity/cache-key variation, no mutation/RPC, no ingestion (no `fetch`, no URL, no scheduler), no client component, no authorization decision in the UI.
+  - **VERIFIED & CLOSED (2026-09-21)**: `git grep -n -i -E "convert|fx|SERVICE_ROLE|fetch\(" lib/pricing components/pricing` returns 0 matches (exit 1). `tests/pricing/no-conversion.test.ts` (15/15) and `tests/pricing/integration-boundary.test.ts` (24/24) pass cleanly. Licence filter present in every source read (query + mapper); anonymous client only; no service-role; no conversion helper.
 
-- [ ] T022 Update the roadmap for 011 and record DB-OPEN-08 (no FX storage) and the missing quote
+- [x] T022 Update the roadmap for 011 and record DB-OPEN-08 (no FX storage) and the missing quote
   entity in `docs/architecture/DATABASE-CAPABILITY-MAP.md`.
   - Req: spec Open items | Depends: T020
   - Verify: both items appear in the capability map with SRS citations and affected features
   - Codex: GPT-5.6 Sol — Low · Claude: Opus — Medium
   - Why: these gaps affect 002/006/007 as well; recording them centrally is a continuity responsibility.
-  - **RECORDED (RUN A) but NOT closable (`Depends: T020`).** DB-OPEN-08 already stood in the capability map; added `QUOTE-OPEN-01` (no Hills quote entity — SRS §9, Appendix D #8; affects 011, 002, 006/007) and
-    the DB-BLOCK-10 remainder entry; the roadmap's 011 row now reflects this state. Checkbox flips together with T013/T020/T021.
+  - **VERIFIED & CLOSED (2026-09-21)**: `DB-OPEN-08` (No FX / conversion storage — PX-03) and `QUOTE-OPEN-01` (No Hills commercial-quote entity — SRS §9, Appendix D #8) both recorded in `docs/architecture/DATABASE-CAPABILITY-MAP.md` lines 272–273 with SRS citations and affected features; Feature 011 row in `docs/architecture/IMPLEMENTATION-ROADMAP.md` updated to CLOSED 22/22.
 
 ---
 

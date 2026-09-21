@@ -222,12 +222,18 @@ export async function SiteHeader() {
               showAdminConsole={identity.operationalRoles.length > 0}
             />
           ) : (
-            <div className="hidden items-center sm:flex">
+            <div className="hidden items-center gap-1 sm:flex">
               <Link
                 href="/sign-in/"
                 className="inline-flex h-[var(--control-h)] items-center rounded-[var(--radius-sm)] px-2 text-[length:var(--text-small)] font-medium underline-offset-4 transition-colors duration-[var(--dur-fast)] hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus-ring)]"
               >
                 <Bilingual pick={(c) => c.account.signIn} />
+              </Link>
+              <Link
+                href="/sign-up/"
+                className="hidden h-[var(--control-h)] items-center rounded-[var(--radius-sm)] px-2 text-[length:var(--text-small)] font-medium underline-offset-4 transition-colors duration-[var(--dur-fast)] hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus-ring)] 2xl:inline-flex"
+              >
+                <Bilingual pick={(c) => c.account.signUp} />
               </Link>
             </div>
           )}

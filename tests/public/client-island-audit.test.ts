@@ -44,6 +44,8 @@ describe("T035 — client-island audit", () => {
     const documented = new Set([
       "animated-hero.tsx",
       "catalogue-filter.tsx",
+      "hero-bean-media.tsx",
+      "intent-cards.tsx",
       "interactive-story-section.tsx",
       "mobile-nav.tsx",
       "origins-showcase.tsx",

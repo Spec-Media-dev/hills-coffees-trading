@@ -36,13 +36,6 @@ function SheetOverlay({ className, ...props }: SheetPrimitive.Backdrop.Props) {
   )
 }
 
-const sideClasses: Record<"top" | "bottom" | "inline-start" | "inline-end", string> = {
-  top: "inset-x-0 top-0 h-auto border-b data-ending-style:-translate-y-10 data-starting-style:-translate-y-10",
-  bottom: "inset-x-0 bottom-0 h-auto border-t data-ending-style:translate-y-10 data-starting-style:translate-y-10",
-  "inline-start": "inset-y-0 start-0 h-full w-3/4 sm:max-w-sm border-e data-ending-style:-translate-x-10 data-starting-style:-translate-x-10 rtl:data-ending-style:translate-x-10 rtl:data-starting-style:translate-x-10",
-  "inline-end": "inset-y-0 end-0 h-full w-3/4 sm:max-w-sm border-s data-ending-style:translate-x-10 data-starting-style:translate-x-10 rtl:data-ending-style:-translate-x-10 rtl:data-starting-style:-translate-x-10",
-}
-
 function SheetContent({
   className,
   children,
@@ -60,8 +53,7 @@ function SheetContent({
         data-slot="sheet-content"
         data-side={side}
         className={cn(
-          "fixed z-50 flex flex-col gap-4 border-border bg-popover bg-clip-padding text-sm text-popover-foreground shadow-[var(--shadow-xl)] outline-none transition-[transform,opacity] duration-[var(--dur-slow)] ease-[var(--ease-out)] data-ending-style:opacity-0 data-starting-style:opacity-0",
-          sideClasses[side],
+          "fixed z-50 flex flex-col gap-4 border-border bg-popover bg-clip-padding text-sm text-popover-foreground shadow-[var(--shadow-xl)] outline-none transition-[transform,opacity] duration-[var(--dur-slow)] ease-[var(--ease-out)] data-ending-style:opacity-0 data-starting-style:opacity-0 data-[side=bottom]:inset-x-0 data-[side=bottom]:bottom-0 data-[side=bottom]:h-auto data-[side=bottom]:border-t data-[side=bottom]:data-ending-style:translate-y-10 data-[side=bottom]:data-starting-style:translate-y-10 data-[side=top]:inset-x-0 data-[side=top]:top-0 data-[side=top]:h-auto data-[side=top]:border-b data-[side=top]:data-ending-style:-translate-y-10 data-[side=top]:data-starting-style:-translate-y-10 data-[side=inline-end]:inset-y-0 data-[side=inline-end]:end-0 data-[side=inline-end]:h-full data-[side=inline-end]:w-3/4 data-[side=inline-end]:border-s data-[side=inline-end]:data-ending-style:translate-x-10 data-[side=inline-end]:data-starting-style:translate-x-10 rtl:data-[side=inline-end]:data-ending-style:-translate-x-10 rtl:data-[side=inline-end]:data-starting-style:-translate-x-10 data-[side=inline-start]:inset-y-0 data-[side=inline-start]:start-0 data-[side=inline-start]:h-full data-[side=inline-start]:w-3/4 data-[side=inline-start]:border-e data-[side=inline-start]:data-ending-style:-translate-x-10 data-[side=inline-start]:data-starting-style:-translate-x-10 rtl:data-[side=inline-start]:data-ending-style:translate-x-10 rtl:data-[side=inline-start]:data-starting-style:translate-x-10 data-[side=inline-end]:sm:max-w-sm data-[side=inline-start]:sm:max-w-sm",
           className
         )}
         {...props}

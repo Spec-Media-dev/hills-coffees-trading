@@ -175,6 +175,13 @@ export function MobileNav({ auth }: { auth: MobileNavAuthState }) {
               >
                 {labels.account.signIn}
               </Link>
+              <Link
+                href="/sign-up/"
+                aria-current={isCurrent("/sign-up/") ? "page" : undefined}
+                className="flex min-h-[3.25rem] items-center rounded-[var(--radius-sm)] px-4 text-[length:var(--text-body)] font-medium text-[rgba(242,245,235,0.85)] transition-colors duration-[var(--dur-fast)] hover:text-[#ffffff] hover:bg-[var(--hc-moss)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--hc-accent)]"
+              >
+                {labels.account.signUp}
+              </Link>
             </div>
           )}
         </nav>
