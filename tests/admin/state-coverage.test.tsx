@@ -142,7 +142,7 @@ const modulePath = (file: string) => `@/${file.replace(/\.tsx$/, "")}`;
 describe("T036 — STATIC: every current surface declares its applicable states", () => {
   it("scans the real route tree (19 list pages incl. overview-free groups, 17 detail pages) and every page guards itself", () => {
     expect(LIST_PAGES.length).toBeGreaterThanOrEqual(16);
-    expect(DETAIL_PAGES.length).toBe(17);
+    expect(DETAIL_PAGES.length).toBe(19); // + T049's price source and differential detail pages
     for (const file of PAGES.filter((f) => !/dashboard-admin\/page\.tsx$|\/account\//.test(f))) {
       const page = source(file);
       expect(page, file).toMatch(/<AdminAccessDenied|<AdminAreaPlaceholder/);
@@ -230,7 +230,7 @@ describe("T036 — STATIC: every current surface declares its applicable states"
 });
 
 describe("T036 — LIVE: not-found, empty and error states on the real surfaces (disposable SUPER_ADMIN)", () => {
-  it("every detail page renders `not-found` for a nil UUID and for a malformed id — 17 pages × 2 ids, no crash, no fabricated record", async () => {
+  it("every detail page renders `not-found` for a nil UUID and for a malformed id — 19 pages × 2 ids, no crash, no fabricated record", async () => {
     for (const file of DETAIL_PAGES) {
       for (const id of [NIL, "not-a-uuid"]) {
         await withLiveClient(superAdmin, async () => {

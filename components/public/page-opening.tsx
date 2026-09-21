@@ -32,12 +32,12 @@ export function PageOpening({
     <section
       data-page-opener={isDark ? "dark" : "light"}
       className={cn(
-        "relative isolate overflow-hidden pb-[clamp(3.5rem,7vw,6.5rem)]",
+        "relative isolate overflow-hidden pb-[clamp(4.5rem,9vw,8.5rem)]",
         isDark
-          ? "-mt-[var(--header-h)] pt-[calc(var(--header-h)+2.75rem)]"
+          ? "-mt-[var(--header-h)] min-h-[min(72svh,48rem)] pt-[calc(var(--header-h)+4rem)]"
           : "pt-[calc(var(--header-h)+2rem)]",
-        tone === "forest" && "hc-stage-forest bg-[var(--hc-forest)] text-[#f2f5eb]",
-        tone === "moss" && "hc-stage-moss bg-[var(--hc-moss)] text-[#f2f5eb]",
+        tone === "forest" && "hc-stage-forest bg-[var(--hc-forest)] text-[#EEE4D1]",
+        tone === "moss" && "hc-stage-moss bg-[var(--hc-moss)] text-[#EEE4D1]",
         tone === "bone" && "bg-background text-foreground",
         className
       )}
@@ -65,9 +65,9 @@ export function PageOpening({
         />
       )}
 
-      <div className="hc-public-container">
-        <div className="grid gap-8 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] lg:items-end">
-          <div className="flex max-w-[50rem] flex-col gap-4">
+      <div className="hc-public-container-wide">
+        <div className="grid gap-10 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,0.65fr)] lg:items-end">
+          <div className="flex max-w-[64rem] flex-col gap-5">
             {eyebrow && (
               <span
                 className={cn(
@@ -78,7 +78,7 @@ export function PageOpening({
                 {eyebrow}
               </span>
             )}
-            <h1 className={cn("hc-type-h1 text-balance font-bold", isDark && "text-[#ffffff]")}>
+            <h1 className={cn("font-heading text-[clamp(3.5rem,2.5rem+5vw,7.8rem)] font-semibold leading-[0.88] tracking-[-0.04em] text-balance rtl:leading-[1.05] rtl:tracking-normal", isDark && "text-[#EEE4D1]")}>
               {title}
             </h1>
             <span aria-hidden="true" className="h-0.5 w-16 bg-[var(--hc-accent)] opacity-100" />
@@ -87,7 +87,7 @@ export function PageOpening({
                 className={cn(
                   "hc-type-body-lg max-w-[56ch] text-pretty",
                   isDark
-                    ? "text-[rgba(242,245,235,0.92)] font-normal"
+                    ? "text-[#EEE4D1]/82 font-normal"
                     : "text-muted-foreground"
                 )}
               >

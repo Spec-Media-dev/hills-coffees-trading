@@ -582,6 +582,12 @@ export function cleanupPricingFixtures(): Record<string, unknown> {
   return runJsonFixtureCommand("--cleanup-pricing-fixtures");
 }
 
+/** Feature 010 T049 — removes the `F010P-` rows the price-administration proofs create through the console. */
+export const PRICE_ADMIN_PREFIX = "F010P-";
+export function cleanupPriceAdminRows(): Record<string, unknown> {
+  return runJsonFixtureCommand("--cleanup-price-admin-rows");
+}
+
 /** Feature 010 RUN F — creates/reactivates the disposable SUPER_ADMIN (role exactly SUPER_ADMIN). */
 export function prepareSuperAdminFixture(): void {
   runFixtureScript(["--prepare-super-admin-fixture"]);

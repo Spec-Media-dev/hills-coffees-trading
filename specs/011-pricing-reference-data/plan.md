@@ -1,7 +1,7 @@
 # Implementation Plan: Pricing & Reference Data
 
 **Feature**: `011-pricing-reference-data` | **Date**: 2026-09-08 | **Spec**: [spec.md](./spec.md)
-**Status**: Implemented (RUN A, 2026-09-20 — 18 / 22 tasks); DB-BLOCK-10 remainder migration APPLIED and live-verified (2026-09-20)
+**Status**: Implemented (RUN A, 2026-09-20; T013 closed 2026-09-21 — 19 / 22 tasks); DB-BLOCK-10 remainder migration APPLIED and live-verified (2026-09-20)
 
 ## Summary
 
@@ -107,4 +107,4 @@ tests/pricing/        # NEW — type separation, disclosure, licence gating, sta
 | **No ingestion scheduler** | Observations must be entered administratively | Recorded; no unapproved infrastructure added |
 | Cached staleness misrepresentation | Legal/commercial exposure | Freshness metadata travels with the cached DTO (FR-008) |
 | **DB-BLOCK-10 remainder** — `price_*_admin` policies `TO public` | Every anonymous read failed (42501) | **RESOLVED 2026-09-20**: migration `20260920160000_…` (role scope of three policies) applied; postflight 9/9; live 20/20 |
-| **No price administration in Feature 010** | `revalidateReferencePrices()` has no caller; cache is TTL-only | Recorded; T013 open until 010 gains the surface (or a human accepts the hook) |
+| **No price administration in Feature 010** | `revalidateReferencePrices()` had no caller; cache was TTL-only | **RESOLVED 2026-09-21**: Feature 010 T049 (`lib/admin/prices.ts`) calls it after every successful mutation; running-server proof in `tests/browser/feature010-price-admin.browser.mjs`; T013 complete |

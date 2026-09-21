@@ -98,7 +98,7 @@ export function SearchControl({ className }: { className?: string }) {
              * Below `xl` it collapses to the compact icon control so the bar keeps its rhythm.
              */
             className={cn(
-              "h-10 w-10 justify-center rounded-[var(--radius-pill)] p-0 text-muted-foreground transition-all duration-[var(--dur-fast)] hover:border-[var(--hc-accent)] hover:text-foreground xl:h-10 xl:w-[10.5rem] xl:justify-start xl:gap-2.5 xl:ps-3 xl:pe-3.5 2xl:w-[15rem] 2xl:ps-3.5 2xl:pe-4",
+              "h-10 w-10 justify-center rounded-[var(--radius-pill)] p-0 text-muted-foreground transition-all duration-[var(--dur-fast)] hover:border-[var(--hc-accent)] hover:text-foreground",
               className,
             )}
           />
@@ -107,7 +107,7 @@ export function SearchControl({ className }: { className?: string }) {
         <Icon name="search" className="size-4 shrink-0 opacity-80" />
         {/* The label is visible on desktop and decorative beside the icon elsewhere; the accessible
             name always comes from `aria-label` above, so meaning is never carried by the icon alone. */}
-        <span className="hidden truncate text-start text-[length:var(--text-small)] font-normal opacity-90 xl:inline">
+        <span className="sr-only">
           {labels.searchFieldLabel}
         </span>
       </DialogTrigger>

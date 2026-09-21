@@ -44,20 +44,12 @@ export { PUBLIC_ROUTES };
  * catalogue reads keep their own `unstable_cache` entries regardless, so per-request cost stays a
  * cache lookup for that data; only the page shell itself now renders fresh per request.
  *
- * ── INTEGRATED WITH THE HERO, WITHOUT A SCROLL LISTENER ──────────────────────────────────────────
+ * ── DARK FLOATING SURFACE, WITHOUT A SCROLL LISTENER ─────────────────────────────────────────────
  *
- * Over a page that opens on a dark photographic band (`[data-page-opener="dark"]` on the opening
- * section) the header starts as dark glass — transparent tint, cream ink, cream lockup — and settles
- * into the Hills surface with the theme-correct lockup as the page scrolls under it. The whole
- * transition is one CSS scroll-driven animation on a registered custom property (`--hdr-p`, see
- * `globals.css`); every colour in the bar is derived from it with `color-mix`. There is no scroll
- * listener, no client island and no state, so the header stays a **Server Component** and never
- * changes height. Browsers without scroll timelines, and viewers who prefer reduced motion, get the
- * settled state from the first frame. Pages that open on a light surface are never transparent.
- *
- * Three lockups are stacked in one cell: the cream mark for the over-photo state, and the green /
- * cream pair the theme swaps between for the settled state. They cross-fade on `--hdr-p`, so the
- * correct variant is always the one with contrast.
+ * The floating capsule remains Deep Forest with cream ink at the hero, after scrolling, and in both
+ * page themes. A CSS scroll timeline may adjust depth and accent details, but never the surface or
+ * foreground contrast. There is no scroll listener, client state or height change. The stacked logo
+ * assets remain in the markup, while CSS keeps the cream lockup visible on this invariant surface.
  *
  * ── FLYOUT PANELS ARE CSS ────────────────────────────────────────────────────────────────────────
  *
@@ -85,10 +77,10 @@ export { PUBLIC_ROUTES };
 const LOGO_WIDTH = 2624;
 const LOGO_HEIGHT = 996;
 
-const LOGO_CLASS = "block h-auto w-[140px] lg:w-[160px] xl:w-[172px] 2xl:w-[200px]";
+const LOGO_CLASS = "block h-auto w-[118px] lg:w-[132px] 2xl:w-[142px]";
 
 const NAV_LINK =
-  "hc-nav-link relative inline-flex h-[var(--header-h)] shrink-0 items-center gap-1 whitespace-nowrap text-[length:var(--text-small)] font-medium transition-colors duration-[var(--dur-fast)] after:absolute after:inset-x-0 after:bottom-[calc(50%-1.35rem)] after:h-[2px] after:origin-center after:scale-x-0 after:bg-[var(--gold-on-dark)] after:transition-transform after:duration-[var(--dur-fast)] hover:after:scale-x-100 focus-visible:rounded-[var(--radius-xs)] focus-visible:outline-2 focus-visible:outline-offset-[-6px] focus-visible:outline-[var(--focus-ring)]";
+  "hc-nav-link relative inline-flex h-10 shrink-0 items-center gap-1 whitespace-nowrap text-[0.78rem] font-semibold transition-colors duration-[var(--dur-fast)] after:absolute after:inset-x-2 after:bottom-0 after:h-px after:origin-center after:scale-x-0 after:bg-[var(--gold-on-dark)] after:transition-transform after:duration-[var(--dur-fast)] hover:after:scale-x-100 focus-visible:rounded-[var(--radius-xs)] focus-visible:outline-2 focus-visible:outline-offset-[-4px] focus-visible:outline-[var(--focus-ring)]";
 
 const PANEL_LINK =
   "group/panel inline-flex min-h-11 items-center gap-2 text-[length:var(--text-small)] font-medium text-foreground underline-offset-4 hover:underline focus-visible:rounded-[var(--radius-xs)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus-ring)]";
@@ -147,8 +139,8 @@ export async function SiteHeader() {
   const identity = await getRequestIdentity();
 
   return (
-    <header className="hc-header sticky top-0 z-40 border-b supports-[backdrop-filter]:[backdrop-filter:var(--blur-panel)]">
-      <div className="hc-container flex h-[var(--header-h)] items-center gap-3 lg:gap-5">
+    <header className="hc-header sticky top-0 z-40 px-3 py-3 sm:px-4">
+      <div className="hc-header-frame hc-public-container-wide flex h-16 items-center gap-3 rounded-full px-4 sm:px-5 lg:gap-4">
         <Link
           href={PUBLIC_ROUTES.home}
           aria-label={copy.a11y.homeLink}
@@ -184,9 +176,9 @@ export async function SiteHeader() {
 
         <nav
           aria-label={copy.a11y.primaryNavigation}
-          className="relative ms-2 hidden min-w-0 xl:block xl:ms-4 2xl:ms-6"
+          className="relative ms-2 hidden min-w-0 xl:block xl:ms-3 2xl:ms-5"
         >
-          <ul className="flex items-center gap-3.5 xl:gap-4 2xl:gap-7">
+          <ul className="flex items-center gap-2 xl:gap-2.5 2xl:gap-4">
             {PRIMARY_NAV.map((item) => {
               const hasPanel = item.key in MEGA_MENU;
               return (
@@ -209,11 +201,11 @@ export async function SiteHeader() {
 
         {/* Logical margin keeps the action cluster at the trailing edge in both directions. */}
         <div className="hc-header-tools ms-auto flex shrink-0 items-center gap-1.5 xl:gap-2 2xl:gap-3">
-          <SearchControl />
+          <SearchControl className="hc-nav-utility" />
 
           <div className="hidden items-center gap-2 md:flex">
-            <ThemeToggle />
-            <LanguageSwitcher />
+            <ThemeToggle className="hc-nav-utility" />
+            <LanguageSwitcher className="hc-nav-utility" />
           </div>
 
           {/* Secondary by design (FR-016): a quiet text link (anonymous) or the account trigger
@@ -230,29 +222,25 @@ export async function SiteHeader() {
               showAdminConsole={identity.operationalRoles.length > 0}
             />
           ) : (
-            <div className="hidden items-center gap-1 sm:flex">
+            <div className="hidden items-center sm:flex">
               <Link
                 href="/sign-in/"
                 className="inline-flex h-[var(--control-h)] items-center rounded-[var(--radius-sm)] px-2 text-[length:var(--text-small)] font-medium underline-offset-4 transition-colors duration-[var(--dur-fast)] hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus-ring)]"
               >
                 <Bilingual pick={(c) => c.account.signIn} />
               </Link>
-              <Link
-                href="/sign-up/"
-                className="hidden h-[var(--control-h)] items-center rounded-[var(--radius-sm)] px-2 text-[length:var(--text-small)] font-medium underline-offset-4 transition-colors duration-[var(--dur-fast)] hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus-ring)] 2xl:inline-flex"
-              >
-                <Bilingual pick={(c) => c.account.signUp} />
-              </Link>
             </div>
           )}
 
           {/* The one filled button: Hills Burnt Orange (#a44819) with crisp white text (HILLS_DESIGN_PLAN.md §8). */}
-          <Link
-            href={PUBLIC_ROUTES.contact}
-            className="hc-header-cta hc-btn-accent hidden !h-10 !min-h-10 px-5 text-sm font-semibold tracking-[0.005em] sm:inline-flex"
-          >
-            <Bilingual pick={(c) => c.cta.requestAnOffer} />
-          </Link>
+          <span className="hidden sm:block">
+            <Link
+              href={PUBLIC_ROUTES.contact}
+              className="hc-header-cta hc-btn-accent !h-10 !min-h-10 px-5 text-sm font-semibold tracking-[0.005em]"
+            >
+              <Bilingual pick={(c) => c.cta.requestAnOffer} />
+            </Link>
+          </span>
 
           <MobileNav
             auth={

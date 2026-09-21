@@ -43,9 +43,15 @@ describe("T011 — Feature 002's price surface renders through the presentation 
     expect(home).not.toMatch(/<ReferencePrice\s*\/>/);
   });
 
-  it("NO public page or component queries a price table directly — only lib/pricing may name them", () => {
-    const offenders = appCode.filter((f) => !f.startsWith("lib/pricing/") && /price_(sources|observations|differentials)/.test(strip(read(f))));
+  it("NO public page or component queries a price table directly — only lib/pricing (public reads) and Feature 010's admin layer (lib/admin/prices.ts) may name them", () => {
+    const offenders = appCode.filter((f) => !f.startsWith("lib/pricing/") && f !== "lib/admin/prices.ts" && /price_(sources|observations|differentials)/.test(strip(read(f))));
     expect(offenders).toEqual([]);
+  });
+
+  it("the admin price layer is reachable ONLY from Feature 010's price-administration routes and its field declarations — never from a public page", () => {
+    const importers = appCode.filter((f) => /from\s+["']@\/lib\/admin\/prices["']/.test(read(f))).sort();
+    expect(importers.length).toBeGreaterThan(0);
+    for (const file of importers) expect(file.startsWith("src/app/dashboard-admin/(catalogue)/prices/") || file === "components/admin/catalogue/price-fields.ts", file).toBe(true);
   });
 
   it("the stage component makes no data query and holds no price-table knowledge", () => {
@@ -70,9 +76,16 @@ describe("T012 — reference prices never appear in executable contexts", () => 
     expect(offenders).toEqual([]);
   });
 
-  it("the ONLY importers of the pricing layer outside lib/pricing are the homepage and components/pricing", () => {
+  it("the ONLY importers of the pricing layer outside lib/pricing are the homepage, components/pricing and Feature 010's two admin price modules", () => {
     const importers = appCode.filter((f) => !f.startsWith("lib/pricing/") && importsPricing(read(f))).sort();
-    expect(importers).toEqual(["components/pricing/basis-breakdown.tsx", "components/pricing/reference-price-section.tsx", "components/pricing/reference-price.tsx", "components/pricing/stale-state.tsx", "components/pricing/unavailable-state.tsx", "src/app/page.tsx"].sort());
+    expect(importers).toEqual(["components/pricing/basis-breakdown.tsx", "components/pricing/reference-price-section.tsx", "components/pricing/reference-price.tsx", "components/pricing/stale-state.tsx", "components/pricing/unavailable-state.tsx", "lib/admin/price-validation.ts", "lib/admin/prices.ts", "src/app/page.tsx"].sort());
+  });
+
+  it("Feature 010's admin price modules import ONLY the cache seam (prices.ts) and the vocabularies (price-validation.ts) — never a read, presentation or component module", () => {
+    const pricingImports = (file: string) => [...read(file).matchAll(/from\s+["']@\/(?:lib|components)\/pricing\/([\w-]+)["']/g)].map((m) => m[1]);
+    expect(pricingImports("lib/admin/prices.ts")).toEqual(["cache"]);
+    expect(pricingImports("lib/admin/price-validation.ts")).toEqual(["types"]);
+    expect(read("lib/admin/prices.ts")).toMatch(/import \{ revalidateReferencePrices \} from "@\/lib\/pricing\/cache";/);
   });
 
   it("the pricing layer imports NO executable-price module (listings / orders / finance / delivery) — the concepts stay separate in code", () => {
@@ -95,16 +108,23 @@ describe("T012 — reference prices never appear in executable contexts", () => 
   });
 });
 
-describe("T013 — the `reference-prices` tag is registered and honestly TTL-only", () => {
+describe("T013 — the `reference-prices` tag is registered and revalidated by Feature 010's price administration", () => {
   const platform = read("specs/001-platform-foundation/contracts/cache-policy-contract.md");
   const cache = read("lib/pricing/cache.ts");
 
-  it("Feature 001's platform-wide table has the row, owner and TTL-only status", () => {
+  it("Feature 001's platform-wide table has the row (TTL 300s) and an ADDITIVE status update naming Feature 010 T049 as the invalidation owner", () => {
     expect(platform).toMatch(/\| `reference-prices` \| 011 \|/);
     expect(platform).toMatch(/revalidateReferencePrices\(\)/);
-    const row = platform.split("\n").find((l) => l.startsWith("| `reference-prices`"))!;
-    expect(row).toMatch(/\| 300s \|/);
-    expect(row).toMatch(/TTL only/);
+    const lines = platform.split("\n");
+    const rowIndex = lines.findIndex((l) => l.startsWith("| `reference-prices`"));
+    expect(lines[rowIndex]).toMatch(/\| 300s \|/);
+    // The contract changes additively only (Feature 002 T030 discipline): the original row stays byte-identical and the
+    // status change is an explicit supersession note directly beneath the table.
+    const note = lines.slice(rowIndex + 1, rowIndex + 9).join("\n");
+    expect(note).toMatch(/Status update — 2026-09-21 \(Feature 010 T049; additive, supersedes the "Invalidation owner" and "Status today" cells/);
+    expect(note).toMatch(/`lib\/admin\/prices\.ts`\) calls `revalidateReferencePrices\(\)`/);
+    expect(note).toMatch(/Revalidated on administrative\s*>?\s*change/);
+    expect(note).toMatch(/300s TTL remains the fallback/);
   });
 
   it("the code constants match the register (tag name, TTL) and use the mandatory { expire: 0 } form", () => {
@@ -125,8 +145,8 @@ describe("T013 — the `reference-prices` tag is registered and honestly TTL-onl
 
   it("the tag is invalidated ONLY through revalidateReferencePrices — no public page or public action holds a revalidation capability", () => {
     for (const file of ["src/app/page.tsx", "components/pricing/reference-price-section.tsx"]) expect(read(file), file).not.toMatch(/revalidateTag|revalidatePath/);
-    const callers = appCode.filter((f) => f !== "lib/pricing/cache.ts" && /revalidateReferencePrices/.test(read(f)));
-    expect(callers).toEqual([]); // Feature 010's price administration (not yet built) will be the caller
+    const callers = appCode.filter((f) => f !== "lib/pricing/cache.ts" && /revalidateReferencePrices/.test(strip(read(f))));
+    expect(callers).toEqual(["lib/admin/prices.ts"]); // Feature 010 T049's price administration is the ONLY caller
   });
 
   it("Feature 002's cache-proof allow-list is intentionally NOT extended (its five-entry contract stays pinned)", () => {

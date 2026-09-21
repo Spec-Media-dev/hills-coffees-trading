@@ -127,7 +127,9 @@ lib/admin/
 ├── decisions.ts    # RUN B — KYB decisions, organization status, listing decisions (compare-and-set + review rows)
 ├── validation.ts   # RUN B — decision input contracts (DB vocabularies verbatim, reason rules)
 ├── warehouse.ts    # RUN D — queues, operation map (pinned to 009), guarded delegation to 009's named operations
-└── catalogue.ts    # LATER — catalogue mutations + public cache revalidation
+├── catalogue.ts    # RUN E — catalogue mutations + public cache revalidation
+├── prices.ts       # T049 — reference-price admin reads/writes; every successful write calls 011's revalidateReferencePrices()
+└── price-validation.ts # T049 — input contracts bound to the DB CHECK vocabularies and 011's displayable commodity set
 
 components/admin/   # RUN A — access-denied resolver, state card, role badges, topbar account menu,
                     #         area placeholder (planned/blocked), overview tiles, sign-out button;

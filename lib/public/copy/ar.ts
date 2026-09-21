@@ -100,6 +100,8 @@ export const ar: DeepPartial<PublicCopy> = {
     searchHint: "سيفتح بحثك دليل البن المنشور.",
     searchPlaceholder: "ابحث حسب البن أو المنشأ",
     searchSubmit: "تصفح دليل البن",
+    playHeroFilm: "تشغيل فيلم القهوة الخضراء",
+    pauseHeroFilm: "إيقاف فيلم القهوة الخضراء",
     close: "إغلاق",
   },
 

@@ -19,6 +19,9 @@ import { KYB_EVIDENCE_MAX_SIZE_BYTES } from "./lib/kyb/limits";
 const KYB_UPLOAD_TRANSPORT_OVERHEAD_BYTES = 256 * 1024;
 
 const nextConfig: NextConfig = {
+  // Browser-based responsive QA runs against the loopback host; keep dev-only assets available
+  // there so client islands hydrate during local visual and interaction checks.
+  allowedDevOrigins: ["127.0.0.1"],
   experimental: {
     serverActions: {
       bodySizeLimit: KYB_EVIDENCE_MAX_SIZE_BYTES + KYB_UPLOAD_TRANSPORT_OVERHEAD_BYTES,

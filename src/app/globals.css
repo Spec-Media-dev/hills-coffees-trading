@@ -410,22 +410,10 @@
  * Public header — sticky, integrated with a dark page opener (Phase 5.5, UIF-020; rebuilt by the
  * public design convergence pass).
  *
- * ONE NUMBER DRIVES THE WHOLE BAR. `--hdr-p` runs from 0 (over the opening photograph: dark glass,
- * cream ink, cream lockup) to 1 (settled: the Hills surface, theme ink, theme lockup). Every colour
- * below is derived from it with `color-mix`, and the lockups cross-fade on it, so there is exactly one
- * state to reason about and no colour can be out of step with another. It is a registered custom
- * property so it interpolates as a number rather than flipping at the midpoint.
- *
- * HOW IT MOVES. A CSS **scroll-driven** animation bound to the document's scroll progress — no
- * scroll listener, no `IntersectionObserver`, no client island; the header stays a Server Component
- * and its height is fixed at `--header-h`, so no scroll state can cause a layout jump. The
- * emergence only applies when the header's sibling `<main>` opens with `[data-page-opener="dark"]`
- * (`:has()` reads that from the markup); a page that opens on a light surface is never transparent.
- *
- * FALLBACKS ARE THE SETTLED STATE. `--hdr-p` starts at 1. Browsers without scroll timelines
- * (Firefox at the time of writing) and viewers who prefer reduced motion therefore get the solid,
- * fully legible bar from the first frame — a progressive enhancement, never a dependency. The
- * `(animation-range: 0% 100%)` check filters out partial implementations.
+ * The capsule is always a Deep Forest surface, so its ink and controls are invariant across page
+ * theme, opener and scroll position. `--hdr-p` remains only as a progressive, scroll-driven depth /
+ * accent ramp; it never changes the surface or foreground contrast. The header stays a Server
+ * Component and its fixed height prevents layout movement.
  */
 @property --hdr-p {
   syntax: "<number>";
@@ -435,34 +423,39 @@
 
 .hc-header {
   --hdr-p: 1;
-  --hdr-ink: color-mix(in srgb, var(--foreground) calc(var(--hdr-p) * 100%), #f2f5eb);
-  --hdr-ink-muted: color-mix(
-    in srgb,
-    var(--muted-foreground) calc(var(--hdr-p) * 100%),
-    rgba(242, 245, 235, 0.82)
-  );
-  --hdr-line: color-mix(
-    in srgb,
-    var(--border-strong) calc(var(--hdr-p) * 100%),
-    rgba(242, 245, 235, 0.18)
-  );
-  --hdr-hover-wash: color-mix(
-    in srgb,
-    color-mix(in srgb, transparent, var(--forest-700) 8%) calc(var(--hdr-p) * 100%),
-    rgba(242, 245, 235, 0.1)
-  );
-  background-color: color-mix(
-    in srgb,
-    var(--surface-page) calc(var(--hdr-p) * 92%),
-    rgba(14, 38, 32, 0.65)
-  );
-  border-bottom: 1px solid color-mix(in srgb, var(--border) calc(var(--hdr-p) * 60%), rgba(242, 245, 235, 0.12));
+  --hdr-ink: #eee4d1;
+  --hdr-ink-muted: rgba(238, 228, 209, 0.82);
+  --hdr-line: rgba(238, 228, 209, 0.2);
+  --hdr-hover-wash: rgba(238, 228, 209, 0.1);
+  background: transparent;
   color: var(--hdr-ink);
-  backdrop-filter: blur(16px) saturate(150%);
-  -webkit-backdrop-filter: blur(16px) saturate(150%);
 }
 
-/* Guarantee dark opener headers initialize with 0 so text and logo are cream/high-contrast by default */
+.hc-header-frame {
+  background-color: rgba(23, 60, 50, 0.96);
+  border: 1px solid rgba(238, 228, 209, 0.18);
+  box-shadow: 0 10px 34px rgba(7, 20, 16, calc(0.08 + (1 - var(--hdr-p)) * 0.12));
+  backdrop-filter: blur(18px) saturate(145%);
+  -webkit-backdrop-filter: blur(18px) saturate(145%);
+}
+
+/* The mobile sheet is portalled outside `.hc-public`, so it carries the public brand variables
+   explicitly instead of inheriting an undefined transparent background from the page scope. */
+.hc-mobile-nav-panel {
+  --hc-forest: #173c32;
+  --hc-moss: #254b40;
+  --hc-accent: #a44819;
+  --gold-on-dark: #ce8a39;
+  --focus-ring: #ce8a39;
+  --foreground: #eee4d1;
+  --muted-foreground: rgba(238, 228, 209, 0.74);
+  --border-strong: rgba(238, 228, 209, 0.24);
+  --hc-radius-pill: 999px;
+  background-color: #173c32;
+  color: #eee4d1;
+}
+
+/* Dark openers initialize the optional depth/accent ramp at its over-hero value. */
 .hc-header:has(+ main [data-page-opener="dark"]) {
   --hdr-p: 0;
 }
@@ -483,22 +476,55 @@
 }
 .dark .hc-header .hc-nav-link::after { background-color: var(--gold-on-dark); }
 
-.hc-header-logo-over { opacity: calc(1 - var(--hdr-p)); }
-.hc-header-logo-rest { opacity: var(--hdr-p); }
+.hc-header-logo-over { opacity: 1; }
+.hc-header-logo-rest { opacity: 0; }
 
-/* The tool cluster (search, theme, language, portal link) follows the bar's ink and hairline. */
-.hc-header-tools :is(a, button):not(.hc-header-cta) {
-  color: var(--hdr-ink);
-  border-color: var(--hdr-line);
+/*
+ * Navbar utility controls live on a Deep Forest surface in every page theme. Their contrast must
+ * therefore be owned by that surface, never by the page-level foreground tokens. The same contract
+ * is reused in the portalled mobile drawer, where inheritance from `.hc-public` is unavailable.
+ */
+.hc-header .hc-nav-utility,
+.hc-mobile-nav-panel .hc-nav-utility {
+  color: #eee4d1 !important;
+  background-color: rgba(238, 228, 209, 0.035) !important;
+  border-color: rgba(238, 228, 209, 0.28) !important;
   transition: color var(--dur-fast) var(--ease-standard),
               background-color var(--dur-fast) var(--ease-standard),
               border-color var(--dur-fast) var(--ease-standard),
+              box-shadow var(--dur-fast) var(--ease-standard),
               transform var(--dur-fast) var(--ease-standard);
 }
-.hc-header-tools :is(a, button):not(.hc-header-cta):hover {
-  background-color: var(--hdr-hover-wash);
+
+.hc-header .hc-nav-utility:hover,
+.hc-mobile-nav-panel .hc-nav-utility:hover {
+  color: #fff8e9 !important;
+  background-color: rgba(164, 72, 25, 0.42) !important;
+  border-color: rgba(206, 138, 57, 0.82) !important;
 }
-.hc-header-tools button[aria-label] svg { color: var(--hdr-ink); }
+
+.hc-header .hc-nav-utility:focus-visible,
+.hc-mobile-nav-panel .hc-nav-utility:focus-visible {
+  color: #fff8e9 !important;
+  border-color: #ce8a39 !important;
+  outline-color: #ce8a39 !important;
+  box-shadow: 0 0 0 3px rgba(23, 60, 50, 0.92), 0 0 0 5px rgba(206, 138, 57, 0.9);
+}
+
+.hc-header .hc-nav-utility:active,
+.hc-header .hc-nav-utility[aria-expanded="true"],
+.hc-mobile-nav-panel .hc-nav-utility:active,
+.hc-mobile-nav-panel .hc-nav-utility[aria-expanded="true"] {
+  color: #fff8e9 !important;
+  background-color: rgba(164, 72, 25, 0.68) !important;
+  border-color: #ce8a39 !important;
+}
+
+.hc-header .hc-nav-utility svg,
+.hc-mobile-nav-panel .hc-nav-utility svg {
+  color: currentColor !important;
+  opacity: 1;
+}
 
 /* The one filled button: Hills Burnt Orange (#a44819) with crisp white text */
 .hc-header-cta {
@@ -692,14 +718,16 @@
  * admin, finance, inventory, and auth surfaces remain entirely unperturbed.
  */
 .hc-public {
+  --header-h: 88px;
   /* Color roles */
-  --hc-forest: #122314;
-  --hc-moss: #273f2b;
-  --hc-olive: #30322a;
+  --hc-forest: #173c32;
+  --hc-moss: #254b40;
+  --hc-olive: #173c32;
   --hc-sage: #7e8371;
   --hc-fern: #b7bda5;
   /* Primary Accent: Hills Burnt Orange (#a44819) */
   --hc-accent: #a44819;
+  --hc-ochre: #ce8a39;
   --hc-accent-hover: #8c3a12;
   --hc-accent-active: #77310e;
   --hc-accent-wash: #fdf5f0;
@@ -710,7 +738,7 @@
   --hc-verdant: #8c3a12;
   --hc-sprout-wash: #fdf5f0;
   --hc-mist-green: #d9deca;
-  --hc-bone: #f2f5eb;
+  --hc-bone: #eee4d1;
   --hc-white: #ffffff;
   --hc-soft-mist: #dcdfe3;
   --hc-carbon: #222222;
@@ -757,10 +785,19 @@
 
   /* Semantic public canvas & text mappings */
   --hc-canvas: var(--hc-bone);
-  --hc-surface-card: #ffffff;
-  --hc-surface-elevated: #ffffff;
+  --hc-surface-card: #f7f0e2;
+  --hc-surface-elevated: #fffaf0;
   --hc-ink: var(--hc-olive);
   --hc-ink-muted: var(--hc-sage);
+  --background: #eee4d1;
+  --foreground: #173c32;
+  --card: #f7f0e2;
+  --card-foreground: #173c32;
+  --secondary: #e6d8bd;
+  --secondary-foreground: #173c32;
+  --muted: #e6d8bd;
+  --muted-foreground: #596b61;
+  --border: rgba(23, 60, 50, 0.18);
 
   /* Base public background & foreground mapping */
   background-color: var(--hc-canvas);
@@ -769,12 +806,12 @@
 
 /* Dark mode preferences in public scope */
 .dark .hc-public {
-  --hc-canvas: #142217;
-  --hc-surface-card: #1c2e20;
-  --hc-surface-elevated: #223727;
-  --hc-ink: #f2f5eb;
+  --hc-canvas: #102a23;
+  --hc-surface-card: #173c32;
+  --hc-surface-elevated: #214a3e;
+  --hc-ink: #eee4d1;
   --hc-ink-muted: #b7bda5;
-  --hc-bone: #f2f5eb; /* Preserved physical bone hue: never dark green */
+  --hc-bone: #eee4d1; /* Preserved physical cream hue: never dark green */
   --hc-white: #ffffff;
   --hc-olive: #f2f5eb;
   --hc-sage: #c7cebe;
@@ -786,6 +823,15 @@
   --hc-shadow-card: 0 8px 24px -6px rgba(0, 0, 0, 0.5);
   --hc-shadow-elevated: 0 20px 48px -12px rgba(0, 0, 0, 0.7);
   --hc-shadow-nav: 0 4px 20px -4px rgba(0, 0, 0, 0.6);
+  --background: #102a23;
+  --foreground: #eee4d1;
+  --card: #173c32;
+  --card-foreground: #eee4d1;
+  --secondary: #173c32;
+  --secondary-foreground: #eee4d1;
+  --muted: #214a3e;
+  --muted-foreground: #cbbfa9;
+  --border: rgba(238, 228, 209, 0.16);
   background-color: var(--hc-canvas);
   color: var(--hc-ink);
 }

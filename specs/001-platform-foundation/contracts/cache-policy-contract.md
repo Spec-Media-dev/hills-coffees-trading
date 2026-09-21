@@ -73,6 +73,13 @@ for every visitor (no key part or value varies by user, session, organization or
 |---|---|---|---|---|---|
 | `reference-prices` | 011 | approved-source benchmark snapshot; one source's observations; active differentials (per scope) | 300s | price administration — Feature 010 must call `revalidateReferencePrices()` (`lib/pricing/cache.ts`); that surface does not exist yet | TTL only |
 
+> **Status update — 2026-09-21 (Feature 010 T049; additive, supersedes the "Invalidation owner" and "Status today" cells of the
+> `reference-prices` row above):** the invalidation owner now exists. Feature 010's price administration
+> (`lib/admin/prices.ts`) calls `revalidateReferencePrices()` (`lib/pricing/cache.ts`) after every successful source /
+> observation / differential mutation, and never after a refused or failed one. Status: **Revalidated on administrative
+> change**; the 300s TTL remains the fallback for any change made outside the console. Proven against a running
+> production server by `tests/browser/feature010-price-admin.browser.mjs`.
+
 Freshness travels with the cached value: every record carries its own `observedAt`, `isStale` and the cache
 entry's `readAt`, and the presentation contract re-derives current / stale / unavailable on every render, so a cache
 hit can never present stale data as current (FR-008). Failed reads throw inside the cached function and are never

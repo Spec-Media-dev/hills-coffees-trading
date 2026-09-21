@@ -108,6 +108,8 @@ export const en = {
     searchHint: "Your search opens the published coffee catalogue.",
     searchPlaceholder: "Search by coffee or origin",
     searchSubmit: "Browse the coffee catalogue",
+    playHeroFilm: "Play the green coffee film",
+    pauseHeroFilm: "Pause the green coffee film",
     close: "Close",
   },
 

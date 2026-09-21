@@ -2,7 +2,6 @@
 
 import { Button } from "@/components/ui/button";
 import { useLocale } from "@/components/locale/locale-provider";
-import { useTheme } from "@/components/theme/theme-provider";
 import { cn } from "@/lib/utils";
 
 /**
@@ -20,7 +19,6 @@ import { cn } from "@/lib/utils";
  */
 export function LanguageSwitcher({ className }: { className?: string }) {
   const { locale, toggleLocale, t } = useLocale();
-  const { resolvedTheme } = useTheme();
   const labels = t.controls;
 
   return (
@@ -31,7 +29,6 @@ export function LanguageSwitcher({ className }: { className?: string }) {
       aria-label={labels.languageSwitcher}
       title={labels.languageSwitcher}
       lang={locale === "ar" ? "en" : "ar"}
-      style={{ color: resolvedTheme === "dark" ? "var(--sidebar-foreground)" : "var(--foreground)" }}
       className={cn(
         "hc-language-switcher rounded-[var(--radius-pill)] px-4 text-[length:var(--text-meta)] tracking-[0.06em]",
         className,

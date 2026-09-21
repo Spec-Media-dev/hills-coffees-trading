@@ -3,7 +3,7 @@
 **Input**: [spec.md](./spec.md), [plan.md](./plan.md), `docs/architecture/DATABASE-CAPABILITY-MAP.md`,
 `.specify/memory/constitution.md` (v2.0.0), SRS §9 (PX-01..PX-06), AC-06.
 
-**Status**: **RUN A + post-apply verification (2026-09-20) — 18 / 22 complete; implementation DONE, migration APPLIED and live-verified.** T001–T012 and T014–T019 are checked. **Open, by cause**: T013 (Feature 010 has no price-administration surface to call `revalidateReferencePrices()` — the tag is registered and TTL-only), and T020–T022 (`Depends: all` — verification and documentation are recorded but the boxes stay open while T013 is). **DB-BLOCK-10 remainder RESOLVED**: the three pricing tables' `price_*_admin` policies were `TO public`, so every anonymous read aborted `42501 permission denied for function is_platform_admin` (live-verified before the fix) — migration `supabase/migrations/20260920160000_feature_011_db_block_10_price_policy_scope.sql` (role scope of exactly three policies) is applied with `supabase db push --linked` (the dry-run immediately before showed ONLY this migration; `migration list` Local = Remote through `20260920160000`); postflight 9/9 `ok`; live-proven by `tests/pricing/reference-prices-live.test.ts` 20/20 and the seeded real-Chrome + axe proof. **DB-OPEN-08** stands: raw values only, no conversion anywhere.
+**Status**: **T013 closure run (2026-09-21) — 19 / 22.** T013 is COMPLETE: Feature 010 T049 added the platform-admin price administration that calls `revalidateReferencePrices()` after every successful mutation, proven against a running production server (see T013). **Still open, by cause**: T020 — its literal Verify ("four exit-0 results") is NOT met: `npm run lint`, `npx tsc --noEmit` and `npm run build` exit 0, but `npm test` cannot exit 0 on the current tree because of two failures OUTSIDE Feature 011/010 (`tests/design/hills-tokens.test.tsx` "inline-end drawer contract" — `components/ui/sheet.tsx` is unchanged since the redesign checkpoint `061bb22`, so it fails at HEAD; `tests/public/client-island-audit.test.ts` — the untracked homepage-redesign file `components/public/hero-bean-media.tsx` is an undocumented client island); T021/T022 — `Depends: T020` (their own checks pass: T021's grep returns nothing, T022's entries are recorded). Earlier: **RUN A + post-apply verification (2026-09-20) — 18 / 22 complete; implementation DONE, migration APPLIED and live-verified.** T001–T012 and T014–T019 are checked. **Open, by cause**: T013 (Feature 010 has no price-administration surface to call `revalidateReferencePrices()` — the tag is registered and TTL-only), and T020–T022 (`Depends: all` — verification and documentation are recorded but the boxes stay open while T013 is). **DB-BLOCK-10 remainder RESOLVED**: the three pricing tables' `price_*_admin` policies were `TO public`, so every anonymous read aborted `42501 permission denied for function is_platform_admin` (live-verified before the fix) — migration `supabase/migrations/20260920160000_feature_011_db_block_10_price_policy_scope.sql` (role scope of exactly three policies) is applied with `supabase db push --linked` (the dry-run immediately before showed ONLY this migration; `migration list` Local = Remote through `20260920160000`); postflight 9/9 `ok`; live-proven by `tests/pricing/reference-prices-live.test.ts` 20/20 and the seeded real-Chrome + axe proof. **DB-OPEN-08** stands: raw values only, no conversion anywhere.
 **Prerequisite**: 001 implemented. 002 and 010 consume this feature's layer.
 
 > **Standing rules**: reference data is never executable; nothing displays without full disclosure;
@@ -157,20 +157,22 @@
     `src/app/dashboard*` or `components/{orders,listings,finance,delivery,dashboard}` imports the pricing layer (the only importers are the homepage and `components/pricing`), and the
     pricing layer imports none of them. Review pass: no reference price is rendered next to a purchase action anywhere (the components contain no button/link/form).
 
-- [ ] T013 Register cache tag `reference-prices` in 001's cache-policy contract and wire revalidation
+- [x] T013 Register cache tag `reference-prices` in 001's cache-policy contract and wire revalidation
   from 010's price administration.
   - Req: FR-007, FR-011, SC-006 | Depends: T003
   - Verify: an administrative change revalidates the tag and the public surface updates
   - Codex: GPT-5.6 Sol — Medium · Claude: Sonnet — Medium
   - Why: cross-feature cache wiring with a clear expected effect.
-  - **PARTIAL (RUN A, re-evaluated post-apply 2026-09-20) — left unchecked, honestly; BLOCKED on Feature 010.** The literal requirements are: task text "wire revalidation from 010's price administration" and Verify "an administrative change revalidates the tag and the public surface updates" (spec FR-011: "Administrative mutations MUST be `is_platform_admin()`-gated and delivered through 010's console, revalidating public tags"; SC-006: "Public price caches revalidate on administrative change"). A platform ADMIN can change price data (live-proven), but NOTHING in the product revalidates the tag on that change — the only invalidation is the 300s TTL — so "an administrative change revalidates the tag" is not true today; the hook + registration + TTL fallback are necessary parts of T013, not the whole of it. DONE: the `reference-prices` tag is registered in Feature 001's cache-policy contract (row + TTL 300s +
-    invalidation owner + "TTL only" status), every cached pricing read carries it, and `revalidateReferencePrices()` (`lib/pricing/cache.ts`, mandatory `{ expire: 0 }` form) exists;
-    `staleness.test.ts` proves — over a tag-aware memo — that calling it makes the next read reflect a licence revocation / recovered feed. NOT DONE (cannot be): the task's Verify
-    ("an administrative change revalidates the tag and the public surface updates") needs Feature 010's PRICE ADMINISTRATION surface to call that function, and **Feature 010 has no price
-    administration task or surface** (its 48 tasks cover catalogue, compliance, warehouse, audit and system configuration — not sources/observations/differentials). Feature 011 must not
-    build a separate admin surface (plan decision 7). Until such a surface exists the tag is TTL-only, stated as such in the contract. **Unblocks when**: Feature 010 gains a price-administration
-    task that calls `revalidateReferencePrices()` (recommended), or a human decision accepts the hook + registration as this task's closure.
-
+  - **DONE (2026-09-21, Feature 010 price-administration run) — checked on the literal Verify.** Registration: the `reference-prices` row stands in Feature 001's
+    cache-policy contract (TTL 300s), with an ADDITIVE status update beneath the table naming the invalidation owner (the contract changes append-only — Feature
+    002 T030 discipline). Wiring: Feature 010 T049's price administration (`lib/admin/prices.ts`) is the ONLY caller of `revalidateReferencePrices()` — once
+    per SUCCESSFUL source / observation / differential mutation, never after a refused or failed one (`integration-boundary.test.ts`, `price-admin-static.test.ts`,
+    `price-admin-live.test.tsx` 12/12). Verify — "an administrative change revalidates the tag and the public surface updates" — proven against a RUNNING
+    PRODUCTION SERVER (`npm run build` + `next start`) by `tests/browser/feature010-price-admin.browser.mjs`: V1 recorded through the console shows on `/`; a newer
+    V2 written directly to the database (privileged script, no revalidation) stayed invisible for 4 consecutive requests — the public result is served from the
+    tag's cache; V3 recorded through the console as the disposable platform ADMIN was on `/` at the NEXT request, 194 ms after the save (TTL 300 s — not a
+    TTL expiry); setting the licence to RESTRICTED through the console removed the source on the next request. Exact stored text (`203.333300`), raw unit and
+    currency; no conversion. `revalidateTag` was not mocked in that proof. SC-006 satisfied.
 ---
 
 ## Phase 5 — Tests
@@ -246,6 +248,14 @@
   - Why: mechanical execution.
   - **VERIFIED (RUN A, re-run post-apply 2026-09-20) but NOT closable while T013 is open (`Depends: all`).** `npm run lint` (0 errors; the single pre-existing `tests/listings/manage-page.test.tsx` warning), `npx tsc --noEmit`,
     `npm run build` all exit 0; `tests/pricing` 160/160 (140 static + 20 live); regression batches (public/design 216, database 39, dashboard/finance/audit/disputes 280, auth 338, admin 297, listings/inventory 255) green.
+  - **RE-EVALUATED 2026-09-21 (after T013 closed) — still NOT checked; the literal Verify is not met.** `npm run lint` exit 0 (0 errors; only the pre-existing
+    `tests/listings/manage-page.test.tsx` warning), `npx tsc --noEmit` exit 0, `npm run build` exit 0. `npm test`: the full run is not executable in one process on this
+    machine (OOM — recorded), and batched runs show it CANNOT exit 0 today for reasons outside Features 010/011: `tests/design/hills-tokens.test.tsx` ("uses an
+    inline-end drawer contract" — `components/ui/sheet.tsx`, last changed by the redesign checkpoint `061bb22`, no longer carries `data-[side=inline-end]:end-0`) and
+    `tests/public/client-island-audit.test.ts` (the uncommitted homepage-redesign client island `components/public/hero-bean-media.tsx` is not in the documented set).
+    Both belong to the homepage/design work this run was told not to touch. Everything this feature owns is green: `tests/pricing` 162/162; `tests/admin` 26 files
+    green in batches; `tests/design` + `tests/public` otherwise green (257/260, the 3rd failure being the cache-contract diff test, fixed by making the contract
+    change additive). **Unblocks when** those two design/public tests are reconciled by the redesign owner and a batched `npm test` is green.
 
 - [ ] T021 Confirm no unlicensed data path, no conversion helper, no service-role usage, and no
   ingestion integration was added.

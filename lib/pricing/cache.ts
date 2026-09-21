@@ -15,10 +15,10 @@ import { revalidateTag } from "next/cache";
  * record carries its own `observedAt`, its own `isStale` flag and the instant the entry was read (`readAt`), and the
  * presentation contract re-derives the state from them on every render — the cache stores facts, not verdicts.
  *
- * EVERY ENTRY ALSO CARRIES A FINITE TTL. Administrative price changes are delivered through Feature 010's console
- * (FR-011), which does not yet contain a price-administration surface; until it calls `revalidateReferencePrices()`
- * the TTL is the only refresh mechanism, so a licence revocation or a new observation still becomes visible within
- * `REFERENCE_PRICES_REVALIDATE_SECONDS`. The contract register states this honestly (TTL-only until 010 wires the call).
+ * ADMINISTRATIVE CHANGES REVALIDATE THE TAG. Price administration is delivered through Feature 010's console (FR-011):
+ * `lib/admin/prices.ts` (Feature 010 T049) calls `revalidateReferencePrices()` after every successful source /
+ * observation / differential mutation, so the public surface reflects the change on the next request. Every entry also
+ * carries a finite TTL (`REFERENCE_PRICES_REVALIDATE_SECONDS`) as the fallback for any change made outside the console.
  *
  * NOTHING HERE VARIES BY USER. Public-shared entries only: no key part or cached value may incorporate a user,
  * session, organization, role or auth state (SEC-001/SEC-002).

@@ -98,7 +98,7 @@ function LinkColumn({
 
 export function SiteFooter() {
   return (
-    <footer className="relative isolate overflow-hidden border-t border-[rgba(242,245,235,0.12)] bg-[#122314] text-[#f2f5eb]">
+    <footer className="relative isolate overflow-hidden border-t border-[#EEE4D1]/12 bg-[#0e2b23] text-[#EEE4D1]">
       <div className="hc-public-container py-[clamp(4rem,8vw,7rem)]">
         <div className="grid gap-x-10 gap-y-12 md:grid-cols-2 lg:grid-cols-[minmax(0,1.5fr)_minmax(8rem,0.6fr)_minmax(8rem,0.6fr)_minmax(8rem,0.6fr)_minmax(15rem,1fr)]">
           {/* Brand block */}

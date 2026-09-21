@@ -60,27 +60,36 @@ export function AnimatedHero({ children }: { children: ReactNode }) {
           delay: 0.05,
         });
 
+        const heroMedia = Array.from(scope.querySelectorAll(MEDIA));
+        const scrims = Array.from(scope.querySelectorAll(SCRIM));
+        const steps = Array.from(scope.querySelectorAll(STAGGER));
+
         // Media settle first — the photograph fills the frame, a slow scale-down reads as a camera
-        // coming to rest — then the scrims deepen, then the words arrive on the environment.
-        timeline
-          .fromTo(
-            scope.querySelectorAll(MEDIA),
+        // coming to rest — then the words arrive on the environment. Empty optional groups are
+        // skipped so a deliberately scrim-free composition does not produce GSAP target warnings.
+        if (heroMedia.length > 0) {
+          timeline.fromTo(
+            heroMedia,
             { opacity: 0, scale: 1.07 },
             { opacity: 1, scale: 1, duration: 1.5, ease: "power2.out" },
-          )
-          .fromTo(
-            scope.querySelectorAll(SCRIM),
+          );
+        }
+        if (scrims.length > 0) {
+          timeline.fromTo(
+            scrims,
             { opacity: 0 },
             { opacity: 1, duration: 0.8 },
             "-=1.1",
-          )
-          // Eyebrow → headline → rule → glass panel → scroll cue, as one staggered rise.
-          .fromTo(
-            scope.querySelectorAll(STAGGER),
+          );
+        }
+        if (steps.length > 0) {
+          timeline.fromTo(
+            steps,
             { opacity: 0, y: 22 },
             { opacity: 1, y: 0, duration: 0.7, stagger: 0.09 },
             "-=0.7",
           );
+        }
 
         return () => {
           timeline.kill();

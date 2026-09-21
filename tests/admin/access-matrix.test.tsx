@@ -187,9 +187,9 @@ describe("T001 — lib/admin/areas.ts is the single declarative access matrix", 
     expect(ADMIN_GROUP_ROLE_FUNCTIONS.system).toBe("is_platform_admin");
   });
 
-  it("availability is honest — only the areas with a real workflow are `live` (RUN B: kyb, organizations, listings; RUN D: shipments, inventory; RUN E: catalogue areas + audit; RUN F: system configuration; T012: disputes over Feature 012); every other area is planned or blocked", () => {
+  it("availability is honest — only the areas with a real workflow are `live` (RUN B: kyb, organizations, listings; RUN D: shipments, inventory; RUN E: catalogue areas + audit; RUN F: system configuration; T012: disputes over Feature 012; T049: reference-price administration); every other area is planned or blocked", () => {
     const live = ADMIN_AREAS.filter((area) => area.availability === "live").map((area) => area.key).sort();
-    expect(live).toEqual(["audit", "coffees", "commission", "disputes", "inventory", "kyb", "listings", "media", "organizations", "origins", "paymentAccounts", "regions", "roles", "shipments", "shipping", "tax", "taxonomy", "warehouses"]);
+    expect(live).toEqual(["audit", "coffees", "commission", "disputes", "inventory", "kyb", "listings", "media", "organizations", "origins", "paymentAccounts", "prices", "regions", "roles", "shipments", "shipping", "tax", "taxonomy", "warehouses"]);
     for (const area of ADMIN_AREAS) {
       expect(["live", "planned", "blocked"]).toContain(area.availability);
       if (area.availability === "blocked") expect(area.blocker).toBeTruthy();

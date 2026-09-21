@@ -64,7 +64,7 @@ export const ADMIN_AREA_KEYS = [
   "kyb", "organizations", "listings", "disputes",
   "shipments", "inventory",
   "payments", "payouts", "invoices",
-  "coffees", "origins", "regions", "taxonomy", "warehouses", "media",
+  "coffees", "origins", "regions", "taxonomy", "warehouses", "media", "prices",
   "audit",
   "roles", "commission", "tax", "shipping", "paymentAccounts",
 ] as const;
@@ -121,6 +121,8 @@ export const ADMIN_AREAS: readonly AdminArea[] = [
   { key: "taxonomy", group: "catalogue", href: "/dashboard-admin/taxonomy", roleFunction: "is_platform_admin", icon: "tag", availability: "live", phase: 7 },
   { key: "warehouses", group: "catalogue", href: "/dashboard-admin/warehouses", roleFunction: "is_platform_admin", icon: "building-2", availability: "live", phase: 7 },
   { key: "media", group: "catalogue", href: "/dashboard-admin/media", roleFunction: "is_platform_admin", icon: "file", availability: "live", phase: 7 },
+  // T049 — reference-price administration (Feature 011 FR-011): `price_*_admin` RLS is `is_platform_admin()`.
+  { key: "prices", group: "catalogue", href: "/dashboard-admin/prices", roleFunction: "is_platform_admin", icon: "percent", availability: "live", phase: 14 },
 
   // ── Audit ─────────────────────────────────────────────────────────────────────────────────────
   { key: "audit", group: "audit", href: "/dashboard-admin/audit", roleFunction: "is_auditor", icon: "clipboard-list", availability: "live", phase: 8 },

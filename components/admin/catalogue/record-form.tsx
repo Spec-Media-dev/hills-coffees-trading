@@ -30,6 +30,9 @@ export type RecordWriteOutcome = { id: string; revalidatedTags: readonly string[
 
 export type RecordFieldOption = { value: string; label: string };
 
+/** Feature 010 T049 — the reference-price vocabularies (`admin.catalogue.prices.vocab`). */
+export type PriceVocab = "sourceType" | "licenceStatus" | "delayType" | "commodity" | "differentialType";
+
 export type RecordField = {
   name: string;
   /** Key into the client-side label dictionary (`admin.catalogue.common` ∪ `warehouses.form` ∪ `warehouses.locations`) — resolved in the viewer's locale. */
@@ -44,7 +47,7 @@ export type RecordField = {
   /** Static options (names are data — single-language by nature). */
   options?: readonly RecordFieldOption[];
   /** Localized status options from the approved vocabularies. */
-  statusOptions?: "coffee" | "origin" | "role" | "taxableBase";
+  statusOptions?: "coffee" | "origin" | "role" | "taxableBase" | PriceVocab;
   /** For selects: show an empty ("none") option; omitted = the select is required. */
   allowEmpty?: boolean;
   required?: boolean;
@@ -59,9 +62,11 @@ export type RecordFormProps = {
   hiddenFields: Record<string, string>;
   action: (prev: ActionFeedbackResult<RecordWriteOutcome> | undefined, formData: FormData) => Promise<ActionFeedbackResult<RecordWriteOutcome>>;
   /** Which resource copy block supplies heading/lead (resolved client-side in the viewer's locale). */
-  resource: "coffees" | "origins" | "regions" | "taxonomy" | "warehouses" | "locations" | "system";
+  resource: "coffees" | "origins" | "regions" | "taxonomy" | "warehouses" | "locations" | "system" | "prices";
   /** For `resource: "system"` — the `admin.system.forms` entry that supplies heading/lead. */
   copyKey?: "commissionPolicy" | "commissionTier" | "taxRule" | "shippingRule" | "paymentAccount" | "roleGrant";
+  /** For `resource: "prices"` (Feature 010 T049) — the `admin.catalogue.prices.forms` entry that supplies heading/lead. */
+  priceForm?: "priceSource" | "priceObservation" | "priceDifferential";
   mode: "create" | "edit";
   /**
    * Detail route to navigate to after a successful CREATE, with `{id}` standing for the new record's
@@ -72,13 +77,16 @@ export type RecordFormProps = {
   formKey: string;
 };
 
-export function RecordForm({ fields, hiddenFields, action, resource, copyKey, mode, successHrefTemplate, formKey }: RecordFormProps) {
+export function RecordForm({ fields, hiddenFields, action, resource, copyKey, priceForm, mode, successHrefTemplate, formKey }: RecordFormProps) {
   const { tApp } = useLocale();
   const copy = tApp.admin.catalogue;
   const system = tApp.admin.system;
   const isSystem = resource === "system";
+  const isPrices = resource === "prices";
   const formCopy =
-    resource === "system"
+    resource === "prices"
+      ? (copy.prices.forms[priceForm ?? "priceSource"] as { createTitle: string; editTitle: string; lead?: string; createLead?: string; editLead?: string })
+      : resource === "system"
       ? (system.forms[copyKey ?? "commissionPolicy"] as { createTitle: string; editTitle: string; lead?: string; createLead?: string; editLead?: string })
       : resource === "locations"
         ? { createTitle: copy.warehouses.locations.add, editTitle: copy.warehouses.locations.heading, lead: undefined }
@@ -142,16 +150,23 @@ export function RecordForm({ fields, hiddenFields, action, resource, copyKey, mo
   }, [state, successHrefTemplate, router]);
 
   const serverErrors = state?.ok === false && state.code === ACTION_FEEDBACK.VALIDATION_ERROR ? (state.fieldErrors ?? {}) : {};
-  const validationCopy = (isSystem ? system.validation : copy.common.validation) as Record<string, string>;
+  const validationCopy = (isSystem ? system.validation : isPrices ? { ...copy.common.validation, ...copy.prices.validation } : copy.common.validation) as Record<string, string>;
   const labels: Record<string, string> = isSystem
     ? { ...(system.common as unknown as Record<string, string>), ...(system.fields as unknown as Record<string, string>) }
-    : { ...(copy.common as unknown as Record<string, string>), ...(copy.warehouses.form as unknown as Record<string, string>), ...(copy.warehouses.locations as unknown as Record<string, string>) };
+    : isPrices
+      ? { ...(copy.common as unknown as Record<string, string>), ...(copy.prices.fields as unknown as Record<string, string>) }
+      : { ...(copy.common as unknown as Record<string, string>), ...(copy.warehouses.form as unknown as Record<string, string>), ...(copy.warehouses.locations as unknown as Record<string, string>) };
   const labelOf = (key: string) => labels[key] ?? key;
   const optionsOf = (field: RecordField): readonly RecordFieldOption[] => {
     if (field.statusOptions === "coffee") return Object.entries(copy.statuses.coffee).map(([value, label]) => ({ value, label }));
     if (field.statusOptions === "origin") return Object.entries(copy.statuses.origin).map(([value, label]) => ({ value, label }));
     if (field.statusOptions === "role") return Object.entries(system.roles.roleLabels).map(([value, label]) => ({ value, label }));
     if (field.statusOptions === "taxableBase") return Object.entries(system.tax.taxableBases).map(([value, label]) => ({ value, label }));
+    if (field.statusOptions && field.statusOptions in copy.prices.vocab) {
+      // Price vocabularies: only the values the server contract offers (`options`), each labelled in the viewer's locale.
+      const vocab = copy.prices.vocab[field.statusOptions as PriceVocab] as Record<string, string>;
+      return (field.options ?? []).map((option) => ({ value: option.value, label: vocab[option.value] ?? option.value }));
+    }
     return field.options ?? [];
   };
   const errorFor = (field: RecordField): string | undefined => {
@@ -240,7 +255,7 @@ export function RecordForm({ fields, hiddenFields, action, resource, copyKey, mo
           <Button type="submit" disabled={isPending} variant="primary">
             {isPending ? copy.common.saving : submitLabel}
           </Button>
-          <p className="text-[length:var(--text-micro)] text-muted-foreground">{isSystem ? system.common.futureOnlyTitle : copy.common.publicNote}</p>
+          <p className="text-[length:var(--text-micro)] text-muted-foreground">{isPrices ? copy.prices.publicNote : isSystem ? system.common.futureOnlyTitle : copy.common.publicNote}</p>
         </div>
       </form>
     </section>

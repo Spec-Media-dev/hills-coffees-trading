@@ -2,7 +2,7 @@
 
 **Feature Directory**: `specs/011-pricing-reference-data`
 **Created**: 2026-09-08
-**Status**: Implemented (RUN A, 2026-09-20 — 18 / 22 tasks; see `tasks.md`); the DB-BLOCK-10 remainder migration is APPLIED and live-verified (2026-09-20)
+**Status**: Implemented (RUN A, 2026-09-20; T013 closed 2026-09-21 — 19 / 22 tasks; see `tasks.md`); the DB-BLOCK-10 remainder migration is APPLIED and live-verified (2026-09-20)
 **Primary surfaces**: Public Website (`/`, via 002) + Member Portal (price context) + Admin
 (`/dashboard-admin`, via 010)
 **Depends on**: 001; consumed by 002 (public presentation), 006/007 (commercial price context),
@@ -239,9 +239,9 @@ after revalidation; as a non-admin, confirm refusal.
   public surface showed the honest `read_failed` state. (`warehouses` carries the same policy shape but this feature does not read it, so it is
   deliberately NOT changed.)
 - **QUOTE-OPEN-01 — no Hills quote entity** (recorded centrally in `DATABASE-CAPABILITY-MAP.md`): `HillsQuotePrice` is declared and unconstructable.
-- **Feature 010 has no price-administration surface** (FR-011 says administration is delivered through 010, but none of its 48 tasks covers
-  sources/observations/differentials): `revalidateReferencePrices()` exists and the tag is registered, but nothing calls it yet — the cache is
-  TTL-only (300s). This is why `tasks.md` T013 stays open.
+- **Feature 010 price administration — RESOLVED 2026-09-21** (was: no Feature 010 task or surface covered sources/observations/differentials, so
+  the cache was TTL-only). Feature 010 T049 added `/dashboard-admin/prices` (platform ADMIN only); `lib/admin/prices.ts` calls
+  `revalidateReferencePrices()` after every successful mutation, proven against a running production server. `tasks.md` T013 is complete.
 
 - **Market-data licensing (SRS §18, §12)**: redistribution rights are a Sprint 0 legal/vendor
   decision. Until a source's licence is approved, nothing from it may be displayed. This is enforced

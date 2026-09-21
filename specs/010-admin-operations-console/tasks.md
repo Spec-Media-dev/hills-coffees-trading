@@ -3,7 +3,11 @@
 **Input**: [spec.md](./spec.md), [plan.md](./plan.md), `docs/architecture/DATABASE-CAPABILITY-MAP.md`,
 `.specify/memory/constitution.md` (v2.0.0), SRS §14 (OPS-01, OPS-02), §3.1, §13.5.
 
-**Status**: **Database hygiene M1 (2026-09-20) — 36 / 48. T027 and T029 COMPLETE; DB-OPEN-21 RESOLVED.** Human-approved
+**Status**: **Price-administration run (2026-09-21) — 37 / 49. T049 ADDED (Phase 14, the Master Audit found no task
+owning price administration) and COMPLETE**: minimal platform-ADMIN reference-price administration under
+`/dashboard-admin/prices`; every successful mutation calls Feature 011's `revalidateReferencePrices()`, proven against a
+running production server. No migration. Unblocks Feature 011 T013. Remaining closure blockers unchanged (below).
+**Database hygiene M1 (2026-09-20) — 36 / 48. T027 and T029 COMPLETE; DB-OPEN-21 RESOLVED.** Human-approved
 migration `supabase/migrations/20260920120000_feature_010_db_open_21_config_attribution.sql` (applied with `supabase db push --linked`; postflight 15/15 ok incl. function ownership)
 gives every configuration table a DB-owned `updated_at` and an attributed audit trail (`audit_logs`, actor = `auth.uid()`);
 `payment_accounts` is audited with a REDACTED payload; `platform_admins` through a `user_id`-keyed sibling function.
@@ -1410,6 +1414,64 @@ scope has no owning task (flagged for RUN B planning, not silently added).
     table; until then no email mutation control exists in the console
   - Codex: GPT-5.6 Sol — Medium · Claude: Opus — Medium
   - Why: "Do NOT invent new auth flows" — the owner's request is recorded, not improvised.
+
+---
+
+## Phase 14 — Reference-price administration (ADDED 2026-09-21)
+
+> Added because no existing Feature 010 task owned price administration, although spec.md
+> (Catalogue scope), plan.md (Catalogue write surface: "price tables") and Feature 011 FR-011 /
+> PS6 / plan decision 7 all place it in this console. Found by the Master Audit; it blocks Feature
+> 011 T013. Scope is appended here, never hidden inside T021–T024. Count 48 → 49.
+
+- [x] T049 [PS6] Implement minimal reference-price administration in the `(catalogue)` area
+  (`/dashboard-admin/prices`, `lib/admin/prices.ts`, `lib/admin/price-validation.ts`): view price
+  sources, observations and differentials; create/edit sources (incl. licence status and activity);
+  record new observations (append-only — no observation is edited or deleted); create differentials
+  and change their lifecycle (active flag, effective-until, notes). Platform ADMIN only
+  (`is_platform_admin()` re-verified live per page and per write; RLS `price_*_admin` is the
+  backstop). Every SUCCESSFUL mutation calls Feature 011's `revalidateReferencePrices()` exactly
+  once; a refused or failed mutation never does. No migration, no DELETE, no service role, no
+  currency conversion (DB-OPEN-08): values/units/currencies are stored exactly as entered, and only
+  the benchmark commodity types Feature 011 displays can be recorded.
+  - Req: FR-002, FR-007, FR-010, FR-017, SEC-002; Feature 011 FR-011, SC-006, PS6 | Depends: T004, T023; unblocks Feature 011 T013
+  - Verify: (a) non-admin roles (COMPLIANCE, WAREHOUSE, FINANCE, AUDITOR, member) are refused by
+    direct URL and direct action invocation, anonymous is refused as unauthenticated, and no row is
+    written; (b) a platform ADMIN creates/edits a source, records an observation and
+    creates/changes a differential against the live database; (c) each successful mutation
+    revalidates exactly the `reference-prices` tag with `{ expire: 0 }` and a failed one revalidates
+    nothing; (d) against a running production server, a public homepage value that is demonstrably
+    cached (a direct database write does not appear) changes to the new stored value immediately
+    after the console mutation — without waiting for the 300s TTL — and a licence restriction
+    removes it; (e) stored decimals equal the entered text (only the column's scale pads it), and
+    no FX observation can be recorded.
+  - Codex: GPT-5.6 Sol — High · Claude: Opus — High
+  - Why: the one place the console mutates public market-reference data; licence gating and exact
+    values are legal/commercial boundaries, and a missed revalidation leaves the public site wrong.
+  - **Done (2026-09-21, functional run — no design polish; no migration, no DB/RLS/grant change)**:
+    `lib/admin/prices.ts` (reads + five writes, each `safeParse` → live `is_platform_admin()` →
+    session client under RLS → `saved()` = the ONE `revalidateReferencePrices()` call),
+    `lib/admin/price-validation.ts` (DB CHECK vocabularies; observation commodities bound to Feature
+    011's `REFERENCE_COMMODITIES`; no exchange-rate source/observation; ≤ 6 decimals as TEXT; UTC
+    instants; no future observation), `src/app/dashboard-admin/(catalogue)/prices/**` (list, source
+    new/detail + observation form, differential new/detail, `actions.ts`), `components/admin/catalogue/
+    price-{fields,parts}.{ts,tsx}`, the shared `RecordForm` gained a `prices` resource, area `prices`
+    (catalogue group, `is_platform_admin`) in `lib/admin/areas.ts`, EN/AR copy. Evidence per Verify
+    clause: (a)(b)(c)(e) `tests/admin/price-admin-live.test.tsx` 12/12 (real sessions/RLS: five roles
+    + member refused by every write and by direct URL on all five pages, anonymous → sign-in, RLS
+    backstop refuses raw writes, ADMIN create/edit/approve/restrict/deactivate/observe/differential,
+    exactly `[{ tag: "reference-prices", options: { expire: 0 } }]` per success, zero on nine distinct
+    failure kinds, stored `187.432100` / `0.000001` / `-1.250000` equal the entered text, `FX`
+    refused, DELETE still `42501`) and `tests/admin/price-admin-static.test.ts` 22/22 (gate-before-
+    client ordering, revalidation only in the final success return, append-only observations,
+    immutable fixed facts, no delete/service role/RPC/shared cache/arithmetic); (d)
+    `tests/browser/feature010-price-admin.browser.mjs` against `next start` on the final build — a
+    direct database write stayed invisible on `/` for 4 requests (cached), the console observation
+    was visible on the NEXT request (194 ms after save; TTL 300 s), a RESTRICTED licence hid the
+    source on the next request; WAREHOUSE/FINANCE refused by URL, anonymous → `/admin/sign-in/`;
+    16 surfaces (EN/AR × light/dark × 1366/390) 0 axe violations; `F010P-` rows removed and the
+    disposable ADMIN de-privileged. Regression: `tests/admin` 26 files green in batches;
+    `tests/pricing` 162/162.
 
 ---
 

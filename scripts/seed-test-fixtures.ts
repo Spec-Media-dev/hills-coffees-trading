@@ -3454,6 +3454,43 @@ async function seedPricingFixtures(admin: SupabaseClient): Promise<void> {
 }
 
 /**
+ * Feature 010 T049 — rows created THROUGH THE CONSOLE by the price-administration proofs carry a `F010P-` source code
+ * (their observations follow the source) or a `F010P` note prefix (differentials). This removes exactly those rows —
+ * the product itself never deletes reference data (no DELETE grant for `authenticated`).
+ */
+async function cleanupPriceAdminRows(admin: SupabaseClient): Promise<void> {
+  const tagged = await admin.from("price_sources").select("id").like("code", "F010P-%");
+  if (tagged.error) throw new SafeFixtureError("price-admin cleanup failed (lookup).");
+  const ids = (tagged.data ?? []).map((row) => row.id as string);
+  let observations = 0;
+  if (ids.length > 0) {
+    const obs = await admin.from("price_observations").delete().in("price_source_id", ids).select("id");
+    if (obs.error) throw new SafeFixtureError("price-admin cleanup failed (observations).");
+    observations = obs.data?.length ?? 0;
+  }
+  const diffs = await admin.from("price_differentials").delete().like("notes", "F010P%").select("id");
+  if (diffs.error) throw new SafeFixtureError("price-admin cleanup failed (differentials).");
+  const srcs = await admin.from("price_sources").delete().like("code", "F010P-%").select("id");
+  if (srcs.error) throw new SafeFixtureError("price-admin cleanup failed (sources).");
+  console.log(JSON.stringify({ removed: { observations, differentials: diffs.data?.length ?? 0, sources: srcs.data?.length ?? 0 } }));
+}
+
+/**
+ * Feature 010 T049 browser proof ONLY — a write made OUTSIDE the product (privileged script, no revalidation), used to
+ * show the public reference-price result is genuinely cached: this row must NOT appear publicly until a console
+ * mutation revalidates the tag. Input: `F010P_DIRECT_OBSERVATION` = JSON {sourceCode, symbol, rawValue, observedAt}.
+ */
+async function insertPriceAdminDirectObservation(admin: SupabaseClient): Promise<void> {
+  const input = JSON.parse(requireEnv("F010P_DIRECT_OBSERVATION")) as { sourceCode: string; symbol: string; rawValue: string; observedAt: string };
+  if (!input.sourceCode.startsWith("F010P-")) throw new SafeFixtureError("direct observation is limited to F010P- sources.");
+  const source = await admin.from("price_sources").select("id").eq("code", input.sourceCode).single();
+  if (source.error || !source.data) throw new SafeFixtureError("direct observation: source not found.");
+  const inserted = await admin.from("price_observations").insert({ price_source_id: source.data.id, symbol: input.symbol, commodity_type: "ARABICA", raw_value: input.rawValue, raw_currency: "USD", raw_unit: "cents/lb", observed_at: input.observedAt }).select("id").single();
+  if (inserted.error) throw new SafeFixtureError("direct observation insert failed.");
+  console.log(JSON.stringify({ inserted: inserted.data.id }));
+}
+
+/**
  * Feature 010 RUN E (KYB review coherence) — stages `completeDraft`'s TRADE_LICENSE document into a
  * given persisted state so the live suite can prove the server-side approval gate against a REAL
  * row (PENDING / REJECTED / an expired ACCEPTED document). `kyb_documents` has no RLS-granted update
@@ -3933,6 +3970,14 @@ async function main(): Promise<void> {
   }
   if (process.argv.includes("--cleanup-pricing-fixtures")) {
     await cleanupPricingFixtures(admin);
+    return;
+  }
+  if (process.argv.includes("--cleanup-price-admin-rows")) {
+    await cleanupPriceAdminRows(admin);
+    return;
+  }
+  if (process.argv.includes("--insert-price-admin-direct-observation")) {
+    await insertPriceAdminDirectObservation(admin);
     return;
   }
   if (process.argv.includes("--prepare-super-admin-fixture")) {

@@ -84,7 +84,7 @@ export function MobileNav({ auth }: { auth: MobileNavAuthState }) {
             id="hc-menu-trigger"
             aria-label={labels.controls.openMenu}
             aria-expanded={open}
-            className="rounded-[var(--radius-sm)] xl:hidden"
+            className="hc-nav-utility rounded-[var(--radius-sm)] xl:hidden"
           />
         }
       >
@@ -94,7 +94,7 @@ export function MobileNav({ auth }: { auth: MobileNavAuthState }) {
       <SheetContent
         side="inline-end"
         showCloseButton={false}
-        className="fixed inset-y-0 end-0 h-full max-h-screen w-[var(--drawer-w)] gap-0 bg-[var(--hc-forest)] text-[#f2f5eb] border-s border-[rgba(242,245,235,0.14)] p-0 sm:max-w-[var(--drawer-w)] overflow-hidden shadow-2xl"
+        className="hc-mobile-nav-panel fixed inset-y-0 end-0 h-full max-h-screen w-[var(--drawer-w)] gap-0 bg-[#173C32] text-[#EEE4D1] border-s border-[#EEE4D1]/14 p-0 sm:max-w-[var(--drawer-w)] overflow-hidden shadow-2xl"
       >
         {/* Ambient radial warmth (PDF Guidelines §03) */}
         <div
@@ -175,13 +175,6 @@ export function MobileNav({ auth }: { auth: MobileNavAuthState }) {
               >
                 {labels.account.signIn}
               </Link>
-              <Link
-                href="/sign-up/"
-                aria-current={isCurrent("/sign-up/") ? "page" : undefined}
-                className="flex min-h-[3.25rem] items-center rounded-[var(--radius-sm)] px-4 text-[length:var(--text-body)] font-medium text-[rgba(242,245,235,0.85)] transition-colors duration-[var(--dur-fast)] hover:text-[#ffffff] hover:bg-[var(--hc-moss)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--hc-accent)]"
-              >
-                {labels.account.signUp}
-              </Link>
             </div>
           )}
         </nav>
@@ -201,8 +194,8 @@ export function MobileNav({ auth }: { auth: MobileNavAuthState }) {
             {labels.cta.requestAnOffer}
           </Link>
           <div className="flex items-center gap-3">
-            <ThemeToggle />
-            <LanguageSwitcher />
+            <ThemeToggle className="hc-nav-utility" />
+            <LanguageSwitcher className="hc-nav-utility" />
           </div>
         </div>
       </SheetContent>

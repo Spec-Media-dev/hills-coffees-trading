@@ -107,7 +107,7 @@ describe("T021 — coffee management uses the database's own vocabulary through 
       expect(area.availability).toBe("live");
     }
     for (const file of walk("src/app/dashboard-admin/(catalogue)").filter((f) => f.endsWith("page.tsx"))) {
-      expect(source(file), file).toMatch(/checkAreaAccess\("(coffees|origins|regions|taxonomy|warehouses|media)"\)/);
+      expect(source(file), file).toMatch(/checkAreaAccess\("(coffees|origins|regions|taxonomy|warehouses|media|prices)"\)/);
       expect(source(file), file).toContain("<AdminAccessDenied");
     }
     // The Server Actions file delegates to lib/admin/catalogue only — no direct table access.
