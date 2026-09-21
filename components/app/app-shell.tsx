@@ -57,7 +57,7 @@ export type AppShellProps = {
   workspaceLabel: ReactNode
   identitySubtitle?: ReactNode
   logoHref: string
-  footerNote?: string
+  footerNote?: ReactNode
   children: ReactNode
   breadcrumbs?: ReactNode
   topbarActions?: ReactNode

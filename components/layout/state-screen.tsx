@@ -92,9 +92,9 @@ const FALLBACK_COPY: StateScreenCopy = {
 export type StateScreenProps = {
   kind: StateScreenKind;
   /** Overrides the default title for this `kind`. */
-  title?: string;
+  title?: ReactNode;
   /** Overrides the default description for this `kind`. */
-  description?: string;
+  description?: ReactNode;
   /** Optional action(s) — e.g. a link to the step that resolves the state. */
   children?: ReactNode;
 };

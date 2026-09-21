@@ -15,16 +15,17 @@ export function OnboardingProgress({ currentStep }: { currentStep: Extract<StepK
   const currentIndex = STEP_KEYS.indexOf(currentStep);
 
   return (
-    <ol className="flex flex-col gap-2">
+    <ol className="grid gap-2 sm:grid-cols-2 lg:flex lg:flex-col">
       {STEP_KEYS.map((step, index) => {
         const state = index < currentIndex ? "complete" : index === currentIndex ? "current" : "upcoming";
 
         return (
           <li
             key={step}
+            aria-current={state === "current" ? "step" : undefined}
             className={cn(
-              "flex items-center gap-3 rounded-[var(--radius-md)] px-3 py-2 text-[length:var(--text-small)]",
-              state === "current" && "bg-[var(--surface-subtle)] font-semibold text-foreground",
+              "flex min-h-11 items-center gap-3 rounded-[var(--radius-md)] border border-transparent px-3 py-2 text-[length:var(--text-small)] transition-[background-color,border-color] duration-[var(--dur-fast)]",
+              state === "current" && "border-[var(--border-strong)] bg-[var(--surface-subtle)] font-semibold text-foreground shadow-[var(--shadow-xs)]",
               state === "complete" && "text-muted-foreground",
               // Full-opacity muted-foreground, not a dimmed variant: the unfilled step badge already
               // signals "upcoming" visually — the step NAME remains real information and must clear
@@ -35,7 +36,7 @@ export function OnboardingProgress({ currentStep }: { currentStep: Extract<StepK
           >
             <span
               className={cn(
-                "grid size-6 shrink-0 place-items-center rounded-full border text-xs",
+                "grid size-6 shrink-0 place-items-center rounded-full border text-xs font-semibold tabular-nums",
                 state === "complete" && "border-[var(--success)] bg-[var(--success)]/10 text-[var(--success)]",
                 state === "current" && "border-primary bg-primary text-primary-foreground",
                 state === "upcoming" && "border-border"
@@ -47,7 +48,6 @@ export function OnboardingProgress({ currentStep }: { currentStep: Extract<StepK
             <span>
               <AppBilingual pick={(c) => c.onboarding.steps[step]} />
             </span>
-            {state === "current" ? <span className="sr-only">(current step)</span> : null}
           </li>
         );
       })}

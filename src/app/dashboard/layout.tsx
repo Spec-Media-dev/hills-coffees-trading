@@ -11,7 +11,6 @@ import { buildDashboardNavGroups } from "@/components/dashboard/sidebar";
 import { DashboardTopbarActions } from "@/components/dashboard/topbar";
 import { AppBilingual } from "@/components/locale/app-bilingual";
 import { StateScreen } from "@/components/layout/state-screen";
-import { appCopy } from "@/lib/app/copy";
 import { getRequestIdentity } from "@/lib/auth/dal";
 import { setActingOrganization } from "@/lib/auth/eligibility";
 import { DASHBOARD_MODULES } from "@/lib/dashboard/registry";
@@ -100,7 +99,11 @@ export default async function DashboardLayout({
       <div className="flex min-h-full flex-1 flex-col">
         <PreAuthHeader />
         <main className="flex flex-1 flex-col">
-          <StateScreen kind="forbidden" title={appCopy.emailNotVerified.title} description={appCopy.emailNotVerified.description}>
+          <StateScreen
+            kind="forbidden"
+            title={<AppBilingual pick={(c) => c.emailNotVerified.title} />}
+            description={<AppBilingual pick={(c) => c.emailNotVerified.description} />}
+          >
             <ResendVerificationButton />
           </StateScreen>
         </main>
@@ -178,7 +181,7 @@ export default async function DashboardLayout({
         />
       }
       logoHref="/dashboard"
-      footerNote={appCopy.roleVisibilityNote}
+      footerNote={<AppBilingual pick={(c) => c.roleVisibilityNote} />}
       topbarActions={
         <DashboardTopbarActions
           displayName={identity.profile.fullName ?? identity.profile.companyName ?? null}

@@ -1,4 +1,4 @@
-import type { ComponentProps } from "react"
+import type { ComponentProps, ReactNode } from "react"
 
 import { Icon, type IconName } from "@/components/ui/icon"
 import { cn } from "cn"
@@ -12,7 +12,7 @@ const tones: Record<AlertTone, { classes: string; icon: IconName }> = {
   danger: { classes: "border-[var(--danger)] bg-[var(--danger-surface)] text-[var(--danger)]", icon: "circle-x" },
 }
 
-type InlineAlertProps = ComponentProps<"div"> & { tone?: AlertTone; title: string }
+type InlineAlertProps = Omit<ComponentProps<"div">, "title"> & { tone?: AlertTone; title: ReactNode }
 
 function InlineAlert({ tone = "info", title, children, className, ...props }: InlineAlertProps) {
   const treatment = tones[tone]

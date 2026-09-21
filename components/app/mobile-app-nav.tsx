@@ -4,6 +4,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useState } from "react"
 
+import type { ReactNode } from "react"
 import type { AppNavGroup } from "@/components/app/app-navigation"
 import { useLocale } from "@/components/locale/locale-provider"
 import { LanguageSwitcher } from "@/components/locale/language-switcher"
@@ -36,7 +37,7 @@ export type MobileAppNavProps = {
   groups: readonly AppNavGroup[]
   logoHref: string
   logoLabel: string
-  footerNote?: string
+  footerNote?: ReactNode
 }
 
 export function MobileAppNav({ groups, logoHref, logoLabel, footerNote }: MobileAppNavProps) {

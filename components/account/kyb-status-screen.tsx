@@ -1,11 +1,10 @@
 import Link from "next/link";
 
-import { AppBilingual } from "@/components/locale/app-bilingual";
+import { AppBilingual, type AppCopySelector } from "@/components/locale/app-bilingual";
 import { OnboardingProgress } from "@/components/account/onboarding-progress";
 import { StartKybVerificationButton } from "@/components/account/start-kyb-verification-button";
 import { Button } from "@/components/ui/button";
 import { InlineAlert } from "@/components/ui/inline-alert";
-import { appCopy } from "@/lib/app/copy";
 import type { KybApplicationSummary, KybDocumentSummary } from "@/lib/kyb/status";
 import { isDocumentExpired } from "@/lib/kyb/status";
 import type { KybDocumentReview } from "@/lib/kyb/review-items";
@@ -35,10 +34,11 @@ export function KybStatusScreen({
     // A plain `<div>`: this renders only as `{children}` inside `dashboard/layout.tsx`'s
     // `!isAuthorizedMember` branch, which already supplies the page's `<main>` landmark.
     <div className="hc-container flex min-h-[60vh] flex-1 items-center py-12">
-      <div className="mx-auto grid w-full max-w-3xl gap-8 sm:grid-cols-[14rem_1fr]">
+      <div className="mx-auto grid w-full max-w-4xl gap-5 lg:grid-cols-[15rem_minmax(0,1fr)] lg:gap-8">
         <OnboardingProgress currentStep="kyb" />
-        <div className="flex flex-col gap-5 rounded-[var(--radius-xl)] border border-border bg-card p-7 shadow-[var(--shadow-md)] sm:p-9">
-          <span className="hc-eyebrow text-[var(--gold-on-light)] dark:text-[var(--gold-on-dark)]">
+        <div className="relative flex flex-col gap-6 overflow-hidden rounded-[var(--radius-xl)] border border-border bg-card p-6 shadow-[var(--shadow-md)] sm:p-9">
+          <span aria-hidden="true" className="absolute inset-x-0 top-0 h-1 bg-primary" />
+          <span className="hc-eyebrow pt-1 text-[var(--gold-on-light)] dark:text-[var(--gold-on-dark)]">
             <AppBilingual pick={(c) => c.kyb.hub.eyebrow} />
           </span>
           <ExpiredDocumentWarning currentDocuments={currentDocuments} />
@@ -60,7 +60,7 @@ function KybStatusBody({
 }) {
   if (!application) {
     return (
-      <StatusBlock title={appCopy.kyb.hub.noApplication.title} description={appCopy.kyb.hub.noApplication.description}>
+    <StatusBlock pickTitle={(c) => c.kyb.hub.noApplication.title} pickDescription={(c) => c.kyb.hub.noApplication.description}>
         <StartKybVerificationButton />
       </StatusBlock>
     );
@@ -69,7 +69,7 @@ function KybStatusBody({
   switch (application.status) {
     case "DRAFT":
       return (
-        <StatusBlock title={appCopy.kyb.hub.draft.title} description={appCopy.kyb.hub.draft.description}>
+        <StatusBlock pickTitle={(c) => c.kyb.hub.draft.title} pickDescription={(c) => c.kyb.hub.draft.description}>
           <Button render={<Link href="/dashboard/kyb/" />}>
             <AppBilingual pick={(c) => c.kyb.hub.draft.continue} />
           </Button>
@@ -77,22 +77,22 @@ function KybStatusBody({
       );
 
     case "SUBMITTED":
-      return <StatusBlock title={appCopy.kyb.hub.submitted.title} description={appCopy.kyb.hub.submitted.description} />;
+      return <StatusBlock pickTitle={(c) => c.kyb.hub.submitted.title} pickDescription={(c) => c.kyb.hub.submitted.description} />;
 
     case "UNDER_REVIEW":
-      return <StatusBlock title={appCopy.kyb.hub.underReview.title} description={appCopy.kyb.hub.underReview.description} />;
+      return <StatusBlock pickTitle={(c) => c.kyb.hub.underReview.title} pickDescription={(c) => c.kyb.hub.underReview.description} />;
 
     case "RESUBMISSION_REQUIRED": {
       const rejected = currentDocuments.filter((document) => document.status === "REJECTED");
       return (
-        <StatusBlock title={appCopy.kyb.hub.resubmissionRequired.title} description={appCopy.kyb.hub.resubmissionRequired.description}>
+        <StatusBlock pickTitle={(c) => c.kyb.hub.resubmissionRequired.title} pickDescription={(c) => c.kyb.hub.resubmissionRequired.description}>
           {rejected.length > 0 ? (
             <ul className="flex flex-col gap-1.5">
               {rejected.map((document) => {
                 const review = reviews.find((entry) => entry.documentId === document.id);
                 return (
                   <li key={document.id} className="text-[length:var(--text-small)] text-destructive">
-                    {appCopy.kyb.documents.types[document.documentType as keyof typeof appCopy.kyb.documents.types] ?? document.documentType}
+                    <AppBilingual pick={(c) => c.kyb.documents.types[document.documentType as keyof typeof c.kyb.documents.types] ?? document.documentType} />
                     {review?.reason ? ` — ${review.reason}` : ""}
                   </li>
                 );
@@ -108,33 +108,33 @@ function KybStatusBody({
 
     case "REJECTED":
       return (
-        <StatusBlock title={appCopy.kyb.hub.rejected.title} description={appCopy.kyb.hub.rejected.description}>
+        <StatusBlock pickTitle={(c) => c.kyb.hub.rejected.title} pickDescription={(c) => c.kyb.hub.rejected.description}>
           <p className="hc-meta text-muted-foreground">
-            <AppBilingual pick={(c) => c.kyb.hub.rejected.reasonLabel} />: {application.rejectionReason ?? appCopy.kyb.hub.rejected.noReason}
+            <AppBilingual pick={(c) => c.kyb.hub.rejected.reasonLabel} />: {application.rejectionReason ?? <AppBilingual pick={(c) => c.kyb.hub.rejected.noReason} />}
           </p>
         </StatusBlock>
       );
 
     case "SUSPENDED":
-      return <StatusBlock title={appCopy.kyb.hub.suspended.title} description={appCopy.kyb.hub.suspended.description} />;
+      return <StatusBlock pickTitle={(c) => c.kyb.hub.suspended.title} pickDescription={(c) => c.kyb.hub.suspended.description} />;
 
     case "APPROVED":
       // Transient: `kyb_applications.status = APPROVED` can briefly precede `organizations.status`
       // flipping to `ACTIVE` (two separate, Compliance-owned writes) — this branch is reachable only
       // in that narrow window, since `identity.isAuthorizedMember` is what actually gates the
       // ordinary AppShell, not this screen.
-      return <StatusBlock title={appCopy.kyb.hub.approved.title} description={appCopy.kyb.hub.approved.description} />;
+      return <StatusBlock pickTitle={(c) => c.kyb.hub.approved.title} pickDescription={(c) => c.kyb.hub.approved.description} />;
 
     default:
-      return <StatusBlock title={appCopy.kyb.hub.underReview.title} description={appCopy.kyb.hub.underReview.description} />;
+      return <StatusBlock pickTitle={(c) => c.kyb.hub.underReview.title} pickDescription={(c) => c.kyb.hub.underReview.description} />;
   }
 }
 
-function StatusBlock({ title, description, children }: { title: string; description: string; children?: React.ReactNode }) {
+function StatusBlock({ pickTitle, pickDescription, children }: { pickTitle: AppCopySelector; pickDescription: AppCopySelector; children?: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-3">
-      <h1 className="font-heading text-[length:var(--text-h3)] font-semibold text-foreground">{title}</h1>
-      <p className="text-[length:var(--text-body)] leading-[1.7] text-muted-foreground text-pretty">{description}</p>
+      <h1 className="font-heading text-[length:var(--text-h3)] font-semibold tracking-[-0.015em] text-foreground text-balance"><AppBilingual pick={pickTitle} /></h1>
+      <p className="max-w-[62ch] text-[length:var(--text-body)] leading-[1.7] text-muted-foreground text-pretty"><AppBilingual pick={pickDescription} /></p>
       {children ? <div className="mt-2 flex flex-col gap-3">{children}</div> : null}
     </div>
   );
@@ -146,11 +146,11 @@ function ExpiredDocumentWarning({ currentDocuments }: { currentDocuments: KybDoc
   if (expired.length === 0) return null;
 
   return (
-    <InlineAlert tone="warning" title={appCopy.kyb.completeness.title}>
+    <InlineAlert tone="warning" title={<AppBilingual pick={(c) => c.kyb.completeness.title} />}>
       <ul className="flex flex-col gap-1">
         {expired.map((document) => (
           <li key={document.id}>
-            {appCopy.kyb.documents.types[document.documentType as keyof typeof appCopy.kyb.documents.types] ?? document.documentType}
+            <AppBilingual pick={(c) => c.kyb.documents.types[document.documentType as keyof typeof c.kyb.documents.types] ?? document.documentType} />
           </li>
         ))}
       </ul>

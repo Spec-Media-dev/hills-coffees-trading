@@ -1,3 +1,4 @@
+import type { ReactNode } from "react"
 import Link from "next/link"
 
 import type { AppNavGroup } from "@/components/app/app-navigation"
@@ -36,7 +37,7 @@ export type SidebarProps = {
   logoLabel: string
   groups: readonly AppNavGroup[]
   activeKey?: string
-  footerNote?: string
+  footerNote?: ReactNode
   navigationLabel: string
   className?: string
 }
