@@ -145,6 +145,12 @@ export async function createListingDraft(
   // invariant/anything else) maps to ONE generic, safe code. Never the raw Postgres message,
   // SQLSTATE, constraint or trigger name.
   if (error || !inserted) {
+    // Feature 005 T014 / DB-OPEN-19: the database refuses a listing on stock with an open variance / hold / quarantine case
+    // (`guard_offer_inventory_hold`) even when the early eligibility check above was skipped or failed open. Surface the same
+    // specific, safe reason the eligibility check gives — never the raw message.
+    if (error?.message === "inventory_position_held") {
+      return { ok: false, code: ACTION_FEEDBACK.LISTING_INELIGIBLE, fieldErrors: { positionId: ["INVENTORY_HELD"] } };
+    }
     return { ok: false, code: ACTION_FEEDBACK.LISTING_SAVE_FAILED };
   }
 
@@ -224,6 +230,10 @@ export async function submitListingForReview(
     .maybeSingle();
 
   if (error || !updated) {
+    // Feature 005 T014 / DB-OPEN-19: submitting a listing whose stock now has an open case is refused by the database.
+    if (error?.message === "inventory_position_held") {
+      return { ok: false, code: ACTION_FEEDBACK.LISTING_INELIGIBLE, fieldErrors: { positionId: ["INVENTORY_HELD"] } };
+    }
     return { ok: false, code: ACTION_FEEDBACK.LISTING_TRANSITION_REFUSED };
   }
 

@@ -1657,6 +1657,10 @@ export const ar: DeepPartial<AppCopy> = {
         },
         warehouseHeading: "موقع العهدة",
         warehouseUnavailable: "تفاصيل المستودع غير متاحة.",
+        hold: {
+          title: "قيد الإيقاف — مراجعة فرق المخزون",
+          description: "أشار المستودع إلى هذا الموضع للمراجعة. لا يمكن إدراجه أو حجزه أو تسليمه إلى أن يعالجه المستودع.",
+        },
         recordedSince: "مسجّل منذ {date}",
         updated: "آخر تحديث {date}",
       },
@@ -1850,6 +1854,7 @@ export const ar: DeepPartial<AppCopy> = {
           POSITION_NOT_OWNED: "هذا المركز غير متاح لمنظمتك.",
           NOT_HILLS_SOURCED: "لم يتم الحصول على هذا المخزون عبر شراء بوساطة هيلز، لذا لا يمكن إدراجه بعد.",
           CUSTODY_NOT_ELIGIBLE: "موقع تخزين هذا المخزون غير نشط حاليًا.",
+          INVENTORY_HELD: "هذا المخزون قيد الاحتجاز أو المراجعة بسبب فرق في الكميات، لذا لا يمكن إدراجه إلى أن يعالجه المستودع.",
           RESERVED_QUANTITY: "لا توجد كمية غير محجوزة متاحة للإدراج.",
           INSUFFICIENT_QUANTITY: "{amount} كجم فقط مؤهلة للإدراج حاليًا.",
         },

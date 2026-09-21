@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { getInventoryPositionById } from "@/lib/inventory/positions";
+import { getOpenInventoryHold } from "@/lib/inventory/variances";
 import type { EligibilityResult } from "@/lib/listings/types";
 
 /**
@@ -27,6 +28,11 @@ import type { EligibilityResult } from "@/lib/listings/types";
  *
  * DB-BLOCK-07 RECONCILIATION (2026-09-21): the gap note originally recorded here ("no
  * delivery-reservation function exists") was correct at Feature 006 RUN A (2026-09-12), but
+ * DB-OPEN-19 (Feature 005 T014): a position with an OPEN variance / hold / quarantine case is not actionable (SRS LOT-04).
+ * `INVENTORY_HELD` is the early, specific refusal for that state; it reads the open-case FACT from `lib/inventory/variances.ts`
+ * (Feature 005 exposes facts, this file owns the rule). It is NOT the enforcement — the database refuses to create, submit,
+ * approve or publish a listing on held stock (`guard_offer_inventory_hold`) even if this check were skipped or failed open.
+ *
  * DB-BLOCK-07 was RESOLVED by Feature 009's migration `20260914120000_feature_009_db_block_07.sql`
  * (applied + live-proven 2026-09-14, Feature 009 CLOSED 2026-09-15). Feature 009's
  * `apply_delivery_reservation()` primitive writes delivery holds into
@@ -68,6 +74,12 @@ export async function checkListingEligibility({
   // warehouse, is treated as not custody-eligible.
   if (!position.warehouse || !position.warehouse.isActive) {
     return { eligible: false, reason: "CUSTODY_NOT_ELIGIBLE", eligibleQuantityKg: null };
+  }
+
+  // Custody trust (DB-OPEN-19 / LOT-04): unresolved variance, hold or quarantine on this position → nothing is eligible.
+  const hold = await getOpenInventoryHold({ organizationId, positionId: position.id });
+  if (hold) {
+    return { eligible: false, reason: "INVENTORY_HELD", eligibleQuantityKg: 0 };
   }
 
   // The tradable-now figure — the database's own semantic model (proven live during the Feature 005

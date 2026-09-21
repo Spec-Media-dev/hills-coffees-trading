@@ -5,7 +5,8 @@ import { readdirSync, readFileSync } from "node:fs";
  * assertions. Starts from the approved baseline report (`docs/database/database-schema-report.json`,
  * generated 2026-09-07) and overlays every function (re)defined by a Feature 007 forward migration in
  * `supabase/migrations/` (rollback files excluded), in filename order — so a test reads the definition
- * the repository's migrations say is current, not a stale snapshot. Live behaviour is still proven by
+ * the repository's migrations say is current, not a stale snapshot. Feature 005's DB-OPEN-19 migration is overlaid too: its
+ * hold guards raise into the checkout / delivery flows and are mapped by the same error maps. Live behaviour is still proven by
  * the live tests; this is only for source-level checks.
  */
 export function loadFunctionDefinitions(): Map<string, string> {
@@ -16,7 +17,7 @@ export function loadFunctionDefinitions(): Map<string, string> {
   for (const fn of report.functions) definitions.set(fn.function_name, fn.definition);
 
   const migrations = readdirSync("supabase/migrations")
-    .filter((file) => /feature_007.*\.sql$/.test(file) && !file.endsWith(".rollback.sql"))
+    .filter((file) => /feature_(007|005_db_open_19).*\.sql$/.test(file) && !file.endsWith(".rollback.sql"))
     .sort();
   for (const file of migrations) {
     const sql = readFileSync(`supabase/migrations/${file}`, "utf8").replace(/\r\n/g, "\n");

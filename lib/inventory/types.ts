@@ -262,3 +262,30 @@ export type InventoryEligibilityFacts = {
   /** Pass-through of `inventory_positions.reserved_quantity_kg` — see file header. */
   reservedQuantityKg: number;
 };
+
+/**
+ * Feature 005 T014 / DB-OPEN-19 — custody trust (SRS LOT-04). An OPEN case is a `RECORDED` row of the append-only
+ * `inventory_variance_events` with no `RESOLVED` sibling; the database exposes exactly that set as the view
+ * `inventory_position_holds`, and an open case makes the position NON-ACTIONABLE (reserving, consuming, listing and
+ * delivery progression are refused by database triggers — never merely hidden here).
+ *
+ * Every field is a pass-through of the view's own column. `varianceQuantityKg` is COMPUTED BY THE DATABASE (a generated
+ * column: counted − recorded) and is passed through verbatim — this layer never subtracts. The operator's free-text
+ * reason is deliberately NOT part of this member-facing DTO: the member sees the state (and its kind), not internal notes.
+ */
+export type InventoryHoldKind = "VARIANCE" | "HOLD" | "QUARANTINE";
+
+export type InventoryHold = {
+  /** The case (the id of its RECORDED event). */
+  varianceId: string;
+  positionId: string;
+  kind: InventoryHoldKind;
+  /** ISO timestamp the case was recorded. */
+  recordedAt: string;
+  /** `inventory_positions.available_quantity_kg` when the case was recorded (pass-through). */
+  recordedQuantityKg: number;
+  /** What the warehouse observed (equal to the recorded quantity for a HOLD / QUARANTINE). */
+  countedQuantityKg: number;
+  /** Database-generated (counted − recorded); never computed in application code. */
+  varianceQuantityKg: number;
+};

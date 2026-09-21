@@ -1775,6 +1775,10 @@ export const en = {
         },
         warehouseHeading: "Custody location",
         warehouseUnavailable: "Warehouse detail unavailable.",
+        hold: {
+          title: "On hold — stock variance review",
+          description: "The warehouse has flagged this position for review. It can't be listed, reserved or delivered until the warehouse resolves it.",
+        },
         recordedSince: "Recorded since {date}",
         updated: "Last updated {date}",
       },
@@ -1970,6 +1974,7 @@ export const en = {
           POSITION_NOT_OWNED: "This position is not available to your organization.",
           NOT_HILLS_SOURCED: "This inventory wasn't acquired through a Hills-mediated purchase, so it can't be listed yet.",
           CUSTODY_NOT_ELIGIBLE: "This inventory's storage location is not currently active.",
+          INVENTORY_HELD: "This inventory is on hold or under a stock variance review, so it can't be listed until the warehouse resolves it.",
           RESERVED_QUANTITY: "There is no unreserved quantity available to list.",
           INSUFFICIENT_QUANTITY: "Only {amount} kg is currently eligible to list.",
         },

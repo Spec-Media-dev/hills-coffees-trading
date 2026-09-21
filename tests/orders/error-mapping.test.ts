@@ -56,8 +56,8 @@ function stripComments(source: string): string {
 function loadBaselineRaises(): { orderDomain: Set<string>; shipmentDomain: Set<string>; listingRevalidation: Set<string> } {
   // Baseline report overlaid by Feature 007 forward migrations (tests/orders/db-baseline.ts).
   return {
-    orderDomain: raisesOf(["validate_order_item_offer", "validate_order_transition", "checkout_order", "assert_order_checkout_ready", "expire_order_hold", "update_order_item_quantity", "remove_order_item"]),
-    shipmentDomain: raisesOf(["validate_shipment_transition", "validate_shipment_item"]),
+    orderDomain: raisesOf(["validate_order_item_offer", "validate_order_transition", "checkout_order", "assert_order_checkout_ready", "expire_order_hold", "update_order_item_quantity", "remove_order_item", "guard_inventory_position_hold"]),
+    shipmentDomain: raisesOf(["validate_shipment_transition", "validate_shipment_item", "guard_shipment_inventory_hold"]),
     listingRevalidation: raisesOf(["validate_offer_transition"]),
   };
 }
@@ -132,21 +132,22 @@ describe("T025 — completeness: the mapper covers exactly the database baseline
     expect(new Set(keys).size).toBe(keys.length);
     // 18 from the original order-domain triggers/functions + 3 new strings from the DB-OPEN-13 RPCs
     // (their forbidden/draft/buy/quantity refusals reuse existing strings).
-    expect(orderDomain.size).toBe(21);
+    // + inventory_position_held (Feature 005 DB-OPEN-19: the reservation `checkout_order` makes against a held position)
+    expect(orderDomain.size).toBe(22);
   });
 
   it("every shipment-domain RAISE string is a SHIPMENT_ERROR_MAP key and vice versa", () => {
     const { shipmentDomain } = loadBaselineRaises();
     const keys = mapKeys("SHIPMENT_ERROR_MAP");
     expect([...keys].sort()).toEqual([...shipmentDomain].sort());
-    expect(shipmentDomain.size).toBe(11);
+    expect(shipmentDomain.size).toBe(12); // + inventory_position_held (Feature 005 DB-OPEN-19)
   });
 
-  it("every mapped string (all 37) resolves through the mapper to a stable ACTION_FEEDBACK code without the unmapped fallback log", async () => {
+  it("every mapped string (all 39) resolves through the mapper to a stable ACTION_FEEDBACK code without the unmapped fallback log", async () => {
     const { mapOrderError, mapShipmentError } = await mappers();
     const codes = new Set<string>(Object.values(ACTION_FEEDBACK));
     const all = [...mapKeys("ORDER_ERROR_MAP").map((key) => ["order", key] as const), ...mapKeys("SHIPMENT_ERROR_MAP").map((key) => ["shipment", key] as const)];
-    expect(all).toHaveLength(37); // 21 order-domain + 5 listing re-validation + 11 shipment-domain
+    expect(all).toHaveLength(39); // 22 order-domain + 5 listing re-validation + 12 shipment-domain
     for (const [domain, raised] of all) {
       consoleErrorSpy.mockClear();
       const code = domain === "order" ? mapOrderError({ message: raised, code: "P0001" }) : mapShipmentError({ message: raised, code: "P0001" });

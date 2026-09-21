@@ -6,9 +6,11 @@ import { PageHeader } from "@/components/app/page-header";
 import { AvailabilityBreakdown } from "@/components/inventory/availability-breakdown";
 import { AppBilingual } from "@/components/locale/app-bilingual";
 import { StateScreen } from "@/components/layout/state-screen";
+import { InlineAlert } from "@/components/ui/inline-alert";
 import { Separator } from "@/components/ui/separator";
 import { getRequestIdentity } from "@/lib/auth/dal";
 import { getAvailabilityBreakdown } from "@/lib/inventory/availability";
+import { getOpenInventoryHold } from "@/lib/inventory/variances";
 import { getInventoryPositionById } from "@/lib/inventory/positions";
 
 export const metadata: Metadata = {
@@ -45,6 +47,8 @@ export default async function InventoryPositionDetailPage({
   if (!position) notFound();
 
   const [breakdown] = await getAvailabilityBreakdown({ organizationId, positionIds: [position.id] });
+  // Feature 005 T014 / DB-OPEN-19 — informational only; the database guards are the authority that makes held stock non-actionable.
+  const hold = await getOpenInventoryHold({ organizationId, positionId: position.id });
 
   return (
     <div className="flex flex-col gap-8">
@@ -58,6 +62,12 @@ export default async function InventoryPositionDetailPage({
       />
 
       <div className="flex flex-col gap-8 rounded-[var(--radius-xl)] border border-border bg-card p-7 shadow-[var(--shadow-md)] sm:p-9">
+        {hold ? (
+          <InlineAlert tone="warning" title={<AppBilingual pick={(c) => c.inventory.detail.hold.title} />}>
+            <AppBilingual pick={(c) => c.inventory.detail.hold.description} />
+          </InlineAlert>
+        ) : null}
+
         <section className="flex flex-col gap-3">
           <h2 className="hc-heading-4 font-semibold text-foreground">
             <AppBilingual pick={(c) => c.inventory.detail.lotHeading} />

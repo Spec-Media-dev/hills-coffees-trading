@@ -314,7 +314,9 @@ describe("T019/T020 — no inventory mutation, no arithmetic on inventory truth,
     }
     // Every migration applied after the report (2026-09-09 → 2026-09-14) adds none of these either.
     const migrationsDir = join(root, "supabase", "migrations");
-    const migrations = readdirSync(migrationsDir).filter((f) => f.endsWith(".sql") && !f.includes("rollback"));
+    // Feature 005 T014's DB-OPEN-19 migration (2026-09-21) is the deliberate, approved addition of exactly this model — this
+    // check pins that NOTHING ELSE smuggled the vocabulary in, so that one migration is the only file excluded.
+    const migrations = readdirSync(migrationsDir).filter((f) => f.endsWith(".sql") && !f.includes("rollback") && !f.includes("feature_005_db_open_19"));
     expect(migrations.length).toBeGreaterThanOrEqual(7);
     for (const file of migrations) {
       const sql = read(`supabase/migrations/${file}`).replace(/--[^\n]*/g, "");

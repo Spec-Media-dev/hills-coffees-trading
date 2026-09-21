@@ -1183,14 +1183,29 @@ async function resetSuspendedFixture(admin: SupabaseClient): Promise<void> {
  * Service-role inspection only (a pure COMPLIANCE role cannot read `account_status_history` —
  * that policy is intentionally unchanged).
  */
+/**
+ * Reads EVERY row of an append-only history for the T010 snapshots. PostgREST caps a single response at 1000 rows, and these
+ * tables only ever grow (every live run appends), so an un-paginated read silently truncates once a fixture organization passes
+ * 1000 history rows and the tests' positional "rows appended since the snapshot" comparison then sees nothing.
+ */
+async function readAllRows<T>(page: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: unknown }>): Promise<{ data: T[] | null; error: unknown }> {
+  const rows: T[] = [];
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await page(from, from + 999);
+    if (error) return { data: null, error };
+    rows.push(...(data ?? []));
+    if ((data?.length ?? 0) < 1000) return { data: rows, error: null };
+  }
+}
+
 async function inspectSuspendedOrganization(admin: SupabaseClient): Promise<Record<string, unknown>> {
   const organizationId = PHASE89_ORGANIZATION_IDS.suspended;
   const applicationId = PHASE89_KYB_APPLICATION_IDS.suspended;
   const [organization, application, history, reviews, others] = await Promise.all([
     admin.from("organizations").select("id, status, legal_name, tax_number, can_buy, can_sell, updated_at").eq("id", organizationId).single(),
     admin.from("kyb_applications").select("id, status, rejection_reason, decided_by").eq("id", applicationId).single(),
-    admin.from("account_status_history").select("id, old_status, new_status, changed_by, reason, created_at").eq("organization_id", organizationId).order("created_at").order("id"),
-    admin.from("kyb_reviews").select("id, decision, reviewer_user_id, reason, created_at").eq("application_id", applicationId).order("created_at").order("id"),
+    readAllRows((from, to) => admin.from("account_status_history").select("id, old_status, new_status, changed_by, reason, created_at").eq("organization_id", organizationId).order("created_at").order("id").range(from, to)),
+    readAllRows((from, to) => admin.from("kyb_reviews").select("id, decision, reviewer_user_id, reason, created_at").eq("application_id", applicationId).order("created_at").order("id").range(from, to)),
     admin.from("organizations").select("id, status, updated_at, can_buy, can_sell").neq("id", organizationId).order("id"),
   ]);
   if (organization.error || application.error || history.error || reviews.error || others.error) {
@@ -2487,11 +2502,15 @@ async function readT013Residue(admin: SupabaseClient): Promise<T013Residue> {
       .in("lot_id", [...deliveryLotIds])
       .in("owner_organization_id", [...t013BuyerOrganizationIds]);
     if (positionsError) throwT013ReadError();
+    // Feature 005 T014 / DB-OPEN-19: a position with append-only variance history can never be deleted (FK ON DELETE RESTRICT) and is
+    // retained by design — it is not "residue without a tagged order".
+    const retainedIds = await positionsWithVarianceHistory(admin, (positions ?? []).map((row) => row.id));
+    const removablePositions = (positions ?? []).filter((row) => !retainedIds.has(row.id));
     const scopeProblems: string[] = [];
     if ((allDeliveryOfferItems ?? []).length > 0) scopeProblems.push("delivery offer item is not attached to a tagged T013 order");
     if ((assets ?? []).length > 0) scopeProblems.push("tagged T013 payment-proof metadata has no tagged T013 order");
-    if ((positions ?? []).length > 0) scopeProblems.push("buyer delivery position exists without a tagged T013 order");
-    return { ...emptyResidue, scopeProblems, paymentProofAssets: assets ?? [], buyerPositions: positions ?? [] };
+    if (removablePositions.length > 0) scopeProblems.push("buyer delivery position exists without a tagged T013 order");
+    return { ...emptyResidue, scopeProblems, paymentProofAssets: assets ?? [], buyerPositions: removablePositions };
   }
 
   const [itemsResult, shipmentsResult, proformasResult, payoutsResult, taxInvoicesResult] = await Promise.all([
@@ -2525,6 +2544,8 @@ async function readT013Residue(admin: SupabaseClient): Promise<T013Residue> {
   ]);
   if (shipmentItemsResult.error || allocationsResult.error || eventsResult.error || resaleOffersResult.error || assetsResult.error || positionsResult.error) throwT013ReadError();
 
+  const retainedPositionIds = await positionsWithVarianceHistory(admin, (positionsResult.data ?? []).map((row) => row.id));
+
   const residue: T013Residue = {
     scopeProblems: [],
     orders: orderRows,
@@ -2538,7 +2559,7 @@ async function readT013Residue(admin: SupabaseClient): Promise<T013Residue> {
     payouts: payoutsResult.data ?? [],
     taxInvoices: taxInvoicesResult.data ?? [],
     paymentProofAssets: assetsResult.data ?? [],
-    buyerPositions: positionsResult.data ?? [],
+    buyerPositions: (positionsResult.data ?? []).filter((row) => !retainedPositionIds.has(row.id)), // variance history is retained by design (see above)
     immutableOwnershipEvents: eventsResult.data ?? [],
   };
 
@@ -2846,7 +2867,23 @@ type F006Residue = {
   proformas: Array<{ id: string; order_id: string }>;
   positions: Array<{ id: string; lot_id: string; owner_organization_id: string; warehouse_id: string | null; warehouse_location_id: string | null }>;
   immutableOwnershipEvents: Array<{ id: string; order_item_id: string | null }>;
+  /** Fixture positions that carry Feature 005 variance history (DB-OPEN-19). They can never be deleted (the history's foreign key is ON DELETE RESTRICT, by design) and are RETAINED and reported, not removed. */
+  retainedVariancePositions: number;
 };
+
+/**
+ * Feature 005 T014 / DB-OPEN-19: the ids (of `ids`) whose position has append-only variance history. The table does not exist until the
+ * migration is approved and applied — that is not a failure, it means there is no history.
+ */
+async function positionsWithVarianceHistory(admin: SupabaseClient, ids: readonly string[]): Promise<Set<string>> {
+  if (ids.length === 0) return new Set();
+  const { data, error } = await admin.from("inventory_variance_events").select("inventory_position_id").in("inventory_position_id", [...ids]);
+  if (error) {
+    if (error.code === "42P01" || error.code === "PGRST205") return new Set();
+    throw new SafeFixtureError("Feature 006 fixture inspection could not read variance history; no cleanup was performed.");
+  }
+  return new Set((data ?? []).map((row) => row.inventory_position_id as string));
+}
 
 function throwF006ReadError(): never {
   throw new SafeFixtureError("Feature 006 fixture inspection failed; no cleanup was performed.");
@@ -2893,6 +2930,9 @@ async function readF006Residue(admin: SupabaseClient): Promise<F006Residue> {
   ]);
   if (allocationsResult.error || payoutsResult.error || proformasResult.error || eventsResult.error || positionsResult.error) throwF006ReadError();
 
+  const allPositions = (positionsResult.data ?? []) as F006Residue["positions"];
+  const retainedPositionIds = await positionsWithVarianceHistory(admin, allPositions.map((row) => row.id));
+
   const residue: F006Residue = {
     scopeProblems: [],
     listings: listings as F006Residue["listings"],
@@ -2901,8 +2941,9 @@ async function readF006Residue(admin: SupabaseClient): Promise<F006Residue> {
     storageAllocations: (allocationsResult.data ?? []) as F006Residue["storageAllocations"],
     payouts: (payoutsResult.data ?? []) as F006Residue["payouts"],
     proformas: (proformasResult.data ?? []) as F006Residue["proformas"],
-    positions: (positionsResult.data ?? []) as F006Residue["positions"],
+    positions: allPositions.filter((row) => !retainedPositionIds.has(row.id)),
     immutableOwnershipEvents: (eventsResult.data ?? []) as F006Residue["immutableOwnershipEvents"],
+    retainedVariancePositions: retainedPositionIds.size,
   };
 
   const permittedItems = new Set(itemIds);
@@ -2928,6 +2969,7 @@ function f006ResidueSummary(residue: F006Residue): Record<string, unknown> {
     payouts: residue.payouts.length,
     proformas: residue.proformas.length,
     buyerPositions: residue.positions.length,
+    retainedVariancePositions: residue.retainedVariancePositions,
     immutableOwnershipEvents: residue.immutableOwnershipEvents.length,
     scopeProblems: residue.scopeProblems,
   };
@@ -2937,7 +2979,9 @@ function f006ResidueSummary(residue: F006Residue): Record<string, unknown> {
  * Removes exactly the residue `readF006Residue` proved to be in scope, in the only order the foreign keys allow:
  * orders that BUY an F006L listing → the listings → the remaining orders (which the listings' provenance pointed at).
  * The FK graph has no cascade on `payouts`, `storage_allocations` or `proforma_invoice_items`, so those go first.
- * `inventory_ownership_events` (append-only) and `audit_logs` are retained and reported.
+ * `inventory_ownership_events` (append-only) and `audit_logs` are retained and reported, and so is any fixture position that carries
+ * Feature 005 variance history (`inventory_variance_events`, append-only; its FK to the position is ON DELETE RESTRICT, so such a position
+ * cannot be deleted by design — the live proof zeroes it through a resolved count, leaving an empty, reusable position).
  */
 async function cleanupF006BusinessRows(admin: SupabaseClient): Promise<Record<string, unknown>> {
   const residue = await readF006Residue(admin);

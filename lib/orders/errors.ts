@@ -48,6 +48,12 @@ const ORDER_ERROR_MAP: Record<string, ActionFeedbackCode> = {
   seller_not_authorized: ACTION_FEEDBACK.ORDER_ITEM_NOT_AVAILABLE,
   seller_inventory_changed: ACTION_FEEDBACK.ORDER_ITEM_QUANTITY_UNAVAILABLE,
 
+  // Feature 005 T014 / DB-OPEN-19 — `guard_inventory_position_hold` (BEFORE UPDATE on inventory_positions) refuses the
+  // reservation `checkout_order()` makes against a position with an open variance / hold / quarantine case (SRS LOT-04).
+  // Same safe code as "the seller's stock is not available in that quantity": the buyer is told the quantity cannot be
+  // reserved, never why another organization's inventory is held.
+  inventory_position_held: ACTION_FEEDBACK.ORDER_ITEM_QUANTITY_UNAVAILABLE,
+
   // `validate_offer_transition` (BEFORE UPDATE on coffee_offers) re-validates the WHOLE listing row on
   // every update, including `checkout_order()`'s own reserved-mirror update. Feature 007 RUN D proved
   // (live, 2026-09-13, T019's control race) that these reach the checkout caller: reserving a
@@ -87,6 +93,10 @@ const SHIPMENT_ERROR_MAP: Record<string, ActionFeedbackCode> = {
   delivered_quantity_cannot_decrease: ACTION_FEEDBACK.SHIPMENT_NOT_EDITABLE,
   delivered_quantity_exceeds_plan: ACTION_FEEDBACK.SHIPMENT_ITEM_QUANTITY_INVALID,
   shipment_plan_exceeds_order_item: ACTION_FEEDBACK.SHIPMENT_ITEM_QUANTITY_INVALID,
+
+  // Feature 005 T014 / DB-OPEN-19 — `guard_shipment_inventory_hold` refuses a delivery request / progression while the
+  // buyer's position for any of its items has an open variance / hold / quarantine case (SRS LOT-04).
+  inventory_position_held: ACTION_FEEDBACK.SHIPMENT_RESERVATION_UNAVAILABLE,
 };
 
 /** Minimal shape of what supabase-js's `PostgrestError` (or any thrown value) may carry — never assumed to be an `Error` instance. */

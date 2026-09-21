@@ -185,9 +185,11 @@ describe("T004 — never re-derives organization_can_sell (source-level proof)",
     expect(source).not.toMatch(/\.rpc\(/);
   });
 
-  it("never invents hold/variance/quarantine vocabulary in actual code (only in comments explaining the DB-BLOCK-07 gap)", async () => {
+  it("never invents its own hold/variance model — the open-case FACT comes only from Feature 005's read module (DB-OPEN-19 / T014)", async () => {
     const { readFileSync } = await import("node:fs");
     const source = stripComments(readFileSync("lib/listings/eligibility.ts", "utf8"));
-    expect(source).not.toMatch(/deliveryHold|custodyHold|quarantine|variance/i);
+    expect(source).not.toMatch(/deliveryHold|custodyHold|quarantine|inventory_variance_events|inventory_position_holds/i);
+    expect(source).toMatch(/getOpenInventoryHold/);
+    expect(source).toMatch(/INVENTORY_HELD/);
   });
 });

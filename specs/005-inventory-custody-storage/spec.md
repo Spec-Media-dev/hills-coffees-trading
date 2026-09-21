@@ -250,7 +250,7 @@ request delivery of the affected quantity.
   hold — a different domain concept entirely) and the only `FROZEN` is `disputes.status`. Feature
   010 confirmed the identical finding independently (T020, RUN D 2026-09-16) and recorded it as
   **DB-OPEN-19** in `docs/architecture/DATABASE-CAPABILITY-MAP.md`, which already lists this
-  feature's T013/T014 as dependents. **PS5 acceptance scenario 1 (an affected position showing an
+  feature's T013/T014 as dependents. **[RESOLVED 2026-09-21: the DB-OPEN-19 migration `20260921120000_feature_005_db_open_19_inventory_variance_hold` added the missing model; PS5 scenarios 1 and 2 are now implemented and live-proven — see tasks.md T014. The text below is the 2026-09-17 finding it resolved.]** **PS5 acceptance scenario 1 (an affected position showing an
   explicit hold/variance state) and scenario 2 (a dependent action refused server-side because of
   one) are both NOT IMPLEMENTABLE today** — there is nothing to surface and no condition to seed
   without fabricating one, which FR-009 explicitly forbids. **T013 is closed on the honest-gap

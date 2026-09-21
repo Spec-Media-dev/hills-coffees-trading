@@ -25,6 +25,8 @@ const DB_BLOCK_07_ERROR_MAP: Record<string, ActionFeedbackCode> = {
   delivery_reservation_requires_settled_order: ACTION_FEEDBACK.SHIPMENT_ORDER_NOT_SETTLED,
   delivery_reservation_insufficient_inventory: ACTION_FEEDBACK.SHIPMENT_RESERVATION_UNAVAILABLE,
   delivery_reservation_position_missing: ACTION_FEEDBACK.SHIPMENT_RESERVATION_UNAVAILABLE,
+  /** Feature 005 T014 / DB-OPEN-19 — the position has an open variance / hold / quarantine case: it cannot be reserved from or consumed (`guard_inventory_position_hold`). */
+  inventory_position_held: ACTION_FEEDBACK.SHIPMENT_RESERVATION_UNAVAILABLE,
 
   /**
    * Feature 009 RUN B (T014/T016/T017) — the REST of the exception vocabulary the now-LIVE (RUN A2)

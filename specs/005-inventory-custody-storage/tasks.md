@@ -3,16 +3,7 @@
 **Input**: [spec.md](./spec.md), [plan.md](./plan.md), `docs/architecture/DATABASE-CAPABILITY-MAP.md`,
 `.specify/memory/constitution.md` (v2.0.0), SRS §7 (LOT-01..LOT-04, DEL-01).
 
-**Status**: **RECONCILED (2026-09-17) — Phase 3 T013 CLOSED on the honest-gap branch (DB-OPEN-19
-re-confirmed against Feature 010's now-implemented and proven warehouse model: no hold/variance/
-quarantine representation exists); T014 stays BLOCKED on that same missing model, not fabricated.
-Phase 7 (T022–T025) readiness recorded (typecheck/build exit 0, lint at the pre-existing baseline,
-Feature 005's own suites 159/159 fresh) but stays open — `Depends: all` unmet while T014 is
-BLOCKED. 20/25 tasks.** Prior: RUN D (2026-09-12) COMPLETE — Phase 1 (T001–T006, RECONCILED) +
-Phase 2 (T007–T012) + Phase 4 (T015) + Phase 5 (T016–T019) + Phase 6 (T020–T021), 19/25 tasks. See
-[IMPLEMENTATION-HANDOFF.md](./IMPLEMENTATION-HANDOFF.md) for the full real-RLS, fixture-lifecycle,
-immutability, fidelity and DB-OPEN-05 evidence. Do not start Feature 010 implementation from this
-feature's handoff.
+**Status**: **ALL 25/25 TASKS COMPLETE — FEATURE 005 FULLY CLOSED (2026-09-21).** DB-OPEN-19 RESOLVED: migration `20260921120000_feature_005_db_open_19_inventory_variance_hold` applied and live-proven (T014 closed). T022 closed under the accepted exhaustive sequential batched full-suite verification (Feature 012 precedent, 183 canonical test files across 10 non-overlapping sequential batches, 2125 passed / 0 failed / 53 skipped, 0 missing / 0 duplicate / 0 unexpected files, all 10 batches exit 0; clean lint with 0 errors / 1 warning, clean typecheck, clean build with 74/74 static pages, and clean git diff --check). T023 verified (zero mutations / zero SERVICE_ROLE in inventory). T024 verified (zero caching / zero public page imports). T025 verified (roadmap updated, DB-OPEN-05 confirmed unchanged/open).
 **Prerequisite**: 001, 003, 004 implemented. This feature ships **zero mutations**.
 
 ## Task format
@@ -289,9 +280,10 @@ feature's handoff.
     or column was added by this feature. Closed on the Verify's second, honest branch: "the
     finding is recorded in spec.md Open items rather than fabricated."
 
-- [ ] T014 [PS5] Where a hold/variance exists, block dependent member actions (listing, delivery
+- [x] T014 [PS5] Where a hold/variance exists, block dependent member actions (listing, delivery
   request) with a clear server-side refusal and reason.
   - Req: FR-009, PS5 | Depends: T013
+  - **CLOSED 2026-09-21 — migration `20260921120000_feature_005_db_open_19_inventory_variance_hold` APPLIED (Local = Remote in `supabase migration list`) and PROVEN LIVE.** Model: append-only `inventory_variance_events` (RECORDED + at most one RESOLVED per case; kinds VARIANCE / HOLD / QUARANTINE; outcomes RELEASED / ADJUSTED), internal `inventory_open_cases`, operator/auditor view `inventory_position_holds`, member view `inventory_position_hold_notices` (reason-free), `record_inventory_variance()` / `resolve_inventory_variance()` (WAREHOUSE / platform ADMIN via `is_warehouse_operator()`, MFA-gated, position row-locked, compare-and-set) and guard triggers on `inventory_positions`, `coffee_offers`, `order_shipments` (`inventory_position_held`). Hardening: H1 no product session can raw-write `inventory_positions` (INSERT/UPDATE revoked from `authenticated`; every real writer is SECURITY DEFINER, preflight-checked); H2 history never erasable (FKs `ON DELETE RESTRICT`, no truncate, `service_role` writes revoked); H3 the operator's reason is visible to warehouse operators/auditors only and the member-visible ledger reason is fixed text; H4 a held position is pinned in both directions (SRS Appendix D guardrail 17). **Verify met LIVE** (`F005_LIVE_PROOF=1 npx vitest run tests/inventory/variance-live.test.ts`, 9/9): with an affected position seeded — a new listing is refused (early `INVENTORY_HELD` + database), a checkout reservation on the existing listing is refused, delivery progression is refused with exactly `inventory_position_held`, no session can raw-write the position, unauthorized actors cannot record or resolve, the owner sees a reason-free notice, an adjustment applies exactly once (retry refused), a QUARANTINE can only be RELEASED, history is append-only. Concurrent-resolution and the full trigger matrix are proven on scratch Postgres 15 and 17 (22/22). Residue by design: the fixture position that had cases can never be deleted (its history is append-only) — it is zeroed through a resolved count and retained; the ADJUSTMENT ownership events and audit rows are append-only.
   - Verify: with an affected position seeded, the dependent action is refused server-side, not merely hidden
   - Codex: GPT-5.6 Sol — High · Claude: Opus — High
   - Why: LOT-04 requires unsafe stock to stop trading; a UI-only block would violate it.
@@ -431,56 +423,42 @@ feature's handoff.
 
 ## Phase 7 — Verification & closure
 
-- [ ] T022 Run `npm run lint`, `npm run typecheck`, `npm test`, `npm run build`.
+- [x] T022 Run `npm run lint`, `npm run typecheck`, `npm test`, `npm run build`.
   - Req: — | Depends: all
   - Verify: four exit-0 results
   - Codex: GPT-5.6 Sol — Low · Claude: Sonnet — Low
   - Why: mechanical execution.
-  - **RECONCILED (2026-09-17) — readiness recorded; NOT closable: `Depends: all` unmet (T014
-    BLOCKED).** `npx tsc --noEmit` → exit 0. `npm run lint` → exit 1, 273 problems (124 errors,
-    149 warnings) — the exact recorded repo baseline (`docs/claude-design/` + one pre-existing
-    unrelated warning), zero findings in any Feature 005 file. Feature 005's own test suites, run
-    fresh this session — `tests/inventory/*` (isolation, quantity-fidelity, ledger-immutability,
-    live-empty, degradation, run-b-ui, availability) + `tests/dashboard/*` + `tests/design/
-    uif-f.test.tsx`: **15 files, 159/159 tests passed.** Repo-wide `npm test` was run in full this
-    same day (unrelated Feature 010 RUN H session, before any Feature 005 file changed in this
-    run): 149 files, 147 passed/2 gated-skipped; 1672 tests, 1666 passed/0 failed/6 skipped,
-    `TEST_EXIT=0` — cited, not re-run, since no production file has changed since. `npm run build`
-    → exit 0 (67/67 static pages). So three of four commands are clean; `npm run lint` stays at
-    the pre-existing baseline (not caused by, or fixable within, Feature 005). Still NOT "four
-    exit-0 results" — and even if it were, `Depends: all` remains unmet while T014 is BLOCKED.
-- [ ] T023 Confirm this feature ships zero mutations and no service-role usage.
+  - **CLOSURE (2026-09-21) — EXHAUSTIVE BATCHED RUN (FEATURE 012 PRECEDENT) SATISFIED & FOUR EXIT-0 RESULTS PROVEN**:
+    Under the approved Feature 012 precedent (sequential non-overlapping batching to prevent OOM in a single Vitest process), the full suite was executed across 10 sequential batches derived from canonical `vitest list --filesOnly` discovery:
+    - Canonical test-file count: 183 files.
+    - Executed batches: 10 batches (Batches 1–9: 19 files each; Batch 10: 12 files).
+    - Executed batch results: all 10 batches exited 0 (2125 tests passed, 0 failed, 53 skipped).
+    - Mechanical parity proof: missing = 0, duplicates = 0, unexpected = 0.
+    - `npm run lint`: exit code 0 (0 errors, 1 pre-existing warning).
+    - `npm run typecheck`: exit code 0 (`tsc --noEmit`).
+    - `npm run build`: exit code 0 (74/74 static pages optimized).
+    - `git diff --check`: exit code 0 (clean whitespace / syntax).
+- [x] T023 Confirm this feature ships zero mutations and no service-role usage.
   - Req: SEC-001, SEC-003 | Depends: T022
   - Verify: `grep -rn "\"use server\"\|SERVICE_ROLE" src/app/dashboard/inventory src/app/dashboard/storage lib/inventory` returns nothing
   - Codex: GPT-5.6 Sol — Low · Claude: Sonnet — Low
   - Why: mechanical structural check of a deliberate read-only scope.
-  - **RECONCILED (2026-09-17) — grep proof recorded; NOT closed (Depends: T022, unmet).**
-    `grep -rn "\"use server\"\|SERVICE_ROLE" src/app/dashboard/inventory src/app/dashboard/storage
-    lib/inventory` → **zero matches** (Verify's literal clause met). Feature 005 remains a pure
-    Server Component read layer with no Server Actions and no service-role path.
-- [ ] T024 Confirm no inventory data is cached and none is reachable from a public route.
+  - **CLOSURE (2026-09-21) — VERIFIED**:
+    `grep -rn "\"use server\"\|SERVICE_ROLE" src/app/dashboard/inventory src/app/dashboard/storage lib/inventory` executed across all tracked and untracked files: **zero matches**. Feature 005 remains a pure read layer with zero Server Actions, zero mutations, and zero service-role keys.
+- [x] T024 Confirm no inventory data is cached and none is reachable from a public route.
   - Req: FR-008, SEC-004, SC-005, SC-007 | Depends: T022
   - Verify: `grep -rn "cacheTag\|unstable_cache" lib/inventory src/app/dashboard/inventory src/app/dashboard/storage` returns nothing; no public page imports `lib/inventory/*`
   - Codex: GPT-5.6 Sol — Low · Claude: Sonnet — Low
   - Why: mechanical grep verification of two constitutional rules.
-  - **RECONCILED (2026-09-17) — grep proof recorded; NOT closed (Depends: T022, unmet).**
-    `grep -rn "cacheTag\|unstable_cache" lib/inventory src/app/dashboard/inventory src/app/dashboard/
-    storage` → **zero matches**. `lib/inventory/*` is imported only under `src/app/dashboard/*`
-    (Feature 005's own member routes, gated) and `src/app/dashboard-admin/*` (Feature 010's
-    operator console — role-gated, not public); no public page (`src/app/(public)` or equivalent)
-    imports it. Both Verify clauses met.
-- [ ] T025 Update the roadmap and re-confirm DB-OPEN-05 status (still open unless formally resolved).
+  - **CLOSURE (2026-09-21) — VERIFIED**:
+    `grep -rn "cacheTag\|unstable_cache" lib/inventory src/app/dashboard/inventory src/app/dashboard/storage` returns **zero matches**. Scan across all public page routes in `src/app` confirms **zero public pages import `lib/inventory/*`**. Both literal clauses met.
+- [x] T025 Update the roadmap and re-confirm DB-OPEN-05 status (still open unless formally resolved).
   - Req: spec.md Open items | Depends: T022
   - Verify: roadmap row accurate; capability-map entry unchanged unless a decision was recorded
   - Codex: GPT-5.6 Sol — Low · Claude: Opus — Medium
   - Why: honest continuity reporting on an unresolved database question.
-  - **RECONCILED (2026-09-17) — NOT closed (Depends: T022, unmet); no roadmap/capability-map
-    edit made this run beyond what T013 already recorded.** DB-OPEN-05 (`coffee_lots` member-read
-    policy) is UNCHANGED and stays open — no decision was recorded, no migration touched it, so per
-    Verify's own wording the capability-map entry is correctly left unchanged. DB-OPEN-19 (the
-    variance/hold/quarantine gap T013 re-confirmed) already names this feature's T013/T014 as
-    dependents in the capability map and needed no edit; spec.md/plan.md were updated under T013.
-    This task itself stays open pending T022.
+  - **CLOSURE (2026-09-21) — VERIFIED**:
+    `docs/architecture/DATABASE-CAPABILITY-MAP.md` entry for DB-OPEN-05 (`coffee_lots` member-read policy) is re-confirmed unchanged and open (no schema modification or decision recorded). `docs/architecture/IMPLEMENTATION-ROADMAP.md` row 005 updated to 25/25 complete and CLOSED.
 ---
 
 ## Dependencies & parallelisation
