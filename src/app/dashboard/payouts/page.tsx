@@ -81,7 +81,7 @@ export default async function PayoutsPage({ searchParams }: { searchParams: Prom
       header: <AppBilingual pick={(c) => c.finance.payouts.list.columns.paidAt} />,
       render: (payout) => (
         <span className="text-foreground" dir="ltr">
-          {payout.paidAt ?? appCopy.finance.payments.detail.notYetAssigned}
+          {payout.paidAt ?? <AppBilingual pick={(c) => c.finance.payments.detail.notYetAssigned} />}
         </span>
       ),
     },

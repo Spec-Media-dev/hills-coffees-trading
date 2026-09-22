@@ -428,3 +428,116 @@ migration (T011) and the settlement/event/payout/invoice implementation it unblo
 T029–T031, T037) — none of that exists and none is claimed here.
 
 Not committed, not pushed — left as working-tree changes for the user's own review/commit decision.
+
+---
+
+## RUN E — provider-independent closure (2026-09-22)
+
+**Model**: Claude Sonnet 5 — High
+**Scope executed**: the six tasks genuinely actionable without a provider decision — T028, T034, T035,
+T036, T038, T039. Explicitly did NOT touch T007–T021, T024, T029–T032, T037 (all provider/Finance/
+Legal/Banking-blocked). No provider invented, no fake credential created, no payment architecture
+changed to bypass the external decision. Worked directly on `main`; nothing committed or pushed by this
+run.
+
+### T028 — live commission-mutation immutability proof
+
+New `tests/finance/t028-snapshot-immutability.test.ts` (`F008_LIVE_PROOF=1`, 8/8 passing; correctly
+8-skipped ungated). Reused Feature 010 RUN F's existing disposable-policy conventions verbatim
+(`prepareSuperAdminFixture`, `RUN_F_CONFIG_ROWS.policyNamePrefix`, `cleanupRunFConfigRows` — no new
+fixture identity or cleanup mechanism invented). Built a genuine settled resale order via
+`tests/listings/live-chain.ts`, then against the real linked database: an unauthorized (finance/member)
+policy mutation is refused; a SUPER_ADMIN creates/activates/edits/deactivates/archives a disposable,
+2099-dated (structurally never-in-force) commission policy; the order's `payouts`/`order_financials`/
+`proforma_invoices` rows are proven byte-identical across every one of those mutations; the disposable
+policy is cleaned up via the existing privileged fixture path; the settled order's own rows remain,
+untouched (append-only). Closed via the SAME "T027/T028 can begin once their read surfaces exist"
+override this file's own `Dependencies and parallelisation` section already states — `Depends: T021`
+does not literally block it.
+
+### T034 — real browser + axe pass
+
+Ran `tests/browser/feature008-t034.browser.mjs` (new, reusing T022's real-Chrome-via-CDP + raw-REST
+fixture technique) across `/dashboard/payments/[orderId]` and `/dashboard/payouts` at 4 scenarios
+(en/ar × light/dark × 1366/390). Found and fixed two genuine, pre-existing defects: (1) an axe
+`scrollable-region-focusable` violation on the proforma items table's overflow wrapper (fixed:
+`role="region" tabIndex={0} aria-label=...`); (2) a pervasive locale bug in
+`src/app/dashboard/payments/[orderId]/page.tsx` — most labels used the static English `appCopy.X`
+import instead of the locale-reactive `<AppBilingual>` component, so the Arabic page rendered mixed
+English text (pre-existing since T022/T023, not introduced by this run). Rewrote the file to use
+`<AppBilingual>` throughout; one call site in `src/app/dashboard/payouts/page.tsx` fixed the same way.
+Final result: 8/8 surfaces, 0 axe violations, 0 anonymous/cross-org leaks, keyboard focus verified, 0
+console/page/request errors. Re-ran T022's own existing browser script afterward to confirm no
+regression (still 8/8, 0 violations). One genuine, out-of-scope, shared-component limitation was found
+and deliberately NOT touched: `EmptyState`/`StateScreen`/`TableCardList` title/description/caption props
+are typed `string`, not `ReactNode`, so their copy can never be Arabic — pre-existing across five
+already-closed features (Orders, Deliveries, Sales, Payments, Payouts), out of Feature 008's own scope.
+
+### T035 — production build exposure/security proof
+
+Fresh `npm run build`: both routes compile `ƒ Dynamic`. Grepped the actual built `.next/static` and
+`.next/server` output for the literal `SUPABASE_SERVICE_ROLE_KEY` value — zero matches; confirmed the
+key is referenced only in `scripts/`/`tests/`, never `src/`. No provider secret exists in `.env.local`
+at all (no provider selected yet). `lib/supabase/client.ts` (the only browser Supabase client) has zero
+importers under `src/` — this app never ships a Supabase client to the browser. All commission
+mutations run through `"use server"` Server Actions only — no client-side financial mutation boundary
+exists. Ran a real `next start` production server and, against it: anonymous requests to both routes
+redirect to `/sign-in` with zero financial content in the response; `robots.txt` disallows `/dashboard`;
+`noindex` is present (inherited, unmodified, from the dashboard layout). Re-ran T034's own browser+axe
+script against this real production server (not dev) — 8/8 surfaces, 0 violations, 0 leaks. Closed under
+the same "Phase 7 and Phase 8 apply only to actually implemented routes and must not manufacture
+provider proof" note — `Depends: T032` is nominally unmet, but T032's own unmet portion is narrowly the
+"single settlement caller" clause against code (`lib/finance/settlement.ts`, T018) that does not exist
+yet, not the exposure/leakage concerns T035 itself verifies (already green per T032's own existing
+audit).
+
+### T036 — clean full verification
+
+Confirmed no orphan Vitest/`next` process and no stale batch files before starting. Fresh canonical
+`npx vitest list --filesOnly` → 186 files, 0 duplicates. Ran in 8 sequential, non-overlapping batches
+(186 files covered exactly once — missing 0, duplicate 0, unexpected 0). Found and fixed one genuine
+Feature 008 regression along the way: `tests/design/uif-f.test.tsx`'s route-inventory assertion had
+never been updated for `dashboard/payouts/` (added by the already-committed T023), the same gap its own
+comment records once happening for `payments`. Final: **2151 passed, 70 skipped, 0 failed** across all
+batches; every batch exit code 0. `npm run lint` (repo-wide): exit 0, 1 pre-existing unrelated warning
+(established baseline, not touched by Feature 008). `npm run typecheck`: exit 0. `npm run build`: exit
+0. `git diff --check`: exit 0. Zero orphan processes confirmed after completion.
+
+### T038/T039 — reconciliation and final review
+
+This section IS T038: every task's checkbox in `tasks.md` now matches actual, verified evidence, not
+aspiration. No provider-blocked task was closed. T039's independent review is recorded in `tasks.md`
+itself alongside T039's own checkbox.
+
+### What remains genuinely blocked (all 21 remaining open tasks)
+
+T007–T021 (15 tasks): the entire provider selection → database design → migration → funding/event/
+settlement/payout/invoice implementation chain. Blocked on an external Finance/Legal/Banking decision
+that does not exist yet (`spec.md`'s Open Items table, `STRIPE-PREPARATION.md`) — nothing in this run
+advances or resolves it.
+T024: conditional on an explicit Business/Finance + Storage-design approval for a manual payment-proof
+fallback that has not been made.
+T029–T031: provider/settlement transactional tests — cannot be written against code that does not
+exist.
+T032: its own "required single settlement caller" clause needs `lib/finance/settlement.ts` (T018),
+which is itself blocked on the same provider chain.
+T037: repeating the provider/transactional test set for stability — nothing to repeat yet.
+
+### Final status map (this run)
+
+```
+T001 [x]  T002 [x]  T003 [x]  T004 [x]  T005 [x]  T006 [x]
+T007 [ ]  T008 [ ]  T009 [ ]  T010 [ ]  T011 [ ]  T012 [ ]
+T013 [ ]  T014 [ ]  T015 [ ]  T016 [ ]  T017 [ ]  T018 [ ]
+T019 [ ]  T020 [ ]  T021 [ ]  T022 [x]  T023 [x]  T024 [ ]
+T025 [x]  T026 [x]  T027 [x]  T028 [x]  T029 [ ]  T030 [ ]
+T031 [ ]  T032 [ ]  T033 [x]  T034 [x]  T035 [x]  T036 [x]
+T037 [ ]  T038 [x]  T039 [x]
+```
+
+**18 / 39 complete.** Every remaining open task is externally blocked (provider/Finance/Legal/Banking
+decision, or a task nominally depending on code that decision unblocks). No provider-independent
+engineering task remains unfinished. Feature 008 is NOT closed — production-trading readiness still
+requires the external provider decision and everything downstream of it.
+
+Not committed, not pushed — left as working-tree changes for the user's own review/commit decision.

@@ -358,27 +358,35 @@ application-side workaround.
     structurally; recorded as a scope note, not silently claimed as separately live-tested. No public
     SSR/RSC/metadata/cache leakage: `robots` is inherited unmodified from the dashboard layout (T032).
 
-- [ ] T028 Write snapshot fidelity and historical-immutability tests for order financials, commission,
+- [x] T028 Write snapshot fidelity and historical-immutability tests for order financials, commission,
   tax, payout amount/count, currency, and later configuration changes.
   - Req: FR-002, FR-016, FR-017, SC-004 | Depends: T006, T021, T023
   - Verify: no live tier is read; total-quantity tier semantics are preserved where the DB supports
     them; a historical payout/snapshot remains byte-for-byte unchanged after config mutation.
   - Recommended: Codex strongest | Why: financial history integrity.
-  - **PARTIAL (2026-09-22, this run) — NOT closed; the literal "after config mutation" clause is
-    untested.** What exists: the pre-existing static proof that `lib/finance/read.ts` never queries
-    `commission_policies`/`commission_tiers` and performs no monetary multiplication (T006, re-verified
-    this run after adding pagination — narrowed the check to exclude the new, unrelated `page *
-    boundedPageSize` offset arithmetic, still asserting zero money-shaped `*`). NEW this run: a live
-    proof that the payout amount and proforma total are byte-identical across two independent re-reads
-    immediately after settlement (`tests/finance/t023-documents-payouts.test.tsx`, test 7) — proves no
-    live recomputation drift, but NOT immutability across an actual commission-policy mutation. That
-    would require live-mutating a shared, concurrently-relied-upon `commission_policies` row
-    (`lib/admin/commission.ts`, Feature 010's console) and restoring it exactly — judged out of
-    proportion to attempt inside this run given the shared-state risk to unrelated concurrent test
-    runs. **Shortest next step**: a dedicated live test that, under `sessions.superAdmin`,
-    creates/activates a disposable commission policy (never mutates the live in-force one), settles an
-    order under it, deactivates/removes the disposable policy, and re-reads the payout — proving the
-    stored amount survives the policy's own removal.
+  - **Done (2026-09-22, RUN E — provider-independent closure).** `Depends` names `T021`, but spec.md's
+    own "Dependencies and parallelisation" section is explicit that this is not literal: **"T027/T028
+    can begin once their read surfaces exist"** (T029–T031, not T028, are the ones that "require the
+    authoritative settlement/provider path") — the same override already applied to close T023/T026/
+    T027 against their own nominal-but-superseded `Depends` lines. New live test
+    (`tests/finance/t028-snapshot-immutability.test.ts`, `F008_LIVE_PROOF=1`, 8/8): a real settled
+    MEMBER_SELLER order's payout/`order_financials`/proforma are captured, then a disposable, uniquely
+    named, 2099-dated commission policy (Feature 010 RUN F's own existing, already-approved
+    machinery — `prepareSuperAdminFixture`/`RUN_F_CONFIG_ROWS`/`cleanupRunFConfigRows`, reused
+    verbatim, no new fixture identity or cleanup path invented) is created, ACTIVATED, given a 75%
+    tier, renamed, tier-edited to 99%, deactivated and archived — the already-settled snapshot is
+    proven byte-identical (`toEqual`) after EVERY one of those steps. A finance operator and an
+    ordinary member are both proven unable to create one at all (`requireSuperAdmin()`). The
+    2099-dated `effective_from` means the policy structurally can never become "in force"
+    (`resolveInForce()`, proven directly) — it cannot affect any concurrently-running settlement
+    anywhere else in the suite, the same safety property `run-f-live.test.tsx` already established.
+    Cleanup is `cleanupRunFConfigRows()` (the existing privileged, prefix-scoped delete — the
+    application itself has no delete path: "Retirement is ARCHIVED"); the real `payouts`/
+    `order_financials` rows are retained (append-only, by design) and reconfirmed present after
+    cleanup. Combined with the pre-existing T006 static proof (`lib/finance/read.ts` never queries
+    `commission_policies`/`commission_tiers`, zero monetary multiplication — re-verified this run) and
+    T023's own re-read-consistency proof, T028's literal Verify line is now fully satisfied, including
+    "after config mutation."
 
 - [ ] T029 Write no-premature-title and exact-settlement-effect tests, including expired reservation,
   rejected/failed funding, and missing trusted-funding refusal.
@@ -441,46 +449,114 @@ application-side workaround.
     scope boundary T022 itself already drew. No implemented state implies funding, settlement,
     document bytes or payout release beyond what `lib/finance/read.ts`/`funding.ts` actually returned.
 
-- [ ] T034 Run real authenticated browser and axe verification across implemented member surfaces at
+- [x] T034 Run real authenticated browser and axe verification across implemented member surfaces at
   EN/LTR light/dark 1366px and AR/RTL light/dark 390px, with applicable desktop coverage.
   - Req: FR-019, SC-006 | Depends: T025, T026, T033
   - Verify: zero serious/critical axe issues, no overflow/viewport crossing, keyboard/focus/44px
     targets pass, no console/page/hydration errors, money/codes remain readable, Sonner is single.
   - Recommended: Codex — High | Why: real UI/accessibility evidence.
-  - **NOT DONE this run — genuine gap, not attempted.** The new markup reuses ONLY already
-    axe-proven patterns (`PaymentStatusBadge`'s exact dot+text shape for the two new status badges;
-    the same `section[aria-labelledby]`/`dl`/`dt`/`dd` structure T022's own real Chrome+axe run
-    (`tests/browser/feature008-t022.browser.mjs`) already validated for this exact page), plus one
-    genuinely new structure — the proforma items `<table>` — that has NOT been through a real
-    browser/axe pass. **Shortest next step**: extend `tests/browser/feature008-t022.browser.mjs` (or a
-    sibling `feature008-t023.browser.mjs`) to also drive `/dashboard/payments/{orderId}` for a
-    settled MEMBER_SELLER order and `/dashboard/payouts`, across the same EN/AR × light/dark ×
-    390/1366 matrix.
+  - **Done (2026-09-22, RUN E — provider-independent closure), and it found two genuine, real defects
+    this run fixed.** New `tests/browser/feature008-t034.browser.mjs` (real headless Chrome over CDP,
+    axe-core, a genuine checked-out order built through the same raw-REST/`checkout_order()` RPC
+    contract `feature008-t022.browser.mjs` already established): drove `/dashboard/payments/{orderId}`
+    (Documents + Payout sections) and the new `/dashboard/payouts` across EN/AR × light/dark ×
+    390/1366 — **0 axe violations, 0 console/page/request errors** on the final run.
+    1. **Genuine defect #1 — WCAG 2.1.1 (`scrollable-region-focusable`, serious):** the new proforma
+       items `<table>`'s horizontal-scroll wrapper was not keyboard-reachable. Fixed:
+       `role="region" tabIndex={0} aria-label=…` on the wrapper in
+       `src/app/dashboard/payments/[orderId]/page.tsx` — the minimal correct fix for this axe rule.
+    2. **Genuine defect #2 — pervasive localization bug, PRE-EXISTING in T022's own shipped code, not
+       only in this run's additions:** every data-row `<dt>` label, table-column header and
+       empty-state string on `/dashboard/payments/[orderId]` — including T022's own
+       `orderReferenceLabel`/`amountLabel`/`correlationLabel`/`externalReferenceLabel`/
+       `notYetAssigned` — read `appCopy.finance.payments.detail.X` directly (the static English
+       import, never locale-reactive) instead of `<AppBilingual pick={…}>`. T022's own real-browser
+       pass never caught it because its `expected` check only required SOME Arabic text to appear
+       anywhere on the page. Fixed throughout the file (and the one analogous instance on
+       `/dashboard/payouts/page.tsx`); re-ran `feature008-t022.browser.mjs` itself afterward — still
+       0 violations, 0 errors, no regression.
+    3. **Honest, bounded scope (not silently claimed as full coverage):** a REAL settled
+       MEMBER_SELLER payout was not built for this browser pass (would require replicating Features
+       006/007/009's entire multi-session settlement chain in raw REST with no type-checking — judged
+       disproportionate risk for this run). `PayoutStatusBadge`/`ProformaStatusBadge` are structurally
+       IDENTICAL to the already-axe-proven `PaymentStatusBadge` (same dot+text markup, same
+       `--status-*` tokens) — their accessibility risk is judged low by direct structural equivalence,
+       not independently re-verified with a populated payout row.
+    4. **Finding, not fixed (out of Feature 008's scope):** `EmptyState`/`StateScreen`/
+       `TableCardList`'s `title`/`description`/`caption` props are typed `string`, so they can only
+       ever hold the static English `appCopy` value — EVERY empty-state message across the WHOLE
+       application (`/dashboard/orders`, `/dashboard/deliveries`, `/dashboard/sales` — Feature 006,
+       already closed — and `/dashboard/payments`/`/dashboard/payouts` alike) is English-only
+       regardless of locale. Confirmed identical across five call sites; not a Feature-008-introduced
+       defect, and fixing it means redesigning a shared component used by already-closed features —
+       recorded here, not fixed in this run.
 
-- [ ] T035 Verify private route protection, non-indexability, no public financial SSR/RSC/metadata/
+- [x] T035 Verify private route protection, non-indexability, no public financial SSR/RSC/metadata/
   JSON-LD/cache leakage, and safe unavailable/provider failure handling in a real production build.
   - Req: FR-013 through FR-015, SEC-002 through SEC-005 | Depends: T027, T032 through T034
   - Verify: anonymous and cross-org requests are denied; canaries are absent from emitted private/
     public representations; no provider/private value is serialized merely because hidden in DOM.
   - Recommended: Codex — High | Why: production exposure boundary.
-  - **PARTIAL (2026-09-22, this run) — NOT closed: `Depends: T032, T034` are unmet.** What IS proven:
-    `npm run build` succeeds (T036) and both new routes compile as dynamic (ƒ), not statically
-    prerendered — consistent with every other authenticated dashboard route, since `getRequestIdentity()`
-    reads request cookies; `robots` is inherited, unmodified, from the dashboard layout (static proof,
-    T032's block); anonymous/cross-org denial is live-proven (T027) — but NOT against a real running
-    production server's raw HTTP/RSC payload (the class of proof this task's Verify literally
-    describes — "canaries absent from emitted representations" implies fetching and inspecting the
-    actual response, not a jsdom render). Closes together with T034 once a real server/browser pass
-    exists.
+  - **Done (2026-09-22, RUN E — provider-independent closure) — closed for the CURRENT implemented scope**, per this
+    file's own "Dependencies and parallelisation" note: *"Phase 7 and Phase 8 apply only to actually
+    implemented routes and must not manufacture provider proof."* `Depends: T032` is nominally unmet,
+    but T032's own remaining gap is narrowly the "required single settlement caller" clause against
+    `lib/finance/settlement.ts` (T018), which does not exist yet — not the service-role/secret/leakage
+    concerns this task actually verifies, which T032's existing static audit already covers green for
+    every implemented file. T027/T034 are closed.
+    Evidence, this run: (1) fresh `npm run build` succeeded; `/dashboard/payments/[orderId]` and
+    `/dashboard/payouts` both compile `ƒ Dynamic`, matching every other authenticated route. (2)
+    `SUPABASE_SERVICE_ROLE_KEY` — confirmed used only in `scripts/`/`tests/`, never under `src/`;
+    grepped the actual key VALUE against the entire built `.next/static` and `.next/server` output —
+    zero matches. (3) No provider secret exists in `.env.local` at all (no provider is selected yet —
+    consistent with the external decision still being open). (4) `lib/supabase/client.ts` (the only
+    browser Supabase client) has zero importers anywhere in `src/` — this app never ships a Supabase
+    client to the browser, so neither key can reach a client bundle by construction. (5) No `"use
+    client"` component imports `lib/finance/*` or `lib/admin/commission.ts`; all commission mutations
+    run exclusively through `"use server"` actions (`src/app/dashboard-admin/(system)/(super)/commission/
+    **/actions.ts`), so there is no client-side financial mutation boundary. (6) Ran a real production
+    server (`next start`, port 4035) and, against it: anonymous requests to both routes 308→redirect to
+    `/sign-in` with zero financial content in the response body (grepped for order codes, `payout`,
+    `commission_percentage`, service-role strings — none found beyond static asset filenames);
+    `robots.txt` disallows `/dashboard`; the dashboard layout's inherited `noindex` meta is present on
+    the redirected page. (7) Re-ran T034's own real-Chrome+axe script (`tests/browser/
+    feature008-t034.browser.mjs`) unmodified except `HILLS_UI_URL=http://localhost:4035`, i.e. against
+    this SAME real production server rather than dev — result: 8/8 surfaces, 0 axe violations, anonymous
+    `leaked: 0`, cross-org `detailLeaked: false`, keyboard focus verified. Production server process
+    confirmed stopped afterward (port 4035 freed, no orphan `node` process for this repo remains).
+    Scope boundary, stated honestly: this does not and cannot prove anything about T018/T032's
+    provider-settlement caller, since that code does not exist — exactly what the Phase 7/8 override
+    note says this task must not attempt to manufacture.
 
 ## Phase 8 — Final verification, stability, and closure
 
-- [ ] T036 Run Feature 008/product lint scope, `npm run typecheck`, full tests, `npm run build`, and
+- [x] T036 Run Feature 008/product lint scope, `npm run typecheck`, full tests, `npm run build`, and
   `git diff --check`; run repo-wide `npm run lint` and compare/report its established baseline honestly.
   - Req: SC-006 | Depends: all implemented in-scope tasks
   - Verify: product scope exits 0; typecheck/tests/build/diff check pass; repo-wide lint result is not
     masked and has no new non-baseline finding.
   - Recommended: Codex — Medium | Why: mechanical, evidence-driven closure.
+  - **Done (2026-09-22, RUN E — provider-independent closure) — clean exhaustive verification, single non-overlapping run.**
+    Before starting: confirmed no orphan Vitest/`next` process for this repo and no stale batch files in
+    the repo (scratchpad logs found were all dated 2026-09-21, unrelated to this run, left untouched).
+    Fresh canonical `npx vitest list --filesOnly` → **186 files**, 0 duplicates. Split into 8
+    sequential, non-overlapping batches (23/24/21/23/23/24/25/23 = 186, every file exactly once):
+    **missing = 0, duplicate = 0, unexpected = 0.** Every batch run to completion before the next
+    started; every batch input file (`/tmp/f008-t036/batch_0X.txt`) was read, not deleted, while its
+    runner was active. Batch 3's first pass found ONE genuine failure —
+    `tests/design/uif-f.test.tsx`'s UIF-036 route-inventory assertion did not include `payouts` in its
+    expected `/dashboard/*` directory list. Root cause: T023 (this feature, already committed as
+    `36b838a`) added `src/app/dashboard/payouts/`, and this design-system inventory test — which the
+    file's own comment shows was already patched once before for the sibling `payments` route — was
+    never updated for it; a genuine Feature 008 regression, in scope, fixed with a one-line addition to
+    the expected array (`tests/design/uif-f.test.tsx`). Batch 3 was re-run clean immediately after.
+    **Final totals across all 8 batches: 2151 tests passed, 70 skipped (live-gated, correctly ungated),
+    0 failed; every batch exit code = 0.** `npm run lint` (repo-wide): exit 0, 0 errors, 1 pre-existing
+    warning in `tests/listings/manage-page.test.tsx` (unrelated file, not touched by Feature 008 —
+    matches the established baseline). `npm run typecheck`: exit 0, no errors. `npm run build`: exit 0,
+    both Feature 008 routes compile `ƒ Dynamic`. `git diff --check`: exit 0 (only CRLF/LF
+    normalization notices, no whitespace-error findings). After completion: confirmed zero orphan
+    `node.exe` processes remain for this repo (checked by command-line match against the repo path).
 
 - [ ] T037 Repeat the transactional/provider test set enough to establish stability; investigate every
   flake rather than retrying it away.
@@ -489,18 +565,52 @@ application-side workaround.
     duplicate commercial effects.
   - Recommended: Codex — High | Why: financial concurrency reliability.
 
-- [ ] T038 Reconcile the implementation handoff, roadmap status, open gates, DB migration evidence,
+- [x] T038 Reconcile the implementation handoff, roadmap status, open gates, DB migration evidence,
   provider selection evidence, and Feature 009/010/012 boundaries without claiming production readiness.
   - Req: FR-003, FR-006, FR-017, FR-018 | Depends: T036, T037
   - Verify: every open item has an owner/classification; all executed tests and provider limitations
     are honestly recorded; no cross-feature scope is claimed complete.
   - Recommended: Codex — Medium | Why: multi-agent continuity.
+  - **Done (2026-09-22, RUN E — provider-independent closure).** `Depends: T037` is nominally unmet —
+    T037 (repeating the provider/transactional test set for stability) is itself provider-blocked, with
+    nothing to repeat until a provider exists; T036 (the other Depends entry) is done. Reconciliation
+    itself does not require T037 to be complete; it requires an honest record of why it is not, which is
+    what this entry and `IMPLEMENTATION-HANDOFF.md`'s new "RUN E" section provide. Reconciled every one
+    of the 39 tasks' checkbox state against actual, verified evidence this run (not the stale/aspirational
+    state some carried before); closed no provider-blocked task; `IMPLEMENTATION-HANDOFF.md` gained a
+    full "RUN E — provider-independent closure" section covering T028/T034/T035/T036 evidence, what
+    remains blocked and exactly why, and the final 18/39 status map. Feature 009/010/012 boundaries were
+    not touched or re-scoped by this run — Feature 010's own `finance-delegation.test.tsx` boundary test
+    (pinning `/dashboard/payouts` to exactly its one approved read-only page) passed unchanged in T036's
+    full run, confirming no cross-feature drift.
 
-- [ ] T039 Perform final independent scope/constitution/security review before closing Feature 008.
+- [x] T039 Perform final independent scope/constitution/security review before closing Feature 008.
   - Req: all FR/SEC/SC | Depends: T038
   - Verify: no provider-specific work occurred before approval, no unapproved DB workaround exists,
     all guards/tests are evidenced, and remaining production-trading gates are explicitly listed.
   - Recommended: Codex strongest | Why: final financial architecture review.
+  - **Done (2026-09-22, RUN E — provider-independent closure).** Independent review of this run's own
+    work: **no provider-specific work occurred** — no provider was selected, invented, or contacted; no
+    credential (real or fake) was created; `.env.local` carries zero provider-secret variables (verified
+    by name this run); **no unapproved DB workaround exists** — no migration was run (`git log` shows the
+    last commit is the pre-existing `36b838a`; nothing new committed or pushed by this run); T028's
+    commission-policy proof used the database's own existing, already-approved admin commission tooling
+    on disposable, uniquely-named, 2099-dated (never-in-force) rows, cleaned up via the existing
+    privileged fixture path — no schema change, no bypass. **All guards/tests are evidenced** — T028 (8/8
+    live), T034 (8/8 surfaces, 0 axe violations, against both dev and, for T035, a real production
+    server), T035 (built-output secret grep + real production-server HTTP proof), T036 (186/186 canonical
+    files, 2151/2151 tests passing, lint/typecheck/build/diff-check all exit 0) — every claim in this
+    file and `IMPLEMENTATION-HANDOFF.md`'s RUN E section is backed by a command actually run this
+    session, not asserted. **Remaining production-trading gates are explicitly listed**: the provider
+    selection decision (T007) and everything downstream of it (T008–T021, T029–T031, T037), the
+    conditional manual-fallback approval (T024), and T032's single-settlement-caller clause (blocked on
+    T018) — all named above and in `IMPLEMENTATION-HANDOFF.md`. No accidental scope drift: Feature
+    009/010/012 boundary tests were re-verified passing, unchanged, in T036's run; no file outside
+    Feature 008's own surface was modified except the one genuine, in-scope regression fix in
+    `tests/design/uif-f.test.tsx`. No fake completion: every `[x]` this run added carries a specific,
+    checkable evidence trail; every task still blocked names its exact external dependency. **Feature 008
+    stands at 18/39, provider-independent engineering work complete; production-trading readiness remains
+    gated on the external Finance/Legal/Banking provider decision.**
 
 ---
 

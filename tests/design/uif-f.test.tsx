@@ -234,7 +234,9 @@ describe("Phase 5.5 UIF-036 — member shell applied at /dashboard", () => {
     // `dashboard/disputes/` and RUN B (T010/T011) `dashboard/notifications/` (+ `preferences/`); each
     // page re-verifies the Feature 003 member contract server-side. Recorded here together (2026-09-19)
     // so the list again states exactly what exists — no other business area has a directory.
-    expect(dirs.sort()).toEqual(["coffee", "deliveries", "disputes", "inventory", "kyb", "listings", "notifications", "onboarding", "orders", "payments", "sales", "settings", "storage"]);
+    // Feature 008's provider-independent closure run (2026-09-22) added `dashboard/payouts/` — the
+    // seller's own payout list (T023) — updating this list the same way `payments` was.
+    expect(dirs.sort()).toEqual(["coffee", "deliveries", "disputes", "inventory", "kyb", "listings", "notifications", "onboarding", "orders", "payments", "payouts", "sales", "settings", "storage"]);
 
     // Feature 003 T013 added `dashboard/onboarding/` for the controlled-onboarding Server Action
     // only — it carries no `page.tsx`, so Next.js never registers it as a route. The onboarding

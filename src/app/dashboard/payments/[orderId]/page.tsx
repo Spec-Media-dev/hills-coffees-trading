@@ -54,6 +54,19 @@ export const metadata: Metadata = {
  * document DTOs is an internal reference with no download surface yet (no Storage signed-URL
  * generation exists for these buckets) and is deliberately never rendered (FR-019, T023 Verify: "no
  * file-byte URL fabrication") — only genuinely user-meaningful metadata is shown.
+ *
+ * FEATURE 008 T034 (this run, real Chrome + axe) found and fixed a genuine, pervasive defect: every
+ * data-row `<dt>` label, table-column header and empty-state message on this page — INCLUDING every
+ * one T022 itself had already shipped — read `appCopy.finance.payments.detail.X` directly (always
+ * English; `appCopy` is the static `en` import, never locale-reactive) instead of
+ * `<AppBilingual pick={(c) => c.finance.payments.detail.X} />`. T022's own real-browser pass never
+ * caught it because its `expected` regex only required SOME Arabic text to appear anywhere on the
+ * page (the heading/badge), not that every specific label did. Every such usage below is now
+ * `<AppBilingual>`; the ONE deliberate exception is the `aria-label` on the scrollable items-table
+ * region a few lines down — an HTML attribute must be a plain string, and `appCopy.X` there matches
+ * this codebase's own established convention (`src/app/dashboard/coffee/page.tsx`'s search
+ * `aria-label`, `listings/[offerId]/page.tsx`'s section `aria-label`) — a known, pre-existing,
+ * English-only limitation of that one specific pattern, not newly introduced here.
  */
 export default async function PaymentDetailPage({ params }: { params: Promise<{ orderId: string }> }) {
   const identity = await getRequestIdentity();
@@ -77,12 +90,12 @@ export default async function PaymentDetailPage({ params }: { params: Promise<{ 
     getTaxInvoice({ orderId }),
     getPayoutsForOrder({ orderId }),
   ]);
-  const copy = appCopy.finance.payments.detail;
   // Neither `ProformaDTO` nor its item rows carry their own `currency` column (the schema stores one
   // currency per order, not per proforma line) — reuse the SAME order's already-fetched currency
   // rather than fabricating one, falling back to the payment's own (guaranteed non-null here) if the
   // financial snapshot were ever absent.
   const documentCurrency = financials?.currency ?? payment.currency;
+  const notYetAssigned = <AppBilingual pick={(c) => c.finance.payments.detail.notYetAssigned} />;
 
   return (
     <div className="flex flex-col gap-8">
@@ -102,27 +115,35 @@ export default async function PaymentDetailPage({ params }: { params: Promise<{ 
         </h2>
         <dl className="grid grid-cols-1 gap-3 text-[length:var(--text-small)] sm:grid-cols-2 lg:grid-cols-4">
           <div className="flex min-w-0 flex-col gap-0.5">
-            <dt className="text-muted-foreground">{copy.orderReferenceLabel}</dt>
+            <dt className="text-muted-foreground">
+              <AppBilingual pick={(c) => c.finance.payments.detail.orderReferenceLabel} />
+            </dt>
             <dd className="font-mono break-all tabular-nums text-foreground" dir="ltr">
               {orderId}
             </dd>
           </div>
           <div className="flex min-w-0 flex-col gap-0.5">
-            <dt className="text-muted-foreground">{copy.amountLabel}</dt>
+            <dt className="text-muted-foreground">
+              <AppBilingual pick={(c) => c.finance.payments.detail.amountLabel} />
+            </dt>
             <dd className="font-mono tabular-nums text-foreground" dir="ltr">
               {payment.currency} {payment.amount}
             </dd>
           </div>
           <div className="flex min-w-0 flex-col gap-0.5">
-            <dt className="text-muted-foreground">{copy.correlationLabel}</dt>
+            <dt className="text-muted-foreground">
+              <AppBilingual pick={(c) => c.finance.payments.detail.correlationLabel} />
+            </dt>
             <dd className="font-mono break-all text-foreground" dir="ltr">
-              {payment.correlationId ?? copy.notYetAssigned}
+              {payment.correlationId ?? notYetAssigned}
             </dd>
           </div>
           <div className="flex min-w-0 flex-col gap-0.5">
-            <dt className="text-muted-foreground">{copy.externalReferenceLabel}</dt>
+            <dt className="text-muted-foreground">
+              <AppBilingual pick={(c) => c.finance.payments.detail.externalReferenceLabel} />
+            </dt>
             <dd className="font-mono break-all text-foreground" dir="ltr">
-              {payment.externalReference ?? copy.notYetAssigned}
+              {payment.externalReference ?? notYetAssigned}
             </dd>
           </div>
         </dl>
@@ -132,7 +153,13 @@ export default async function PaymentDetailPage({ params }: { params: Promise<{ 
         <h2 id="financials-heading" className="text-base font-semibold text-foreground">
           <AppBilingual pick={(c) => c.finance.payments.detail.financialsSectionHeading} />
         </h2>
-        {financials ? <FinancialSummary financials={financials} /> : <p className="text-[length:var(--text-small)] text-muted-foreground">{copy.financialsNotCalculated}</p>}
+        {financials ? (
+          <FinancialSummary financials={financials} />
+        ) : (
+          <p className="text-[length:var(--text-small)] text-muted-foreground">
+            <AppBilingual pick={(c) => c.finance.payments.detail.financialsNotCalculated} />
+          </p>
+        )}
       </section>
 
       <section aria-labelledby="funding-heading" className="flex flex-col gap-4">
@@ -158,26 +185,44 @@ export default async function PaymentDetailPage({ params }: { params: Promise<{ 
             <>
               <dl className="grid grid-cols-1 gap-3 text-[length:var(--text-small)] sm:grid-cols-3">
                 <div className="flex min-w-0 flex-col gap-0.5">
-                  <dt className="text-muted-foreground">{copy.proforma.codeLabel}</dt>
+                  <dt className="text-muted-foreground">
+                    <AppBilingual pick={(c) => c.finance.payments.detail.proforma.codeLabel} />
+                  </dt>
                   <dd className="font-mono break-all text-foreground" dir="ltr">
                     {proforma.proformaCode}
                   </dd>
                 </div>
                 <div className="flex min-w-0 flex-col gap-0.5">
-                  <dt className="text-muted-foreground">{copy.proforma.issuedAtLabel}</dt>
+                  <dt className="text-muted-foreground">
+                    <AppBilingual pick={(c) => c.finance.payments.detail.proforma.issuedAtLabel} />
+                  </dt>
                   <dd className="text-foreground" dir="ltr">
                     {proforma.issuedAt}
                   </dd>
                 </div>
                 <div className="flex min-w-0 flex-col gap-0.5">
-                  <dt className="text-muted-foreground">{copy.proforma.validUntilLabel}</dt>
+                  <dt className="text-muted-foreground">
+                    <AppBilingual pick={(c) => c.finance.payments.detail.proforma.validUntilLabel} />
+                  </dt>
                   <dd className="text-foreground" dir="ltr">
-                    {proforma.validUntil ?? copy.notYetAssigned}
+                    {proforma.validUntil ?? notYetAssigned}
                   </dd>
                 </div>
               </dl>
               {proforma.items.length > 0 ? (
-                <div className="overflow-x-auto">
+                // T034 (real Chrome + axe, this run) found a genuine `scrollable-region-focusable`
+                // violation here: on a narrow viewport this table overflows and scrolls horizontally,
+                // but the scrollable element itself was not reachable by keyboard (WCAG 2.1.1). Fixed
+                // by making the scroll container a focusable, named region — the minimal correct fix
+                // for this axe rule, not present as a wrapper anywhere else in the codebase to copy.
+                // The `aria-label` is deliberately the raw (English-only) `appCopy` string — an HTML
+                // attribute cannot hold a `<AppBilingual>` element; see this file's own header comment.
+                <div
+                  className="overflow-x-auto"
+                  role="region"
+                  tabIndex={0}
+                  aria-label={appCopy.finance.payments.detail.proforma.itemsHeading}
+                >
                   <table className="w-full min-w-[480px] text-[length:var(--text-small)]">
                     <caption className="sr-only">
                       <AppBilingual pick={(c) => c.finance.payments.detail.proforma.itemsHeading} />
@@ -185,16 +230,16 @@ export default async function PaymentDetailPage({ params }: { params: Promise<{ 
                     <thead>
                       <tr className="border-b border-border text-start text-muted-foreground">
                         <th scope="col" className="py-2 text-start font-medium">
-                          {copy.proforma.itemColumns.description}
+                          <AppBilingual pick={(c) => c.finance.payments.detail.proforma.itemColumns.description} />
                         </th>
                         <th scope="col" className="py-2 text-start font-medium">
-                          {copy.proforma.itemColumns.quantity}
+                          <AppBilingual pick={(c) => c.finance.payments.detail.proforma.itemColumns.quantity} />
                         </th>
                         <th scope="col" className="py-2 text-start font-medium">
-                          {copy.proforma.itemColumns.unitPrice}
+                          <AppBilingual pick={(c) => c.finance.payments.detail.proforma.itemColumns.unitPrice} />
                         </th>
                         <th scope="col" className="py-2 text-start font-medium">
-                          {copy.proforma.itemColumns.amount}
+                          <AppBilingual pick={(c) => c.finance.payments.detail.proforma.itemColumns.amount} />
                         </th>
                       </tr>
                     </thead>
@@ -203,10 +248,10 @@ export default async function PaymentDetailPage({ params }: { params: Promise<{ 
                         <tr key={item.id} className="border-b border-border last:border-b-0">
                           <td className="py-2 text-foreground">{item.description}</td>
                           <td className="py-2 font-mono tabular-nums text-foreground" dir="ltr">
-                            {item.quantityKg === null ? copy.notYetAssigned : `${item.quantityKg} kg`}
+                            {item.quantityKg === null ? notYetAssigned : `${item.quantityKg} kg`}
                           </td>
                           <td className="py-2 font-mono tabular-nums text-foreground" dir="ltr">
-                            {item.unitPrice === null ? copy.notYetAssigned : formatMoney(documentCurrency, item.unitPrice)}
+                            {item.unitPrice === null ? notYetAssigned : formatMoney(documentCurrency, item.unitPrice)}
                           </td>
                           <td className="py-2 font-mono tabular-nums text-foreground" dir="ltr">
                             {formatMoney(documentCurrency, item.amount)}
@@ -219,7 +264,9 @@ export default async function PaymentDetailPage({ params }: { params: Promise<{ 
               ) : null}
             </>
           ) : (
-            <p className="text-[length:var(--text-small)] text-muted-foreground">{copy.proforma.none}</p>
+            <p className="text-[length:var(--text-small)] text-muted-foreground">
+              <AppBilingual pick={(c) => c.finance.payments.detail.proforma.none} />
+            </p>
           )}
         </div>
 
@@ -230,20 +277,26 @@ export default async function PaymentDetailPage({ params }: { params: Promise<{ 
           {taxInvoice ? (
             <dl className="grid grid-cols-1 gap-3 text-[length:var(--text-small)] sm:grid-cols-2">
               <div className="flex min-w-0 flex-col gap-0.5">
-                <dt className="text-muted-foreground">{copy.taxInvoice.numberLabel}</dt>
+                <dt className="text-muted-foreground">
+                  <AppBilingual pick={(c) => c.finance.payments.detail.taxInvoice.numberLabel} />
+                </dt>
                 <dd className="font-mono break-all text-foreground" dir="ltr">
                   {taxInvoice.invoiceNumber}
                 </dd>
               </div>
               <div className="flex min-w-0 flex-col gap-0.5">
-                <dt className="text-muted-foreground">{copy.taxInvoice.issuedAtLabel}</dt>
+                <dt className="text-muted-foreground">
+                  <AppBilingual pick={(c) => c.finance.payments.detail.taxInvoice.issuedAtLabel} />
+                </dt>
                 <dd className="text-foreground" dir="ltr">
-                  {taxInvoice.issuedAt ?? copy.notYetAssigned}
+                  {taxInvoice.issuedAt ?? notYetAssigned}
                 </dd>
               </div>
             </dl>
           ) : (
-            <p className="text-[length:var(--text-small)] text-muted-foreground">{copy.taxInvoice.none}</p>
+            <p className="text-[length:var(--text-small)] text-muted-foreground">
+              <AppBilingual pick={(c) => c.finance.payments.detail.taxInvoice.none} />
+            </p>
           )}
         </div>
       </section>
@@ -264,24 +317,32 @@ export default async function PaymentDetailPage({ params }: { params: Promise<{ 
                 </div>
                 <dl className="grid grid-cols-1 gap-3 text-[length:var(--text-small)] sm:grid-cols-2">
                   <div className="flex min-w-0 flex-col gap-0.5">
-                    <dt className="text-muted-foreground">{copy.payoutColumns.paidAt}</dt>
+                    <dt className="text-muted-foreground">
+                      <AppBilingual pick={(c) => c.finance.payments.detail.payoutColumns.paidAt} />
+                    </dt>
                     <dd className="text-foreground" dir="ltr">
-                      {payout.paidAt ?? copy.notYetAssigned}
+                      {payout.paidAt ?? notYetAssigned}
                     </dd>
                   </div>
                   <div className="flex min-w-0 flex-col gap-0.5">
-                    <dt className="text-muted-foreground">{copy.payoutColumns.reference}</dt>
+                    <dt className="text-muted-foreground">
+                      <AppBilingual pick={(c) => c.finance.payments.detail.payoutColumns.reference} />
+                    </dt>
                     <dd className="font-mono break-all text-foreground" dir="ltr">
-                      {payout.paymentReference ?? copy.notYetAssigned}
+                      {payout.paymentReference ?? notYetAssigned}
                     </dd>
                   </div>
                 </dl>
               </div>
             ))}
-            <p className="text-[length:var(--text-micro)] text-muted-foreground">{copy.payoutAccountingNotice}</p>
+            <p className="text-[length:var(--text-micro)] text-muted-foreground">
+              <AppBilingual pick={(c) => c.finance.payments.detail.payoutAccountingNotice} />
+            </p>
           </div>
         ) : (
-          <p className="text-[length:var(--text-small)] text-muted-foreground">{copy.noPayout}</p>
+          <p className="text-[length:var(--text-small)] text-muted-foreground">
+            <AppBilingual pick={(c) => c.finance.payments.detail.noPayout} />
+          </p>
         )}
       </section>
     </div>
