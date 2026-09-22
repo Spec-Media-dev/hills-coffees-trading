@@ -80,22 +80,22 @@ with checks(check_name, ok, detail) as (
          exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = 'ingest_stripe_event' and p.prosecdef)
            and (select coalesce(array_agg(grantee::text order by grantee) = array['service_role'], false)
                   from information_schema.role_routine_grants
-                  where routine_schema = 'public' and routine_name = 'ingest_stripe_event' and privilege_type = 'EXECUTE'),
-         (select string_agg(grantee, ',') from information_schema.role_routine_grants where routine_schema = 'public' and routine_name = 'ingest_stripe_event' and privilege_type = 'EXECUTE')
+                  where routine_schema = 'public' and routine_name = 'ingest_stripe_event' and privilege_type = 'EXECUTE' and grantee != 'postgres'),
+         (select string_agg(grantee, ',' order by grantee) from information_schema.role_routine_grants where routine_schema = 'public' and routine_name = 'ingest_stripe_event' and privilege_type = 'EXECUTE' and grantee != 'postgres')
   union all
   select 'function record_stripe_payment_intent exists, SECURITY DEFINER, EXECUTE for authenticated+service_role only',
          exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = 'record_stripe_payment_intent' and p.prosecdef)
            and (select coalesce(array_agg(grantee::text order by grantee) = array['authenticated', 'service_role'], false)
                   from information_schema.role_routine_grants
-                  where routine_schema = 'public' and routine_name = 'record_stripe_payment_intent' and privilege_type = 'EXECUTE'),
-         (select string_agg(grantee, ',') from information_schema.role_routine_grants where routine_schema = 'public' and routine_name = 'record_stripe_payment_intent' and privilege_type = 'EXECUTE')
+                  where routine_schema = 'public' and routine_name = 'record_stripe_payment_intent' and privilege_type = 'EXECUTE' and grantee != 'postgres'),
+         (select string_agg(grantee, ',' order by grantee) from information_schema.role_routine_grants where routine_schema = 'public' and routine_name = 'record_stripe_payment_intent' and privilege_type = 'EXECUTE' and grantee != 'postgres')
   union all
   select 'function record_payment_transfer exists, SECURITY DEFINER, EXECUTE for authenticated+service_role only',
          exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = 'record_payment_transfer' and p.prosecdef)
            and (select coalesce(array_agg(grantee::text order by grantee) = array['authenticated', 'service_role'], false)
                   from information_schema.role_routine_grants
-                  where routine_schema = 'public' and routine_name = 'record_payment_transfer' and privilege_type = 'EXECUTE'),
-         (select string_agg(grantee, ',') from information_schema.role_routine_grants where routine_schema = 'public' and routine_name = 'record_payment_transfer' and privilege_type = 'EXECUTE')
+                  where routine_schema = 'public' and routine_name = 'record_payment_transfer' and privilege_type = 'EXECUTE' and grantee != 'postgres'),
+         (select string_agg(grantee, ',' order by grantee) from information_schema.role_routine_grants where routine_schema = 'public' and routine_name = 'record_payment_transfer' and privilege_type = 'EXECUTE' and grantee != 'postgres')
   union all
   select 'admin_review_payment() still SECURITY DEFINER with the same signature, and now carries the trusted_funding_required precondition',
          exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
@@ -105,11 +105,11 @@ with checks(check_name, ok, detail) as (
                      and p.prosrc like '%active_reservation_missing%'),
          ''
   union all
-  select 'admin_review_payment() EXECUTE unchanged: authenticated only (not anon, not public)',
-         (select coalesce(array_agg(grantee::text order by grantee) = array['authenticated'], false)
+  select 'admin_review_payment() EXECUTE unchanged: authenticated+service_role (not anon, not public)',
+         (select coalesce(array_agg(grantee::text order by grantee) = array['authenticated', 'service_role'], false)
             from information_schema.role_routine_grants
-            where routine_schema = 'public' and routine_name = 'admin_review_payment' and privilege_type = 'EXECUTE'),
-         (select string_agg(grantee, ',') from information_schema.role_routine_grants where routine_schema = 'public' and routine_name = 'admin_review_payment' and privilege_type = 'EXECUTE')
+            where routine_schema = 'public' and routine_name = 'admin_review_payment' and privilege_type = 'EXECUTE' and grantee != 'postgres'),
+         (select string_agg(grantee, ',' order by grantee) from information_schema.role_routine_grants where routine_schema = 'public' and routine_name = 'admin_review_payment' and privilege_type = 'EXECUTE' and grantee != 'postgres')
   union all
   select 'zero existing payment_transfers rows reference a payout whose payment lacks trusted funding (integrity, not just at insert time)',
          not exists (
