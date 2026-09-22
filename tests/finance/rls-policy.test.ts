@@ -14,6 +14,13 @@ import { describe, expect, it } from "vitest";
  * hand-maintained/privileged fixture beyond what the repository's existing convention already
  * permits). This static policy proof is the honest substitute; it is recorded as a Phase 1 finding,
  * not silently worked around.
+ *
+ * UPDATE (Feature 008 T023, this run): `tests/listings/live-chain.ts#prepareChain` (built later, by
+ * Feature 006) now signs in a real `financeAdmin` operator as `sessions.finance` — reused by
+ * `tests/finance/t023-documents-payouts.test.tsx`, which live-proves a genuine FINANCE-role read of
+ * `payments`/`payouts` (present) and the confirmed absence of a finance-role read of
+ * `proforma_invoices` (also present, matching this file's own static finding below). No live AUDITOR
+ * fixture exists yet, so the auditor gap below remains a static-only proof.
  */
 
 type RlsPolicy = {
@@ -196,12 +203,19 @@ describe("T006 — no application source file queries commission_policies/commis
     }
   });
 
-  it("lib/finance/read.ts performs no multiplication (the tell of a recomputed percentage/commission/tax)", () => {
+  it("lib/finance/read.ts performs no monetary multiplication (the tell of a recomputed percentage/commission/tax)", () => {
     const source = stripComments(readFileSync("lib/finance/read.ts", "utf8"));
-    // Every value is `Number(row.column)` coercion only — no `*` operator has any legitimate reason
-    // to appear anywhere in this file (block comments, which could legitimately contain `*`, are
-    // already stripped above; `/` is excluded from this check since import specifiers legitimately
-    // contain it, e.g. `@/lib/finance/types`).
-    expect(source).not.toMatch(/\*/);
+    // Every DTO value is `Number(row.column)` coercion only. The ONE legitimate `*` in this file
+    // (Feature 008 T023) is `page * boundedPageSize` — converting a page NUMBER to a row OFFSET for
+    // `.range()`, mirroring `lib/orders/read.ts#getOrdersForOrganization`'s exact own pagination
+    // arithmetic — never a money/commission/tax value. Lines performing that pagination arithmetic
+    // are excluded by name (`boundedPageSize`); nothing else in this file may contain `*` (block
+    // comments, which could legitimately contain `*`, are already stripped above; `/` is excluded
+    // from this check since import specifiers legitimately contain it, e.g. `@/lib/finance/types`).
+    const nonPaginationLines = source
+      .split("\n")
+      .filter((line) => !line.includes("boundedPageSize"))
+      .join("\n");
+    expect(nonPaginationLines).not.toMatch(/\*/);
   });
 });

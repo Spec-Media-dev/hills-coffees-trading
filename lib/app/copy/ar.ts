@@ -2247,7 +2247,75 @@ export const ar: DeepPartial<AppCopy> = {
           financialsSectionHeading: "اللقطة المالية للطلب",
           financialsNotCalculated: "لم تُحسب اللقطة المالية لهذا الطلب بعد.",
           fundingSectionHeading: "التمويل",
+          documentsSectionHeading: "المستندات",
+          proforma: {
+            heading: "الفاتورة المبدئية",
+            codeLabel: "المرجع",
+            issuedAtLabel: "تاريخ الإصدار",
+            validUntilLabel: "صالحة حتى",
+            itemsHeading: "البنود",
+            itemColumns: {
+              description: "الوصف",
+              quantity: "الكمية",
+              unitPrice: "سعر الوحدة",
+              amount: "المبلغ",
+            },
+            none: "لم تصدر أي فاتورة مبدئية لهذا الطلب بعد.",
+          },
+          taxInvoice: {
+            heading: "الفاتورة الضريبية",
+            numberLabel: "رقم الفاتورة",
+            issuedAtLabel: "تاريخ الإصدار",
+            none: "لم تصدر أي فاتورة ضريبية لهذا الطلب بعد.",
+          },
+          payoutsSectionHeading: "المستحقات",
+          payoutColumns: {
+            amount: "المبلغ",
+            status: "الحالة",
+            paidAt: "تاريخ الدفع",
+            reference: "مرجع الدفع",
+          },
+          payoutAccountingNotice: "سجل المستحقات هو قيد محاسبي من هيلز، وليس دليلًا على تحويل المبلغ فعليًا.",
+          noPayout: "لا يوجد سجل مستحقات لهذا الطلب.",
         },
+      },
+      proforma: {
+        status: {
+          ISSUED: "صادرة",
+          PAID: "مدفوعة",
+          VOID: "ملغاة",
+        },
+      },
+      payouts: {
+        status: {
+          PENDING_PAYOUT: "بانتظار الصرف",
+          PROCESSING: "قيد المعالجة",
+          PAID: "مصروف",
+          VOID: "ملغى",
+        },
+        nav: {
+          payouts: "المستحقات",
+        },
+        list: {
+          title: "المستحقات",
+          description: "سجل المستحقات المخزَّن لكل طلب بعته — المبالغ والعملة بالضبط، دون إعادة حساب أبدًا. سجل المستحقات هو قيد محاسبي من هيلز، وليس دليلًا على تحويل المبلغ فعليًا.",
+          breadcrumb: "المستحقات",
+          columns: {
+            order: "الطلب",
+            status: "الحالة",
+            amount: "المبلغ",
+            paidAt: "تاريخ الدفع",
+          },
+          viewOrder: "عرض الطلب",
+          empty: {
+            title: "لا توجد مستحقات بعد",
+            description: "يظهر سجل المستحقات هنا بمجرد تسوية أحد إعلانات إعادة البيع الخاصة بك.",
+          },
+          caption: "مستحقاتك",
+        },
+      },
+      nav: {
+        payments: "المدفوعات",
       },
     },
 

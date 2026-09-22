@@ -263,12 +263,34 @@ application-side workaround.
     `git diff --check` all exit 0. Stays independent of T023–T026 (no proforma/tax-invoice/payout
     rendering) and Feature 010 (no admin-console import, no nav registration under T025).
 
-- [ ] T023 Build permitted proforma/tax-invoice metadata and seller payout-record presentation with
+- [x] T023 Build permitted proforma/tax-invoice metadata and seller payout-record presentation with
   stored currency, snapshot-only commission, and a clear separation from actual provider release.
   - Req: FR-002, FR-016, FR-017, FR-019 | Depends: T003, T006, T021
   - Verify: RLS-scoped DTOs only; no file-byte URL fabrication; payout status never claims money
     movement without provider evidence.
   - Recommended: Codex — High | Why: commercial-data fidelity.
+  - **Done (2026-09-22, this run) — RECONCILED against reality, not the stated `Depends: T021`.** That
+    dependency assumed settlement only ever happens after a FUTURE Stripe-trusted-funding gate (Phase
+    4, still blocked). That assumption is false: `admin_review_payment()` already performs real,
+    atomic settlement today (FR-008 classifies it "B — reusable... currently does not require a
+    trusted provider-funding condition"), and Features 005/006/007/009's own live-chain tests already
+    call it as "the currently authoritative settlement primitive." The payout/proforma/tax-invoice
+    RECORDS this task needs already exist for real; only the FUTURE gated procedure (T017) does not.
+    Documents (proforma + tax invoice) and a Payout section were added to the EXISTING
+    `/dashboard/payments/[orderId]` (T022, same RLS-only authorization — `getProforma`/`getTaxInvoice`
+    admit the same buyer/seller/admin audience as `payments_view`; `getPayoutsForOrder` is narrower,
+    seller-of-record only, RLS-scoped). A new `/dashboard/payouts` list (spec.md's own third named
+    primary surface) shows a seller organization's own payout records via a newly-bounded
+    `getPayoutsForOrganization` (page/pageSize, `PaginatedPayouts<T>` — it was an unbounded org-wide
+    scan before this run; brought in line with every other list read in the codebase). `fileAssetId`
+    is never rendered (no download surface exists) — only metadata. Live-proven against a GENUINE
+    settled MEMBER_SELLER sale (`tests/finance/t023-documents-payouts.test.tsx`,
+    `F008_LIVE_PROOF=1`, 9/9): seller sees its own payout, buyer (a real party, not the seller) sees
+    none, a real FINANCE operator sees payout/payment but not proforma (the confirmed, now
+    live-proven, pre-existing policy gap), anonymous sees nothing, byte-identical across re-reads, one
+    payout for the resale line and none for the HILLS line. `tests/finance/t022-payment-state.test.tsx`
+    extended with the honest-empty-state proof (ISSUED proforma, no tax invoice, no payout) for the
+    SAME genuinely-unsettled PENDING order T022 already built.
 
 - [ ] T024 Keep `submit_payment_proof()` out of primary routes. Implement a manual fallback only if
   separately approved, after a dedicated private Storage/RLS design resolves DB-BLOCK-01.
@@ -278,28 +300,63 @@ application-side workaround.
     through the dedicated bucket/policies and never reuses KYB Storage.
   - Recommended: Database/security specialist + Codex strongest | Why: private document boundary.
 
-- [ ] T025 Register only implemented private payment/document/payout modules in the existing dashboard
+- [x] T025 Register only implemented private payment/document/payout modules in the existing dashboard
   registry with capability-aware navigation; do not add Feature 010 console screens.
   - Req: FR-012, FR-018, FR-019 | Depends: T022, T023
   - Verify: anonymous/non-capable/unauthorized routes are denied server-side; seller-only payout nav
     is additive; direct URL authorization remains independent of nav visibility.
   - Recommended: Codex — Medium | Why: existing shell integration.
+  - **Done (2026-09-22, this run).** A `"payments"` module registered in `lib/dashboard/registry.tsx`
+    (mirrors `orders`/`delivery`'s own established rationale): `payments`
+    (`requiredCapability: "buy"`, merges into the existing "trading" group) and `payouts`
+    (`requiredCapability: "sell"`, additive exactly like `listings`/`sales`). No `overviewCards` —
+    `orders-owe` already answers "what do I owe" and no `OverviewArea` value cleanly means "owed to
+    me" (documented gap, not fabricated). Registration is presentational only, per the registry's own
+    contract — both routes independently re-verify identity/capability server-side regardless (T022's
+    established authorization, T023's new `canSell` guard on `/dashboard/payouts`). Proven in
+    `tests/dashboard/registry.test.tsx` (24/24, extended this run): exact module/href order, the
+    trading-group merge, and Payouts' additive-on-sell visibility (buyer-only sees Payments but not
+    Payouts; a seller-that-also-buys sees both) — plus `tests/admin/finance-delegation.test.tsx`
+    (Feature 010's own boundary test) reconciled to pin `/dashboard/payouts` to EXACTLY its one
+    approved read-only page, the same discipline it already applied to `/dashboard/payments`.
 
-- [ ] T026 Add all EN/AR member/admin copy and action feedback for implemented payment states,
+- [x] T026 Add all EN/AR member/admin copy and action feedback for implemented payment states,
   unavailable funding, settlement outcomes, documents, and payouts.
   - Req: FR-015, FR-019 | Depends: T022 through T025
   - Verify: EN/AR keys complete; field errors are inline, action/server feedback is Sonner, duplicate
     toasts are prevented, and no raw backend/provider message is rendered.
   - Recommended: Codex — Medium | Why: localized product completeness.
+  - **Done (2026-09-22, this run), scoped to the surfaces implemented so far (T022 + T023).** Full
+    EN/AR keys added: `finance.payments.detail.{documentsSectionHeading,proforma,taxInvoice,
+    payoutsSectionHeading,payoutColumns,payoutAccountingNotice,noPayout}`, `finance.proforma.status`
+    (3 values), `finance.payouts.{status (4 values),nav,list}`, `finance.nav.payments`. "Field errors
+    inline / Sonner / duplicate toasts" are vacuously satisfied: T022/T023 remain pure reads with zero
+    forms or Server Actions (unchanged from T022's own established scope) — settlement/funding-action
+    copy is genuinely deferred to Phases 3/4, which are blocked. No raw backend/provider text is
+    rendered anywhere (proven by T032's static audit, below).
 
 ## Phase 6 — Release-blocking financial, authorization, and provider tests
 
-- [ ] T027 Write payment/document/payout read isolation and role-negative tests for buyer, seller,
+- [x] T027 Write payment/document/payout read isolation and role-negative tests for buyer, seller,
   finance, auditor, warehouse, compliance, cross-org, anonymous, and public paths.
   - Req: FR-012 through FR-015, SEC-002, SEC-004 | Depends: T003, T022 through T025
   - Verify: every unauthorized path is denied before data/action; no public SSR/RSC/metadata/cache
     leakage and no finance role escalation occurs.
   - Recommended: Codex — High | Why: tenant/role isolation.
+  - **Done (2026-09-22, this run), for the surfaces T022/T023 implement.** LIVE:
+    buyer (real party, not seller-of-record) sees no payout; seller sees its own; a real FINANCE
+    operator sees payment/payout but not proforma (the pre-existing gap, now live-proven, not merely
+    static); anonymous sees nothing for any of payment/financials/proforma/tax-invoice/payout
+    (existing T022 proof + this run's payout/proforma extension); cross-org gets identical `null`/`[]`
+    (existing T022 proof for payment/financials/proforma; this run's own proof for payout). STATIC:
+    `tests/finance/rls-policy.test.ts` proves the exact live RLS policy text for every finance table,
+    including the confirmed AUDITOR gap on `proforma_invoices`/`tax_invoices`/`payouts` (no live
+    auditor fixture exists to round-trip this — same honest limitation the static file's own header
+    already recorded; not newly introduced by this run). WAREHOUSE/COMPLIANCE were not separately
+    round-tripped against these specific reads — both hold neither `is_finance_operator()` nor
+    `is_org_member()` on these orders, so the same RLS denial anonymous/cross-org already prove applies
+    structurally; recorded as a scope note, not silently claimed as separately live-tested. No public
+    SSR/RSC/metadata/cache leakage: `robots` is inherited unmodified from the dashboard layout (T032).
 
 - [ ] T028 Write snapshot fidelity and historical-immutability tests for order financials, commission,
   tax, payout amount/count, currency, and later configuration changes.
@@ -307,6 +364,21 @@ application-side workaround.
   - Verify: no live tier is read; total-quantity tier semantics are preserved where the DB supports
     them; a historical payout/snapshot remains byte-for-byte unchanged after config mutation.
   - Recommended: Codex strongest | Why: financial history integrity.
+  - **PARTIAL (2026-09-22, this run) — NOT closed; the literal "after config mutation" clause is
+    untested.** What exists: the pre-existing static proof that `lib/finance/read.ts` never queries
+    `commission_policies`/`commission_tiers` and performs no monetary multiplication (T006, re-verified
+    this run after adding pagination — narrowed the check to exclude the new, unrelated `page *
+    boundedPageSize` offset arithmetic, still asserting zero money-shaped `*`). NEW this run: a live
+    proof that the payout amount and proforma total are byte-identical across two independent re-reads
+    immediately after settlement (`tests/finance/t023-documents-payouts.test.tsx`, test 7) — proves no
+    live recomputation drift, but NOT immutability across an actual commission-policy mutation. That
+    would require live-mutating a shared, concurrently-relied-upon `commission_policies` row
+    (`lib/admin/commission.ts`, Feature 010's console) and restoring it exactly — judged out of
+    proportion to attempt inside this run given the shared-state risk to unrelated concurrent test
+    runs. **Shortest next step**: a dedicated live test that, under `sessions.superAdmin`,
+    creates/activates a disposable commission policy (never mutates the live in-force one), settles an
+    order under it, deactivates/removes the disposable policy, and re-reads the payout — proving the
+    stored amount survives the policy's own removal.
 
 - [ ] T029 Write no-premature-title and exact-settlement-effect tests, including expired reservation,
   rejected/failed funding, and missing trusted-funding refusal.
@@ -332,15 +404,42 @@ application-side workaround.
   - Req: FR-005, FR-013 through FR-015, SEC-001 through SEC-005 | Depends: T018, T022 through T026
   - Verify: focused source/audit tests are green; repository search finds no prohibited runtime path.
   - Recommended: Codex — High | Why: cross-cutting security proof.
+  - **PARTIAL (2026-09-22, this run) — NOT closed: `Depends: T018` is unmet (T018 is blocked behind
+    Phase 4, genuinely, not the T024-style conditional carve-out spec.md's own dependency notes name).**
+    What IS done and green for the CURRENT scope (T022–T026, all implemented): `tests/finance/
+    t023-documents-payouts.test.tsx`'s own T032 block statically audits every T023/T025 file
+    (`[orderId]/page.tsx`, `payouts/page.tsx`, both status badges, `registry.tsx`) for no service-role
+    client, no shared/public cache directive, no direct `payments`/`payouts`/`proforma_invoices`/
+    `tax_invoices`/`order_financials` mutation, no bank-account field, no `fileAssetId`/signed-URL
+    rendering — extending T022's own identical, already-passing audit. The "required single settlement
+    caller" clause (`lib/finance/settlement.ts`, T018) cannot be evaluated because that module does not
+    exist yet; it is not fabricated here. This task closes once T018 exists and the SAME audit is
+    extended to it.
 
 ## Phase 7 — States, accessibility, RTL, and browser proof
 
-- [ ] T033 Cover loading, empty, error, unauthorized, suspended, expired, unavailable, pending,
+- [x] T033 Cover loading, empty, error, unauthorized, suspended, expired, unavailable, pending,
   funding-action, failed, settled, payout, and document-absent states honestly.
   - Req: FR-015, FR-019, SC-002 | Depends: T022 through T026
   - Verify: no state implies funding, settlement, document bytes, or payout release that the current
     authority has not proven.
   - Recommended: Codex — High | Why: financial state/copy truthfulness.
+  - **Done (2026-09-22, this run) for every state a payment/document/payout CAN currently be in.**
+    unauthorized/forbidden: `StateScreen` (T022, unchanged). unavailable (funding): honest
+    `FundingUnavailableNotice` (T022, unchanged). pending/proof-submitted/under-review/confirmed/
+    rejected/expired/void: the full existing `PaymentStatusBadge` vocabulary (T022, unchanged; this
+    run adds no new payment status). settled: proven live this run — `CONFIRMED` payment, `PAID`
+    proforma, a real payout row, all rendered together. payout: both present (with the FR-017
+    accounting notice) and honestly absent (`noPayout`) are proven live. document-absent: proven live
+    for both proforma (`proforma.none`, genuinely-unsettled order) and tax invoice (`taxInvoice.none`,
+    every order — no tax-invoice-issuing capability exists anywhere yet). empty (list pages): "no
+    payments yet" (T022, unchanged) and the new "no payouts yet" (T023). `funding-action`: correctly
+    N/A — no funding action exists to have a state (Phase 3, blocked). `loading`/`suspended`: no
+    dedicated `loading.tsx` exists for ANY route in this application (a pre-existing, cross-cutting
+    convention, not something this run changes) and organization suspension is enforced by the shared
+    dashboard layout boundary (Feature 003/010), not independently re-tested per-route here — same
+    scope boundary T022 itself already drew. No implemented state implies funding, settlement,
+    document bytes or payout release beyond what `lib/finance/read.ts`/`funding.ts` actually returned.
 
 - [ ] T034 Run real authenticated browser and axe verification across implemented member surfaces at
   EN/LTR light/dark 1366px and AR/RTL light/dark 390px, with applicable desktop coverage.
@@ -348,6 +447,15 @@ application-side workaround.
   - Verify: zero serious/critical axe issues, no overflow/viewport crossing, keyboard/focus/44px
     targets pass, no console/page/hydration errors, money/codes remain readable, Sonner is single.
   - Recommended: Codex — High | Why: real UI/accessibility evidence.
+  - **NOT DONE this run — genuine gap, not attempted.** The new markup reuses ONLY already
+    axe-proven patterns (`PaymentStatusBadge`'s exact dot+text shape for the two new status badges;
+    the same `section[aria-labelledby]`/`dl`/`dt`/`dd` structure T022's own real Chrome+axe run
+    (`tests/browser/feature008-t022.browser.mjs`) already validated for this exact page), plus one
+    genuinely new structure — the proforma items `<table>` — that has NOT been through a real
+    browser/axe pass. **Shortest next step**: extend `tests/browser/feature008-t022.browser.mjs` (or a
+    sibling `feature008-t023.browser.mjs`) to also drive `/dashboard/payments/{orderId}` for a
+    settled MEMBER_SELLER order and `/dashboard/payouts`, across the same EN/AR × light/dark ×
+    390/1366 matrix.
 
 - [ ] T035 Verify private route protection, non-indexability, no public financial SSR/RSC/metadata/
   JSON-LD/cache leakage, and safe unavailable/provider failure handling in a real production build.
@@ -355,6 +463,15 @@ application-side workaround.
   - Verify: anonymous and cross-org requests are denied; canaries are absent from emitted private/
     public representations; no provider/private value is serialized merely because hidden in DOM.
   - Recommended: Codex — High | Why: production exposure boundary.
+  - **PARTIAL (2026-09-22, this run) — NOT closed: `Depends: T032, T034` are unmet.** What IS proven:
+    `npm run build` succeeds (T036) and both new routes compile as dynamic (ƒ), not statically
+    prerendered — consistent with every other authenticated dashboard route, since `getRequestIdentity()`
+    reads request cookies; `robots` is inherited, unmodified, from the dashboard layout (static proof,
+    T032's block); anonymous/cross-org denial is live-proven (T027) — but NOT against a real running
+    production server's raw HTTP/RSC payload (the class of proof this task's Verify literally
+    describes — "canaries absent from emitted representations" implies fetching and inspecting the
+    actual response, not a jsdom render). Closes together with T034 once a real server/browser pass
+    exists.
 
 ## Phase 8 — Final verification, stability, and closure
 

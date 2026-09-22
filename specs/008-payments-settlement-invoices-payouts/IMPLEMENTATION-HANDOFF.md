@@ -312,3 +312,119 @@ T037 [ ]  T038 [ ]  T039 [ ]
 **6 / 39 complete.** Phase 1 COMPLETE. Provider remains TBD. Feature 008 is NOT closed.
 
 Not committed, not pushed — left as working-tree changes for the user's own review/commit decision.
+
+---
+
+## RUN D (2026-09-22) — reconciliation + T023, T025, T026, T027, T033
+
+**Model**: Claude Sonnet 5 — High
+**Scope executed**: reconciled actual repo state against this handoff/tasks.md (T022's own close-out
+had never been appended here — see the note below), then closed T023, T025, T026, T027, T033. No
+provider selection, no database migration, no `admin_review_payment()`/`submit_payment_proof()` call
+from application code. Worked directly on `main`; nothing committed or pushed by this run.
+
+### RECONCILIATION NOTE — T022 (RUN C, 2026-09-17) was never appended here
+
+`tasks.md` already recorded T022 `[x]` with its own evidence note (private payment-state routes,
+`/dashboard/payments` + `/dashboard/payments/[orderId]`, 29 tests + a real Chrome/axe pass). This
+handoff file's Section 12 status map had not been updated to reflect it — a documentation gap, not a
+functional one. This run's status map (below) reflects the true, current state: **12/39.**
+
+### What this run found, reconciling task status against reality (not blindly trusted)
+
+`spec.md`'s Section "Provider-neutral lifecycle" step 6 and `tasks.md`'s own T023 `Depends: T021` line
+both read as if NO settlement can happen before the future Stripe-trusted-funding gate (Phase 4).
+That is **false** for the database's CURRENT, already-approved capability: `admin_review_payment()`
+already performs real, atomic settlement (title, custody, reservation consumption, fill, proforma,
+payment, **and payout** effects) TODAY, without any trusted-funding condition — FR-008 already
+classifies it this way ("B — reusable... currently does not require a trusted provider-funding
+condition"). Every Feature 005/006/007/009 live-chain test already calls it as "the currently
+authoritative settlement primitive." **No application code in `src/app`/`lib` outside `tests/` calls
+it** (confirmed: zero references before and after this run) — it is exercised only by test fixtures
+building realistic settled state, exactly as Features 005/006/007/009 already do. This run's T023 work
+presents those genuinely-real records; it does not add a new settlement caller.
+
+### What was built
+
+| File | Purpose |
+|---|---|
+| `lib/finance/types.ts` | Added `PaginatedPayouts<T>`. |
+| `lib/finance/read.ts` | `getPayoutsForOrganization` is now bounded (`page`/`pageSize`, `.range()`, `DEFAULT_PAYOUT_PAGE_SIZE`/`MAX_PAYOUT_PAGE_SIZE`) — it was an unbounded org-wide scan before this run, the only pre-existing behavior changed. |
+| `components/finance/payout-status-badge.tsx` | New — `PayoutStatusBadge`, mirrors `PaymentStatusBadge`'s exact pattern, all 4 `payouts.status` values. |
+| `components/finance/proforma-status-badge.tsx` | New — `ProformaStatusBadge`, all 3 `proforma_invoices.status` values. |
+| `src/app/dashboard/payments/[orderId]/page.tsx` | Extended (T022's page) with Documents (proforma + tax invoice) and Payout sections. |
+| `src/app/dashboard/payouts/page.tsx` | New — the seller's own payout-record list, spec.md's third named primary surface. |
+| `lib/dashboard/registry.tsx` | New `"payments"` module: `payments` (buy) + `payouts` (sell, additive). |
+| `lib/app/copy/en.ts` / `ar.ts` | Extended `finance` namespace: documents/payout copy, `finance.proforma.status`, `finance.payouts.{status,nav,list}`, `finance.nav.payments`. |
+| `components/ui/icon.tsx` | Added `receipt`/`banknote` glyphs (additive). |
+| `tests/finance/t023-documents-payouts.test.tsx` | New — 9 live tests (`F008_LIVE_PROOF=1`, gated like Feature 005/006's own equivalent multi-order chains) + 18 ungated static T032-style source-audit tests. |
+| `tests/finance/t022-payment-state.test.tsx` | +1 test (honest-empty-state proof for the same PENDING order); its own T022/T023 boundary assertion reconciled (the payments LIST page still never references proforma/tax-invoice/payout; the DETAIL page now legitimately does). |
+| `tests/finance/rls-policy.test.ts` | The "no multiplication" T006 proof narrowed to exclude the new, unrelated pagination arithmetic (`page * boundedPageSize`) — still asserts zero money-shaped `*`; header updated to note the live FINANCE-operator proof that now exists. |
+| `tests/finance/read.test.ts` | 2 call sites updated for `getPayoutsForOrganization`'s new paginated return shape. |
+| `tests/dashboard/registry.test.tsx` | Extended: exact module/href order (`payments` now index 4), the "trading" group now includes `/dashboard/payments`, a new test proves Payouts nav is additive on `canSell` (hidden for buyer-only, visible for a seller-that-also-buys), and the stale `forbidden: ["payments"]` placeholder-check removed (it was the last one — nothing left to forbid). |
+| `tests/admin/finance-delegation.test.tsx` | Feature 010's own boundary test reconciled: `/dashboard/payouts` pinned to EXACTLY its one approved read-only page, the same discipline it already applied to `/dashboard/payments` when T022 landed. |
+
+### Live proof (`F008_LIVE_PROOF=1 npx vitest run tests/finance/t023-documents-payouts.test.tsx`, 9/9)
+
+Built a GENUINE settled MEMBER_SELLER sale via `tests/listings/live-chain.ts` (orgB buys Hills stock
+and settles → lists it as a resale offer → orgA buys and settles, producing a real `payouts` row for
+orgB): seller sees its own payout; the buyer (a real party, not the seller) sees none; a real FINANCE
+operator sees payment/payout but NOT proforma (the pre-existing, now live-proven policy gap); anonymous
+sees nothing; the seller's own payment-detail page renders the real payout amount/status and the PAID
+proforma with its real items; the buyer's view of the SAME order shows the proforma but an honest
+"no payout" state; `/dashboard/payouts` lists the real payout with a working link and is capability-
+gated (`canSell`) for the buyer-only organization; the payout/proforma values are byte-identical across
+independent re-reads; exactly one payout exists for the resale line and none for the HILLS line;
+cleanup removes disposable rows (append-only ownership/audit rows retained, as designed).
+
+### What was NOT done (genuine, named gaps — not converted to fake completion)
+
+- **T024** (manual payment-proof fallback) — unchanged, still conditional on an explicit Business/
+  Finance + Storage-design decision that has not been made.
+- **T028** (snapshot immutability across a LIVE commission-policy mutation) — the "no live tier read" +
+  "byte-identical across re-reads" proofs exist; mutating a shared, concurrently-relied-upon
+  `commission_policies` row and restoring it exactly was judged out of proportion to attempt this run.
+- **T029–T031, T037** (provider/settlement transactional tests) — genuinely blocked; no trusted-funding
+  gate or provider exists to test against.
+- **T032** — audit work done and green for the CURRENT scope, but its own `Depends: T018` is unmet
+  (T018 does not exist — Phase 4 is blocked), so the box was left unchecked per this repo's own
+  established convention of respecting literal `Depends` chains (see Feature 005's own precedent).
+- **T034** (real browser/axe) — not attempted; the new markup reuses already axe-proven patterns except
+  the new proforma-items table, which has not been through a real Chrome/axe pass.
+- **T035** (production-build exposure proof) — `npm run build` succeeds and both new routes compile
+  dynamic (not prerendered), but no real running server's raw HTTP/RSC payload was inspected.
+
+### Test evidence
+
+- `npx vitest run tests/finance`: 7 files, **125/125 passing, 9 correctly skipped** (live block ungated).
+- `F008_LIVE_PROOF=1 npx vitest run tests/finance`: 7 files, **134/134 passing.**
+- `npx vitest run tests/dashboard/registry.test.tsx`: **24/24 passing** (extended this run).
+- `npx vitest run tests/admin/finance-delegation.test.tsx`: **14/14 passing** (reconciled this run).
+- Regressions — `tests/orders` (276), `tests/delivery` (207, 6 skipped), `tests/inventory` (101, 9
+  skipped), `tests/admin` (all 26 files), `tests/listings`, `tests/dashboard`: all green, zero new
+  failures attributable to this run.
+- `npx tsc --noEmit`: exit 0.
+- Scoped `eslint`: 0 problems on every file this run touched.
+- See the final report for `npm run build`, repo-wide lint, `git diff --check`, and the exhaustive
+  batched full-suite result.
+
+### Final status map (this run)
+
+```
+T001 [x]  T002 [x]  T003 [x]  T004 [x]  T005 [x]  T006 [x]
+T007 [ ]  T008 [ ]  T009 [ ]  T010 [ ]  T011 [ ]  T012 [ ]
+T013 [ ]  T014 [ ]  T015 [ ]  T016 [ ]  T017 [ ]  T018 [ ]
+T019 [ ]  T020 [ ]  T021 [ ]  T022 [x]  T023 [x]  T024 [ ]
+T025 [x]  T026 [x]  T027 [x]  T028 [ ]  T029 [ ]  T030 [ ]
+T031 [ ]  T032 [ ]  T033 [x]  T034 [ ]  T035 [ ]  T036 [ ]
+T037 [ ]  T038 [ ]  T039 [ ]
+```
+
+**12 / 39 complete.** Provider remains TBD (genuine external Finance/Legal/Banking decision — see
+`spec.md`'s Open Items table and `STRIPE-PREPARATION.md`, both unchanged by this run — nothing new was
+learned about provider selection). Feature 008 is NOT closed. Production-trading readiness requires,
+at minimum: the provider decision (T007), the approved database trusted-funding design (T009), the
+migration (T011) and the settlement/event/payout/invoice implementation it unblocks (T012–T021,
+T029–T031, T037) — none of that exists and none is claimed here.
+
+Not committed, not pushed — left as working-tree changes for the user's own review/commit decision.

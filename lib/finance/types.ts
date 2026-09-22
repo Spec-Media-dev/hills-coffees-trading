@@ -111,3 +111,8 @@ export type PayoutDTO = {
   paymentReference: string | null;
   createdAt: string;
 };
+
+/** Feature 008 T023 — the same bounded-page shape `lib/orders/read.ts#PaginatedOrders` and
+ * `lib/listings/sales.ts` already use: one extra row is fetched to detect `hasMore`, never a full
+ * unbounded scan of a seller organization's payout history. */
+export type PaginatedPayouts<T> = { rows: readonly T[]; hasMore: boolean };

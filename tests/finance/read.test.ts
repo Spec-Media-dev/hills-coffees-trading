@@ -160,7 +160,7 @@ describe("T003/T006 — payouts and tax invoices are honestly empty before settl
     expect(reads.taxInvoice).toBeNull();
     // orgB's org-wide payout list must not contain this (unsettled) order's id — it may be non-empty
     // from other tests' unrelated settled fixtures, but never this specific order.
-    expect(reads.payoutsForOrg.some((payout) => payout.orderId === orderId)).toBe(false);
+    expect(reads.payoutsForOrg.rows.some((payout) => payout.orderId === orderId)).toBe(false);
   }, 60_000);
 
   it("an unrelated organization's payout read never contains another org's order", async () => {
@@ -169,7 +169,7 @@ describe("T003/T006 — payouts and tax invoices are honestly empty before settl
       const { getPayoutsForOrganization } = await import("@/lib/finance/read");
       return getPayoutsForOrganization({ organizationId: INVENTORY_FIXTURES.orgA.organizationId });
     });
-    expect(payouts.every((payout) => payout.sellerOrganizationId === INVENTORY_FIXTURES.orgA.organizationId)).toBe(true);
+    expect(payouts.rows.every((payout) => payout.sellerOrganizationId === INVENTORY_FIXTURES.orgA.organizationId)).toBe(true);
   });
 });
 

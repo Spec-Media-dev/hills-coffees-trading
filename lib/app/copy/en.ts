@@ -2403,7 +2403,89 @@ export const en = {
           financialsSectionHeading: "Order financial snapshot",
           financialsNotCalculated: "This order's financial snapshot has not been calculated yet.",
           fundingSectionHeading: "Funding",
+          /**
+           * Feature 008 T023 — the documents (proforma + tax invoice) and payout sections added to
+           * `/dashboard/payments/[orderId]`. A payout row here is always the CALLER'S OWN seller
+           * record for this order (RLS `payouts_view` never returns another seller's line) — never a
+           * cross-organization figure. `payoutAccountingNotice` states the FR-017 distinction
+           * explicitly next to the figure itself, not only in a tooltip a reader might miss.
+           */
+          documentsSectionHeading: "Documents",
+          proforma: {
+            heading: "Proforma invoice",
+            codeLabel: "Reference",
+            issuedAtLabel: "Issued",
+            validUntilLabel: "Valid until",
+            itemsHeading: "Items",
+            itemColumns: {
+              description: "Description",
+              quantity: "Quantity",
+              unitPrice: "Unit price",
+              amount: "Amount",
+            },
+            none: "No proforma invoice has been issued for this order yet.",
+          },
+          taxInvoice: {
+            heading: "Tax invoice",
+            numberLabel: "Invoice number",
+            issuedAtLabel: "Issued",
+            none: "No tax invoice has been issued for this order yet.",
+          },
+          payoutsSectionHeading: "Payout",
+          payoutColumns: {
+            amount: "Amount",
+            status: "Status",
+            paidAt: "Paid",
+            reference: "Payment reference",
+          },
+          payoutAccountingNotice: "A payout record is Hills' accounting entry, not proof that money has actually been transferred.",
+          noPayout: "No payout record exists for this order.",
         },
+      },
+      /** Feature 008 T023 — `proforma_invoices.status`'s own 3-value CHECK constraint (`proforma_invoices_status_check`), verbatim. */
+      proforma: {
+        status: {
+          ISSUED: "Issued",
+          PAID: "Paid",
+          VOID: "Void",
+        },
+      },
+      /**
+       * Feature 008 T023 — the seller's own payout records at `/dashboard/payouts`. `status` is the
+       * full 4-value `payouts.status` vocabulary (`payouts_status_check`), verbatim — no invented
+       * provider-release label; see FR-017 and `payoutAccountingNotice` above for why "PAID" here is
+       * a platform accounting state, not confirmation of an actual bank transfer.
+       */
+      payouts: {
+        status: {
+          PENDING_PAYOUT: "Pending payout",
+          PROCESSING: "Processing",
+          PAID: "Paid",
+          VOID: "Void",
+        },
+        nav: {
+          payouts: "Payouts",
+        },
+        list: {
+          title: "Payouts",
+          description: "The stored payout record for each order you've sold on — exact amounts and currency, never recalculated. A payout record is Hills' accounting entry, not proof that money has actually been transferred.",
+          breadcrumb: "Payouts",
+          columns: {
+            order: "Order",
+            status: "Status",
+            amount: "Amount",
+            paidAt: "Paid",
+          },
+          viewOrder: "View order",
+          empty: {
+            title: "No payouts yet",
+            description: "A payout record appears here once one of your resale listings is settled.",
+          },
+          caption: "Your payouts",
+        },
+      },
+      nav: {
+        payments: "Payments",
       },
     },
 

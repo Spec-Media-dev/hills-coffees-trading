@@ -294,6 +294,50 @@ export const DASHBOARD_MODULES: readonly DashboardModule[] = [
     },
   },
   /**
+   * Feature 008 T025 — the payments/payouts module. `payments` (`/dashboard/payments`) follows
+   * orders' own established rationale directly above: a payment row only ever exists for an order
+   * the acting organization bought, so `requiredCapability: "buy"` at the entry level, merged into
+   * the SAME "trading" group. `payouts` (`/dashboard/payouts`) is `requiredCapability: "sell"` —
+   * `payouts.seller_organization_id` is only ever a MEMBER_SELLER line's seller, so a buyer-only
+   * organization can never have one; the route itself independently re-verifies `canSell` (this
+   * registry's hiding is presentational only, per this file's own established rule) exactly like
+   * `sales`/`listings` above.
+   *
+   * NO `overviewCards` — `orders`' own `orders-owe` card already answers "what do I owe" from the
+   * SAME underlying order state; a second, payment-specific card here would either duplicate that
+   * count or invent a new business meaning this run was not asked to define. A payout-specific
+   * "money coming in" figure does not cleanly fit any of the four approved `OverviewArea` values
+   * (`account`/`bought`/`owe`/`where` — none means "owed to me"), so none is fabricated here either;
+   * this is a genuine, honestly-documented gap for a future run to decide on deliberately, mirroring
+   * the `disputes` module's own precedent directly below.
+   */
+  {
+    id: "payments",
+    requiredCapability: "buy",
+    navGroups: [
+      {
+        key: "trading",
+        label: <AppBilingual pick={(c) => c.inventory.nav.inventory} />,
+        entries: [
+          {
+            id: "payments",
+            label: <AppBilingual pick={(c) => c.finance.nav.payments} />,
+            href: "/dashboard/payments",
+            icon: <Icon name="receipt" className="size-[18px]" />,
+            requiredCapability: "buy",
+          },
+          {
+            id: "payouts",
+            label: <AppBilingual pick={(c) => c.finance.payouts.nav.payouts} />,
+            href: "/dashboard/payouts",
+            icon: <Icon name="banknote" className="size-[18px]" />,
+            requiredCapability: "sell",
+          },
+        ],
+      },
+    ],
+  },
+  /**
    * Feature 009 RUN C (T023) — the delivery module. `requiredCapability: "buy"` on both the module
    * and its one entry, mirroring the `orders` module's own established rationale directly above:
    * deliveries only ever exist for orders the acting organization bought, so buy-capable is the

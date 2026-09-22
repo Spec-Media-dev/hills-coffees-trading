@@ -81,9 +81,10 @@ describe("T002 — static registry lists implemented modules only", () => {
     // Feature 005 RUN B — "inventory" is now a genuinely-live module. Feature 006 RUN C (T020) adds
     // "marketplace" (coffee browse always; listings/sales additive for sell-capable organizations).
     // Feature 007 RUN C (T018) adds "orders" (buyer-capable organizations; merges into the "trading" group).
+    // Feature 008 T025 (this run) adds "payments" (payments: buy, merges into "trading"; payouts: sell, additive).
     // Feature 009 RUN C (T023) adds "delivery" (buyer-capable organizations; also merges into "trading").
     // Feature 012 RUN C (T017) adds "disputes" (buy, merges into "trading") and "notifications" (member, "account" group).
-    expect(DASHBOARD_MODULES.map((m) => m.id)).toEqual(["account", "inventory", "marketplace", "orders", "delivery", "disputes", "notifications"]);
+    expect(DASHBOARD_MODULES.map((m) => m.id)).toEqual(["account", "inventory", "marketplace", "orders", "payments", "delivery", "disputes", "notifications"]);
     const account = DASHBOARD_MODULES[0]!;
     const accountHrefs = (account.navGroups ?? []).flatMap((g) => g.entries.map((e) => e.href));
     expect(accountHrefs.sort()).toEqual(["/dashboard", "/dashboard/settings"]);
@@ -102,7 +103,11 @@ describe("T002 — static registry lists implemented modules only", () => {
     const orderHrefs = (orders.navGroups ?? []).flatMap((g) => g.entries.map((e) => e.href));
     expect(orderHrefs).toEqual(["/dashboard/orders"]);
 
-    const delivery = DASHBOARD_MODULES[4]!;
+    const payments = DASHBOARD_MODULES[4]!;
+    const paymentsHrefs = (payments.navGroups ?? []).flatMap((g) => g.entries.map((e) => e.href));
+    expect(paymentsHrefs.sort()).toEqual(["/dashboard/payments", "/dashboard/payouts"]);
+
+    const delivery = DASHBOARD_MODULES[5]!;
     const deliveryHrefs = (delivery.navGroups ?? []).flatMap((g) => g.entries.map((e) => e.href));
     expect(deliveryHrefs).toEqual(["/dashboard/deliveries"]);
     // The delivery detail route is deliberately NOT a top-level nav entry (discoverable from the list).
@@ -114,7 +119,13 @@ describe("T002 — static registry lists implemented modules only", () => {
     // "delivery" (Feature 009 RUN C, T023) are now genuinely live — removed from the forbidden list;
     // the still-unbuilt areas remain forbidden.
     // Feature 012 RUN C (T017): "disputes" is now genuinely live (T006) — removed from the forbidden list.
-    const forbidden = ["payments"];
+    // Feature 008 T025 (this run): "payments" is now genuinely live (`/dashboard/payments`,
+    // `/dashboard/payouts` both exist and are covered by their own live tests) — removed from the
+    // forbidden list. It was the last remaining placeholder-check name; every member-facing area this
+    // registry could plausibly register for now has a real route. (Feature 010's finance console is a
+    // wholly separate `/dashboard-admin` surface, not a member module at all — proven absent by
+    // `tests/admin/surface-separation.test.tsx`, not this test.)
+    const forbidden: readonly string[] = [];
     const ids = DASHBOARD_MODULES.map((m) => m.id);
     const allHrefs = DASHBOARD_MODULES.flatMap((m) => (m.navGroups ?? []).flatMap((g) => g.entries.map((e) => e.href)));
     for (const name of forbidden) {
@@ -129,9 +140,18 @@ describe("T002 — static registry lists implemented modules only", () => {
     expect(groups.map((g) => g.key)).toEqual(["overview", "account", "trading", "marketplace"]);
     expect(groups[0]!.items.map((i) => i.href)).toEqual(["/dashboard"]);
     expect(groups[1]!.items.map((i) => i.href)).toEqual(["/dashboard/settings", "/dashboard/notifications"]);
-    // Feature 007 RUN C (T018) / Feature 009 RUN C (T023): "orders"/"delivery" merge into the SAME
-    // "trading" group as inventory/storage — no fourth "Trading"-shaped header.
-    expect(groups[2]!.items.map((i) => i.href).sort()).toEqual(["/dashboard/deliveries", "/dashboard/disputes", "/dashboard/inventory", "/dashboard/orders", "/dashboard/storage"]);
+    // Feature 007 RUN C (T018) / Feature 008 T025 / Feature 009 RUN C (T023): "orders"/"payments"/
+    // "delivery" merge into the SAME "trading" group as inventory/storage — no fourth "Trading"-shaped
+    // header. This buyer-only org sees "/dashboard/payments" (entry-level `requiredCapability: "buy"`)
+    // but NOT "/dashboard/payouts" (entry-level `requiredCapability: "sell"`, canSell: false here).
+    expect(groups[2]!.items.map((i) => i.href).sort()).toEqual([
+      "/dashboard/deliveries",
+      "/dashboard/disputes",
+      "/dashboard/inventory",
+      "/dashboard/orders",
+      "/dashboard/payments",
+      "/dashboard/storage",
+    ]);
     // A buyer-only organization sees ONLY the marketplace browse entry — listings/sales are
     // entry-level `requiredCapability: "sell"` and stay hidden (T020's own additive-capability rule).
     expect(groups[3]!.items.map((i) => i.href)).toEqual(["/dashboard/coffee"]);
@@ -159,6 +179,19 @@ describe("T002 — static registry lists implemented modules only", () => {
     const groups = buildDashboardNavGroups({ modules: DASHBOARD_MODULES, organization: sellerOrg });
     const marketplaceGroup = groups.find((g) => g.key === "marketplace")!;
     expect(marketplaceGroup.items.map((i) => i.href).sort()).toEqual(["/dashboard/coffee", "/dashboard/listings", "/dashboard/sales"]);
+  });
+
+  it("Feature 008 T025 — Payouts nav is additive on sell capability, exactly like listings/sales: hidden for a buyer-only organization, visible alongside Payments for a seller that can also buy", () => {
+    const buyerOnlyOrg: OrganizationMembership = { organizationId: "o", displayName: "O", memberRole: "OWNER", canBuy: true, canSell: false };
+    const sellerAndBuyerOrg: OrganizationMembership = { organizationId: "o", displayName: "O", memberRole: "OWNER", canBuy: true, canSell: true };
+
+    const buyerOnlyHrefs = buildDashboardNavGroups({ modules: DASHBOARD_MODULES, organization: buyerOnlyOrg }).flatMap((g) => g.items.map((i) => i.href));
+    expect(buyerOnlyHrefs).toContain("/dashboard/payments");
+    expect(buyerOnlyHrefs).not.toContain("/dashboard/payouts");
+
+    const sellerHrefs = buildDashboardNavGroups({ modules: DASHBOARD_MODULES, organization: sellerAndBuyerOrg }).flatMap((g) => g.items.map((i) => i.href));
+    expect(sellerHrefs).toContain("/dashboard/payments");
+    expect(sellerHrefs).toContain("/dashboard/payouts");
   });
 
   it("T020 — registry metadata cannot grant access: requiredCapability is read-only presentational data, never invoked/executed by the builder", () => {

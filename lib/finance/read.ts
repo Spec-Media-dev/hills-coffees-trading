@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import type { OrderFinancialsDTO, PaymentDTO, PayoutDTO, ProformaDTO, TaxInvoiceDTO } from "@/lib/finance/types";
+import type { OrderFinancialsDTO, PaginatedPayouts, PaymentDTO, PayoutDTO, ProformaDTO, TaxInvoiceDTO } from "@/lib/finance/types";
 import type { PaymentMethod, PaymentStatus, PayoutStatus, ProformaStatus } from "@/lib/finance/validation";
 
 /**
@@ -235,14 +235,43 @@ export async function getPayoutsForOrder({ orderId }: { orderId: string }): Prom
   return (rows ?? []).map(mapPayoutRow);
 }
 
+const DEFAULT_PAYOUT_PAGE_SIZE = 25;
+const MAX_PAYOUT_PAGE_SIZE = 100;
+
 /** A seller organization's own payout records, newest first — RLS-scoped (`payouts_view`:
  * `is_org_member(seller_organization_id)`). `organizationId` MUST be the caller's already-resolved
  * `identity.organization.organizationId` — mirrors `lib/orders/read.ts#getOrdersForOrganization`'s own
- * established convention, never a URL/localStorage/hidden-form value. */
-export async function getPayoutsForOrganization({ organizationId }: { organizationId: string }): Promise<readonly PayoutDTO[]> {
+ * established convention, never a URL/localStorage/hidden-form value.
+ *
+ * Feature 008 T023 — bounded, exactly like every other org-scoped list in this codebase
+ * (`getOrdersForOrganization`, `getManagedListingsWithFills`): one extra row is fetched past
+ * `pageSize` to detect `hasMore`, never an unbounded scan of a seller's whole payout history. */
+export async function getPayoutsForOrganization({
+  organizationId,
+  page = 0,
+  pageSize = DEFAULT_PAYOUT_PAGE_SIZE,
+}: {
+  organizationId: string;
+  page?: number;
+  pageSize?: number;
+}): Promise<PaginatedPayouts<PayoutDTO>> {
+  const boundedPageSize = Math.max(1, Math.min(pageSize, MAX_PAYOUT_PAGE_SIZE));
+  const from = Math.max(0, page) * boundedPageSize;
+  const to = from + boundedPageSize;
+
   const supabase = await createClient();
-  const { data: rows } = await supabase.from("payouts").select(PAYOUT_SELECT).eq("seller_organization_id", organizationId).order("created_at", { ascending: false });
-  return (rows ?? []).map(mapPayoutRow);
+  const { data: rows } = await supabase
+    .from("payouts")
+    .select(PAYOUT_SELECT)
+    .eq("seller_organization_id", organizationId)
+    .order("created_at", { ascending: false })
+    .order("id", { ascending: false })
+    .range(from, to);
+
+  const allRows = rows ?? [];
+  const hasMore = allRows.length > boundedPageSize;
+  const pageRows = hasMore ? allRows.slice(0, boundedPageSize) : allRows;
+  return { rows: pageRows.map(mapPayoutRow), hasMore };
 }
 
 const MAX_BATCH_SIZE = 100;

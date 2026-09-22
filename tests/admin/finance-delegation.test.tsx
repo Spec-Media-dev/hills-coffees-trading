@@ -219,8 +219,8 @@ describe("T013 / T015 honesty — finance areas stay dependency-blocked, not fak
     expect(ar.admin?.states?.blockers?.["feature-008-finance-layer"]).toMatch(/008/);
   });
 
-  it("no member Finance route exists beyond Feature 008's approved payment-state routes: no /dashboard/{payouts,invoices,settlement,finance} segment, /dashboard/payments is EXACTLY the two approved pages, and no member-side file writes payouts or tax invoices", () => {
-    for (const segment of ["payouts", "invoices", "settlement", "finance"]) {
+  it("no member Finance route exists beyond Feature 008's approved payment/payout-state routes: no /dashboard/{invoices,settlement,finance} segment, /dashboard/payments and /dashboard/payouts are EXACTLY their approved pages, and no member-side file writes payouts or tax invoices", () => {
+    for (const segment of ["invoices", "settlement", "finance"]) {
       expect(existsSync(path.join(root, "src/app/dashboard", segment)), segment).toBe(false);
     }
     // Feature 008 T022 (commit 3234458, 2026-09-17) legitimately introduced the member payment-state routes
@@ -228,6 +228,12 @@ describe("T013 / T015 honesty — finance areas stay dependency-blocked, not fak
     // the time) forbade the whole segment. The contract is now pinned EXACTLY: those two pages and nothing else,
     // so any additional payments route (or a non-page file) still fails here.
     expect(walk("src/app/dashboard/payments").sort()).toEqual(["src/app/dashboard/payments/[orderId]/page.tsx", "src/app/dashboard/payments/page.tsx"]);
+    // Feature 008 T023 (this run) legitimately added ONE READ-ONLY member payout-RECORD list —
+    // `payouts.status`/`amount`/`paidAt` are already-stored accounting snapshots, never a decision UI
+    // (no approve/reject/transition control exists anywhere in this file, matching FR-017's own
+    // "a payout record is never proof of money movement" boundary). Same discipline as `/dashboard/
+    // payments` above: pinned EXACTLY to the one approved page, so any second file still fails here.
+    expect(walk("src/app/dashboard/payouts").sort()).toEqual(["src/app/dashboard/payouts/page.tsx"]);
     const memberFiles = [...walk("src/app/dashboard"), ...walk("lib/orders"), ...walk("lib/finance")];
     for (const file of memberFiles) {
       const src = stripComments(source(file));

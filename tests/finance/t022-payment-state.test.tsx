@@ -4,6 +4,7 @@ import { cleanup, render } from "@testing-library/react";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { CHECKOUT_FIXTURES, FOUNDATION_FIXTURES, INVENTORY_FIXTURES, createAnonymousFixtureClient, resetCheckoutFixtures, signInAsFixture } from "@/tests/auth/fixture-session";
+import { appCopy } from "@/lib/app/copy";
 
 /**
  * Feature 008 T022 — private payment state routes (`/dashboard/payments`,
@@ -160,6 +161,23 @@ describe("T022 — authorized buyer reads the correct stored payment/order snaps
     },
     60_000
   );
+
+  /**
+   * Feature 008 T023/T033 (this run) — the SAME PENDING (pre-settlement) order this describe block
+   * already built is genuinely unsettled: it has a real ISSUED proforma (written by `checkout_order()`
+   * at DRAFT→checkout time, same as every order) but no tax invoice and no payout (both are only ever
+   * created by settlement, which has not happened). Reusing it here — rather than building yet another
+   * order — proves the T023 sections' HONEST states without a second live checkout/settlement chain.
+   */
+  it("the documents/payout sections are honest for a genuinely unsettled order: a real ISSUED proforma, but no tax invoice and no payout", async () => {
+    const orgB = await signInAsFixture(INVENTORY_FIXTURES.orgB.email);
+    await renderDetailPage(orgB, orderId);
+
+    expect(document.querySelector('[data-slot="proforma-status-badge"]')?.getAttribute("data-status")).toBe("ISSUED");
+    expect(document.body.textContent).toContain(appCopy.finance.payments.detail.taxInvoice.none);
+    expect(document.body.textContent).toContain(appCopy.finance.payments.detail.noPayout);
+    expect(document.querySelector('[data-slot="payout-status-badge"]')).toBeNull();
+  }, 60_000);
 });
 
 describe("T022 — authorization boundary (live)", () => {
@@ -303,11 +321,21 @@ describe("T022 — source-level proofs: provider-neutral, no secrets, no network
     }
   });
 
-  it("T022 stays independent of T023–T026 and Feature 010: no proforma/tax-invoice/payout rendering, no dashboard-registry module registration, no admin console import", () => {
+  it("T022 stays independent of Feature 010: no dashboard-registry source or admin console import in any T022 file", () => {
     for (const file of T022_FILES) {
       const source = stripComments(readFileSync(file, "utf8"));
-      expect(source, file).not.toMatch(/getProforma|getTaxInvoice|getPayoutsForOrder|getPayoutsForOrganization/);
       expect(source, file).not.toMatch(/DASHBOARD_MODULES|registerModule|dashboard-admin/);
     }
+  });
+
+  /**
+   * Feature 008 T023 (this run) extends `[orderId]/page.tsx` with the documents/payout section — see
+   * `tests/finance/t023-documents-payouts.test.tsx` for its own live/static proofs. The PAYMENTS LIST
+   * page stays exactly what T022 built: one row per order's own `payments` state, never a proforma/
+   * tax-invoice/payout join.
+   */
+  it("the payments LIST page never renders proforma/tax-invoice/payout data (T023 is order-detail-scoped only)", () => {
+    const source = stripComments(readFileSync("src/app/dashboard/payments/page.tsx", "utf8"));
+    expect(source).not.toMatch(/getProforma|getTaxInvoice|getPayoutsForOrder|getPayoutsForOrganization/);
   });
 });
