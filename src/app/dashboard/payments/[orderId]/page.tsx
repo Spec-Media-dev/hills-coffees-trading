@@ -9,9 +9,11 @@ import { PayoutStatusBadge } from "@/components/finance/payout-status-badge";
 import { ProformaStatusBadge } from "@/components/finance/proforma-status-badge";
 import { AppBilingual } from "@/components/locale/app-bilingual";
 import { StateScreen } from "@/components/layout/state-screen";
+import { StripePaymentCollector } from "@/components/finance/stripe-payment-collector";
 import { appCopy } from "@/lib/app/copy";
 import { getRequestIdentity } from "@/lib/auth/dal";
 import { requestFunding } from "@/lib/finance/funding";
+import { stripePublishableKey } from "@/lib/finance/stripe/config";
 import { getOrderFinancials, getPayment, getPayoutsForOrder, getProforma, getTaxInvoice } from "@/lib/finance/read";
 
 export const metadata: Metadata = {
@@ -167,6 +169,15 @@ export default async function PaymentDetailPage({ params }: { params: Promise<{ 
           <AppBilingual pick={(c) => c.finance.payments.detail.fundingSectionHeading} />
         </h2>
         {!funding.ok ? <FundingUnavailableNotice /> : null}
+        {funding.ok && funding.data.clientSecret ? (
+          // Feature 008 RUN E (Stripe provider decision) T014 — genuinely reachable only once Stripe is
+          // configured AND the create-payment-intent Edge Function is deployed (neither is true today,
+          // so this branch is real code, not yet a live path — see lib/finance/funding.ts's own header).
+          (() => {
+            const publishableKey = stripePublishableKey();
+            return publishableKey ? <StripePaymentCollector clientSecret={funding.data.clientSecret} publishableKey={publishableKey} /> : null;
+          })()
+        ) : null}
       </section>
 
       <section aria-labelledby="documents-heading" className="flex flex-col gap-6 rounded-[var(--radius-xl)] border border-border bg-card p-6 sm:p-7">

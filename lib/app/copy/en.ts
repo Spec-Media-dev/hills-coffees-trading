@@ -2359,6 +2359,10 @@ export const en = {
           title: "Funding isn't available",
           description: "Funding steps for this order aren't available yet. No payment method has been set up, and nothing has been charged or reserved.",
         },
+        /** Feature 008 RUN E (Stripe provider decision) T014 — the Payment Element collector's own submit button. */
+        pay: {
+          submit: "Pay now",
+        },
       },
       /**
        * Feature 008 T022 — private payment state routes (`/dashboard/payments`,

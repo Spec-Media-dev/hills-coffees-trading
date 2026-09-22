@@ -11,14 +11,37 @@ import { ACTION_FEEDBACK, type ActionFeedbackCode } from "@/lib/types/action-fee
  * a generic, domain-scoped safe code and is logged server-side with ONLY the SQLSTATE-shaped
  * diagnostic context (never the caller's row data, never any payload) — see `logUnmappedFinanceError`.
  *
- * FORWARD-COMPATIBLE, NOT PREMATURELY ACTED ON: `lib/finance/read.ts` (T003) performs SELECT-only,
- * RLS-scoped reads — it does not call a mutating RPC, so it has no RAISE EXCEPTION surface to map yet.
- * `lib/finance/funding.ts` (T004) never calls the database at all. `FINANCE_ERROR_MAP` is therefore
- * empty this run, deliberately: Phase 3/4's provider-event and settlement work will add its own
- * entries once `admin_review_payment()`'s approved trusted-funding gate exists (T009, T017–T019) —
- * this SAME map/function pair is reused then rather than a second one being invented.
+ * FORWARD-COMPATIBLE, NOT PREMATURELY ACTED ON — UPDATED (Feature 008 RUN E, Stripe provider decision):
+ * `lib/finance/read.ts` (T003) is still pure SELECT and has no RAISE EXCEPTION surface. `admin_review_
+ * payment()`'s trusted-funding precondition (T009/T017, migration `20260922120000_feature_008_stripe_
+ * trusted_funding.sql`, NOT YET APPLIED to the live database this run) and the new `ingest_stripe_
+ * event()`/`record_stripe_payment_intent()`/`record_payment_transfer()` functions now have a real
+ * exception vocabulary, mapped below (T018/T019) — this is the SAME map/function pair Phase 1 always
+ * intended to extend, never a second one.
  */
-const FINANCE_ERROR_MAP: Record<string, ActionFeedbackCode> = {};
+const FINANCE_ERROR_MAP: Record<string, ActionFeedbackCode> = {
+  // admin_review_payment() — settlement (lib/finance/settlement.ts, T018/T019).
+  forbidden: ACTION_FEEDBACK.FINANCE_SETTLEMENT_FORBIDDEN,
+  payment_not_found: ACTION_FEEDBACK.FINANCE_SETTLEMENT_PAYMENT_NOT_FOUND,
+  trusted_funding_required: ACTION_FEEDBACK.FINANCE_SETTLEMENT_TRUSTED_FUNDING_MISSING,
+  active_reservation_missing: ACTION_FEEDBACK.FINANCE_SETTLEMENT_RESERVATION_MISSING,
+  reservation_expired: ACTION_FEEDBACK.FINANCE_SETTLEMENT_RESERVATION_EXPIRED,
+  seller_inventory_position_invalid: ACTION_FEEDBACK.FINANCE_SETTLEMENT_INVENTORY_INVALID,
+
+  // record_stripe_payment_intent() — funding creation (lib/finance/funding.ts).
+  order_not_found: ACTION_FEEDBACK.FINANCE_SETTLEMENT_PAYMENT_NOT_FOUND,
+  order_not_fundable: ACTION_FEEDBACK.FINANCE_FUNDING_ORDER_NOT_FUNDABLE,
+  stripe_payment_intent_already_recorded: ACTION_FEEDBACK.FINANCE_FUNDING_ALREADY_INITIATED,
+  stripe_payment_intent_required: ACTION_FEEDBACK.VALIDATION_ERROR,
+  stripe_idempotency_key_required: ACTION_FEEDBACK.VALIDATION_ERROR,
+
+  // record_payment_transfer() — reuses the same settlement/funding codes above (payout_not_found,
+  // stripe_transfer_id_required, stripe_transfer_group_required) since they mean the same thing in this
+  // domain — never a third, redundant vocabulary.
+  payout_not_found: ACTION_FEEDBACK.FINANCE_SETTLEMENT_PAYMENT_NOT_FOUND,
+  stripe_transfer_id_required: ACTION_FEEDBACK.VALIDATION_ERROR,
+  stripe_transfer_group_required: ACTION_FEEDBACK.VALIDATION_ERROR,
+};
 
 /** Minimal shape of what supabase-js's `PostgrestError` (or any thrown value) may carry — never assumed to be an `Error` instance. */
 type RawDatabaseError = { message?: unknown; code?: unknown } | null | undefined;

@@ -2209,6 +2209,9 @@ export const ar: DeepPartial<AppCopy> = {
           title: "التمويل غير متاح حاليًا",
           description: "خطوات التمويل لهذا الطلب غير متاحة بعد. لم يتم إعداد وسيلة دفع، ولم يُخصم أو يُحجز أي مبلغ.",
         },
+        pay: {
+          submit: "ادفع الآن",
+        },
       },
       payments: {
         status: {

@@ -235,6 +235,12 @@ describe("T013 / T015 honesty — finance areas stay dependency-blocked, not fak
     // payments` above: pinned EXACTLY to the one approved page, so any second file still fails here.
     expect(walk("src/app/dashboard/payouts").sort()).toEqual(["src/app/dashboard/payouts/page.tsx"]);
     const memberFiles = [...walk("src/app/dashboard"), ...walk("lib/orders"), ...walk("lib/finance")];
+    // Feature 008 RUN E (Stripe provider decision, 2026-09-22) added `lib/finance/settlement.ts` (T018)
+    // — the ONE approved, single-caller module for `admin_review_payment()` (its own dedicated audit,
+    // `tests/finance/stripe-boundary-security.test.ts`, proves repo-wide that nothing else calls it).
+    // This file's job was always "no OTHER member/orders/finance file bypasses the approved boundary" —
+    // settlement.ts now IS that boundary, so it is the one deliberate exclusion here, not a weakening.
+    const approvedSettlementCaller = "lib/finance/settlement.ts";
     for (const file of memberFiles) {
       const src = stripComments(source(file));
       for (const table of ["payouts", "tax_invoices", "payments", "payment_reviews", "payment_proofs"]) {
@@ -242,6 +248,7 @@ describe("T013 / T015 honesty — finance areas stay dependency-blocked, not fak
           expect(call[1], `${file}: .from("${table}")`).not.toMatch(/\.(insert|update|upsert|delete)\(/);
         }
       }
+      if (file === approvedSettlementCaller) continue;
       expect(src, file).not.toMatch(/admin_review_payment|submit_payment_proof/);
     }
   });

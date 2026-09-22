@@ -1,0 +1,19 @@
+# Feature 008 RUN E (Stripe provider decision) — per-function JWT-verification settings for the three
+# Edge Functions this run adds (supabase/functions/*). No other Supabase CLI project settings are
+# declared here (this project has always been linked directly to the remote project without a local
+# `supabase init`); this file's only purpose is these three entries.
+#
+# `stripe-webhook` MUST have verify_jwt = false — Stripe calls it directly with no Supabase session,
+# authenticating instead via its own `Stripe-Signature` header (verified inside the function). The other
+# two are invoked by an authenticated app session (`supabase.functions.invoke()` forwards the caller's
+# own JWT) and keep the gateway's own JWT check enabled as an outer layer, on top of each function's own
+# internal authorization check.
+
+[functions.stripe-webhook]
+verify_jwt = false
+
+[functions.stripe-create-payment-intent]
+verify_jwt = true
+
+[functions.stripe-release-transfer]
+verify_jwt = true

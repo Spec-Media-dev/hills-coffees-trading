@@ -20,6 +20,10 @@ const eslintConfig = defineConfig([
     // generated bundle/manifest; and nothing in `lib/`, `src/`, `components/`, `tests/` or `scripts/`
     // imports it. It is the ONLY lintable content under `docs/`. Application and test code stays linted.
     "docs/claude-design/**",
+    // Feature 008 RUN E (Stripe provider decision) — Deno/Supabase Edge Functions (`Deno.*` global,
+    // `npm:`/`https://esm.sh` import specifiers). A separate runtime from this Next.js/Node project;
+    // excluded from `tsconfig.json` for the same reason. Not application source under `src/`/`lib/`.
+    "supabase/functions/**",
   ]),
 ]);
 

@@ -541,3 +541,81 @@ engineering task remains unfinished. Feature 008 is NOT closed — production-tr
 requires the external provider decision and everything downstream of it.
 
 Not committed, not pushed — left as working-tree changes for the user's own review/commit decision.
+
+---
+
+## RUN F008-STRIPE-DECISION (2026-09-22)
+
+**Model**: Claude Sonnet 5 — High
+**Scope executed**: the approved Stripe/Connect product decision (provider = Stripe, platform model =
+Connect, charge shape = separate charges and transfers, settlement-gate = Option A — trusted funding +
+finance-operator "Approve Settlement"/"Release Seller Funds", never an automatic or manual "confirm the
+buyer paid") applied to unblock as much of T007–T021, T024, T029–T032, T037 as is genuinely
+engineering-actionable without live Stripe credentials, Connect account setup, or Legal/Finance
+approval this run cannot supply. Worked directly on `main`; nothing committed or pushed; no database
+migration applied or pushed remotely.
+
+### What was built
+
+| File | Purpose |
+|---|---|
+| `supabase/migrations/20260922120000_feature_008_stripe_trusted_funding.sql` (+ paired rollback + read-only postflight) | Trusted-funding columns on `payments`, `payment_events.provider`/`external_event_id` tightened to `NOT NULL`, new append-only `payment_transfers` table, `admin_review_payment()` reproduced verbatim with ONE inserted precondition (provably a no-op for every existing NULL-`payment_method` path), and three new SECURITY DEFINER functions (`ingest_stripe_event`, `record_stripe_payment_intent`, `record_payment_transfer`). **NOT applied.** |
+| `lib/finance/stripe/config.ts` | The one place any Stripe env var is read; booleans + the one client-safe value. |
+| `lib/finance/stripe/webhook.ts` | Signature verification (Stripe's own documented algorithm/SDK verifier) — genuinely tested without a live account. |
+| `lib/finance/stripe/adapter.ts` | Server-only PaymentIntent/Transfer creation, honest `not_configured`/`provider_error` results, never fabricated success. |
+| `lib/finance/settlement.ts` | T018 — the sole application caller of `admin_review_payment()`; `approveSettlement`/`rejectSettlement`. |
+| `lib/finance/funding.ts` | Extended: unconfigured path unchanged; configured path invokes the create-payment-intent Edge Function, never fabricates a client secret. |
+| `lib/finance/errors.ts`, `lib/types/action-feedback.ts` | New `FINANCE_SETTLEMENT_*`/`FINANCE_FUNDING_*` controlled codes, mapped from every new database exception name. |
+| `components/finance/stripe-payment-collector.tsx` | The member funding surface — Stripe Payment Element, publishable key received only as a prop. |
+| `src/app/dashboard/payments/[orderId]/page.tsx` | Wired to render the collector once `requestFunding` genuinely succeeds (unreachable today without live configuration). |
+| `supabase/functions/{stripe-webhook,stripe-create-payment-intent,stripe-release-transfer}/index.ts` | Three Deno Edge Functions — written, NOT deployed. |
+| `supabase/config.toml` | Per-function `verify_jwt` settings for the three functions above. |
+| `tsconfig.json`, `eslint.config.mjs` | Exclude `supabase/functions/**` (a separate Deno runtime) from the Node/Next.js TypeScript project and lint scope. |
+| `tests/finance/stripe-webhook.test.ts` | 7 tests — signature verification, no live account needed. |
+| `tests/finance/stripe-boundary-security.test.ts` | 11 tests — no secret in a client bundle, no direct client provider call, single settlement caller (closes T032). |
+| `tests/finance/funding.test.ts`, `tests/finance/errors.test.ts`, `tests/finance/t022-payment-state.test.tsx` | Extended for the new Stripe-configured path and new error mappings; the one now-legitimate "names Stripe" exception narrowly scoped. |
+| `tests/orders/audits.test.ts`, `tests/admin/finance-delegation.test.tsx` | Two genuine, pre-existing-test regressions found and fixed: both asserted a fact ("no payment-provider dependency exists anywhere", "no file calls `admin_review_payment`") that this run's OWN approved architecture deliberately supersedes — narrowed precisely to their still-valid remaining scope, not weakened elsewhere. |
+
+### What was NOT done (genuine, named gaps)
+
+- **T007/T010**: legal/banking approval and real credentials — no Stripe account exists; `STRIPE-PREPARATION.md` §14's checklist remains the exact list of facts only a real account can supply.
+- **T009/T011/T017/T021/T029/T030**: the migration is authored, reviewed by no human yet, and explicitly NOT applied this run (instructed). Every claim resting on live database behavior stays open with a precise "apply T011, then re-test" note.
+- **T012/T013 (live portion)**: three Edge Functions are written but not deployed; the DB-dependent half of T013/T031 needs both the migration applied and a deployment.
+- **T024**: deliberately untouched — no manual fallback invented; the same external Business/Finance + Storage decision remains required, now explicitly re-confirmed as still required now that Stripe is the approved primary path.
+- **T037**: nothing live-runnable exists yet to repeat for stability.
+
+### Test evidence
+
+- `tests/finance`: 9 files passed, 1 skipped (T028, correctly ungated), **149 passed, 17 skipped, 0 failed**.
+- `tests/orders`: 21 files, **276 passed, 0 failed** (after fixing the one genuine pre-existing-test regression).
+- `tests/delivery`: 18 passed, 2 skipped, **207 passed, 6 skipped, 0 failed**.
+- `tests/admin`: 26 files, **331 passed, 0 failed** (after fixing the one genuine pre-existing-test regression).
+- `tests/dashboard`: 7 files, **61 passed, 0 failed**.
+- `npm run lint`: exit 0, 1 pre-existing unrelated warning (baseline, unchanged).
+- `npm run typecheck`: exit 0.
+- `npm run build`: exit 0; `.next/static` (the real client bundle) grepped clean for both Stripe secret names.
+- `git diff --check`: exit 0 (CRLF notices only).
+- The exhaustive full-suite batched run (T036's own standard) was **not** re-run this run — the task
+  instructions explicitly said not to run it "unless needed for a closure gate," and this run closes no
+  task that requires it.
+
+### Final status map (this run)
+
+```
+T001 [x]  T002 [x]  T003 [x]  T004 [x]  T005 [x]  T006 [x]
+T007 [ ]  T008 [x]  T009 [ ]  T010 [ ]  T011 [ ]  T012 [ ]
+T013 [ ]  T014 [x]  T015 [x]  T016 [x]  T017 [ ]  T018 [x]
+T019 [x]  T020 [x]  T021 [ ]  T022 [x]  T023 [x]  T024 [ ]
+T025 [x]  T026 [x]  T027 [x]  T028 [x]  T029 [ ]  T030 [ ]
+T031 [x]  T032 [x]  T033 [x]  T034 [x]  T035 [x]  T036 [x]
+T037 [ ]  T038 [x]  T039 [x]
+```
+
+**27 / 39 complete.** Every remaining open task names a specific external requirement (real Stripe
+account/credentials/Connect setup, human database/security review + migration application, Edge
+Function deployment, or the separate T024 Business/Finance/Storage decision) — none is a stale
+"provider undecided" blocker. Feature 008 is NOT closed; the shortest path to closing the rest is the
+migration's human review and application, in that order.
+
+Not committed, not pushed, no database migration applied or pushed remotely — left as working-tree
+changes for the user's own review/commit decision.

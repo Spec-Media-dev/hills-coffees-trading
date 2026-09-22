@@ -36,6 +36,28 @@ describe("T002 — mapFinanceError never leaks raw database text and falls back 
   });
 });
 
+describe("T018/T019 — settlement/funding-boundary exception names map to their exact controlled codes", () => {
+  it("admin_review_payment()'s exceptions map correctly", () => {
+    expect(mapFinanceError({ message: "forbidden" })).toBe(ACTION_FEEDBACK.FINANCE_SETTLEMENT_FORBIDDEN);
+    expect(mapFinanceError({ message: "payment_not_found" })).toBe(ACTION_FEEDBACK.FINANCE_SETTLEMENT_PAYMENT_NOT_FOUND);
+    expect(mapFinanceError({ message: "trusted_funding_required" })).toBe(ACTION_FEEDBACK.FINANCE_SETTLEMENT_TRUSTED_FUNDING_MISSING);
+    expect(mapFinanceError({ message: "active_reservation_missing" })).toBe(ACTION_FEEDBACK.FINANCE_SETTLEMENT_RESERVATION_MISSING);
+    expect(mapFinanceError({ message: "reservation_expired" })).toBe(ACTION_FEEDBACK.FINANCE_SETTLEMENT_RESERVATION_EXPIRED);
+    expect(mapFinanceError({ message: "seller_inventory_position_invalid" })).toBe(ACTION_FEEDBACK.FINANCE_SETTLEMENT_INVENTORY_INVALID);
+  });
+
+  it("record_stripe_payment_intent()'s exceptions map correctly", () => {
+    expect(mapFinanceError({ message: "order_not_fundable" })).toBe(ACTION_FEEDBACK.FINANCE_FUNDING_ORDER_NOT_FUNDABLE);
+    expect(mapFinanceError({ message: "stripe_payment_intent_already_recorded" })).toBe(ACTION_FEEDBACK.FINANCE_FUNDING_ALREADY_INITIATED);
+  });
+
+  it("the trusted-funding-missing code is distinct from every other settlement code (never collapsed into a generic failure)", () => {
+    const mapped = mapFinanceError({ message: "trusted_funding_required" });
+    expect(mapped).not.toBe(ACTION_FEEDBACK.FINANCE_READ_FAILED);
+    expect(mapped).not.toBe(ACTION_FEEDBACK.FINANCE_SETTLEMENT_FORBIDDEN);
+  });
+});
+
 describe("T002 — errors.ts source never contains a raw-error passthrough or a second toast system", () => {
   it("never constructs a template string that embeds the raw error message into a user-facing value", () => {
     const source = readFileSync("lib/finance/errors.ts", "utf8");

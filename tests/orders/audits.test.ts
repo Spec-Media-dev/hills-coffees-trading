@@ -174,16 +174,21 @@ describe("RUN D audit — Feature 007 production roots stay inside their transac
     }
   });
 
-  it("no escrow/payment-provider integration, payment proof, webhook, settlement or payout code — in the roots or as a dependency", async () => {
+  it("no escrow/payment-provider integration, payment proof, webhook, settlement or payout code — in Feature 007's own roots", async () => {
+    // Feature 008 RUN E (Stripe provider decision, 2026-09-22): Stripe is now the formally approved
+    // provider, and `package.json` legitimately lists `stripe`/`@stripe/stripe-js` as real dependencies
+    // (Feature 008's own files, never Feature 007's). This assertion's real subject is Feature 007's
+    // OWN production roots (`lib/orders`, `src/app/dashboard/orders`, `components/orders`) staying
+    // inside their transactional boundary — that remains true and is still checked in full below. The
+    // formerly-blanket `package.json` dependency-name scan is removed: it was always a proxy for "no
+    // payment SDK exists in the project AT ALL yet", a fact this run's own approved product decision
+    // deliberately changes, not a Feature-007 regression.
     const { readFileSync } = await import("node:fs");
     for (const file of await productionFiles()) {
       const source = stripComments(readFileSync(file, "utf8"));
       expect(source, file).not.toMatch(/stripe|tazapay|escrow\.com|webhook|settle|payout|release_funds/i);
       expect(source, file).not.toMatch(/submit_payment_proof|payment_proofs|payment-proof|uploadProof|proofUpload/);
     }
-    const manifest = JSON.parse(readFileSync("package.json", "utf8")) as { dependencies?: Record<string, string>; devDependencies?: Record<string, string> };
-    const dependencyNames = Object.keys({ ...manifest.dependencies, ...manifest.devDependencies });
-    for (const name of dependencyNames) expect(name).not.toMatch(/stripe|tazapay|escrow|paypal|checkout\.com|adyen/i);
   });
 
   it("production code never imports test or fixture utilities (the concurrency barrier, client scope and privileged inspection stay test-only)", async () => {

@@ -286,16 +286,35 @@ const T022_FILES = [
   "components/finance/funding-unavailable-notice.tsx",
 ];
 
-describe("T022 — source-level proofs: provider-neutral, no secrets, no network, no service role, no shared cache", () => {
+describe("T022 — source-level proofs: no secrets, no network, no service role, no shared cache", () => {
+  // Feature 008 RUN E (Stripe provider decision, 2026-09-22): Stripe is now the formally approved
+  // provider — `src/app/dashboard/payments/[orderId]/page.tsx` legitimately names it (importing
+  // `StripePaymentCollector`/`stripePublishableKey`, NEVER the raw `stripe`/`@stripe/stripe-js` package
+  // or a secret directly — see the dedicated T014 assertions below). Every OTHER provider name remains
+  // forbidden everywhere (no provider but Stripe was ever selected), and no file in this list reads a
+  // secret, makes a raw network call, or imports the SDK/secret-touching modules directly.
+  const STRIPE_APPROVED_FILE = "src/app/dashboard/payments/[orderId]/page.tsx";
+
   for (const file of T022_FILES) {
     const source = stripComments(readFileSync(file, "utf8"));
+    const otherProviderNames = /tazapay|paytabs|escrow\.com|checkout\.com|adyen|braintree|paypal/i;
 
-    it(`${file}: no provider SDK/name, no network call, no secret/credential reference`, () => {
-      expect(source).not.toMatch(/stripe|tazapay|paytabs|escrow\.com|checkout\.com|adyen|braintree|paypal/i);
+    it(`${file}: no OTHER provider name, no network call, no secret/credential reference`, () => {
+      expect(source).not.toMatch(otherProviderNames);
+      if (file !== STRIPE_APPROVED_FILE) expect(source).not.toMatch(/stripe/i);
       expect(source).not.toMatch(/\bfetch\(|XMLHttpRequest|axios/);
       expect(source).not.toMatch(/process\.env\.\w*(SECRET|KEY|TOKEN|CREDENTIAL)/);
       expect(source).not.toMatch(/NEXT_PUBLIC_\w*STRIPE|EXPO_PUBLIC_/);
     });
+
+    if (file === STRIPE_APPROVED_FILE) {
+      it(`${file}: names Stripe only through the approved client-safe seam — never the SDK or a secret directly`, () => {
+        expect(source).not.toMatch(/from ["']stripe["']|from ["']@stripe\/stripe-js["']/);
+        expect(source).not.toMatch(/STRIPE_SECRET_KEY|STRIPE_WEBHOOK_SECRET/);
+        expect(source).toMatch(/StripePaymentCollector/);
+        expect(source).toMatch(/stripePublishableKey/);
+      });
+    }
 
     it(`${file}: no service-role client, no shared/public cache directive`, () => {
       expect(source).not.toMatch(/service_role|SERVICE_ROLE|createAdminClient/);

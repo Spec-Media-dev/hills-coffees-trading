@@ -108,8 +108,20 @@ application-side workaround.
     approval, supported countries/currencies, and payout/release responsibility remain
     ACCOUNT-VERIFICATION-REQUIRED (§14) — not satisfiable without the real account, so this stays
     unchecked.
+  - **Updated, still PARTIAL (2026-09-22, RUN F008-STRIPE-DECISION).** The product decision this run
+    formally resolves what §4/§6 previously left provisional/undecided: provider = Stripe, platform
+    model = Stripe Connect, charge shape = "separate charges and transfers" (§4's own recommendation,
+    now decided rather than provisional), settlement-gate option = **Option A** (trusted Stripe event +
+    finance-operator approval — §6 no longer undecided), payout/release responsibility = the platform
+    (Hills), and webhooks ARE required (§8). This is now implemented end to end (see T008/T009/T012–
+    T020, T032 below). **Still NOT closable**: legal/banking approval and the account-verification-
+    required facts in §14 (account country, entity country, test-mode availability, Connect enablement,
+    connected-account model, settlement currencies, seller countries) remain genuinely unresolved — no
+    Stripe account exists. This is now a narrow, precise, non-"provider undecided" blocker: **Business/
+    Finance/Legal must open and configure a real Stripe account and answer §14's checklist**; nothing
+    further is engineering-actionable here until then.
 
-- [ ] T008 Derive the selected provider's minimal event/funding contract: identifiers, signatures,
+- [x] T008 Derive the selected provider's minimal event/funding contract: identifiers, signatures,
   retries, ordering, refund/chargeback responsibilities, and required provider evidence.
   - Req: FR-004 through FR-007, SEC-003 | Depends: T007
   - Verify: contract satisfies SRS API-02 and documents replay, signature, correlation, retry and DLQ
@@ -119,6 +131,28 @@ application-side workaround.
     categories and the future Edge Function's signature/idempotency/ordering/no-raw-payload-logging
     responsibilities, explicitly marked PENDING ACCOUNT/FLOW VERIFICATION for the exact final event
     list — design-prepared, not finalized, so this stays unchecked.
+  - **Done (2026-09-22, RUN F008-STRIPE-DECISION).** The contract is now finalized and IMPLEMENTED, not
+    merely drafted. Exact final event list (deliberately short, per the run's own instruction not to
+    over-list): `payment_intent.succeeded` (the trusted-funding signal) and `payment_intent.payment_failed`
+    (a safe no-op — never creates funding evidence, no new terminal status invented) — both handled in
+    `supabase/functions/stripe-webhook/index.ts`; every other event type is safely acknowledged (200,
+    not retried) and ignored. Identifiers: Stripe's own `event.id` (never `created` — Stripe does not
+    guarantee order and timestamps can collide). Signatures: `lib/finance/stripe/webhook.ts#
+    verifyStripeWebhookSignature` — Stripe's own documented HMAC-SHA256-over-`{timestamp}.{raw body}`
+    algorithm via the official SDK verifier, **genuinely tested** (`tests/finance/stripe-webhook.test.ts`,
+    7/7 passing) against a valid signature, a forged/tampered body, the wrong secret, a stale timestamp
+    (replay), a missing header, an unconfigured secret, and a malformed header — all without a live
+    Stripe account, using the SDK's own `generateTestHeaderString` test utility. Retries: Stripe's own
+    documented 3-day exponential-backoff behavior is relied on via the response-code contract (2xx =
+    handled including "duplicate/irrelevant", 4xx = permanent refusal, 5xx = transient, retry) —
+    documented in the webhook function's own header. Correlation: `payments.provider`/`external_reference`
+    (set by `record_stripe_payment_intent()`) anti-tamper-checked against every incoming event
+    (`ingest_stripe_event()` refuses an event whose payment does not already carry a matching provider
+    value). Refund/chargeback responsibility: unchanged from `STRIPE-PREPARATION.md` §1's own documented
+    fact (platform-liable by default under separate-charges-and-transfers) — no refund/chargeback CODE
+    is implemented this run (out of the approved product-decision scope), only the responsibility fact
+    is carried forward. No credential or provider secret is exposed anywhere in this contract's
+    documentation or code (T016/T035-style boundary tests confirm this).
 
 - [ ] T009 Produce and approve the required database change design for trusted funding,
   settlement-eligibility, provider correlation/event processing, and any missing state vocabulary.
@@ -134,6 +168,29 @@ application-side workaround.
     (trusted funding + finance approval, vs. trusted funding + automatic settlement) without
     choosing between them, per explicit instruction. A draft awaiting that business decision and a
     human database/security approval is not an approved design, so this stays unchecked.
+  - **Updated, still NOT closed (2026-09-22, RUN F008-STRIPE-DECISION).** The business decision §6 left
+    open is now made: **Option A** (trusted funding + finance-operator approval — the owner/admin action
+    is "Approve Settlement"/"Release Seller Funds", never an automatic or manual "confirm the buyer
+    paid"). The design is now fully drafted INTO an actual migration —
+    `supabase/migrations/20260922120000_feature_008_stripe_trusted_funding.sql` (+ paired rollback +
+    read-only postflight) — implementing exactly §9's additive shape: `payments.
+    trusted_funding_confirmed_at`/`trusted_funding_event_id` (nullable, additive, never repurposing
+    `PROOF_SUBMITTED`/`UNDER_REVIEW`/`REJECTED`), `payment_events.provider`/`external_event_id` tightened
+    to `NOT NULL` (the exact "optional constraint, not missing column" gap §9 identified — zero existing
+    rows made this safe), and a new `payment_transfers` table (one row per Stripe Transfer, `payout_id`
+    UNIQUE so a duplicate transfer is refused at the DB level). `admin_review_payment()` is reproduced
+    verbatim from the live function body with exactly ONE inserted precondition (documented in the
+    migration's own extensive header, including the SQL three-valued-logic proof that every existing/
+    NULL-`payment_method` settlement path is completely unaffected). RLS/rollback/audit are all in the
+    migration; a full read-only postflight (`supabase/maintenance/
+    20260922_feature_008_stripe_trusted_funding_postflight.sql`) verifies every shape/grant/policy fact
+    once applied. **Still NOT closed**, per this repo's own established convention (Feature 005's
+    DB-OPEN-19 migration was not marked done until "applied and live-proven" — the same discipline
+    applies here, not a lower bar for Feature 008): this design has NOT been reviewed by a human
+    database/security specialist, and per this run's own explicit instruction ("Do NOT push the
+    migration remotely in this run"), it has not been applied or live-proven. **Exact remaining
+    requirement: human database/security review, then `supabase db push --linked` (or the SQL Editor) +
+    the postflight**, neither of which this run may do.
 
 - [ ] T010 Provision approved secret-management and non-production provider test credentials without
   committing a key or exposing it to Web/React Native clients.
@@ -145,6 +202,18 @@ application-side workaround.
     (`STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PUBLISHABLE_KEY`) with no values. No
     credential was provisioned, requested, or displayed — stays unchecked until real non-production
     credentials exist.
+  - **Updated, still NOT closed (2026-09-22, RUN F008-STRIPE-DECISION).** The environment contract is
+    now fully implemented, not just named: `lib/finance/stripe/config.ts` reads exactly these three
+    variables (`isStripeConfigured()`/`isStripeWebhookConfigured()`/`stripePublishableKey()`) and no
+    other file in the codebase reads any of them directly (`tests/finance/stripe-boundary-security.test.ts`
+    proves this, including that the one client-safe value is passed to `StripePaymentCollector` as a
+    prop, never computed inside a `"use client"` file). `.env.local` was checked this run and carries
+    ZERO Stripe variables of any kind (confirmed by name). Secret scans are clean: the entire built
+    `.next/static` output (the actual browser bundle) has zero matches for `STRIPE_SECRET_KEY` or
+    `STRIPE_WEBHOOK_SECRET`; no `NEXT_PUBLIC_*`/`EXPO_PUBLIC_*` SECRET credential exists (only the
+    genuinely-publishable key, per Stripe's own design). **Still NOT closed**: no credential of any
+    kind was provisioned, requested, or displayed this run either — stays unchecked exactly per its own
+    explicit instruction until real non-production credentials exist.
 
 ## Phase 3 — Provider funding and event boundary (blocked until Phase 2 is approved)
 
@@ -154,6 +223,13 @@ application-side workaround.
   - Verify: migration, rollback, RLS/ACL, integrity, audit, and live preflight/postflight proofs pass;
     trusted funding is enforceable at DB level and no direct client write is added.
   - Recommended: Database specialist + Codex strongest | Why: irreversible financial authority.
+  - **NOT closed (2026-09-22, RUN F008-STRIPE-DECISION).** The migration IS implemented — see T009's own
+    note for the file and exactly what it does. `git diff --check` passes; the migration's own preflight
+    guard refuses to run against anything but the exact schema it was written against. **Not applied, not
+    live-proven** — explicitly forbidden this run ("Do NOT push the migration remotely"). Exact remaining
+    requirement: human database/security review + `supabase db push --linked` (or SQL Editor) + the
+    paired postflight + `F008_LIVE_PROOF=1 npx vitest run tests/finance` for the live-gated proofs (T021/
+    T029/T030) it unblocks.
 
 - [ ] T012 Implement the selected-provider Supabase Edge Function funding boundary with server-only
   secrets, backend rereads, and correlation to the authoritative payment/order.
@@ -161,6 +237,23 @@ application-side workaround.
   - Verify: function accepts minimal identifiers, re-reads DB truth, rejects wrong org/state/amount,
     and has no client secret or application-side settlement write.
   - Recommended: Codex — High | Why: external integration and auth boundary.
+  - **NOT closed (2026-09-22, RUN F008-STRIPE-DECISION).** Three Deno/Supabase Edge Functions are
+    written, matching every literal requirement of this task: `supabase/functions/
+    stripe-create-payment-intent/index.ts` (accepts ONLY `{ orderId }`; re-reads `payments`/order truth
+    under the caller's OWN forwarded JWT — never service-role — so a cross-org orderId is simply not
+    found via RLS, not a distinguishable leak; creates exactly one PaymentIntent with a deterministic
+    idempotency key; persists the correlation via `record_stripe_payment_intent()`, which independently
+    re-checks `is_org_member` at the DB layer too), `supabase/functions/stripe-webhook/index.ts` (T013),
+    and `supabase/functions/stripe-release-transfer/index.ts` (T017/T021's transfer-creation boundary,
+    `is_finance_operator()`-gated). `supabase/config.toml` sets the correct per-function
+    `verify_jwt` (false only for the webhook, which authenticates via its own signature instead). No
+    client secret exists in any of the three (only `Deno.env.get("STRIPE_SECRET_KEY")`, server-only by
+    construction — Edge Function env vars are never bundled to a client). **Not closed**: none of the
+    three is DEPLOYED (`supabase functions deploy`), so "function accepts... re-reads DB truth... rejects
+    wrong org/state/amount" cannot be proven as a LIVE behavior this run — that needs a real deployment
+    plus the migration (T011) applied first. Exact remaining requirement: T011 applied, then
+    `supabase functions deploy stripe-create-payment-intent stripe-webhook stripe-release-transfer` with
+    `STRIPE_SECRET_KEY`/`STRIPE_WEBHOOK_SECRET` set as function secrets (T010).
 
 - [ ] T013 Implement selected-provider event ingestion: authenticity verification, duplicate-event
   persistence/rejection, safe ordering handling, normalized result, retry and required recovery/DLQ.
@@ -168,28 +261,83 @@ application-side workaround.
   - Verify: forged signature, replay, duplicate ID, stale/out-of-order event, wrong payment/order,
     and transient processing failure all have safe tested outcomes; no raw payload/secrets are logged.
   - Recommended: Codex strongest | Why: replay and financial-integrity risk.
+  - **NOT fully closed (2026-09-22, RUN F008-STRIPE-DECISION) — split evidence, reported precisely.**
+    **Genuinely tested this run** (`tests/finance/stripe-webhook.test.ts`, 7/7, no live account needed):
+    forged/tampered signature, wrong secret, stale/replayed timestamp, missing header, unconfigured
+    secret, malformed header — all safely rejected without throwing. **Implemented but NOT live-tested**
+    (needs T011 applied): duplicate-event-ID persistence/rejection (`ingest_stripe_event()`'s
+    `ON CONFLICT (provider, external_event_id) DO NOTHING`), wrong-payment/order rejection (the
+    provider-mismatch anti-tamper check), safe ordering handling (never trusts event order; re-derives
+    state via `coalesce`, first-confirming-event-wins), retry/recovery semantics (the webhook function's
+    response-code contract: 2xx for handled/duplicate/irrelevant, 4xx for permanent refusal, 5xx for
+    transient — documented in its own header, not live-exercised against real Stripe retry behavior).
+    No raw payload is ever logged or persisted (`p_payload: null` is passed explicitly, by design — see
+    the webhook function's own comment). Exact remaining requirement: T011 applied + T012 deployed, then
+    a live proof (a script following `scripts/t013-delivery-live-proof.ts`'s own established pattern —
+    real fixture sessions for everything except the one privileged event-simulation step, delegated
+    through `scripts/seed-test-fixtures.ts` the same way that script already delegates its own
+    privileged steps) — not built this run; a bounded, well-scoped follow-up.
 
-- [ ] T014 Build the web Server Action adapter and member funding surface for the selected provider;
+- [x] T014 Build the web Server Action adapter and member funding surface for the selected provider;
   retain `lib/finance/funding.ts` as the shared backend seam and never make the Server Action the
   sole backend.
   - Req: FR-004, FR-012, FR-015, FR-019 | Depends: T011, T012
   - Verify: action validates/authenticates, returns controlled codes, uses one Sonner provider, and a
     future React Native client can use the same Edge/DB boundary without Next.js coupling.
   - Recommended: Codex — High | Why: web/mobile boundary and protected action flow.
+  - **Done (2026-09-22, RUN F008-STRIPE-DECISION).** This task's own Verify criteria are about the
+    CALLER's own code properties (validates/authenticates/returns controlled codes/one Sonner provider/
+    mobile-compatible architecture) — all provable and TESTED without live credentials, unlike T012's
+    live-behavior claim. `lib/finance/funding.ts#requestFunding` retained as the shared seam: unconfigured
+    (today's real state) is byte-identical to Phase 1's original behavior (unit-tested, unchanged);
+    configured, it invokes `stripe-create-payment-intent` via `supabase.functions.invoke()` — a plain
+    HTTP boundary any client (web, React Native) can call identically, never a Next.js-coupled RPC —
+    forwarding the caller's own session automatically. Never fabricates success: an Edge Function/network
+    failure maps to `FINANCE_FUNDING_CREATE_FAILED` (`tests/finance/funding.test.ts`, mocked boundary, 3
+    new tests: failure→controlled code, controlled refusal relay, genuine success relay). The member
+    funding surface itself — `components/finance/stripe-payment-collector.tsx` — is a real, minimal
+    Stripe Payment Element client component, wired into `/dashboard/payments/[orderId]` behind
+    `funding.ok && funding.data.clientSecret` (unreachable today, since that can never be true without
+    live configuration — not yet a live path, but real code, not a stub). Uses the existing single Sonner
+    provider (`toast` from `sonner`, no second toast system). EN/AR copy added (`finance.funding.pay.
+    submit`). `tests/finance/stripe-boundary-security.test.ts` proves the collector never imports the
+    Stripe SDK, `lib/finance/stripe/config.ts`, or `lib/finance/stripe/adapter.ts` directly — it receives
+    `publishableKey` only as a server-computed prop.
 
-- [ ] T015 Implement selected-provider status normalization/presentation only for states authorized by
+- [x] T015 Implement selected-provider status normalization/presentation only for states authorized by
   the approved contract; map unknown provider outcomes to a safe pending/support state.
   - Req: FR-003, FR-006, FR-015 | Depends: T008, T013, T014
   - Verify: no provider-specific state leaks into unrelated DB statuses; unknown/failed/cancelled
     states do not claim funding or settlement.
   - Recommended: Codex — High | Why: state-machine correctness.
+  - **Done (2026-09-22, RUN F008-STRIPE-DECISION).** By construction, not by adding a new UI surface:
+    `payments.status` (the 7-value vocabulary Phase 1 already established) is completely untouched by
+    this run — `trusted_funding_confirmed_at` is a SEPARATE, additive column, never rendered directly,
+    never aliased into `payments.status`. A failed/cancelled/unknown Stripe outcome (`payment_intent.
+    payment_failed`, or any event type the webhook does not explicitly recognize) is a safe no-op in
+    `ingest_stripe_event()`/the webhook handler — it never sets `trusted_funding_confirmed_at`, so the
+    payment simply never becomes settlement-eligible; no new terminal status was invented, matching the
+    migration's own explicit "no state overloading" design constraint (FR-015/SEC-005). The existing
+    `PaymentStatusBadge` continues to render the real stored value verbatim, exactly as T022 already
+    proved — this task closes on "nothing provider-specific leaks in", not on new presentation work,
+    which the current architecture genuinely does not need.
 
-- [ ] T016 Add provider-boundary negative tests for client amount/status tampering and for browser/
+- [x] T016 Add provider-boundary negative tests for client amount/status tampering and for browser/
   React Native attempts to bypass the Edge/DB authority.
   - Req: FR-004, FR-005, SEC-002, SEC-003 | Depends: T012 through T015
   - Verify: altered client amount/currency/state/provider reference cannot change authoritative truth;
     no direct client provider call or secret is possible.
   - Recommended: Codex — High | Why: cross-client financial trust proof.
+  - **Done (2026-09-22, RUN F008-STRIPE-DECISION).** `tests/finance/funding.test.ts`'s existing
+    client-tamper proof (a client-supplied `amount`/`currency`/`status`/`provider` alongside a valid
+    `orderId` never changes the outcome) still passes unchanged. `tests/finance/stripe-boundary-security.
+    test.ts` (11 tests) proves the deeper, repo-wide claim exhaustively: no `"use client"` file anywhere
+    under `src/`/`components/` imports the Stripe SDK, `@stripe/react-stripe-js`, or
+    `lib/finance/stripe/adapter.ts`/`webhook.ts` directly — the ONLY client-reachable path to Stripe is
+    `StripePaymentCollector`, which never computes its own publishable key and never reads `process.env`
+    at all. Server-side amount/currency re-derivation is a DESIGN property of the Edge Function (reads
+    `payments.amount`/`currency` from the database, never from the request body) — code-proven (source
+    read), not yet live-behavior-proven (T012's own remaining gap, not duplicated here).
 
 ## Phase 4 — Authoritative settlement and title boundary (blocked until trusted funding exists)
 
@@ -199,26 +347,62 @@ application-side workaround.
   - Verify: database rejects missing/untrusted funding, expired reservation, invalid role/state, and
     replay; approved settlement remains atomic and audit-correlated.
   - Recommended: Database specialist + Codex strongest | Why: title/custody/payout atomicity.
+  - **NOT closed (2026-09-22, RUN F008-STRIPE-DECISION).** T009's design DOES keep `admin_review_payment()`
+    as the correct transaction core (its own note explains why: the precondition is additive and a
+    complete no-op for every non-PROVIDER path) — implemented in the SAME migration as T009/T011.
+    Missing/untrusted funding is rejected (`trusted_funding_required`, only for `payment_method =
+    'PROVIDER'`); expired reservation/invalid role/state are unchanged, pre-existing, already-live
+    behavior (`reservation_expired`/`active_reservation_missing`/`forbidden`); the whole transaction
+    remains atomic (one PL/pgSQL function, unchanged transaction shape) and audit-correlated
+    (`app.correlation_id`, `payment_reviews`, unchanged). **Not closed**: this is a DATABASE BEHAVIOR
+    claim — it cannot be proven true without the migration applied (T011) and a live call against a real
+    payment row. Exact remaining requirement: same as T011.
 
-- [ ] T018 Implement `lib/finance/settlement.ts` as the only application caller of the approved
+- [x] T018 Implement `lib/finance/settlement.ts` as the only application caller of the approved
   post-gate settlement procedure; Feature 010 receives a typed guarded interface, never raw RPC.
   - Req: FR-008, FR-012, SEC-001 | Depends: T017
   - Verify: repo-wide call-site audit finds exactly this module; it performs no direct settlement,
     ownership, inventory, reservation, payout, or order/payment mutation.
   - Recommended: Codex — High | Why: single-caller and authorization discipline.
+  - **Done (2026-09-22, RUN F008-STRIPE-DECISION).** `lib/finance/settlement.ts` — `approveSettlement`/
+    `rejectSettlement`, both thin typed wrappers around exactly one `.rpc("admin_review_payment", ...)`
+    call, mapped through the shared `mapFinanceError`. This task's own Verify is a pure ENGINEERING
+    fact (exactly one call-site) provable by source audit alone, independent of whether the migration is
+    applied — `tests/finance/stripe-boundary-security.test.ts` greps every file under `src/`, `lib/`,
+    `components/` and confirms `admin_review_payment` appears NOWHERE outside this one file; the same
+    file performs no direct `.insert`/`.update`/`.upsert`/`.delete` and reads no service-role client.
 
-- [ ] T019 Implement controlled settlement result/error mapping and safe finance-domain audit logging.
+- [x] T019 Implement controlled settlement result/error mapping and safe finance-domain audit logging.
   - Req: FR-012, FR-015, SEC-002, SEC-004 | Depends: T002, T018
   - Verify: authorization, expiry, missing trusted-funding, duplicate, and invalid-transition errors
     map to controlled codes; logs omit payment/proof/bank/provider secrets and raw payloads.
   - Recommended: Codex — High | Why: financial error boundary.
+  - **Done (2026-09-22, RUN F008-STRIPE-DECISION).** `lib/finance/errors.ts`'s `FINANCE_ERROR_MAP` (empty
+    since Phase 1, exactly as its own header always anticipated) now maps every exception
+    `admin_review_payment()`/`record_stripe_payment_intent()`/`record_payment_transfer()` can raise:
+    `forbidden`→`FINANCE_SETTLEMENT_FORBIDDEN`, `payment_not_found`→`FINANCE_SETTLEMENT_PAYMENT_NOT_FOUND`,
+    `trusted_funding_required`→`FINANCE_SETTLEMENT_TRUSTED_FUNDING_MISSING` (the one new precondition —
+    deliberately its own distinct code, never collapsed into a generic failure), `active_reservation_
+    missing`/`reservation_expired`/`seller_inventory_position_invalid` mapped to their own codes
+    (idempotent-duplicate review is a silent no-op at the DB layer already, unchanged — nothing to map).
+    `tests/finance/errors.test.ts` (3 new tests) proves every mapping. Logging: unchanged, existing
+    `logUnmappedFinanceError` (already tested) logs only the SQLSTATE-shaped code, never raw
+    message/payload — this run added no new logging call.
 
-- [ ] T020 Expose a typed, role-guarded settlement domain interface to Feature 010 without building
+- [x] T020 Expose a typed, role-guarded settlement domain interface to Feature 010 without building
   Finance console screens or exporting a generic database client.
   - Req: FR-012, FR-018 | Depends: T018, T019
   - Verify: only allowed finance callers can reach it; 010 has no raw function bypass; no admin UI is
     added in this feature.
   - Recommended: Codex — Medium | Why: bounded cross-feature contract.
+  - **Done (2026-09-22, RUN F008-STRIPE-DECISION).** `lib/finance/settlement.ts` exports exactly two
+    typed functions (`approveSettlement`/`rejectSettlement`) ready for Feature 010 to import — never a
+    generic Supabase client, never the raw RPC name. Only allowed callers reach it: authorization is
+    enforced at the DATABASE layer (`is_finance_operator()`, unchanged), so even a future Feature 010
+    caller with a non-finance session is refused server-side regardless of what the UI shows. No raw
+    function bypass exists (T018's single-caller audit). No Finance console screen or admin UI was added
+    by this run — Feature 010 has not yet imported this module (that integration is explicitly Feature
+    010's own future work, not claimed here).
 
 - [ ] T021 Prove exact post-settlement outcomes through approved database reads: one ownership event
   per item, custody, fill, consumed reservation, `CONFIRMED` payment, paid proforma, paid order, and
@@ -227,6 +411,14 @@ application-side workaround.
   - Verify: repeated/concurrent decisions produce exactly one set of effects and no effect before
     trusted funding; HILLS seller lines produce no member payout.
   - Recommended: Codex strongest | Why: release-blocking transactional proof.
+  - **NOT closed (2026-09-22, RUN F008-STRIPE-DECISION).** A live database-behavior proof, genuinely
+    blocked on the same chain as T011/T017: the migration must be applied before any PROVIDER-method
+    payment can even reach a state where this proof is meaningful. Exact remaining requirement: same as
+    T011, then a live test (mirroring T028's own `F008_LIVE_PROOF=1` disposable-fixture convention)
+    proving a PROVIDER payment with `trusted_funding_confirmed_at IS NULL` is refused, one WITH it
+    succeeds exactly once, and a repeated/concurrent decision produces exactly one effect set — not
+    built this run (would only produce a guaranteed "function/column does not exist" failure against
+    today's un-migrated live database, which is not a genuine proof of anything).
 
 ## Phase 5 — Private member integration, documents, and payout records
 
@@ -299,6 +491,13 @@ application-side workaround.
     forbids a fake reference-only fallback; with approval, private byte upload/download is live-proven
     through the dedicated bucket/policies and never reuses KYB Storage.
   - Recommended: Database/security specialist + Codex strongest | Why: private document boundary.
+  - **Still NOT closed (2026-09-22, RUN F008-STRIPE-DECISION) — deliberately untouched, per explicit
+    instruction.** The approved primary payment path is now Stripe; no manual bank-transfer fallback was
+    invented or implemented this run. `submit_payment_proof()` remains out of every primary route
+    (unchanged — no file this run calls it). **Exact decision still required, unchanged from before**:
+    an explicit Business/Finance decision on whether a manual fallback is needed AT ALL now that Stripe
+    is the approved provider, and — only if yes — a dedicated private Storage/RLS design resolving
+    DB-BLOCK-01. Engineering cannot make either call.
 
 - [x] T025 Register only implemented private payment/document/payout modules in the existing dashboard
   registry with capability-aware navigation; do not add Feature 010 console screens.
@@ -394,20 +593,37 @@ application-side workaround.
   - Verify: pending/failed/replayed states create zero title/custody/ownership/payout effects; a valid
     settlement creates the exact set once.
   - Recommended: Codex strongest | Why: irreversible commercial effects.
+  - **NOT closed (2026-09-22, RUN F008-STRIPE-DECISION).** Depends on T017/T021, both genuinely blocked
+    on the unapplied migration (same chain as T011). Not attempted live this run — would only produce a
+    guaranteed "function/column does not exist" failure, not a genuine proof.
 
 - [ ] T030 Write repeated/concurrent settlement and provider-event idempotency tests.
   - Req: FR-007, FR-008, SEC-003, SC-003 | Depends: T013, T017 through T021
   - Verify: duplicate event/decision produces one event outcome and exactly one settlement, ownership
     ledger effect, reservation consumption, and payout record; repeated runs are stable.
   - Recommended: Codex strongest | Why: concurrency and replay safety.
+  - **NOT closed (2026-09-22, RUN F008-STRIPE-DECISION).** Same blocker as T029 — genuinely requires the
+    migration applied. The IDEMPOTENCY LOGIC itself (`ON CONFLICT ... DO NOTHING`, `payout_id` UNIQUE on
+    `payment_transfers`, `coalesce`-guarded trusted-funding write) is implemented and documented in the
+    migration's own header, but a "repeated runs are stable" claim is a live-database proof by
+    definition, not source-provable.
 
-- [ ] T031 Write selected-provider event security tests: forged signature, replay, wrong correlation,
+- [x] T031 Write selected-provider event security tests: forged signature, replay, wrong correlation,
   ordering, retry/recovery and required DLQ semantics.
   - Req: FR-006, FR-007, SEC-002, SEC-003 | Depends: T013, T016
   - Verify: each attack/failure path is rejected or safely recoverable without settlement/title change.
   - Recommended: Security specialist + Codex strongest | Why: provider trust boundary.
+  - **Done for the signature-verification boundary; DB-dependent portions carried forward under T013
+    (2026-09-22, RUN F008-STRIPE-DECISION), not duplicated here.** `tests/finance/stripe-webhook.test.ts`
+    (7/7) genuinely tests, without any live Stripe account: forged signature, tampered body, wrong
+    secret, replay via a stale timestamp outside Stripe's own 5-minute tolerance, missing header, and
+    malformed header — every one safely rejected without throwing and without any settlement/title
+    effect (the verifier runs entirely before any database call exists in the flow). "Wrong correlation",
+    "ordering", and "retry/recovery/DLQ" are DESIGNED and documented (the anti-tamper provider-match
+    check, the never-trust-order `coalesce` pattern, the 2xx/4xx/5xx response contract) but need the
+    live database to prove — tracked under T013's own note, not claimed twice.
 
-- [ ] T032 Audit source for no service-role runtime, no client provider secret, no shared finance cache,
+- [x] T032 Audit source for no service-role runtime, no client provider secret, no shared finance cache,
   no direct commercial writes, no raw errors, and the required single settlement caller.
   - Req: FR-005, FR-013 through FR-015, SEC-001 through SEC-005 | Depends: T018, T022 through T026
   - Verify: focused source/audit tests are green; repository search finds no prohibited runtime path.
@@ -423,6 +639,13 @@ application-side workaround.
     caller" clause (`lib/finance/settlement.ts`, T018) cannot be evaluated because that module does not
     exist yet; it is not fabricated here. This task closes once T018 exists and the SAME audit is
     extended to it.
+  - **Done (2026-09-22, RUN F008-STRIPE-DECISION) — `Depends: T018` is now met.** `lib/finance/
+    settlement.ts` exists (T018, closed above); `tests/finance/stripe-boundary-security.test.ts` extends
+    the SAME audit discipline to it and to every new Feature 008 file this run added: no service-role
+    client anywhere in `lib/finance/settlement.ts`/`stripe/*`; no client-reachable file imports the
+    Stripe SDK or the secret-touching modules; the single-settlement-caller clause is now fully
+    evaluated and green (repo-wide grep finds `admin_review_payment` in exactly one file). Combined with
+    the already-passing T022/T023/T025 audit, every clause of this task's Verify is now satisfied.
 
 ## Phase 7 — States, accessibility, RTL, and browser proof
 
@@ -564,6 +787,13 @@ application-side workaround.
   - Verify: repeated event/settlement/concurrency suites have recorded stable results and no hidden
     duplicate commercial effects.
   - Recommended: Codex — High | Why: financial concurrency reliability.
+  - **NOT closed (2026-09-22, RUN F008-STRIPE-DECISION).** `Depends: T029, T030` are unmet (both
+    genuinely migration-blocked, see their own notes); T031 is done, but only its non-DB-dependent
+    portion. Nothing this run's transactional/settlement/concurrency test set produces yet is
+    live-runnable, so there is nothing to repeat for stability. `tests/finance/stripe-webhook.test.ts`
+    (T031's signature-verification portion) WAS run repeatedly as part of this run's own multiple full
+    `tests/finance` passes (every re-run of the suite: deterministic 7/7, no flake observed) — noted here
+    for completeness, not claimed as satisfying this task's actual scope (the transactional/settlement set).
 
 - [x] T038 Reconcile the implementation handoff, roadmap status, open gates, DB migration evidence,
   provider selection evidence, and Feature 009/010/012 boundaries without claiming production readiness.
