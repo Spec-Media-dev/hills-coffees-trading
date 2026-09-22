@@ -4,6 +4,7 @@ import { getRequestIdentity } from "@/lib/auth/dal";
 import { createClient } from "@/lib/supabase/server";
 
 import { ActingOrganizationSwitcher } from "./acting-organization-switcher";
+import { ChangePasswordForm } from "./change-password-form";
 import { OrganizationContactForm } from "./organization-contact-form";
 import { OrganizationMembersPanel, type OrganizationMemberRow } from "./organization-members-panel";
 import { ProfileSettingsForm } from "./profile-settings-form";
@@ -45,7 +46,7 @@ export default async function SettingsPage() {
   // partial patch). Same full-replace reasoning applies to `organizations.display_name/email/phone`
   // below, read fresh for `update_organization_contact`.
   const supabase = await createClient();
-  const [{ data: profile }, { data: organization }, { data: memberRows }] = await Promise.all([
+  const [{ data: profile }, { data: organization }, { data: memberRows }, { data: authUser }] = await Promise.all([
     supabase.from("profiles").select("full_name, phone, company_name, avatar_path").eq("id", identity.userId).maybeSingle(),
     supabase.from("organizations").select("display_name, email, phone").eq("id", organizationId).maybeSingle(),
     supabase
@@ -54,7 +55,9 @@ export default async function SettingsPage() {
       .eq("organization_id", organizationId)
       .eq("is_active", true)
       .order("created_at", { ascending: true }),
+    supabase.auth.getUser(),
   ]);
+  const signInEmail = authUser.user?.email ?? null;
 
   const members: OrganizationMemberRow[] = (memberRows ?? []).map((row) => ({
     userId: row.user_id,
@@ -86,6 +89,38 @@ export default async function SettingsPage() {
               avatarPath: profile?.avatar_path ?? "",
             }}
           />
+        </section>
+
+        <hr className="border-border" />
+
+        <section className="flex flex-col gap-3" data-account-section="email">
+          <div className="flex flex-col gap-1">
+            <h2 className="font-heading text-[length:var(--text-h4)] font-semibold text-foreground">
+              <AppBilingual pick={(c) => c.accountSecurity.email.title} />
+            </h2>
+            <p className="text-[length:var(--text-small)] text-muted-foreground">
+              <AppBilingual pick={(c) => c.accountSecurity.email.readOnlyLead} />
+            </p>
+          </div>
+          <p className="text-[length:var(--text-small)] text-foreground">
+            <span className="font-mono" dir="ltr">
+              {signInEmail ?? "—"}
+            </span>
+          </p>
+        </section>
+
+        <hr className="border-border" />
+
+        <section className="flex flex-col gap-4" data-account-section="password">
+          <div className="flex flex-col gap-1">
+            <h2 className="font-heading text-[length:var(--text-h4)] font-semibold text-foreground">
+              <AppBilingual pick={(c) => c.accountSecurity.password.title} />
+            </h2>
+            <p className="text-[length:var(--text-small)] text-muted-foreground">
+              <AppBilingual pick={(c) => c.accountSecurity.password.lead} />
+            </p>
+          </div>
+          <ChangePasswordForm />
         </section>
 
         <hr className="border-border" />

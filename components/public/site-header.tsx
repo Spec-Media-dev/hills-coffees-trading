@@ -9,8 +9,10 @@ import { MEGA_MENU, PRIMARY_NAV, PUBLIC_ROUTES, type MegaMenuKey } from "@/compo
 import { SearchControl } from "@/components/public/search-control";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { Icon } from "@/components/ui/icon";
+import { getPlatformLogoPath } from "@/lib/admin/branding";
 import { getRequestIdentity } from "@/lib/auth/dal";
 import { copy } from "@/lib/public/copy";
+import { publicAssetUrl } from "@/lib/storage/public-url";
 
 export { PUBLIC_ROUTES };
 
@@ -137,6 +139,13 @@ function MegaPanel({ menuKey }: { menuKey: MegaMenuKey }) {
 
 export async function SiteHeader() {
   const identity = await getRequestIdentity();
+  // Feature 010 T047 (RUN F010-ACCOUNT-MEDIA, 2026-09-22): a configured platform logo overrides the
+  // static default wordmark for BOTH the light and dark lockup positions (a single configurable
+  // image, not per-theme variants — "keep scope limited to logo/basic branding", this run's own
+  // instruction). `null` (the honest default — including today, since the migration that creates
+  // `platform_settings` is not yet applied) falls back to the original static assets unchanged.
+  const logoPath = await getPlatformLogoPath();
+  const customLogoUrl = logoPath ? publicAssetUrl(logoPath) : null;
 
   return (
     <header className="hc-header sticky top-0 z-40 px-3 py-3 sm:px-4">
@@ -148,28 +157,31 @@ export async function SiteHeader() {
         >
           {/* Over-photo state: always the cream mark. */}
           <Image
-            src="/images/hills-logo-light.png"
+            src={customLogoUrl ?? "/images/hills-logo-light.png"}
             alt=""
             width={LOGO_WIDTH}
             height={LOGO_HEIGHT}
             priority
+            unoptimized={customLogoUrl !== null}
             className={`hc-header-logo-over ${LOGO_CLASS}`}
           />
           {/* Settled state: green on light surfaces, cream on dark — swapped by the theme. */}
           <Image
-            src="/images/hills-logo-dark.png"
+            src={customLogoUrl ?? "/images/hills-logo-dark.png"}
             alt=""
             width={LOGO_WIDTH}
             height={LOGO_HEIGHT}
             priority
+            unoptimized={customLogoUrl !== null}
             className={`hc-header-logo-rest ${LOGO_CLASS} dark:hidden`}
           />
           <Image
-            src="/images/hills-logo-light.png"
+            src={customLogoUrl ?? "/images/hills-logo-light.png"}
             alt=""
             width={LOGO_WIDTH}
             height={LOGO_HEIGHT}
             priority
+            unoptimized={customLogoUrl !== null}
             className={`hc-header-logo-rest ${LOGO_CLASS} hidden dark:block`}
           />
         </Link>

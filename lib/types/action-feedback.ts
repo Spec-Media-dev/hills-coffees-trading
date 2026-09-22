@@ -46,6 +46,32 @@ export const ACTION_FEEDBACK = {
   ACTING_ORGANIZATION_SWITCH_FAILED: "acting_organization_switch_failed",
 
   /**
+   * Feature 010 RUN F010-ACCOUNT-MEDIA — self-service account security (`changeMyPassword`,
+   * ADMIN/SUPER_ADMIN-only `changeMyEmail`, avatar upload). `EMAIL_CHANGE_FORBIDDEN` is the ONE code
+   * a Seller/Buyer session gets if it somehow reaches the email-change action at all — the
+   * authorization layer refuses it before any Supabase Auth call, never a generic failure.
+   */
+  PASSWORD_CHANGED: "password_changed",
+  PASSWORD_CHANGE_FAILED: "password_change_failed",
+  EMAIL_CHANGE_REQUESTED: "email_change_requested",
+  EMAIL_CHANGE_FAILED: "email_change_failed",
+  EMAIL_CHANGE_FORBIDDEN: "email_change_forbidden",
+  AVATAR_UPDATED: "avatar_updated",
+  AVATAR_REMOVED: "avatar_removed",
+  AVATAR_UPDATE_FAILED: "avatar_update_failed",
+  AVATAR_INVALID_FILE: "avatar_invalid_file",
+  /** Generic "you don't hold the required operational role" refusal — e.g. platform branding (T047) mutation attempted by a non-admin session. */
+  ADMIN_FORBIDDEN: "admin_forbidden",
+
+  /** Feature 010 approved scope addition (Part 6) — seller-owned listing images. */
+  LISTING_MEDIA_UPLOADED: "listing_media_uploaded",
+  LISTING_MEDIA_REMOVED: "listing_media_removed",
+  LISTING_MEDIA_PRIMARY_SET: "listing_media_primary_set",
+  LISTING_MEDIA_UPDATE_FAILED: "listing_media_update_failed",
+  LISTING_MEDIA_INVALID_FILE: "listing_media_invalid_file",
+  LISTING_MEDIA_LIMIT_REACHED: "listing_media_limit_reached",
+
+  /**
    * Feature 006 RUN A — prepared now (no Server Action uses them yet; Phase 4 will) so the
    * marketplace/listing mutations that arrive later reuse this SAME contract rather than inventing a
    * second one. `LISTING_INELIGIBLE` deliberately carries no reason text of its own — the specific

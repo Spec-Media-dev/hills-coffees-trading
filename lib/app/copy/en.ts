@@ -222,6 +222,7 @@ export const en = {
         shipping: "Shipping rules",
         paymentAccounts: "Payment accounts",
         prices: "Reference prices",
+        branding: "Branding",
       },
       roles: {
         SUPER_ADMIN: "Super admin",
@@ -311,13 +312,9 @@ export const en = {
         email: {
           title: "Sign-in email",
           current: "Current email",
-          unavailableTitle: "Email change is not available yet",
-          unavailableDescription: "No approved flow exists for changing a sign-in email. It is recorded as a Feature 010 capability gap for a later decision — nothing is simulated here.",
         },
         password: {
           title: "Password",
-          description: "Passwords are changed through the existing reset flow: a reset link is emailed to your sign-in address and the new password is set on that page.",
-          action: "Request a password reset link",
         },
         security: {
           title: "Two-factor authentication",
@@ -326,13 +323,19 @@ export const en = {
           unknown: "Enrolment status could not be read right now.",
           action: "Manage authenticator app",
         },
-        avatar: {
-          title: "Profile image",
-          note: "No approved image upload exists yet; your initials are shown instead.",
-        },
         signOut: {
           title: "Sign out",
           description: "Ends this session on the server. You will need to sign in again to return.",
+        },
+      },
+      /** Feature 010 T047 (RUN F010-ACCOUNT-MEDIA) — platform-admin-controlled site logo. */
+      branding: {
+        title: "Branding",
+        description: "Manage the platform's site logo.",
+        logo: {
+          title: "Site logo",
+          lead: "Shown in the public site header. JPEG, PNG, or WebP, up to 5 MB. Remove it to fall back to the default Hills Coffee wordmark.",
+          defaultLogoNote: "Using default logo",
         },
       },
       /**
@@ -1684,9 +1687,53 @@ export const en = {
       phone: "Personal phone",
       companyName: "Company name (personal note)",
       companyNameHint: "Legacy personal field — not your organization's official trading name or legal identity.",
-      avatarFallbackHint: "Shown as your initials. No avatar upload is available yet.",
+      avatarFallbackHint: "Shown as your initials, unless you upload your own photo below.",
       save: "Save",
       saving: "Saving…",
+    },
+
+    /**
+     * Feature 010 RUN F010-ACCOUNT-MEDIA — shared account-security copy: password change (every
+     * role) and email change (ADMIN/SUPER_ADMIN only). Top-level, reused by both
+     * `/dashboard/settings` and `/dashboard-admin/account`.
+     */
+    accountSecurity: {
+      password: {
+        title: "Password",
+        lead: "Change the password you sign in with.",
+        newLabel: "New password",
+        confirmLabel: "Confirm new password",
+        submit: "Change password",
+        saving: "Changing…",
+        success: "Your password has been changed.",
+        failure: "We couldn't change your password. Please try again.",
+      },
+      email: {
+        title: "Sign-in email",
+        readOnlyLead: "Your sign-in email. Contact an administrator if this needs to change.",
+        newLabel: "New email address",
+        submit: "Request email change",
+        saving: "Requesting…",
+        requestedToast: "Confirmation email sent.",
+        requestedNote: "Check your new email address for a confirmation link. Your sign-in email won't change until you confirm it.",
+        pendingTitle: "Email change pending",
+        pendingDescription: "A confirmation is waiting for:",
+        failure: "We couldn't request that email change. Please try again.",
+        forbidden: "You don't have permission to change this email address.",
+      },
+      avatar: {
+        title: "Profile photo",
+        upload: "Upload photo",
+        replace: "Replace photo",
+        remove: "Remove photo",
+        removing: "Removing…",
+        uploading: "Uploading…",
+        success: "Your profile photo has been updated.",
+        removed: "Your profile photo has been removed.",
+        failure: "We couldn't update your profile photo. Please try again.",
+        invalidFile: "Please choose a JPEG, PNG, or WebP image up to 5 MB.",
+        hint: "JPEG, PNG, or WebP — up to 5 MB.",
+      },
     },
 
     /** Feature 003 Phase 7 (T026–T028) — organization contact self-service + membership view. */
@@ -2075,6 +2122,24 @@ export const en = {
           success: "Listing moved back to draft.",
           failed: "The listing could not be moved to draft.",
         },
+      },
+
+      /** Feature 010 approved scope addition (Part 6, 2026-09-22) — seller-owned listing images. */
+      media: {
+        heading: "Photos",
+        empty: "No photos added yet.",
+        upload: "Add photo",
+        uploading: "Uploading…",
+        uploadSuccess: "Photo added.",
+        removeSuccess: "Photo removed.",
+        updateFailed: "That couldn't be completed. Please try again.",
+        invalidFile: "Please choose a JPEG, PNG, or WebP image up to 8 MB.",
+        limitReached: "You've reached the maximum of 8 photos for this listing.",
+        hint: "{count} of {max} photos",
+        setPrimary: "Set as cover",
+        primaryBadge: "Cover",
+        remove: "Remove",
+        removing: "Removing…",
       },
 
       /** Feature 006 RUN C (T019) — seller sales reconciliation (read-only; no Feature 008 settlement logic here). */

@@ -7,6 +7,7 @@ import { getManagedListingById } from "@/lib/listings/manage";
 import { ListingEditInput } from "@/lib/listings/validation";
 import { createClient } from "@/lib/supabase/server";
 import { ACTION_FEEDBACK, type ActionFeedbackResult } from "@/lib/types/action-feedback";
+import { ALLOWED_IMAGE_MIME_TYPES, LISTING_IMAGE_MAX_BYTES } from "@/lib/validation/account-security";
 
 /**
  * Feature 006 RUN C (T017) — seller listing edit/withdraw/remediation Server Actions. Same
@@ -138,6 +139,107 @@ export async function withdrawListing(
   revalidatePath(`/dashboard/listings/${offerId}`);
   revalidatePath("/dashboard/listings");
   return { ok: true, data: undefined };
+}
+
+/**
+ * Feature 010 approved scope addition (Part 6, 2026-09-22) — seller-owned listing image upload.
+ * Genuinely blocked on the unapplied migration this run (`attach_offer_media` does not exist in the
+ * live database yet) — real, correct code, honest `LISTING_MEDIA_UPDATE_FAILED` until then, never a
+ * fabricated success. `attach_offer_media()` itself independently re-verifies seller-of-record
+ * ownership and the same `EDITABLE_STATUSES` this file's own `updateListing` already enforces —
+ * defence in depth, not this action's only line of defence.
+ */
+export async function uploadListingImage(_prevState: ActionFeedbackResult | undefined, formData: FormData): Promise<ActionFeedbackResult> {
+  const offerId = formData.get("offerId");
+  if (typeof offerId !== "string" || offerId.length === 0) {
+    return { ok: false, code: ACTION_FEEDBACK.VALIDATION_ERROR };
+  }
+  const file = formData.get("image");
+  if (!(file instanceof File) || file.size === 0) {
+    return { ok: false, code: ACTION_FEEDBACK.VALIDATION_ERROR, fieldErrors: { image: ["Required"] } };
+  }
+  if (!ALLOWED_IMAGE_MIME_TYPES.includes(file.type as (typeof ALLOWED_IMAGE_MIME_TYPES)[number]) || file.size > LISTING_IMAGE_MAX_BYTES) {
+    return { ok: false, code: ACTION_FEEDBACK.LISTING_MEDIA_INVALID_FILE };
+  }
+
+  const identity = await requireSellerCapableIdentity();
+  if (!identity) {
+    return { ok: false, code: ACTION_FEEDBACK.SELLER_NOT_CAPABLE };
+  }
+
+  const extension = file.name.includes(".") ? file.name.slice(file.name.lastIndexOf(".")) : "";
+  const objectPath = `offers/${offerId}/${Date.now()}${extension}`;
+
+  const supabase = await createClient();
+  const { error: uploadError } = await supabase.storage.from("listing-media").upload(objectPath, file, { contentType: file.type, upsert: false });
+  if (uploadError) {
+    return { ok: false, code: ACTION_FEEDBACK.LISTING_MEDIA_UPDATE_FAILED };
+  }
+
+  const { error: rpcError } = await supabase.rpc("attach_offer_media", {
+    p_offer_id: offerId,
+    p_object_path: objectPath,
+    p_original_name: file.name,
+    p_mime_type: file.type,
+    p_size_bytes: file.size,
+  });
+  if (rpcError) {
+    await supabase.storage.from("listing-media").remove([objectPath]).catch(() => undefined);
+    const code = rpcError.message?.includes("offer_media_limit_reached") ? ACTION_FEEDBACK.LISTING_MEDIA_LIMIT_REACHED : ACTION_FEEDBACK.LISTING_MEDIA_UPDATE_FAILED;
+    return { ok: false, code };
+  }
+
+  revalidatePath(`/dashboard/listings/${offerId}`);
+  return { ok: true, data: undefined, code: ACTION_FEEDBACK.LISTING_MEDIA_UPLOADED };
+}
+
+/** Same DB-writes/Storage-I/O split as `uploadListingImage`: `remove_offer_media()` returns the
+ * object_path so this action can delete the Storage bytes after the DB rows are gone. */
+export async function removeListingImage(_prevState: ActionFeedbackResult | undefined, formData: FormData): Promise<ActionFeedbackResult> {
+  const mediaId = formData.get("mediaId");
+  if (typeof mediaId !== "string" || mediaId.length === 0) {
+    return { ok: false, code: ACTION_FEEDBACK.VALIDATION_ERROR };
+  }
+  const offerId = formData.get("offerId");
+
+  const identity = await requireSellerCapableIdentity();
+  if (!identity) {
+    return { ok: false, code: ACTION_FEEDBACK.SELLER_NOT_CAPABLE };
+  }
+
+  const supabase = await createClient();
+  const { data: objectPath, error } = await supabase.rpc("remove_offer_media", { p_media_id: mediaId });
+  if (error) {
+    return { ok: false, code: ACTION_FEEDBACK.LISTING_MEDIA_UPDATE_FAILED };
+  }
+  if (typeof objectPath === "string" && objectPath.length > 0) {
+    await supabase.storage.from("listing-media").remove([objectPath]).catch(() => undefined);
+  }
+
+  if (typeof offerId === "string") revalidatePath(`/dashboard/listings/${offerId}`);
+  return { ok: true, data: undefined, code: ACTION_FEEDBACK.LISTING_MEDIA_REMOVED };
+}
+
+export async function setPrimaryListingImage(_prevState: ActionFeedbackResult | undefined, formData: FormData): Promise<ActionFeedbackResult> {
+  const mediaId = formData.get("mediaId");
+  if (typeof mediaId !== "string" || mediaId.length === 0) {
+    return { ok: false, code: ACTION_FEEDBACK.VALIDATION_ERROR };
+  }
+  const offerId = formData.get("offerId");
+
+  const identity = await requireSellerCapableIdentity();
+  if (!identity) {
+    return { ok: false, code: ACTION_FEEDBACK.SELLER_NOT_CAPABLE };
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("set_primary_offer_media", { p_media_id: mediaId });
+  if (error) {
+    return { ok: false, code: ACTION_FEEDBACK.LISTING_MEDIA_UPDATE_FAILED };
+  }
+
+  if (typeof offerId === "string") revalidatePath(`/dashboard/listings/${offerId}`);
+  return { ok: true, data: undefined, code: ACTION_FEEDBACK.LISTING_MEDIA_PRIMARY_SET };
 }
 
 /**

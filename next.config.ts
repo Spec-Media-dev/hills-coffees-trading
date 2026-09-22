@@ -28,6 +28,18 @@ const nextConfig: NextConfig = {
     },
   },
   /**
+   * Feature 010 RUN F010-ACCOUNT-MEDIA — the platform logo, once configured
+   * (`platform_settings.logo_object_path`, `public-assets` Storage bucket), is served through
+   * `next/image` from a Supabase Storage public URL, which requires this allow-list. A wildcard
+   * subdomain (rather than the current project's own literal hostname) keeps this working across
+   * environments without a config edit per deploy — `*.supabase.co` is Supabase's own stable
+   * project-hosting domain shape. Avatars use a plain `<img>` (Base UI's `Avatar.Image`), not
+   * `next/image`, so they need no entry here.
+   */
+  images: {
+    remotePatterns: [{ protocol: "https", hostname: "*.supabase.co", pathname: "/storage/v1/object/public/**" }],
+  },
+  /**
    * Canonical public URLs carry an enforced trailing slash (Feature 002, T004 — FR-026, SC-010;
    * SRS §5.1; `specs/002-public-website/contracts/public-route-lifecycle.md` §5).
    *

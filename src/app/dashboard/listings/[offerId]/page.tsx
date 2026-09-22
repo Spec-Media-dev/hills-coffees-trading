@@ -13,9 +13,13 @@ import { appCopy } from "@/lib/app/copy";
 import { getRequestIdentity } from "@/lib/auth/dal";
 import { projectFillState } from "@/lib/listings/fills";
 import { getListingStatusHistory, getManagedListingById } from "@/lib/listings/manage";
+import { getOfferMedia } from "@/lib/listings/media";
 
 import { ListingEditForm } from "./listing-edit-form";
+import { ListingMediaManager } from "./listing-media-manager";
 import { MoveListingToDraftButton, WithdrawListingButton } from "./listing-lifecycle-actions";
+
+const MAX_LISTING_IMAGES = 8;
 
 export const metadata: Metadata = {
   title: "Listing",
@@ -62,6 +66,7 @@ export default async function SellerListingDetailPage({
   if (!listing) notFound();
 
   const history = await getListingStatusHistory({ organizationId, offerId });
+  const media = await getOfferMedia(offerId);
 
   const isEditable = (EDITABLE_STATUSES as readonly string[]).includes(listing.status) && listing.status !== "REJECTED";
   const isWithdrawable = (WITHDRAWABLE_STATUSES as readonly string[]).includes(listing.status);
@@ -137,6 +142,16 @@ export default async function SellerListingDetailPage({
             </dl>
           </section>
         )}
+
+        <Separator />
+
+        {/* Feature 010 approved scope addition (Part 6, 2026-09-22) — seller-owned listing images. */}
+        <section className="flex flex-col gap-3" aria-labelledby="listing-media-heading">
+          <h2 id="listing-media-heading" className="text-lg font-semibold text-foreground">
+            <AppBilingual pick={(c) => c.listings.media.heading} />
+          </h2>
+          <ListingMediaManager offerId={listing.id} media={media} editable={isEditable} maxImages={MAX_LISTING_IMAGES} />
+        </section>
 
         <Separator />
 

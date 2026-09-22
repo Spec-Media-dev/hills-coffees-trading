@@ -66,7 +66,7 @@ export const ADMIN_AREA_KEYS = [
   "payments", "payouts", "invoices",
   "coffees", "origins", "regions", "taxonomy", "warehouses", "media", "prices",
   "audit",
-  "roles", "commission", "tax", "shipping", "paymentAccounts",
+  "roles", "commission", "tax", "shipping", "paymentAccounts", "branding",
 ] as const;
 export type AdminAreaKey = (typeof ADMIN_AREA_KEYS)[number];
 
@@ -133,6 +133,8 @@ export const ADMIN_AREAS: readonly AdminArea[] = [
   { key: "tax", group: "system", href: "/dashboard-admin/tax", roleFunction: "is_super_admin", icon: "percent", availability: "live", phase: 9 },
   { key: "shipping", group: "system", href: "/dashboard-admin/shipping", roleFunction: "is_super_admin", icon: "truck", availability: "live", phase: 9 },
   { key: "paymentAccounts", group: "system", href: "/dashboard-admin/payment-accounts", roleFunction: "is_platform_admin", icon: "key-round", availability: "live", phase: 9 },
+  // Feature 010 T047 + approved scope addition (RUN F010-ACCOUNT-MEDIA, 2026-09-22): platform logo/branding.
+  { key: "branding", group: "system", href: "/dashboard-admin/branding", roleFunction: "is_platform_admin", icon: "settings", availability: "live", phase: 9 },
 ];
 
 /**

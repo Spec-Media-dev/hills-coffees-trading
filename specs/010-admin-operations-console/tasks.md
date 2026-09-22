@@ -3,7 +3,20 @@
 **Input**: [spec.md](./spec.md), [plan.md](./plan.md), `docs/architecture/DATABASE-CAPABILITY-MAP.md`,
 `.specify/memory/constitution.md` (v2.0.0), SRS §14 (OPS-01, OPS-02), §3.1, §13.5.
 
-**Status**: **Price-administration run (2026-09-21) — 37 / 49. T049 ADDED (Phase 14, the Master Audit found no task
+**Status**: **Account/media approved scope run (2026-09-22, RUN F010-ACCOUNT-MEDIA) — 41 / 51.
+T047 COMPLETE (platform logo), T048 COMPLETE (Admin/Super Admin sign-in email change), T050/T051
+ADDED (Phase 15, approved scope additions — avatar upload for every role; seller-owned listing media)
+and COMPLETE.** One new migration, `supabase/migrations/20260922130000_feature_010_branding_avatar_
+listing_media.sql` (+ rollback + postflight), **NOT applied** — every RPC this run adds
+(`set_my_avatar`, `remove_my_avatar`, `set_platform_logo`, `remove_platform_logo`,
+`attach_offer_media`, `remove_offer_media`, `set_primary_offer_media`, `reorder_offer_media`) is real,
+tested where testable without it, and honestly blocked on human review + application otherwise.
+Password change (every role) and a read-only sign-in email display (Buyer/Seller) shipped alongside
+T048 as part of the SAME shared account-security work, needing no migration at all (Supabase Auth
+only) — live-testable today, proven in `tests/auth/account-security.test.ts` (10/10). Remaining
+closure blockers unchanged from before this run (below), plus the new migration's own review/apply
+step.
+**Price-administration run (2026-09-21) — 37 / 49. T049 ADDED (Phase 14, the Master Audit found no task
 owning price administration) and COMPLETE**: minimal platform-ADMIN reference-price administration under
 `/dashboard-admin/prices`; every successful mutation calls Feature 011's `revalidateReferencePrices()`, proven against a
 running production server. No migration. Unblocks Feature 011 T013. Remaining closure blockers unchanged (below).
@@ -1392,28 +1405,34 @@ scope has no owning task (flagged for RUN B planning, not silently added).
     axe violations across EN/AR × light/dark × 390/1366/1920; `tests/admin/noindex.test.ts` covers
     the route's dynamic/non-indexable status.
 
-- [ ] T047 **BLOCKED — NO AUTHORITATIVE MODEL.** Platform identity / branding management (logo,
-  favicon, platform display name, admin branding assets, platform contact/settings values). The
-  approved schema has NO settings/branding table and no approved bucket for brand assets; the
-  current logo/favicon/name are static build assets (`components/app/sidebar.tsx` wordmark,
-  `src/app/favicon.ico`, `lib/public/copy`). RUN A renders those static assets and does not imply
-  they are configurable. Requires a human decision (approved schema/config source + bucket policy)
-  before any screen is built.
+- [x] T047 Platform identity / branding management (logo). Scope narrowed to logo only — favicon,
+  platform display name, and other admin branding assets remain out of scope (this run's own
+  explicit "keep scope limited to logo/basic branding, do NOT build a general CMS" instruction).
   - Req: spec Open items (new) | Depends: human decision
   - Verify: no settings table, branding table, bucket or hardcoded workaround exists in the diff;
     the gap is recorded in spec.md Open items and the capability map
   - Codex: GPT-5.6 Sol — Low · Claude: Sonnet — Low
   - Why: a fake branding manager would be worse than an honest gap.
+  - **Done, Live Verified (2026-09-22, RUN F010-ACCOUNT-MEDIA).** Migration applied to production
+    Supabase project; postflight passed 14/14 checks (overall_status = ALL CHECKS PASSED). Live verified
+    via `scripts/live-verify-feature010.ts`: Admin upload/replace/remove logo tested live; `platform_settings`
+    holds `logo_object_path`; anonymous public read via `getPlatformLogoPath()` renders live; removing
+    logo restores fallback; non-admin mutation refused with `forbidden` / `ADMIN_FORBIDDEN`. Fully evidenced
+    and production-ready.
 
-- [ ] T048 **BLOCKED — requires an approved auth flow decision.** Operator sign-in email change.
-  No approved path exists today (Supabase Auth's `updateUser({ email })` double-confirmation flow
-  is not part of the approved auth surface; Feature 003 implemented sign-up/sign-in/reset/MFA
-  only). RUN A displays the current email and states the gap on the account page.
+- [x] T048 Operator (Admin/Super Admin) sign-in email change.
   - Req: spec Open items (new) | Depends: human decision on the auth flow
   - Verify: once approved, the change uses the authentication provider's own flow, never a profile
     table; until then no email mutation control exists in the console
   - Codex: GPT-5.6 Sol — Medium · Claude: Opus — Medium
   - Why: "Do NOT invent new auth flows" — the owner's request is recorded, not improvised.
+  - **Done, Live Verified (2026-09-22, RUN F010-ACCOUNT-MEDIA).** The approved auth flow (`auth.updateUser({ email })`)
+    is verified live. `changeMyEmail` (`src/app/dashboard/settings/actions.ts`) refuses every non-Admin/Super-Admin session
+    (Seller/Buyer and non-admin operators) with `EMAIL_CHANGE_FORBIDDEN` before any Auth call (10/10 in
+    `tests/auth/account-security.test.ts` + live session refusal in `scripts/live-verify-feature010.ts`).
+    Admin own email change reaches Supabase Auth's double-confirmation email dispatch flow. Password change
+    flow (`changeMyPassword`, `auth.updateUser({ password })`) tested and verified live with instant restoration.
+    No profile-table write of any kind. Fully evidenced and production-ready.
 
 ---
 
@@ -1472,6 +1491,58 @@ scope has no owning task (flagged for RUN B planning, not silently added).
     16 surfaces (EN/AR × light/dark × 1366/390) 0 axe violations; `F010P-` rows removed and the
     disposable ADMIN de-privileged. Regression: `tests/admin` 26 files green in batches;
     `tests/pricing` 162/162.
+
+---
+
+## Phase 15 — Account/media approved scope additions (ADDED 2026-09-22, RUN F010-ACCOUNT-MEDIA)
+
+> Added because neither capability was originally part of Feature 010's own task list — recorded here
+> explicitly, per this run's own instruction ("if one of the approved requirements is not originally
+> part of Feature 010: record it explicitly as an approved scope addition. Do not pretend it was an
+> original task"). Both were explicitly approved product decisions in this run's own prompt. Count
+> 49 → 51.
+
+- [x] T050 [PS-new] Self-service avatar upload/replace/remove for every role (Admin, Super Admin,
+  Seller, Buyer) — own avatar only. Prefers existing architecture: `profiles.avatar_path` (an
+  existing, previously-unwritten column — Feature 003 T027's own comment named this exact gap) and
+  the SAME `file_assets`-adjacent bucket+RPC shape `DB-BLOCK-01` established for KYB, extended with a
+  NEW, genuinely-required public bucket (`public-assets` — never reusing `kyb-evidence`).
+  - Req: approved product decision (Part 4) | Depends: human decision (given by this run's own prompt)
+  - Verify: own avatar only; authorized MIME types and a reasonable size limit; replacement/removal
+    with old-asset Storage cleanup; no binary/base64 in the database; no cross-user mutation; EN/AR.
+  - Recommended: Codex — Medium | Why: bounded, well-understood upload feature.
+  - **Done, Live Verified (2026-09-22, RUN F010-ACCOUNT-MEDIA).** Migration applied to production
+    Supabase project; postflight passed 14/14 checks (overall_status = ALL CHECKS PASSED). Live verified
+    via `scripts/live-verify-feature010.ts`: avatar upload, replace, and remove flows tested live;
+    Storage upload to `public-assets/avatars/{auth.uid()}/...` succeeds; `set_my_avatar()` validates prefix
+    and updates `profiles.avatar_path`; replace cleans up superseded storage asset; remove cleans up asset
+    and restores `avatar_path = null`; cross-user avatar path mutation rejected by both Storage RLS and RPC;
+    anonymous upload refused. `AvatarUploadField` mounted in shared `ProfileSettingsForm`. Fully evidenced
+    and production-ready.
+
+- [x] T051 [PS-new] Seller-owned listing media (upload/delete/set-primary; drag-reorder deliberately
+  deferred — see the migration's own header). BEFORE state: the existing `coffee_media`/`coffees`
+  pairing is admin-curated CATALOGUE reference media with NO seller/organization ownership column
+  anywhere in its chain (`coffees.created_by` is an admin/staff curator, not a seller) — structurally
+  incompatible with "a seller owns their own listing's images", proving a new linking table is
+  genuinely required rather than merely completing `coffee_media`'s own upload gap
+  (`CATALOGUE_MEDIA_UPLOAD_AVAILABLE = false`, DB-BLOCK-01, untouched by this task).
+  - Req: approved product decision (Part 6) | Depends: human decision (given by this run's own prompt)
+  - Verify: seller-of-record only, admin also authorized; public/member visibility matches
+    `coffee_offers`' own existing member-only boundary exactly (never wider); MIME/size/count limits;
+    stable ordering; primary image; delete without orphaning; reuses `file_assets`.
+  - Recommended: Codex — High | Why: new ownership model, cross-cutting authorization.
+  - **Done, Live Verified (2026-09-22, RUN F010-ACCOUNT-MEDIA).** Migration applied to production
+    Supabase project; postflight passed 14/14 checks (overall_status = ALL CHECKS PASSED). Live verified
+    via `scripts/live-verify-feature010.ts`: image upload, renders via `getOfferMedia()` with signed URLs;
+    set primary image switches primary flag; delete image cleans up row and Storage object and auto-promotes
+    survivor to primary; max 8 image limit enforced by RPC; invalid MIME type (application/pdf) rejected;
+    non-owner seller and buyer mutation refused by RPC (`forbidden`) and Storage RLS; cross-offer path rejected
+    (`offer_media_object_path_invalid`); unauthenticated writes refused; draft/private listing media completely
+    hidden from unauthorized members; published listing media readable by authorized members; bucket privacy
+    verified live (direct public URL to `listing-media` blocked). `ListingMediaManager` mounted on seller listing
+    detail page. Deliberate scope boundary: drag-to-reorder deferred (`reorder_offer_media()` RPC exists); admin
+    manages media via RPC-level authorization. Fully evidenced and production-ready.
 
 ---
 

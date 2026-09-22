@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { startTransition, useActionState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { useActionToast } from "@/components/app/use-action-toast";
 import { useLocale } from "@/components/locale/locale-provider";
@@ -15,13 +14,17 @@ import { MyProfileInput, type MyProfileInput as MyProfileInputType } from "@/lib
 import { ACTION_FEEDBACK } from "@/lib/types/action-feedback";
 
 import { updateMyProfile } from "./actions";
+import { AvatarUploadField } from "./avatar-upload-field";
 
 /**
- * Feature 003 T027 — no approved avatar upload workflow exists in this repository (no Storage
- * bucket, no signed-URL/media contract). Rather than fabricate one, this derives a stable initials
- * fallback from the user's own current name — the directive's explicit "a fallback initials/avatar
- * is acceptable" allowance — and nothing else. `avatarPath` itself is preserved unedited via a
- * hidden field below so `update_my_profile`'s full-column-replace semantics never null it out.
+ * Feature 003 T027, extended Feature 010 RUN F010-ACCOUNT-MEDIA (2026-09-22) — `AvatarUploadField`
+ * now provides the real upload/replace/remove workflow this file's own header used to say did not
+ * exist (`set_my_avatar`/`remove_my_avatar`, `public-assets` bucket — see that migration, NOT YET
+ * APPLIED). The initials fallback (still derived from the current name) now renders ONLY inside
+ * `Avatar`'s own `AvatarFallback`, shown automatically whenever `avatarPath` is empty or the image
+ * fails to load — never a separate, hand-maintained branch here. `avatarPath` is still preserved via
+ * a hidden field so `update_my_profile`'s full-column-replace semantics never null it out on a plain
+ * name/phone save (avatar changes go through their own dedicated action, not this form's submit).
  */
 function initialsFromName(fullName: string): string {
   const parts = fullName.trim().split(/\s+/).filter(Boolean);
@@ -114,14 +117,10 @@ export function ProfileSettingsForm({ initialValues }: Props) {
 
   return (
     <form onSubmit={onValid} noValidate className="mt-6 flex flex-col gap-6">
-      <div className="flex items-center gap-4">
-        <Avatar size="lg">
-          <AvatarFallback>{initialsFromName(watchedFullName || initialValues.fullName)}</AvatarFallback>
-        </Avatar>
-        <p className="text-[length:var(--text-small)] text-muted-foreground">{tApp.profile.avatarFallbackHint}</p>
-      </div>
-      {/* No approved avatar upload workflow exists — preserve the current stored value unedited so
-          `update_my_profile`'s full-column-replace semantics never null it out on save. */}
+      <AvatarUploadField avatarPath={initialValues.avatarPath} initials={initialsFromName(watchedFullName || initialValues.fullName)} />
+      {/* Avatar changes go through their own dedicated action (AvatarUploadField) — this hidden field
+          only preserves the current stored value so a plain name/phone save never nulls it out via
+          update_my_profile's full-column-replace semantics. */}
       <input type="hidden" {...register("avatarPath")} />
 
       <FieldGroup>

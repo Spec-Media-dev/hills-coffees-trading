@@ -10,7 +10,10 @@ import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { getRequestIdentity } from "@/lib/auth/dal";
 import { createClient } from "@/lib/supabase/server";
+import { ChangePasswordForm } from "@/src/app/dashboard/settings/change-password-form";
 import { ProfileSettingsForm } from "@/src/app/dashboard/settings/profile-settings-form";
+
+import { ChangeEmailForm } from "./change-email-form";
 
 /**
  * Feature 010 RUN A (T046) — the operator's SELF-account surface, composed ONLY from authority the
@@ -21,10 +24,14 @@ import { ProfileSettingsForm } from "@/src/app/dashboard/settings/profile-settin
  *   Action (`update_my_profile()` RPC) the Member Portal uses. That action requires only an
  *   authenticated, step-up-complete session — an operator with no organization membership may use
  *   it, which is why this page exists: `/dashboard/settings` is membership-gated.
- * - Sign-in email: DISPLAYED from the server-verified `auth.getUser()`; CHANGING it has no approved
- *   flow yet and is stated as a recorded capability gap (T047), never simulated.
- * - Password: the EXISTING reset flow (`/reset-password/` → emailed link → `/reset-password/confirm`),
- *   linked, not re-implemented. No password value is ever accepted here.
+ * - Sign-in email: DISPLAYED from the server-verified `auth.getUser()`. Feature 010 T048 (RUN
+ *   F010-ACCOUNT-MEDIA, 2026-09-22, approved product decision): CHANGING it now uses the approved
+ *   Supabase Auth double-confirmation flow (`ChangeEmailForm` → `changeMyEmail`, ADMIN/SUPER_ADMIN
+ *   only) — a pending change (Supabase's own `new_email`/`email_change_sent_at` fields) is shown
+ *   honestly if one exists.
+ * - Password: an in-session `ChangePasswordForm` (`auth.updateUser({ password })`, the SAME
+ *   primitive the emailed reset-link flow already used, now reachable directly). No password value
+ *   is ever accepted, logged, or echoed here.
  * - Two-factor: real enrolment status from `auth.mfa.listFactors()`, linking to the EXISTING
  *   `/mfa/` enrol/verify page.
  * - Profile image: no approved upload path exists (`avatar_path` has no bucket) — initials only.
@@ -48,6 +55,7 @@ export default async function AdminAccountPage() {
   ]);
 
   const email = user.user?.email ?? null;
+  const pendingEmail = user.user?.new_email ?? null;
   const totpEnrolled: boolean | null = factors.error || !factors.data ? null : factors.data.totp.length > 0;
   const displayName = identity.profile.fullName;
 
@@ -87,14 +95,11 @@ export default async function AdminAccountPage() {
             avatarPath: profile?.avatar_path ?? "",
           }}
         />
-        <p className="text-[length:var(--text-small)] text-muted-foreground">
-          <AppBilingual pick={(c) => c.admin.account.avatar.note} />
-        </p>
       </section>
 
       <hr className="border-border" />
 
-      <section className="flex flex-col gap-3" data-account-section="email">
+      <section className="flex flex-col gap-3" data-account-section="email" data-pending-email={pendingEmail ? "true" : "false"}>
         <h2 className="font-heading text-[length:var(--text-h4)] font-semibold text-foreground">
           <AppBilingual pick={(c) => c.admin.account.email.title} />
         </h2>
@@ -103,33 +108,37 @@ export default async function AdminAccountPage() {
             <AppBilingual pick={(c) => c.admin.account.email.current} />
           </span>
           {": "}
-          <span className="font-mono">{email ?? "—"}</span>
+          <span className="font-mono" dir="ltr">
+            {email ?? "—"}
+          </span>
         </p>
-        <div className="rounded-[var(--radius-md)] border border-dashed border-border bg-[var(--surface-subtle)] px-4 py-3">
-          <p className="text-[length:var(--text-small)] font-medium text-foreground">
-            <AppBilingual pick={(c) => c.admin.account.email.unavailableTitle} />
-          </p>
-          <p className="mt-1 text-[length:var(--text-small)] leading-[var(--lh-body)] text-muted-foreground">
-            <AppBilingual pick={(c) => c.admin.account.email.unavailableDescription} />
-          </p>
-        </div>
+        {pendingEmail ? (
+          <div className="rounded-[var(--radius-md)] border border-dashed border-border bg-[var(--surface-subtle)] px-4 py-3">
+            <p className="text-[length:var(--text-small)] font-medium text-foreground">
+              <AppBilingual pick={(c) => c.accountSecurity.email.pendingTitle} />
+            </p>
+            <p className="mt-1 text-[length:var(--text-small)] leading-[var(--lh-body)] text-muted-foreground">
+              <AppBilingual pick={(c) => c.accountSecurity.email.pendingDescription} />
+              {" "}
+              <span className="font-mono" dir="ltr">
+                {pendingEmail}
+              </span>
+            </p>
+          </div>
+        ) : null}
+        <ChangeEmailForm />
       </section>
 
       <hr className="border-border" />
 
-      <section className="flex flex-col gap-3" data-account-section="password">
+      <section className="flex flex-col gap-4" data-account-section="password">
         <h2 className="font-heading text-[length:var(--text-h4)] font-semibold text-foreground">
           <AppBilingual pick={(c) => c.admin.account.password.title} />
         </h2>
         <p className="max-w-[62ch] text-[length:var(--text-small)] leading-[var(--lh-body)] text-muted-foreground">
-          <AppBilingual pick={(c) => c.admin.account.password.description} />
+          <AppBilingual pick={(c) => c.accountSecurity.password.lead} />
         </p>
-        <div>
-          <Button variant="outline" nativeButton={false} render={<Link href="/reset-password/" />}>
-            <Icon name="key-round" />
-            <AppBilingual pick={(c) => c.admin.account.password.action} />
-          </Button>
-        </div>
+        <ChangePasswordForm />
       </section>
 
       <hr className="border-border" />
