@@ -1318,40 +1318,49 @@ scope has no owning task (flagged for RUN B planning, not silently added).
   - Codex: GPT-5.6 Sol — Low · Claude: Sonnet — Low
   - Why: mechanical execution.
 
-- [ ] T039 Confirm `/dashboard-admin` authorizes independently of `/dashboard` and that neither
+- [x] T039 Confirm `/dashboard-admin` authorizes independently of `/dashboard` and that neither
   implies the other.
   - Req: FR-001, SC-004 | Depends: T038
   - Verify: an approved trading member with no operational role is refused everywhere in the console; an operator with no organization is refused member trading routes
   - Codex: GPT-5.6 Sol — High · Claude: Opus — High
   - Why: the Constitution-locked surface-separation guarantee, checked from both directions.
-  - **RUN H (2026-09-17) — PROOF RECORDED, task NOT closed (Depends: T038, which cannot close).**
-    `tests/admin/surface-separation.test.tsx` (4 live tests, real sessions): an approved trading MEMBER with no
-    operational role (`buyerOnly`: organization present, `isAuthorizedMember: true`, `operationalRoles: []`) is
-    refused by `checkConsoleShellAccess()` and by ALL 22 `ADMIN_AREAS` with `no-operational-role`, and the console
-    layout renders that card with no `{children}` and no nav; an OPERATOR with no organization (the standing
-    WAREHOUSE fixture and the disposable SUPER_ADMIN: `operationalRoles` non-empty, `organization: null`,
-    `isAuthorizedMember: false`) is admitted by the console shell but `src/app/dashboard/layout.tsx` renders
-    onboarding without the member shell or `{children}`, and `src/app/dashboard/coffee/layout.tsx` refuses with a
-    state screen; the member's children render on `/dashboard` and the operator's on `/dashboard-admin` — the two
-    facts never cross. Browser confirmation (RUN H script): anonymous → `/admin/sign-in/`; member → the
-    `no-operational-role` state in EN and AR. Complements `tests/admin/access-matrix.test.tsx` (T030).
+  - **Done, Verified (2026-09-23, Provider-Independent Final Verification).** Surface-separation guarantee proven
+    end-to-end: (1) `dashboard-admin` authorization is strictly enforced server-side via `src/app/dashboard-admin/layout.tsx`
+    calling `getRequestIdentity()` (`lib/auth/dal.ts`) and per-area route-group layouts invoking `lib/admin/guards.ts`
+    (`checkGroupAccess`/`checkRoleFunctionAccess`) — not dependent on UI hiding; (2) non-admin users (Buyer/Seller
+    trading members with no operational role) are refused by `checkConsoleShellAccess()` and ALL 22 declared
+    `ADMIN_AREAS` with `no-operational-role`, rendering `<AdminStateCard kind="no-operational-role">` without `{children}`
+    or navigation; (3) mutating Server Actions across all areas re-verify operational roles server-side and reject
+    non-admin users with controlled error codes (`ACTION_FEEDBACK.ADMIN_FORBIDDEN`, `compliance_not_capable`, etc.) before
+    any DB call; (4) no unsafe shared auth state exists — session identity is resolved per-request via `auth.getUser()`
+    under request-scoped cookies, and React `cache()` de-duplicates solely within a single render pass without cross-request
+    persistence; (5) no accidental permission inheritance — role checks end in discrete database SECURITY DEFINER functions
+    (`is_compliance_operator`, `is_warehouse_operator`, `is_finance_operator`, `is_auditor`, `is_platform_admin`,
+    `is_super_admin`) reflecting the approved hierarchy; (6) an operator with no organization is admitted to `/dashboard-admin`
+    but denied member trading routes (`/dashboard` renders onboarding; `/dashboard/coffee` marketplace guard refuses);
+    (7) verified live in `tests/admin/surface-separation.test.tsx` (4/4 tests passed: 70.69s) and `tests/admin/access-matrix.test.tsx` (T030).
 
-- [ ] T040 Confirm no service-role usage and no public/shared caching of operational data.
+- [x] T040 Confirm no service-role usage and no public/shared caching of operational data.
   - Req: SEC-002, SEC-005, FR-011 | Depends: T038
   - Verify: `grep -rn "SERVICE_ROLE" src/app/dashboard-admin lib/admin` returns nothing; operational reads are uncached
   - Codex: GPT-5.6 Sol — Low · Claude: Sonnet — Low
   - Why: mechanical constitutional checks.
-  - **RUN H (2026-09-17) — PROOF RECORDED, task NOT closed (Depends: T038).** `grep -rn "SERVICE_ROLE"
-    src/app/dashboard-admin lib/admin` → **no matches** (the only case-insensitive hit is a code COMMENT in
-    `lib/admin/catalogue.ts` stating that DELETE privilege is held by the database's `service_role` alone — no
-    key, no client). `SUPABASE_SERVICE_ROLE_KEY` is read only by `scripts/seed-test-fixtures.ts` (test tooling)
-    and `lib/foundation/status.ts` (Feature 001 pinned status probe) — never by console code. Caching:
-    `unstable_cache`/`"use cache"`/`cacheTag`/`cacheLife` are ABSENT from `src/app/dashboard-admin`,
-    `components/admin`, `lib/admin` (only comments stating so); the KYB byte route is `force-dynamic`; the only
-    `next/cache` call in the console is `revalidateTag(tag, { expire: 0 })` in `lib/admin/catalogue.ts`, which
-    INVALIDATES Feature 002's public catalogue cache on publish/unpublish — that public cache lives in
-    `lib/public/{cache,coffees,origins}.ts` and holds only anonymously-readable rows (separate and intentional).
-    Every operator read is a per-request, session-scoped `createClient()` read under RLS.
+  - **Done, Verified (2026-09-23, Provider-Independent Final Verification).** Verified across production code, build output,
+    environment boundaries, and cache usage: (1) no Supabase service-role secret exists in client bundles or public build
+    artifacts — `git grep -i "SERVICE_ROLE"` in `src/`, `components/`, `lib/` yields 0 code hits (only a comment in
+    `lib/admin/catalogue.ts` noting database-only privilege); search across `.next/static/**/*.js` confirms zero instances of
+    `SUPABASE_SERVICE_ROLE_KEY` or service-role secret strings; `SUPABASE_SERVICE_ROLE_KEY` is exclusively consumed by test
+    seeding (`scripts/seed-test-fixtures.ts`); (2) browser and client components use exclusively `createClient()` from
+    `lib/supabase/client.ts` built on `NEXT_PUBLIC_*` publishable credentials; (3) privileged server code remains server-only
+    via `next/headers` cookie binding in `lib/supabase/server.ts`; (4) no shared caching can leak data between sessions —
+    `unstable_cache`, `"use cache"`, `cacheTag`, and `cacheLife` are completely absent from `src/app/dashboard-admin`,
+    `components/admin`, and `lib/admin`; (5) every operational read is per-request, session-scoped under RLS; (6) authenticated
+    admin routes are completely dynamic — `next build` confirms all 57 `/dashboard-admin/*` routes are server-rendered on demand
+    (`ƒ Dynamic`), zero static prerendering (`○`); (7) public cache usage is strictly limited to genuinely public data
+    (`lib/public/{coffees,origins,taxonomy}.ts`, `lib/pricing/{sources,differentials}.ts`) queried via anonymous session-free
+    client `createPublicReadClient()`; console mutations invalidate public cache via `revalidateTag(tag, { expire: 0 })`.
+    Verified with static and live tests (`tests/admin/catalogue-revalidation.test.tsx`, `tests/admin/price-admin-static.test.ts`,
+    `tests/admin/no-hard-delete.test.ts`).
 
 - [ ] T041 Update the roadmap for 010 and confirm OPS-01 dual control, DB-OPEN-06, DB-OPEN-09,
   evidence-byte scope, the suspended-operation policy, and the variance-model question all remain

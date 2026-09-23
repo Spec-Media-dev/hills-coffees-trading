@@ -17,9 +17,6 @@ import {
   prepareComplianceFixture,
   signInAsFixture,
 } from "../tests/auth/fixture-session";
-import { getPlatformLogoPath } from "../lib/admin/branding";
-import { getOfferMedia } from "../lib/listings/media";
-import { ACTION_FEEDBACK } from "../lib/types/action-feedback";
 
 type CheckResult = {
   section: string;
@@ -36,6 +33,10 @@ function record(section: string, name: string, ok: boolean, detail: string) {
   console.log(`[${status}] [${section}] ${name}: ${detail}`);
 }
 
+function getErrorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
 async function run() {
   console.log("=== Starting Feature 010 Live Verification ===");
 
@@ -45,7 +46,6 @@ async function run() {
   prepareComplianceFixture();
 
   const adminClient = await signInAsFixture(FOUNDATION_FIXTURES.catalogueAdmin.email);
-  const superAdminClient = await signInAsFixture(FOUNDATION_FIXTURES.superAdmin.email);
   const complianceClient = await signInAsFixture(FOUNDATION_FIXTURES.complianceReviewer.email);
   const buyerAndSellerClient = await signInAsFixture(FOUNDATION_FIXTURES.buyerAndSeller.email);
   const buyerOnlyClient = await signInAsFixture(FOUNDATION_FIXTURES.buyerOnly.email);
@@ -83,8 +83,8 @@ async function run() {
     });
 
     record("Account", "Profile / name update works", nameUpdated, `Updated to '${testName}' and restored`);
-  } catch (err: any) {
-    record("Account", "Profile / name update works", false, err.message);
+  } catch (err: unknown) {
+    record("Account", "Profile / name update works", false, getErrorMessage(err));
   }
 
   // 1.2 Avatar upload works
@@ -94,14 +94,14 @@ async function run() {
     const { error: upErr } = await adminClient.storage.from("public-assets").upload(avatarPath1, avatarBytes, { contentType: "image/png" });
     if (upErr) throw upErr;
 
-    const { data: oldPath, error: rpcErr } = await adminClient.rpc("set_my_avatar", { p_object_path: avatarPath1 });
+    const { error: rpcErr } = await adminClient.rpc("set_my_avatar", { p_object_path: avatarPath1 });
     if (rpcErr) throw rpcErr;
 
     const { data: prof } = await adminClient.from("profiles").select("avatar_path").eq("id", adminUserId).single();
     const ok = prof?.avatar_path === avatarPath1;
     record("Account", "Avatar upload works", ok, `Uploaded ${avatarPath1}, stored in profiles`);
-  } catch (err: any) {
-    record("Account", "Avatar upload works", false, err.message);
+  } catch (err: unknown) {
+    record("Account", "Avatar upload works", false, getErrorMessage(err));
   }
 
   // 1.3 Avatar replace works (cleans up old asset)
@@ -126,8 +126,8 @@ async function run() {
     const oldRemoved = (checkOld?.length ?? 0) === 0;
 
     record("Account", "Avatar replace works", replaced && oldRemoved, `Replaced with ${avatarPath2}, old ${oldPath} cleaned up`);
-  } catch (err: any) {
-    record("Account", "Avatar replace works", false, err.message);
+  } catch (err: unknown) {
+    record("Account", "Avatar replace works", false, getErrorMessage(err));
   }
 
   // 1.4 Avatar remove works
@@ -141,8 +141,8 @@ async function run() {
     const { data: prof } = await adminClient.from("profiles").select("avatar_path").eq("id", adminUserId).single();
     const ok = prof?.avatar_path === null;
     record("Account", "Avatar remove works", ok, `avatar_path is null, storage cleaned up`);
-  } catch (err: any) {
-    record("Account", "Avatar remove works", false, err.message);
+  } catch (err: unknown) {
+    record("Account", "Avatar remove works", false, getErrorMessage(err));
   }
 
   // 1.5 Password change flow works
@@ -159,8 +159,8 @@ async function run() {
     const restoreOk = !pwErr2 && !!pwData2.user;
 
     record("Account", "Password change flow works", changeOk && restoreOk, "Successfully changed password and restored original fixture password");
-  } catch (err: any) {
-    record("Account", "Password change flow works", false, err.message);
+  } catch (err: unknown) {
+    record("Account", "Password change flow works", false, getErrorMessage(err));
   }
 
   // 1.6 Admin own email change reaches Supabase verification state
@@ -175,8 +175,8 @@ async function run() {
       ? `Supabase accepted email change, user pending state recorded (new_email=${emailData.user?.new_email})` 
       : `Supabase Auth verification engine reached live (status 429, ${emailErr.code} — project email quota throttled)`;
     record("Account", "Admin email change reaches verification state", reachedAuth, detail);
-  } catch (err: any) {
-    record("Account", "Admin email change reaches verification state", false, err.message);
+  } catch (err: unknown) {
+    record("Account", "Admin email change reaches verification state", false, getErrorMessage(err));
   }
 
   // 1.7 Seller / Buyer email refusal (code-level gate + DAL check)
@@ -184,11 +184,11 @@ async function run() {
     // In our application server action `changeMyEmail`, operationalRoles is checked:
     // If not ADMIN/SUPER_ADMIN, returns EMAIL_CHANGE_FORBIDDEN immediately without calling auth.
     // Let's verify that buyerAndSeller has operationalRoles = [] in getRequestIdentity:
-    const { data: roles, error: rolesErr } = await buyerAndSellerClient.from("platform_admins").select("role").eq("user_id", buyerSellerUserId);
+    const { data: roles } = await buyerAndSellerClient.from("platform_admins").select("role").eq("user_id", buyerSellerUserId);
     const hasAdminRole = roles && roles.length > 0;
     record("Account", "Seller/Buyer email remains read-only (refusal gate)", !hasAdminRole, `Buyer/Seller has 0 platform_admins roles; changeMyEmail returns EMAIL_CHANGE_FORBIDDEN`);
-  } catch (err: any) {
-    record("Account", "Seller/Buyer email remains read-only", false, err.message);
+  } catch (err: unknown) {
+    record("Account", "Seller/Buyer email remains read-only", false, getErrorMessage(err));
   }
 
   // =========================================================================
@@ -208,8 +208,8 @@ async function run() {
     const removeRefused = !!sellerRemoveErr && sellerRemoveErr.message.includes("forbidden");
 
     record("Logo", "Non-admin mutation refused by RPC", sellerRefused && complianceRefused && removeRefused, "Seller and Compliance operators received 'forbidden' exception");
-  } catch (err: any) {
-    record("Logo", "Non-admin mutation refused by RPC", false, err.message);
+  } catch (err: unknown) {
+    record("Logo", "Non-admin mutation refused by RPC", false, getErrorMessage(err));
   }
 
   // 2.2 Admin uploads logo
@@ -218,14 +218,14 @@ async function run() {
     const { error: upErr } = await adminClient.storage.from("public-assets").upload(logoPath1, avatarBytes, { contentType: "image/png" });
     if (upErr) throw upErr;
 
-    const { data: oldLogo, error: rpcErr } = await adminClient.rpc("set_platform_logo", { p_object_path: logoPath1 });
+    const { error: rpcErr } = await adminClient.rpc("set_platform_logo", { p_object_path: logoPath1 });
     if (rpcErr) throw rpcErr;
 
     const { data: settings } = await adminClient.from("platform_settings").select("logo_object_path").eq("id", true).single();
     const ok = settings?.logo_object_path === logoPath1;
     record("Logo", "Admin can upload logo", ok, `Stored in platform_settings: ${settings?.logo_object_path}`);
-  } catch (err: any) {
-    record("Logo", "Admin can upload logo", false, err.message);
+  } catch (err: unknown) {
+    record("Logo", "Admin can upload logo", false, getErrorMessage(err));
   }
 
   // 2.3 Configured logo renders in public header / site
@@ -234,8 +234,8 @@ async function run() {
     const { data: pubSettings, error: pubErr } = await anonClient.from("platform_settings").select("logo_object_path").eq("id", true).single();
     const ok = !pubErr && pubSettings?.logo_object_path === logoPath1;
     record("Logo", "Configured logo renders in public header/site", ok, `Public anon read returned ${pubSettings?.logo_object_path}`);
-  } catch (err: any) {
-    record("Logo", "Configured logo renders in public header/site", false, err.message);
+  } catch (err: unknown) {
+    record("Logo", "Configured logo renders in public header/site", false, getErrorMessage(err));
   }
 
   // 2.4 Replacing logo works
@@ -259,8 +259,8 @@ async function run() {
     const oldCleaned = (checkOld?.length ?? 0) === 0;
 
     record("Logo", "Replacing logo works", ok && oldCleaned, `Replaced with ${logoPath2}, old logo cleaned up`);
-  } catch (err: any) {
-    record("Logo", "Replacing logo works", false, err.message);
+  } catch (err: unknown) {
+    record("Logo", "Replacing logo works", false, getErrorMessage(err));
   }
 
   // 2.5 Removing logo restores default / fallback logo
@@ -274,8 +274,8 @@ async function run() {
     const { data: settings } = await anonClient.from("platform_settings").select("logo_object_path").eq("id", true).single();
     const ok = settings?.logo_object_path === null;
     record("Logo", "Removing logo restores fallback logo", ok, `platform_settings.logo_object_path is null; fallback renders`);
-  } catch (err: any) {
-    record("Logo", "Removing logo restores fallback logo", false, err.message);
+  } catch (err: unknown) {
+    record("Logo", "Removing logo restores fallback logo", false, getErrorMessage(err));
   }
 
   // =========================================================================
@@ -309,8 +309,8 @@ async function run() {
     const buyerRefused = !!buyerErr && buyerErr.message.includes("forbidden");
     const otherSellerRefused = !!otherSellerErr && otherSellerErr.message.includes("forbidden");
     record("Listing Media", "Buyer & non-owner seller cannot mutate media", buyerRefused && otherSellerRefused, "Both received 'forbidden' from attach_offer_media");
-  } catch (err: any) {
-    record("Listing Media", "Buyer & non-owner seller cannot mutate media", false, err.message);
+  } catch (err: unknown) {
+    record("Listing Media", "Buyer & non-owner seller cannot mutate media", false, getErrorMessage(err));
   }
 
   // 3.2 Admin authorization behaves according to RPC contract (Admin can attach)
@@ -338,8 +338,8 @@ async function run() {
     const { data: mediaRow1 } = await adminClient.from("coffee_offer_media").select("*").eq("id", mediaId1).single();
     const ok = mediaRow1?.is_primary === true && mediaRow1?.offer_id === publishedOfferId;
     record("Listing Media", "Admin/Seller can upload image to listing (first is primary)", ok, `Attached mediaId=${mediaId1}, is_primary=${mediaRow1?.is_primary}`);
-  } catch (err: any) {
-    record("Listing Media", "Admin/Seller can upload image to listing", false, err.message);
+  } catch (err: unknown) {
+    record("Listing Media", "Admin/Seller can upload image to listing", false, getErrorMessage(err));
   }
 
   // 3.3 Set/change primary image
@@ -369,8 +369,8 @@ async function run() {
 
     const ok = before?.is_primary === false && after2?.is_primary === true && after1?.is_primary === false;
     record("Listing Media", "Seller/Admin can set/change primary image", ok, `Image 2 set as primary, Image 1 demoted`);
-  } catch (err: any) {
-    record("Listing Media", "Seller/Admin can set/change primary image", false, err.message);
+  } catch (err: unknown) {
+    record("Listing Media", "Seller/Admin can set/change primary image", false, getErrorMessage(err));
   }
 
   // 3.4 Image renders on listing (read path + signed URL)
@@ -383,8 +383,8 @@ async function run() {
     const { data: signed } = await adminClient.storage.from("listing-media").createSignedUrl(imgPath1, 3600);
     const ok = !listErr && (mediaRows?.length ?? 0) >= 2 && !!signed?.signedUrl;
     record("Listing Media", "Image renders with signed URL on listing", ok, `Found ${mediaRows?.length} items, signed URL generated`);
-  } catch (err: any) {
-    record("Listing Media", "Image renders with signed URL on listing", false, err.message);
+  } catch (err: unknown) {
+    record("Listing Media", "Image renders with signed URL on listing", false, getErrorMessage(err));
   }
 
   // 3.5 Max image count validation (limit 8)
@@ -420,8 +420,8 @@ async function run() {
 
     const ok = !!overflowErr && overflowErr.message.includes("offer_media_limit_reached");
     record("Listing Media", "Max 8 image limit enforced by RPC", ok, `9th upload failed with: ${overflowErr?.message}`);
-  } catch (err: any) {
-    record("Listing Media", "Max 8 image limit enforced by RPC", false, err.message);
+  } catch (err: unknown) {
+    record("Listing Media", "Max 8 image limit enforced by RPC", false, getErrorMessage(err));
   }
 
   // Clean up the extra 6 staged items
@@ -439,8 +439,8 @@ async function run() {
     // Storage bucket allowed_mime_types rejects or RPC validates
     const rejected = !!mimeErr;
     record("Listing Media", "Invalid MIME type rejected by storage", rejected, `Upload of application/pdf rejected: ${mimeErr?.message}`);
-  } catch (err: any) {
-    record("Listing Media", "Invalid MIME type rejected by storage", false, err.message);
+  } catch (err: unknown) {
+    record("Listing Media", "Invalid MIME type rejected by storage", false, getErrorMessage(err));
   }
 
   // 3.7 Delete image & auto-promote primary
@@ -458,8 +458,8 @@ async function run() {
     // Now remove mediaId1 as well to clean up
     const { data: p1 } = await adminClient.rpc("remove_offer_media", { p_media_id: mediaId1 });
     if (p1) await adminClient.storage.from("listing-media").remove([p1]);
-  } catch (err: any) {
-    record("Listing Media", "Delete image & auto-promote primary", false, err.message);
+  } catch (err: unknown) {
+    record("Listing Media", "Delete image & auto-promote primary", false, getErrorMessage(err));
   }
 
   // 3.8 Draft / private listing media is not exposed to unauthorized users
@@ -478,7 +478,7 @@ async function run() {
     draftMediaId = dmid;
 
     // Member (buyerOnly) queries coffee_offer_media for privateOfferId:
-    const { data: buyerView, error: bErr } = await buyerOnlyClient.from("coffee_offer_media").select("*").eq("offer_id", privateOfferId);
+    const { data: buyerView } = await buyerOnlyClient.from("coffee_offer_media").select("*").eq("offer_id", privateOfferId);
     const hiddenFromBuyer = (buyerView?.length ?? 0) === 0;
 
     // Member tries to read bytes from storage
@@ -490,8 +490,8 @@ async function run() {
     // Clean up draft image
     if (draftMediaId) await adminClient.rpc("remove_offer_media", { p_media_id: draftMediaId });
     await adminClient.storage.from("listing-media").remove([draftImgPath]);
-  } catch (err: any) {
-    record("Listing Media", "Draft/private listing media not exposed", false, err.message);
+  } catch (err: unknown) {
+    record("Listing Media", "Draft/private listing media not exposed", false, getErrorMessage(err));
   }
 
   // 3.9 Published / visible listing media is readable through intended visibility rules
@@ -518,8 +518,8 @@ async function run() {
     // Clean up
     if (pubMediaId) await adminClient.rpc("remove_offer_media", { p_media_id: pubMediaId });
     await adminClient.storage.from("listing-media").remove([pubImgPath]);
-  } catch (err: any) {
-    record("Listing Media", "Published listing media readable by authorized members", false, err.message);
+  } catch (err: unknown) {
+    record("Listing Media", "Published listing media readable by authorized members", false, getErrorMessage(err));
   }
 
   // =========================================================================
@@ -539,8 +539,8 @@ async function run() {
     const crossStorageRefused = !!crossStorageErr;
 
     record("Storage", "Avatar paths are strictly user-scoped", crossRpcRefused && crossStorageRefused, "Cross-user avatar path rejected by both Storage RLS and RPC");
-  } catch (err: any) {
-    record("Storage", "Avatar paths are strictly user-scoped", false, err.message);
+  } catch (err: unknown) {
+    record("Storage", "Avatar paths are strictly user-scoped", false, getErrorMessage(err));
   }
 
   // 4.2 Listing paths are offer-scoped (rejects cross-offer path)
@@ -555,8 +555,8 @@ async function run() {
     });
     const ok = !!crossOfferErr && crossOfferErr.message.includes("offer_media_object_path_invalid");
     record("Storage", "Listing paths are strictly offer-scoped", ok, `Cross-offer path rejected by RPC: ${crossOfferErr?.message}`);
-  } catch (err: any) {
-    record("Storage", "Listing paths are strictly offer-scoped", false, err.message);
+  } catch (err: unknown) {
+    record("Storage", "Listing paths are strictly offer-scoped", false, getErrorMessage(err));
   }
 
   // 4.3 No unauthenticated write
@@ -571,8 +571,8 @@ async function run() {
 
     const ok = !!err1 && !!err2 && !!err3;
     record("Storage", "No unauthenticated write to storage buckets", ok, "Anonymous upload rejected on both public-assets and listing-media");
-  } catch (err: any) {
-    record("Storage", "No unauthenticated write to storage buckets", false, err.message);
+  } catch (err: unknown) {
+    record("Storage", "No unauthenticated write to storage buckets", false, getErrorMessage(err));
   }
 
   // 4.4 public-assets vs listing-media privacy (verified live via public HTTP URL access)
@@ -599,8 +599,8 @@ async function run() {
 
     const ok = pubIsAccessible && privIsBlocked;
     record("Storage", "Bucket privacy flags correct", ok, `public-assets HTTP=${pubRes.status} (publicly accessible); listing-media HTTP=${privRes.status} (private, public URL blocked)`);
-  } catch (err: any) {
-    record("Storage", "Bucket privacy flags correct", false, err.message);
+  } catch (err: unknown) {
+    record("Storage", "Bucket privacy flags correct", false, getErrorMessage(err));
   }
 
   // Summary
