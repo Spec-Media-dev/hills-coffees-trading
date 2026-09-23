@@ -91,6 +91,13 @@ export const en = {
    * (contract §3.6). They are the one category of string that also carries approved Arabic in
    * `ar.ts`, because naming a part of the interface asserts nothing about the business.
    */
+  gallery: {
+    region: "Image gallery",
+    previous: "Previous image",
+    next: "Next image",
+    show: "Show image {n} of {total}",
+    position: "Image {n} of {total}",
+  },
   controls: {
     switchToDark: "Switch to dark theme",
     switchToLight: "Switch to light theme",
@@ -108,8 +115,6 @@ export const en = {
     searchHint: "Your search opens the published coffee catalogue.",
     searchPlaceholder: "Search by coffee or origin",
     searchSubmit: "Browse the coffee catalogue",
-    playHeroFilm: "Play the green coffee film",
-    pauseHeroFilm: "Pause the green coffee film",
     close: "Close",
   },
 
@@ -370,6 +375,13 @@ export const en = {
       title: "Benchmark pricing, kept separate",
       lead:
         "Reference benchmarks are published separately from Hills commercial quotes and from member resale prices. They are never the same number.",
+      conceptsHeading: "Four prices, never confused",
+      concepts: {
+        benchmark: { title: "Reference benchmark", body: "External market indicator, shown with its source, delay and timestamp. Information only." },
+        quote: { title: "Hills commercial quote", body: "What Hills offers you for a defined coffee, quantity and delivery — through a commercial conversation." },
+        listing: { title: "Member listing price", body: "A seller's ask on a specific lot, visible only to approved members in the Trading Portal." },
+        executed: { title: "Executed trade price", body: "What was actually agreed, recorded on the order as a historical fact." },
+      },
       /** Labels of the static data stage. No figure, source or date exists to show (PRICE-011). */
       stageLabel: "Reference benchmark",
       stageState: "Not published yet",
@@ -381,6 +393,12 @@ export const en = {
       title: "Tell us what you need",
       lead:
         "Send the coffee, volume, timing and delivery point you are working with. A member of the commercial team picks it up from there.",
+      stepsHeading: "What happens next",
+      steps: {
+        send: { title: "Send your request", body: "Coffee or origin, volume, timing and the delivery point you are working with." },
+        conversation: { title: "A sourcing conversation", body: "The commercial team comes back with what Hills can supply and on what terms." },
+        allocation: { title: "Allocation and delivery", body: "Agreed coffee is allocated and delivered under Hills-approved custody." },
+      },
       imageAlt: "Ripe coffee cherries on a branch resting beside green coffee on a jute sack.",
     },
   },
@@ -416,6 +434,20 @@ export const en = {
       body:
         "Certifications, quality evidence and origin information are published only when Hills can evidence them and is authorised to disclose them.",
     },
+    glance: {
+      heading: "Hills at a glance",
+      originLabel: "Brand origin",
+      originValue: "Dubai",
+      officeLabel: "Operational office",
+      officeValue: "Egypt",
+      buyersLabel: "Who we supply",
+      buyersValue: "Roasters, importers and distributors across the Arab region",
+      tradeLabel: "How trade happens",
+      tradeValue: "Commercial conversations, and a reviewed members-only Trading Portal",
+    },
+    principlesEyebrow: "How Hills works",
+    principlesTitle: "Four commitments behind every coffee we publish",
+    portalAction: "About the Trading Portal",
     ctaTitle: "Start a conversation with us",
     ctaLead: "Tell us what you are sourcing and where it needs to arrive.",
     imageAlt: "A grower standing in a hillside coffee plantation beneath cloud-covered mountains.",
@@ -503,6 +535,9 @@ export const en = {
     index: {
       eyebrow: "Catalogue",
       title: "Coffee",
+      statCoffees: "Published coffees",
+      statOrigins: "Origins represented",
+      statProcesses: "Processing methods",
       lead:
         "Every coffee Hills currently publishes, with its origin, processing method and packaging. This is a sourcing catalogue, not a live order book.",
       empty:
@@ -552,6 +587,26 @@ export const en = {
       identityEyebrow: "Published coffee",
       originLinkAction: "See the origin",
       originConnectionHeading: "Where it comes from",
+      specIdentityHeading: "The coffee",
+      specProcessingHeading: "Processing & packaging",
+      specOriginHeading: "Origin",
+      originLabel: "Origin",
+      specLead: "What Hills can evidence about this coffee today. Quality documentation is shared with approved buyers during the commercial conversation.",
+      commercialEyebrow: "Commercial context",
+      commercialTitle: "How this coffee is bought",
+      commercialLead:
+        "Hills does not publish a list price for catalogue coffees. Supply is quoted through a commercial conversation, and approved members trade live seller offers inside the Trading Portal.",
+      referenceHeading: "Reference market data",
+      referenceNote: "Benchmarks are market information for context. They are not an offer and not a sale price for this coffee.",
+      offersHeading: "Live seller offers",
+      offersBody:
+        "Seller offers for this coffee — price per kg, available quantity and the warehouse holding it — are visible only to approved members inside the Hills Trading Portal. They are never published on the public website.",
+      offersSignIn: "Sign in to the Trading Portal",
+      offersApply: "Apply for membership",
+      rfqCardHeading: "Request an offer from Hills",
+      rfqCardBody: "Tell us the volume, timing and delivery point. The commercial team replies with what Hills can supply for this coffee.",
+      heroCommercialLink: "Commercial options",
+      imageAlt: "{name} — green coffee",
     },
   },
 
@@ -560,6 +615,8 @@ export const en = {
     index: {
       eyebrow: "Origins",
       title: "Origins",
+      statOrigins: "Active origins",
+      statCoffees: "Published coffees",
       lead:
         "The producing regions Hills sources from. Each profile links to the coffees we currently publish from that origin.",
       empty: "No origins are published right now.",
@@ -578,6 +635,16 @@ export const en = {
       identityEyebrow: "Producing region",
       countryLabel: "Country",
       exploreCoffee: "Browse all coffee",
+      dossierHeading: "Origin profile",
+      coffeesCountLabel: "Published coffees",
+      coffeesCountValue: "{count}",
+      mediaCaption: "Coffee from this origin",
+      coffeesLead: "Coffees Hills currently publishes from this origin. Each one opens its full dossier with specification and commercial options.",
+      emptyTitle: "Nothing published from this origin right now",
+      sourcingEyebrow: "Sourcing from this origin",
+      sourcingTitle: "What Hills takes responsibility for",
+      closingTitle: "Sourcing from this origin?",
+      closingBody: "Tell us the volume, timing and delivery point. The commercial team replies with what Hills can supply from here.",
     },
     /** Homepage origins showcase (Phase 5.5, UIF-055). */
     showcase: {

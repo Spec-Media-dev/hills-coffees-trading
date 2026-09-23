@@ -199,22 +199,45 @@ export default async function HomePage() {
         zone, delay type and the reference-only statement; otherwise the honest stale/unavailable
         state. Raw values exactly as recorded — no currency or unit conversion (DB-OPEN-08).
       */}
-      <section className="bg-secondary py-[clamp(4.5rem,8vw,8.5rem)] text-foreground">
-        <div className="hc-public-container flex flex-col gap-10">
-          <div className="flex max-w-[48rem] flex-col items-start gap-4">
-            <div className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-3.5 py-1.5 text-xs font-semibold uppercase tracking-wider text-[var(--hc-accent)] shadow-sm">
-              <span className="size-1.5 rounded-full bg-[var(--hc-accent)]" />
-              <Bilingual pick={(c) => c.home.reference.eyebrow} />
+      <section className="bg-secondary py-[clamp(4.5rem,8vw,8rem)] text-foreground" aria-labelledby="home-reference-heading" data-home-reference>
+        <div className="hc-public-container grid gap-12 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] lg:gap-[clamp(3rem,6vw,6rem)]">
+          <div className="flex flex-col gap-8 lg:sticky lg:top-[calc(var(--header-h)+2rem)] lg:self-start">
+            <div className="flex flex-col items-start gap-4">
+              <span className="hc-eyebrow text-[var(--hc-accent)] dark:text-[var(--gold-on-dark)]">
+                <Bilingual pick={(c) => c.home.reference.eyebrow} />
+              </span>
+              <h2 id="home-reference-heading" className="font-heading text-[clamp(2.1rem,1.6rem+2.4vw,3.6rem)] font-semibold leading-[1.06] tracking-[-0.025em] text-balance rtl:leading-[1.2] rtl:tracking-normal">
+                <Bilingual pick={(c) => c.home.reference.title} />
+              </h2>
+              <p className="max-w-[48ch] text-[clamp(1rem,0.95rem+0.25vw,1.125rem)] leading-[1.7] text-muted-foreground text-pretty">
+                <Bilingual pick={(c) => c.home.reference.lead} />
+              </p>
             </div>
-            <h2 className="font-heading text-[clamp(2.25rem,1.7rem+3vw,4.25rem)] font-semibold leading-[1.06] tracking-[-0.025em] text-balance">
-              <Bilingual pick={(c) => c.home.reference.title} />
-            </h2>
-            <span aria-hidden="true" className="h-0.5 w-14 bg-[var(--hc-accent)]" />
-            <p className="max-w-[50ch] text-[clamp(1rem,0.95rem+0.25vw,1.1875rem)] leading-[1.7] text-muted-foreground text-pretty">
-              <Bilingual pick={(c) => c.home.reference.lead} />
-            </p>
+            {/* The four price concepts Feature 011 keeps permanently distinct — explained, never shown as numbers here. */}
+            <div className="flex flex-col gap-3">
+              <h3 className="font-sans text-[length:var(--text-micro)] font-semibold uppercase tracking-[0.14em] text-muted-foreground rtl:tracking-normal">
+                <Bilingual pick={(c) => c.home.reference.conceptsHeading} />
+              </h3>
+              <ol className="grid gap-px overflow-hidden rounded-[var(--radius-lg)] border border-border bg-border sm:grid-cols-2" data-price-concepts>
+                {(["benchmark", "quote", "listing", "executed"] as const).map((key, index) => (
+                  <li key={key} className="flex flex-col gap-1.5 bg-card p-4">
+                    <span className="flex items-center gap-2 text-[length:var(--text-small)] font-semibold text-foreground">
+                      <span className="font-mono text-[length:var(--text-micro)] text-[var(--hc-accent)] dark:text-[var(--gold-on-dark)]" dir="ltr">
+                        0{index + 1}
+                      </span>
+                      <Bilingual pick={(c) => c.home.reference.concepts[key].title} />
+                    </span>
+                    <span className="text-[length:var(--text-meta)] leading-[1.6] text-muted-foreground">
+                      <Bilingual pick={(c) => c.home.reference.concepts[key].body} />
+                    </span>
+                  </li>
+                ))}
+              </ol>
+            </div>
           </div>
-          <ReferencePriceSection />
+          <div className="min-w-0">
+            <ReferencePriceSection />
+          </div>
         </div>
       </section>
 

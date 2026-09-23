@@ -3,6 +3,8 @@
 import { useEffect } from "react";
 import { StateScreen } from "@/components/layout/state-screen";
 import { Button } from "@/components/ui/button";
+import { useOptionalLocale } from "@/components/locale/locale-provider";
+import { appCopy } from "@/lib/app/copy";
 
 /**
  * Operations Console error boundary (Next.js route-segment convention). Must be a Client Component.
@@ -18,6 +20,8 @@ export default function DashboardAdminError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  // Never throws: an error screen must render even if the locale context is unavailable.
+  const tryAgain = useOptionalLocale()?.tApp.tryAgain ?? appCopy.tryAgain;
   useEffect(() => {
     if (error.digest) {
       console.error(`Operations console error (digest: ${error.digest})`);
@@ -26,5 +30,5 @@ export default function DashboardAdminError({
     }
   }, [error.digest]);
 
-  return <StateScreen kind="error"><Button variant="outline" onClick={reset}>Try again</Button></StateScreen>;
+  return <StateScreen kind="error"><Button variant="outline" onClick={reset}>{tryAgain}</Button></StateScreen>;
 }

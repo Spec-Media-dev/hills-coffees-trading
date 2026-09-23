@@ -3,9 +3,11 @@ import Link from "next/link";
 
 import { Bilingual, LocalizedContent } from "@/components/locale/bilingual";
 import { JsonLd } from "@/components/public/json-ld";
+import { OpeningStats } from "@/components/public/opening-stats";
 import { PageOpening } from "@/components/public/page-opening";
 import { PUBLIC_ROUTES } from "@/components/public/routes";
 import { Icon } from "@/components/ui/icon";
+import { getPublicCoffeeIndex } from "@/lib/public/coffees";
 import { copy } from "@/lib/public/copy";
 import { getPublicOriginIndex } from "@/lib/public/origins";
 import {
@@ -66,7 +68,7 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function OriginsIndexPage() {
-  const origins = await getPublicOriginIndex();
+  const [origins, coffees] = await Promise.all([getPublicOriginIndex(), getPublicCoffeeIndex()]);
   const canonical = canonicalUrl(PATH);
 
   const jsonLd = serializeJsonLd(
@@ -93,6 +95,16 @@ export default async function OriginsIndexPage() {
         eyebrow={<Bilingual pick={(c) => c.origins.index.eyebrow} />}
         title={<Bilingual pick={(c) => c.origins.index.title} />}
         lead={<Bilingual pick={(c) => c.origins.index.lead} />}
+        aside={
+          origins.length > 0 ? (
+            <OpeningStats
+              items={[
+                { key: "origins", label: <Bilingual pick={(c) => c.origins.index.statOrigins} />, value: origins.length },
+                { key: "coffees", label: <Bilingual pick={(c) => c.origins.index.statCoffees} />, value: coffees.length },
+              ]}
+            />
+          ) : undefined
+        }
       />
 
       <section className="bg-background py-[clamp(3rem,6vw,6rem)] text-foreground">

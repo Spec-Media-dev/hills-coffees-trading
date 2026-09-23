@@ -70,7 +70,7 @@ export function ResetPasswordConfirmForm() {
         />
       </div>
 
-      <FormActionBar className="justify-start bg-transparent backdrop-blur-none">
+      <FormActionBar className="static justify-start bg-transparent backdrop-blur-none">
         <Button type="submit" disabled={isPending} className="w-full">
           {isPending ? copy.confirmSubmitting : copy.confirmSubmit}
         </Button>

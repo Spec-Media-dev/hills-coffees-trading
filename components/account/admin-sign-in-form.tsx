@@ -87,7 +87,7 @@ export function AdminSignInForm() {
         {copy.forgotPassword}
       </Link>
 
-      <FormActionBar className="justify-start bg-transparent backdrop-blur-none">
+      <FormActionBar className="static justify-start bg-transparent backdrop-blur-none">
         <Button type="submit" disabled={isPending} className="w-full">
           {isPending ? copy.submitting : copy.submit}
         </Button>

@@ -1,6 +1,6 @@
 "use client";
 
-import { startTransition, useActionState } from "react";
+import { startTransition, useActionState, useEffect, useRef } from "react";
 
 import { useActionToast } from "@/components/app/use-action-toast";
 import { useLocale } from "@/components/locale/locale-provider";
@@ -39,6 +39,14 @@ export function ArabicContentPanel({
   const copy = tApp.admin.catalogue.arabic;
   const [state, dispatch, isPending] = useActionState(saveCatalogueArabic, undefined);
   const unavailable = initial === "unavailable";
+  const rootRef = useRef<HTMLElement>(null);
+  const announced = useRef<object | null>(null);
+  useEffect(() => {
+    if (state?.ok && announced.current !== state) {
+      announced.current = state;
+      rootRef.current?.dispatchEvent(new CustomEvent("hc:content-saved", { bubbles: true }));
+    }
+  }, [state]);
   const values = initial && initial !== "unavailable" ? initial : { name: "", description: "" };
 
   useActionToast(
@@ -58,7 +66,7 @@ export function ArabicContentPanel({
   };
 
   return (
-    <section className="flex flex-col gap-4 rounded-[var(--radius-lg)] border border-border bg-[var(--surface-card)] p-5" data-arabic-panel={kind} data-arabic-state={unavailable ? "unavailable" : initial ? "saved" : "empty"}>
+    <section ref={rootRef} className="flex flex-col gap-4 rounded-[var(--radius-lg)] border border-border bg-[var(--surface-card)] p-5" data-arabic-panel={kind} data-arabic-state={unavailable ? "unavailable" : initial ? "saved" : "empty"}>
       <div className="flex flex-col gap-1">
         <h2 className="font-heading text-[length:var(--text-h4)] font-semibold text-foreground">
           {copy.heading} <span lang="ar" dir="rtl" className="text-muted-foreground">· العربية</span>
@@ -106,7 +114,7 @@ export function ArabicContentPanel({
           />
         ) : null}
         <p className="text-[length:var(--text-micro)] text-muted-foreground">{copy.clearHint}</p>
-        <FormActionBar className="justify-start bg-transparent backdrop-blur-none">
+        <FormActionBar className="static justify-start bg-transparent backdrop-blur-none">
           <Button type="submit" disabled={isPending || unavailable}>
             {isPending ? copy.saving : copy.save}
           </Button>

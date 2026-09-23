@@ -949,6 +949,9 @@ export const en = {
        */
       catalogue: {
         common: {
+          nameAr: "Name in Arabic (optional)",
+          descriptionAr: "Description in Arabic (optional)",
+          arabicCreateHint: "Arabic is saved as its own translation right after the English record is created. Leave empty to add it later.",
           name: "Name",
           slug: "Slug",
           slugHint: "Lower-case letters, digits and single hyphens. This is the public URL segment.",
@@ -1253,6 +1256,11 @@ export const en = {
         arabic: {
           heading: "Arabic content",
           englishBadge: "English (canonical)",
+          tabsLabel: "Content language",
+          tabEnglish: "English (canonical)",
+          tabArabic: "العربية · Arabic",
+          unsaved: "Unsaved changes",
+          unsavedNote: "You have unsaved changes. Each language is saved with its own Save button.",
           lead: "The form above holds the English content. Arabic is stored separately here, so saving one language never changes the other.",
           fallbackNote: "When no Arabic is saved, Arabic visitors see the English text, marked as English.",
           nameLabel: "Name in Arabic",
@@ -1727,6 +1735,14 @@ export const en = {
      * role) and email change (ADMIN/SUPER_ADMIN only). Top-level, reused by both
      * `/dashboard/settings` and `/dashboard-admin/account`.
      */
+    tryAgain: "Try again",
+    gallery: {
+      region: "Image gallery",
+      previous: "Previous image",
+      next: "Next image",
+      show: "Show image {n} of {total}",
+      position: "Image {n} of {total}",
+    },
     accountSecurity: {
       password: {
         title: "Password",
@@ -1995,6 +2011,7 @@ export const en = {
       },
       detail: {
         breadcrumb: "Marketplace",
+        imagesHeading: "Listing images",
         backAction: "Back to marketplace",
         notFound: {
           title: "Listing not available",

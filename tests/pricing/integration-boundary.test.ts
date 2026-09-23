@@ -76,9 +76,17 @@ describe("T012 — reference prices never appear in executable contexts", () => 
     expect(offenders).toEqual([]);
   });
 
-  it("the ONLY importers of the pricing layer outside lib/pricing are the homepage, components/pricing and Feature 010's two admin price modules", () => {
+  it("the ONLY importers of the pricing layer outside lib/pricing are the homepage, the public coffee detail page, components/pricing and Feature 010's two admin price modules", () => {
     const importers = appCode.filter((f) => !f.startsWith("lib/pricing/") && importsPricing(read(f))).sort();
-    expect(importers).toEqual(["components/pricing/basis-breakdown.tsx", "components/pricing/reference-price-section.tsx", "components/pricing/reference-price.tsx", "components/pricing/stale-state.tsx", "components/pricing/unavailable-state.tsx", "lib/admin/price-validation.ts", "lib/admin/prices.ts", "src/app/page.tsx"].sort());
+    expect(importers).toEqual(["components/pricing/basis-breakdown.tsx", "components/pricing/reference-price-section.tsx", "components/pricing/reference-price.tsx", "components/pricing/stale-state.tsx", "components/pricing/unavailable-state.tsx", "lib/admin/price-validation.ts", "lib/admin/prices.ts", "src/app/(public)/coffee/[slug]/page.tsx", "src/app/page.tsx"].sort());
+  });
+
+  it("the public coffee detail page (pre-Stripe hardening run) consumes ONLY the presentation contract, for its OWN coffee scope — the spec's 'one coffee, by slug' differential scope", () => {
+    const page = "src/app/(public)/coffee/[slug]/page.tsx";
+    const pricingImports = [...read(page).matchAll(/from\s+["']@\/(?:lib|components)\/pricing\/([\w-]+)["']/g)].map((m) => m[1]).sort();
+    expect(pricingImports).toEqual(["presentation", "reference-price-section"]);
+    expect(read(page)).toContain('getReferencePresentation({ kind: "coffee", slug: coffee.slug })');
+    expect(read(page)).toMatch(/<ReferencePriceStage presentation=\{reference\} \/>/);
   });
 
   it("Feature 010's admin price modules import ONLY the cache seam (prices.ts) and the vocabularies (price-validation.ts) — never a read, presentation or component module", () => {

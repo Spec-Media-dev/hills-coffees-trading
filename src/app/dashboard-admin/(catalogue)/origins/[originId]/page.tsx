@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { AdminAccessDenied } from "@/components/admin/access-denied";
+import { BilingualEditor } from "@/components/admin/catalogue/bilingual-editor";
 import { ArabicContentPanel } from "@/components/admin/catalogue/arabic-content-panel";
 import { RecordForm } from "@/components/admin/catalogue/record-form";
 import { originFields } from "@/components/admin/catalogue/reference-fields";
@@ -36,8 +37,10 @@ export default async function OriginDetailPage({ params }: { params: Promise<{ o
   return (
     <div className="flex flex-col gap-6">
       <PageHeader title={origin.name} description={<span className="font-mono text-[length:var(--text-micro)]" dir="ltr">/origins/{origin.slug}/</span>} trail={trail} actions={<OriginStatusBadge status={origin.status} />} />
-      <RecordForm resource="origins" mode="edit" contentLanguage="en" formKey="origin" fields={originFields(origin, regions, parents)} hiddenFields={{ originId: origin.id }} action={saveOrigin} />
-      <ArabicContentPanel kind="origin" entityId={origin.id} hasDescription initial={arabic} returnPath={`/dashboard-admin/origins/${origin.id}`} />
+      <BilingualEditor
+        english={<RecordForm resource="origins" mode="edit" contentLanguage="en" formKey="origin" fields={originFields(origin, regions, parents)} hiddenFields={{ originId: origin.id }} action={saveOrigin} />}
+        arabic={<ArabicContentPanel kind="origin" entityId={origin.id} hasDescription initial={arabic} returnPath={`/dashboard-admin/origins/${origin.id}`} />}
+      />
       <p className="text-[length:var(--text-micro)] text-muted-foreground">
         <AppBilingual pick={(c) => c.admin.catalogue.common.noDeleteNote} />
       </p>

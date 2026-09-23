@@ -231,7 +231,7 @@ export function RfqForm() {
         </p>
       ) : null}
 
-      <FormActionBar className="justify-start bg-transparent backdrop-blur-none">
+      <FormActionBar className="static justify-start bg-transparent backdrop-blur-none">
         <Button
           type="submit"
           disabled={isPending}

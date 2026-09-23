@@ -69,7 +69,7 @@ export function ChangePasswordForm() {
           error={errors.confirmPassword?.message}
         />
       </FieldGroup>
-      <FormActionBar className="justify-start bg-transparent backdrop-blur-none">
+      <FormActionBar className="static justify-start bg-transparent backdrop-blur-none">
         <Button type="submit" disabled={isPending}>
           {isPending ? tApp.accountSecurity.password.saving : tApp.accountSecurity.password.submit}
         </Button>

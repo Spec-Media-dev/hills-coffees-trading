@@ -3,7 +3,13 @@
 **Input**: [spec.md](./spec.md), [plan.md](./plan.md), `docs/architecture/DATABASE-CAPABILITY-MAP.md`,
 `.specify/memory/constitution.md` (v2.0.0), SRS §14 (OPS-01, OPS-02), §3.1, §13.5.
 
-**Status**: **Catalogue media & Arabic translations live verification run (2026-09-23) — 47 / 55.** Migration
+**Status**: **Pre-Stripe UX / localization / catalogue hardening run (2026-09-24) — 49 / 58.** Phase 17 ADDED
+(T056–T058, approved post-closure scope additions). T057 (admin bilingual editing UX + label/media fixes) and T058
+(listing media display rule) COMPLETE. T056 (tag translations) is CODE-COMPLETE but **blocked on human review +
+application of `supabase/migrations/20260924120000_tag_translations.sql`** (+ rollback + postflight) — NOT applied by
+this run; until then the tag Arabic panel reports "unavailable" and public tags stay English (marked `lang="en"`).
+Remaining open: T013–T015, T031–T033 (Feature 008 / Stripe-dependent), T038, T041 (Phase 12 sign-off), T056.
+**Previous status**: **Catalogue media & Arabic translations live verification run (2026-09-23) — 47 / 55.** Migration
 `supabase/migrations/20260923120000_catalogue_media_and_translations.sql` applied, postflight 12/12 passed.
 T053 (catalogue coffee images) and T054 (Arabic catalogue content) COMPLETE and verified live end-to-end
 against production Supabase (27/27 live checks passed). Remaining open tasks (8/55): T013–T015, T031–T033
@@ -1597,6 +1603,34 @@ scope has no owning task (flagged for RUN B planning, not silently added).
   shows a manual-key label and links back to the account. Login AAL2 enforcement unchanged (already
   complete). Limitation documented in-product: Supabase TOTP has no recovery codes — none are invented.
   - Verify: `tests/auth/mfa-management.test.ts` (13/13). No migration.
+
+## Phase 17 — Pre-Stripe catalogue / localization / media hardening (ADDED 2026-09-24)
+
+> Approved post-closure additions from the 2026-09-24 "pre-Stripe UX / localization / catalogue / public experience
+> hardening" prompt. None re-opens or re-ticks an older task. Count 55 → 58. The public-page redesigns from the same
+> run belong to Feature 002 and are recorded there (T059–T063).
+
+- [ ] T056 [PS-new] Arabic TAG names ("Characteristics"). Tags were the one public, admin-managed catalogue label
+  without an Arabic store. Migration `20260924120000_tag_translations` (NOT applied): `tag_translations`
+  (select-only, public read), `set_catalogue_translation` re-declared verbatim + a `tag` branch; rollback restores the
+  previous writer; postflight 9 checks. App: `TRANSLATION_KINDS` + `tag`, taxonomy tag pages get the Arabic tab, the
+  public DTO reads tag Arabic in its OWN tolerant query (a missing table degrades only tags).
+  - Verify so far: `tests/admin/pre-stripe-hardening.test.tsx` (migration pins, validation, DTO). **Remaining**:
+    review/apply, postflight, live EN/AR tag proof.
+- [x] T057 [PS-new] Admin bilingual editing UX + catalogue admin fixes: `BilingualEditor` (EN canonical / AR tabs, both
+  panels mounted, per-language unsaved marker cleared by the form's own save event, beforeunload guard, WAI-ARIA
+  tablist) on coffee/origin/region/taxonomy detail; optional RTL Arabic fields on every catalogue CREATE form, written
+  through the same writer only after the English record exists; FIX: catalogue forms labelled `name` "Location name"
+  (label-dictionary precedence); FIX: media-card sort input kept a stale value after move earlier/later (re-keyed);
+  media cards re-laid out (max two per row, readable sort field).
+  - Verify: `tests/admin/pre-stripe-hardening.test.tsx` (17/17); admin coffee/origin/new visually checked EN/AR,
+    light/dark, 1440/1280/375 (2026-09-24).
+- [x] T058 [PS-new] Listing media display rule — "primary outside, gallery inside" for SELLER listings
+  (`coffee_offer_media`, never catalogue media): marketplace cards and the seller's own listings table show ONE signed
+  primary image (primary, else first by sort order; placeholder otherwise) via batched `getPrimaryOfferImages`; the
+  buyer listing detail shows every member-visible image in the shared `MediaGallery`, opening on the primary.
+  - Verify: `tests/public/media-display-rule.test.tsx` (17/17). Live: no listing currently has media, so the
+    image-bearing listing state is proven by tests only; the placeholder state was checked visually.
 
 ---
 

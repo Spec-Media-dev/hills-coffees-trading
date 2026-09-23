@@ -72,7 +72,7 @@ export function KybDraftForm({
         error={errors.businessActivity?.message}
       />
 
-      <FormActionBar className="justify-start bg-transparent px-0 backdrop-blur-none">
+      <FormActionBar className="static justify-start bg-transparent px-0 backdrop-blur-none">
         <Button type="submit" variant="outline" disabled={isPending || disabled}>
           {isPending ? copy.saving : copy.save}
         </Button>

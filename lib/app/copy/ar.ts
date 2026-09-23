@@ -873,6 +873,9 @@ export const ar: DeepPartial<AppCopy> = {
       },
       catalogue: {
         common: {
+          nameAr: "الاسم بالعربية (اختياري)",
+          descriptionAr: "الوصف بالعربية (اختياري)",
+          arabicCreateHint: "يُحفَظ النص العربي كترجمة مستقلة فور إنشاء السجل الإنجليزي. اتركه فارغًا لإضافته لاحقًا.",
           name: "الاسم",
           slug: "المعرّف النصي",
           slugHint: "أحرف لاتينية صغيرة وأرقام وشرطات مفردة. هذا هو مقطع الرابط العام.",
@@ -1177,6 +1180,11 @@ export const ar: DeepPartial<AppCopy> = {
         arabic: {
           heading: "المحتوى العربي",
           englishBadge: "الإنجليزية (الأساسية)",
+          tabsLabel: "لغة المحتوى",
+          tabEnglish: "English · الإنجليزية (الأساسية)",
+          tabArabic: "العربية",
+          unsaved: "تغييرات غير محفوظة",
+          unsavedNote: "لديك تغييرات غير محفوظة. تُحفَظ كل لغة بزر الحفظ الخاص بها.",
           lead: "النموذج أعلاه يحفظ المحتوى الإنجليزي. يُحفَظ المحتوى العربي هنا بشكل منفصل، فلا يغيّر حفظ إحدى اللغتين الأخرى.",
           fallbackNote: "إذا لم يُحفَظ محتوى عربي، يرى الزوّار العرب النص الإنجليزي مع تمييزه بأنه إنجليزي.",
           nameLabel: "الاسم بالعربية",
@@ -1617,6 +1625,14 @@ export const ar: DeepPartial<AppCopy> = {
       saving: "جارٍ الحفظ…",
     },
 
+    tryAgain: "حاول مرة أخرى",
+    gallery: {
+      region: "معرض الصور",
+      previous: "الصورة السابقة",
+      next: "الصورة التالية",
+      show: "عرض الصورة {n} من {total}",
+      position: "الصورة {n} من {total}",
+    },
     accountSecurity: {
       password: {
         title: "كلمة المرور",
@@ -1875,6 +1891,7 @@ export const ar: DeepPartial<AppCopy> = {
           title: "القائمة غير متاحة",
           description: "هذه القائمة غير موجودة، أو غير متاحة لك حاليًا.",
         },
+        imagesHeading: "صور العرض",
         lotHeading: "الدفعة",
         coffeeLabel: "القهوة",
         lotCodeLabel: "رمز الدفعة",

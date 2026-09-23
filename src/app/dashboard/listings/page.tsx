@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 
 import { EmptyState } from "@/components/app/empty-state";
@@ -11,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { appCopy } from "@/lib/app/copy";
 import { getRequestIdentity } from "@/lib/auth/dal";
 import { getManagedListings } from "@/lib/listings/manage";
+import { getPrimaryOfferImages } from "@/lib/listings/media";
 import type { ManagedListing } from "@/lib/listings/types";
 
 export const metadata: Metadata = {
@@ -58,6 +60,8 @@ export default async function SellerListingsPage({
     page,
     pageSize: PAGE_SIZE,
   });
+  // "Primary outside": one thumbnail per row (the seller's primary listing image, or none).
+  const primaryImages = await getPrimaryOfferImages(rows.map((row) => row.id));
 
   const columns: TableCardListColumn<ManagedListing>[] = [
     {
@@ -65,9 +69,14 @@ export default async function SellerListingsPage({
       header: <AppBilingual pick={(c) => c.listings.manage.columns.listing} />,
       primary: true,
       render: (row) => (
-        <div className="flex flex-col">
-          <span className="font-medium text-foreground">{row.title ?? row.coffeeName ?? row.lot?.lotCode ?? row.id}</span>
-          {row.lot?.lotCode ? <span className="text-muted-foreground">{row.lot.lotCode}</span> : null}
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="relative size-11 shrink-0 overflow-hidden rounded-[var(--radius-sm)] border border-border bg-muted" data-listing-thumb={primaryImages.has(row.id) ? "image" : "none"}>
+            {primaryImages.has(row.id) ? <Image src={primaryImages.get(row.id)!} alt="" fill unoptimized sizes="44px" className="object-cover" /> : null}
+          </span>
+          <div className="flex min-w-0 flex-col">
+            <span className="font-medium text-foreground">{row.title ?? row.coffeeName ?? row.lot?.lotCode ?? row.id}</span>
+            {row.lot?.lotCode ? <span className="text-muted-foreground">{row.lot.lotCode}</span> : null}
+          </div>
         </div>
       ),
     },

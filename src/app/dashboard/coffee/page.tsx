@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { appCopy } from "@/lib/app/copy";
 import { projectFillState } from "@/lib/listings/fills";
 import { getBrowseListings } from "@/lib/listings/browse";
+import { getPrimaryOfferImages } from "@/lib/listings/media";
 
 export const metadata: Metadata = {
   title: "Marketplace",
@@ -51,6 +52,8 @@ export default async function MarketplacePage({
     pageSize: PAGE_SIZE,
     titleSearch: titleSearch || undefined,
   });
+  // "Primary outside": one signed image per card, batched once for the page (RLS-scoped).
+  const primaryImages = await getPrimaryOfferImages(rows.map((listing) => listing.id));
 
   const query = (params: Record<string, string>) => {
     const merged = new URLSearchParams({ ...(titleSearch ? { q: titleSearch } : {}), ...params });
@@ -96,6 +99,7 @@ export default async function MarketplacePage({
               <li key={listing.id}>
                 <ListingCard
                   listing={listing}
+                  imageUrl={primaryImages.get(listing.id) ?? null}
                   projection={projectFillState({
                     quantityKg: listing.quantityKg,
                     reservedQuantityKg: listing.reservedQuantityKg,

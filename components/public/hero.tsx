@@ -2,21 +2,21 @@ import Link from "next/link";
 
 import { Bilingual } from "@/components/locale/bilingual";
 import { AnimatedHero } from "@/components/public/animated-hero";
-import { HeroBackdrop, HeroFilmToggle, HeroStage } from "@/components/public/hero-bean-media";
+import { HeroBackdrop } from "@/components/public/hero-bean-media";
 import { PUBLIC_ROUTES } from "@/components/public/routes";
 import { Icon } from "@/components/ui/icon";
 
 /**
  * Homepage hero (hardening run redesign). The green-coffee film/still is the hero's own BACKGROUND
  * (`HeroBackdrop`), masked away from the headline on desktop and under a strong forest scrim on small
- * screens — no longer a separate card beside the copy. Interaction lives in `hero-bean-media.tsx`:
- * fine-pointer hover plays + gently enhances, a real toggle button covers touch and keyboard, and
- * reduced motion keeps the still. The copy column is unchanged server-rendered bilingual chrome.
+ * screens — no longer a separate card beside the copy. The film is a silent looping ambient layer
+ * with no visible playback control (`hero-bean-media.tsx`); reduced motion / blocked autoplay keep
+ * the still. The copy column is server-rendered bilingual chrome.
  */
 export function Hero() {
   return (
     <AnimatedHero>
-      <HeroStage className="relative isolate -mt-[var(--header-h)] min-h-[100svh] overflow-hidden bg-[#173C32] pt-[var(--header-h)] text-[#EEE4D1]">
+      <section data-page-opener="dark" data-hero-stage className="relative isolate -mt-[var(--header-h)] min-h-[100svh] overflow-hidden bg-[#173C32] pt-[var(--header-h)] text-[#EEE4D1]">
         <HeroBackdrop />
         <div aria-hidden="true" className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
           <div className="absolute -end-[18rem] -top-[16rem] size-[52rem] rounded-full border border-[#CE8A39]/20" />
@@ -52,10 +52,6 @@ export function Hero() {
               </Link>
             </div>
           </div>
-
-          <div data-hero-step className="relative z-10 lg:ms-auto lg:w-[min(30rem,40%)]">
-            <HeroFilmToggle />
-          </div>
         </div>
 
         <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 bottom-5 hidden justify-center lg:flex">
@@ -65,7 +61,7 @@ export function Hero() {
             <span className="h-px w-10 bg-[#EEE4D1]/30" />
           </span>
         </div>
-      </HeroStage>
+      </section>
     </AnimatedHero>
   );
 }

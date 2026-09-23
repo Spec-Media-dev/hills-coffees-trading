@@ -37,7 +37,7 @@ export function ResetPasswordRequestForm() {
   return (
     <form onSubmit={onValid} noValidate className="flex flex-col gap-6">
       <Field label={copy.email} control={<Input type="email" autoComplete="email" {...register("email")} />} error={errors.email?.message} />
-      <FormActionBar className="justify-start bg-transparent backdrop-blur-none">
+      <FormActionBar className="static justify-start bg-transparent backdrop-blur-none">
         <Button type="submit" disabled={isPending} className="w-full">
           {isPending ? copy.submitting : copy.submit}
         </Button>

@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { AdminAccessDenied } from "@/components/admin/access-denied";
+import { BilingualEditor } from "@/components/admin/catalogue/bilingual-editor";
 import { ArabicContentPanel } from "@/components/admin/catalogue/arabic-content-panel";
 import { RecordForm } from "@/components/admin/catalogue/record-form";
 import { regionFields } from "@/components/admin/catalogue/reference-fields";
@@ -35,8 +36,10 @@ export default async function RegionDetailPage({ params }: { params: Promise<{ r
   return (
     <div className="flex flex-col gap-6">
       <PageHeader title={region.name} description={<span className="font-mono text-[length:var(--text-micro)]" dir="ltr">{region.slug}</span>} trail={trail} />
-      <RecordForm resource="regions" mode="edit" contentLanguage="en" formKey="region" fields={regionFields(region)} hiddenFields={{ regionId: region.id }} action={saveRegion} />
-      <ArabicContentPanel kind="region" entityId={region.id} hasDescription={false} initial={arabic} returnPath={`/dashboard-admin/regions/${region.id}`} />
+      <BilingualEditor
+        english={<RecordForm resource="regions" mode="edit" contentLanguage="en" formKey="region" fields={regionFields(region)} hiddenFields={{ regionId: region.id }} action={saveRegion} />}
+        arabic={<ArabicContentPanel kind="region" entityId={region.id} hasDescription={false} initial={arabic} returnPath={`/dashboard-admin/regions/${region.id}`} />}
+      />
     </div>
   );
 }

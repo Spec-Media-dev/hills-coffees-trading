@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { AdminAccessDenied } from "@/components/admin/access-denied";
+import { BilingualEditor } from "@/components/admin/catalogue/bilingual-editor";
 import { ArabicContentPanel } from "@/components/admin/catalogue/arabic-content-panel";
 import { RecordForm } from "@/components/admin/catalogue/record-form";
 import { taxonomyFields } from "@/components/admin/catalogue/reference-fields";
@@ -37,13 +38,13 @@ export default async function TaxonomyEntryPage({ params }: { params: Promise<{ 
   return (
     <div className="flex flex-col gap-6">
       <PageHeader title={entry.name} description={<span className="font-mono text-[length:var(--text-micro)]" dir="ltr">{entry.slug}</span>} trail={trail} actions={<span className="text-[length:var(--text-small)] text-muted-foreground"><AppBilingual pick={(c) => c.admin.catalogue.taxonomy.kinds[kind]} /></span>} />
-      <RecordForm resource="taxonomy" mode="edit" contentLanguage="en" formKey={`taxonomy-${kind}`} fields={taxonomyFields(kind, entry, coffeeTypes)} hiddenFields={{ kind, entryId: entry.id }} action={saveTaxonomyEntry} />
       {translationKind ? (
-        <ArabicContentPanel kind={translationKind} entityId={entry.id} hasDescription={false} initial={arabic} returnPath={`/dashboard-admin/taxonomy/${kind}/${entry.id}`} />
+        <BilingualEditor
+          english={<RecordForm resource="taxonomy" mode="edit" contentLanguage="en" formKey={`taxonomy-${kind}`} fields={taxonomyFields(kind, entry, coffeeTypes)} hiddenFields={{ kind, entryId: entry.id }} action={saveTaxonomyEntry} />}
+          arabic={<ArabicContentPanel kind={translationKind} entityId={entry.id} hasDescription={false} initial={arabic} returnPath={`/dashboard-admin/taxonomy/${kind}/${entry.id}`} />}
+        />
       ) : (
-        <p className="text-[length:var(--text-micro)] text-muted-foreground">
-          <AppBilingual pick={(c) => c.admin.catalogue.arabic.noTranslationForTags} />
-        </p>
+        <RecordForm resource="taxonomy" mode="edit" contentLanguage="en" formKey={`taxonomy-${kind}`} fields={taxonomyFields(kind, entry, coffeeTypes)} hiddenFields={{ kind, entryId: entry.id }} action={saveTaxonomyEntry} />
       )}
     </div>
   );

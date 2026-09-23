@@ -8,6 +8,7 @@ import { StateScreen } from "@/components/layout/state-screen";
 import { ShipmentStatusBadge } from "@/components/delivery/shipment-status-badge";
 import { ShipmentDisputeLinkage } from "@/components/disputes/dispute-linkage";
 import { StatusTimeline } from "@/components/delivery/status-timeline";
+import { StorageStatusBadge } from "@/components/inventory/storage-status-badge";
 import { ItemQuantitiesTable } from "@/components/delivery/item-quantities-table";
 import { appCopy } from "@/lib/app/copy";
 import { getRequestIdentity } from "@/lib/auth/dal";
@@ -142,7 +143,7 @@ export default async function DeliveryDetailPage({ params }: { params: Promise<{
           <ul className="flex flex-col gap-3">
             {custody.map((allocation) => (
               <li key={allocation.id} className="flex flex-wrap items-center justify-between gap-3 border-b border-border py-2 text-[length:var(--text-small)] last:border-b-0">
-                <span className="text-foreground">{allocation.status}</span>
+                <StorageStatusBadge status={allocation.status} />
                 <span className="font-mono tabular-nums text-muted-foreground" dir="ltr">
                   {allocation.releasedQuantityKg} / {allocation.quantityKg} kg
                 </span>

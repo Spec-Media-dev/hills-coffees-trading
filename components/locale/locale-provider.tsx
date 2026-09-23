@@ -131,6 +131,14 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
   return <LocaleContext.Provider value={value}>{children}</LocaleContext.Provider>;
 }
 
+/**
+ * Like `useLocale`, but returns `null` instead of throwing outside a provider — for surfaces that must
+ * render even when the tree above them failed (route error boundaries).
+ */
+export function useOptionalLocale(): LocaleContextValue | null {
+  return useContext(LocaleContext);
+}
+
 export function useLocale(): LocaleContextValue {
   const context = useContext(LocaleContext);
   if (!context) {

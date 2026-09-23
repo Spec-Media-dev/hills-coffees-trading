@@ -3,6 +3,8 @@
 import { useEffect } from "react";
 import { StateScreen } from "@/components/layout/state-screen";
 import { Button } from "@/components/ui/button";
+import { useOptionalLocale } from "@/components/locale/locale-provider";
+import { appCopy } from "@/lib/app/copy";
 
 /**
  * Member Portal error boundary (Next.js route-segment convention). Must be a Client Component.
@@ -21,6 +23,8 @@ export default function DashboardError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  // Never throws: an error screen must render even if the locale context is unavailable.
+  const tryAgain = useOptionalLocale()?.tApp.tryAgain ?? appCopy.tryAgain;
   useEffect(() => {
     // Deliberately minimal: record only that an error occurred plus its non-sensitive digest.
     // Never log the message, stack, or any request/session data.
@@ -31,5 +35,5 @@ export default function DashboardError({
     }
   }, [error.digest]);
 
-  return <StateScreen kind="error"><Button variant="outline" onClick={reset}>Try again</Button></StateScreen>;
+  return <StateScreen kind="error"><Button variant="outline" onClick={reset}>{tryAgain}</Button></StateScreen>;
 }

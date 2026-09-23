@@ -65,10 +65,20 @@ export type PublicNamedRef = {
   slug: string;
 };
 
-/** One published catalogue image — a public URL only (no storage/bookkeeping identifiers). */
+/** One published catalogue image — a public URL + its primary flag (no storage/bookkeeping identifiers). */
 export type PublicCoffeeImage = {
   url: string;
+  isPrimary: boolean;
 };
+
+/**
+ * MEDIA DISPLAY RULE — "primary outside, gallery inside": list/card surfaces show ONE image — the
+ * admin-selected primary, or (defensively, should the one-primary invariant ever be absent) the first
+ * image in sort order. Pure and exported so the rule is unit-testable on its own.
+ */
+export function pickCardImage(images: readonly PublicCoffeeImage[]): PublicCoffeeImage | null {
+  return images.find((image) => image.isPrimary) ?? images[0] ?? null;
+}
 
 /** The origin of a coffee, as published on a coffee page. */
 export type PublicCoffeeOrigin = {
@@ -107,7 +117,7 @@ export type PublicCoffeeSummary = {
 
 /** A coffee as it appears on its own public detail page. */
 export type PublicCoffeeDetail = PublicCoffeeSummary & {
-  /** Every published image in display order (primary first). */
+  /** Every published image in the admin's `sort_order` (the gallery opens on `image`, the primary). */
   images: PublicCoffeeImage[];
   variety: PublicNamedRef | null;
   packagingType: PublicNamedRef | null;
@@ -156,6 +166,16 @@ const REFERENCE_TRANSLATION_COLUMNS = `
   processing_methods ( processing_method_translations ( locale, name ) ),
   coffee_varieties ( coffee_variety_translations ( locale, name ) ),
   packaging_types ( packaging_type_translations ( locale, name ) )
+`;
+
+/**
+ * Arabic TAG names ("Characteristics"), keyed by the coffee's slug then the tag's slug. Its own read,
+ * separate from the reference names above, because `tag_translations` arrives in a later migration
+ * (20260924120000): if it is missing only tags fall back to English — every other Arabic name stays.
+ */
+const TAG_TRANSLATION_COLUMNS = `
+  slug,
+  coffee_tags ( tags ( slug, tag_translations ( locale, name ) ) )
 `;
 
 /** The owner-run public image view: published coffees, public bucket, no bookkeeping columns. */
@@ -218,9 +238,9 @@ type ReferenceArabic = {
 const NO_REFERENCE_ARABIC: ReferenceArabic = { region: null, coffeeType: null, processingMethod: null, variety: null, packagingType: null };
 
 /** Supplemental data joined onto a coffee by its public slug. */
-type Supplement = { arabic: ReferenceArabic; images: PublicCoffeeImage[] };
+type Supplement = { arabic: ReferenceArabic; images: PublicCoffeeImage[]; tagArabic: ReadonlyMap<string, string> };
 
-const EMPTY_SUPPLEMENT: Supplement = { arabic: NO_REFERENCE_ARABIC, images: [] };
+const EMPTY_SUPPLEMENT: Supplement = { arabic: NO_REFERENCE_ARABIC, images: [], tagArabic: new Map() };
 
 // ---------------------------------------------------------------------------
 // Mappers — explicit field-by-field, never a spread
@@ -267,7 +287,7 @@ function toSummary(row: SummaryRow, supplement: Supplement): PublicCoffeeSummary
     origin: toOrigin(row.origins, supplement.arabic.region),
     coffeeType: toNamedRef(row.coffee_types, supplement.arabic.coffeeType),
     processingMethod: toNamedRef(row.processing_methods, supplement.arabic.processingMethod),
-    image: supplement.images[0] ?? null,
+    image: pickCardImage(supplement.images),
   };
 }
 
@@ -283,12 +303,12 @@ function toDetail(row: DetailRow, supplement: Supplement): PublicCoffeeDetail {
     origin: toOrigin(row.origins, supplement.arabic.region),
     coffeeType: toNamedRef(row.coffee_types, supplement.arabic.coffeeType),
     processingMethod: toNamedRef(row.processing_methods, supplement.arabic.processingMethod),
-    image: supplement.images[0] ?? null,
-    images: supplement.images.map((image) => ({ url: image.url })),
+    image: pickCardImage(supplement.images),
+    images: supplement.images.map((image) => ({ url: image.url, isPrimary: image.isPrimary })),
     variety: toNamedRef(row.coffee_varieties, supplement.arabic.variety),
     packagingType: toNamedRef(row.packaging_types, supplement.arabic.packagingType),
     tags: (row.coffee_tags ?? [])
-      .map((link) => toNamedRef(link.tags))
+      .map((link) => toNamedRef(link.tags, link.tags ? (supplement.tagArabic.get(link.tags.slug) ?? null) : null))
       .filter((tag): tag is PublicNamedRef => tag !== null),
     certifications: (row.coffee_certifications ?? []).map((certification) => ({
       name: certification.name,
@@ -321,17 +341,19 @@ async function fetchSupplements(slug?: string): Promise<Map<string, Supplement>>
   const supabase = createPublicReadClient();
   let refQuery = supabase.from("coffees").select(REFERENCE_TRANSLATION_COLUMNS).eq("status", PUBLISHED);
   let imageQuery = supabase.from("public_coffee_images").select(IMAGE_COLUMNS).order("sort_order", { ascending: true });
+  let tagQuery = supabase.from("coffees").select(TAG_TRANSLATION_COLUMNS).eq("status", PUBLISHED);
   if (slug) {
     refQuery = refQuery.eq("slug", slug);
     imageQuery = imageQuery.eq("coffee_slug", slug);
+    tagQuery = tagQuery.eq("slug", slug);
   }
-  const [refs, images] = await Promise.all([refQuery, imageQuery]);
+  const [refs, images, tags] = await Promise.all([refQuery, imageQuery, tagQuery]);
 
   const out = new Map<string, Supplement>();
   const entry = (key: string): Supplement => {
     let value = out.get(key);
     if (!value) {
-      value = { arabic: { region: null, coffeeType: null, processingMethod: null, variety: null, packagingType: null }, images: [] };
+      value = { arabic: { region: null, coffeeType: null, processingMethod: null, variety: null, packagingType: null }, images: [], tagArabic: new Map() };
       out.set(key, value);
     }
     return value;
@@ -348,10 +370,23 @@ async function fetchSupplements(slug?: string): Promise<Map<string, Supplement>>
     }
   }
 
+  if (!tags.error && tags.data) {
+    type TagRow = { slug: string; coffee_tags: { tags: { slug: string; tag_translations: TranslationsRow } | null }[] | null };
+    for (const row of tags.data as unknown as TagRow[]) {
+      const map = entry(row.slug).tagArabic as Map<string, string>;
+      for (const link of row.coffee_tags ?? []) {
+        const value = link.tags ? arabic(link.tags.tag_translations, "name") : null;
+        if (link.tags && value) map.set(link.tags.slug, value);
+      }
+    }
+  }
+
   if (!images.error && images.data) {
-    const rows = [...(images.data as unknown as ImageRow[])].sort((a, b) => Number(b.is_primary) - Number(a.is_primary) || a.sort_order - b.sort_order);
+    // Admin sort order, exactly — the primary is FLAGGED, not moved, so the gallery strip matches the
+    // admin's arrangement and the card/gallery start image comes from `pickCardImage`.
+    const rows = [...(images.data as unknown as ImageRow[])].sort((a, b) => a.sort_order - b.sort_order);
     for (const row of rows) {
-      entry(row.coffee_slug).images.push({ url: publicAssetUrl(row.object_path) });
+      entry(row.coffee_slug).images.push({ url: publicAssetUrl(row.object_path), isPrimary: row.is_primary === true });
     }
   }
 
@@ -378,15 +413,30 @@ async function fetchCoffeeIndex(): Promise<PublicCoffeeSummary[]> {
   return (data as unknown as SummaryRow[]).map((row) => toSummary(row, supplements.get(row.slug) ?? EMPTY_SUPPLEMENT));
 }
 
+/**
+ * Normalizes a public route slug (decodes URI encoding, trims whitespace, strips trailing slash, lowercases).
+ * Pure and exported so route callers and tests share identical slug resolution logic.
+ */
+export function normalizeSlug(slug: string): string {
+  if (typeof slug !== "string") return "";
+  try {
+    return decodeURIComponent(slug).trim().replace(/\/+$/, "").toLowerCase();
+  } catch {
+    return slug.trim().replace(/\/+$/, "").toLowerCase();
+  }
+}
+
 async function fetchCoffeeDetail(
   slug: string
 ): Promise<PublicCoffeeDetail | null> {
+  const normalized = normalizeSlug(slug);
+  if (!normalized) return null;
   const supabase = createPublicReadClient();
   const { data, error } = await supabase
     .from("coffees")
     .select(DETAIL_COLUMNS)
     .eq("status", PUBLISHED)
-    .eq("slug", slug)
+    .eq("slug", normalized)
     .maybeSingle();
 
   if (error) throw new Error("Public coffee detail read failed.");
@@ -442,7 +492,9 @@ export async function getPublicCoffeeIndex(): Promise<PublicCoffeeSummary[]> {
 export async function getPublicCoffeeBySlug(
   slug: string
 ): Promise<PublicCoffeeDetail | null> {
-  return (await cachedCoffeeDetail(slug)()).value;
+  const normalized = normalizeSlug(slug);
+  if (!normalized) return null;
+  return (await cachedCoffeeDetail(normalized)()).value;
 }
 
 // ---------------------------------------------------------------------------
@@ -464,7 +516,8 @@ export async function __readCoffeeIndexCacheStamp(): Promise<CacheStamp> {
 export async function __readCoffeeDetailCacheStamp(
   slug: string
 ): Promise<CacheStamp> {
-  return (await cachedCoffeeDetail(slug)()).stamp;
+  const normalized = normalizeSlug(slug);
+  return (await cachedCoffeeDetail(normalized)()).stamp;
 }
 
 /**
@@ -486,5 +539,7 @@ export async function __fetchCoffeeIndexUncached(): Promise<
 export async function __fetchCoffeeDetailUncached(
   slug: string
 ): Promise<PublicCoffeeDetail | null> {
-  return fetchCoffeeDetail(slug);
+  const normalized = normalizeSlug(slug);
+  if (!normalized) return null;
+  return fetchCoffeeDetail(normalized);
 }

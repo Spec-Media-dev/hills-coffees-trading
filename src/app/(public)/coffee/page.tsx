@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { Bilingual } from "@/components/locale/bilingual";
 import { CatalogueFilter } from "@/components/public/catalogue-filter";
 import { JsonLd } from "@/components/public/json-ld";
+import { OpeningStats } from "@/components/public/opening-stats";
 import { PageOpening } from "@/components/public/page-opening";
 import { getPublicCoffeeIndex } from "@/lib/public/coffees";
 import { copy } from "@/lib/public/copy";
@@ -95,6 +96,17 @@ export default async function CoffeeIndexPage() {
         eyebrow={<Bilingual pick={(c) => c.coffee.index.eyebrow} />}
         title={<Bilingual pick={(c) => c.coffee.index.title} />}
         lead={<Bilingual pick={(c) => c.coffee.index.lead} />}
+        aside={
+          coffees.length > 0 ? (
+            <OpeningStats
+              items={[
+                { key: "coffees", label: <Bilingual pick={(c) => c.coffee.index.statCoffees} />, value: coffees.length },
+                { key: "origins", label: <Bilingual pick={(c) => c.coffee.index.statOrigins} />, value: new Set(coffees.flatMap((coffee) => (coffee.origin ? [coffee.origin.slug] : []))).size },
+                { key: "processes", label: <Bilingual pick={(c) => c.coffee.index.statProcesses} />, value: new Set(coffees.flatMap((coffee) => (coffee.processingMethod ? [coffee.processingMethod.slug] : []))).size },
+              ]}
+            />
+          ) : undefined
+        }
       />
 
       <section className="bg-background py-[clamp(3rem,6vw,6rem)] text-foreground">

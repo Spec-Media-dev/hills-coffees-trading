@@ -32,9 +32,9 @@ export function PageOpening({
     <section
       data-page-opener={isDark ? "dark" : "light"}
       className={cn(
-        "relative isolate overflow-hidden pb-[clamp(4.5rem,9vw,8.5rem)]",
+        "relative isolate overflow-hidden pb-[clamp(3.5rem,7vw,6.5rem)]",
         isDark
-          ? "-mt-[var(--header-h)] min-h-[min(72svh,48rem)] pt-[calc(var(--header-h)+4rem)]"
+          ? "-mt-[var(--header-h)] min-h-[min(56svh,40rem)] pt-[calc(var(--header-h)+3.5rem)]"
           : "pt-[calc(var(--header-h)+2rem)]",
         tone === "forest" && "hc-stage-forest bg-[var(--hc-forest)] text-[#EEE4D1]",
         tone === "moss" && "hc-stage-moss bg-[var(--hc-moss)] text-[#EEE4D1]",

@@ -5,11 +5,13 @@ import { PageHeader } from "@/components/app/page-header";
 import { AvailabilityBar } from "@/components/listings/availability-bar";
 import { ListingStatusBadge } from "@/components/listings/listing-status-badge";
 import { AppBilingual } from "@/components/locale/app-bilingual";
+import { MediaGallery } from "@/components/media/media-gallery";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { getBrowseListingById } from "@/lib/listings/browse";
 import { projectFillState } from "@/lib/listings/fills";
+import { getOfferMedia } from "@/lib/listings/media";
 
 export const metadata: Metadata = {
   title: "Listing",
@@ -39,6 +41,10 @@ export default async function MarketplaceListingDetailPage({
 
   const listing = await getBrowseListingById(offerId);
   if (!listing) notFound();
+  // "Gallery inside": every image the member may see (same RLS audience as the listing itself), in
+  // the seller's sort order, opening on the primary.
+  const media = (await getOfferMedia(offerId)).filter((item) => item.signedUrl);
+  const primaryIndex = Math.max(0, media.findIndex((item) => item.isPrimary));
 
   const projection = projectFillState({
     quantityKg: listing.quantityKg,
@@ -57,6 +63,26 @@ export default async function MarketplaceListingDetailPage({
         ]}
         actions={<ListingStatusBadge status={listing.status} />}
       />
+
+      {media.length > 0 ? (
+        <section className="flex flex-col gap-3" aria-labelledby="listing-images-heading" data-listing-gallery>
+          <h2 id="listing-images-heading" className="text-lg font-semibold text-foreground">
+            <AppBilingual pick={(c) => c.marketplace.detail.imagesHeading} />
+          </h2>
+          <MediaGallery
+            images={media.map((item) => ({ url: item.signedUrl! }))}
+            initialIndex={primaryIndex}
+            aspect="16 / 10"
+            multiAspect="16 / 10"
+            unoptimized
+            dictionary="app"
+            tone="light"
+            sizes="(min-width: 1024px) 60vw, 100vw"
+            className="max-w-4xl"
+            frameClassName="rounded-[var(--radius-xl)] border border-border"
+          />
+        </section>
+      ) : null}
 
       <div className="flex flex-col gap-8 rounded-[var(--radius-xl)] border border-border bg-card p-7 shadow-[var(--shadow-md)] sm:p-9">
         <section className="flex flex-col gap-3">

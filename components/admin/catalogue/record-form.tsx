@@ -54,6 +54,8 @@ export type RecordField = {
   readOnly?: boolean;
   /** Force LTR rendering for codes/slugs inside an RTL page. */
   ltr?: boolean;
+  /** Arabic content field: `lang="ar" dir="rtl"` in EVERY admin locale (hardening run). */
+  rtl?: boolean;
   maxLength?: number;
 };
 
@@ -106,6 +108,16 @@ export function RecordForm({ fields, hiddenFields, action, resource, copyKey, pr
   const [clientErrors, setClientErrors] = useState<Record<string, string>>({});
   const baseId = useId();
   const navigated = useRef<object | null>(null);
+  const rootRef = useRef<HTMLElement>(null);
+  const announced = useRef<object | null>(null);
+
+  // Tells an enclosing `BilingualEditor` this language saved successfully (clears its unsaved dot).
+  useEffect(() => {
+    if (state?.ok && announced.current !== state) {
+      announced.current = state;
+      rootRef.current?.dispatchEvent(new CustomEvent("hc:content-saved", { bubbles: true }));
+    }
+  }, [state]);
 
   const feedbackFor = (result: ActionFeedbackResult<RecordWriteOutcome>): ActionToastFeedback | null => {
     if (result.ok) return { tone: "success", message: successMessage ?? copy.feedback.saved };
@@ -161,7 +173,11 @@ export function RecordForm({ fields, hiddenFields, action, resource, copyKey, pr
     ? { ...(system.common as unknown as Record<string, string>), ...(system.fields as unknown as Record<string, string>) }
     : isPrices
       ? { ...(copy.common as unknown as Record<string, string>), ...(copy.prices.fields as unknown as Record<string, string>) }
-      : { ...(copy.common as unknown as Record<string, string>), ...(copy.warehouses.form as unknown as Record<string, string>), ...(copy.warehouses.locations as unknown as Record<string, string>) };
+      : resource === "warehouses" || resource === "locations"
+        ? { ...(copy.common as unknown as Record<string, string>), ...(copy.warehouses.form as unknown as Record<string, string>), ...(copy.warehouses.locations as unknown as Record<string, string>) }
+        : // Catalogue forms (coffees/origins/regions/taxonomy): the catalogue's own labels win. Merging the
+          // warehouse-location dictionary on top used to relabel every catalogue `name` field "Location name".
+          { ...(copy.warehouses.locations as unknown as Record<string, string>), ...(copy.warehouses.form as unknown as Record<string, string>), ...(copy.common as unknown as Record<string, string>) };
   const labelOf = (key: string) => labels[key] ?? key;
   const optionsOf = (field: RecordField): readonly RecordFieldOption[] => {
     if (field.statusOptions === "coffee") return Object.entries(copy.statuses.coffee).map(([value, label]) => ({ value, label }));
@@ -201,7 +217,7 @@ export function RecordForm({ fields, hiddenFields, action, resource, copyKey, pr
   };
 
   return (
-    <section className="flex flex-col gap-4 rounded-[var(--radius-lg)] border border-border bg-[var(--surface-card)] p-5" data-record-form={formKey}>
+    <section ref={rootRef} className="flex flex-col gap-4 rounded-[var(--radius-lg)] border border-border bg-[var(--surface-card)] p-5" data-record-form={formKey}>
       <div className="flex flex-col gap-1">
         <h2 className="flex flex-wrap items-center gap-2 font-heading text-[length:var(--text-h4)] font-semibold text-foreground">
           {heading}
@@ -241,9 +257,12 @@ export function RecordForm({ fields, hiddenFields, action, resource, copyKey, pr
               );
             }
             const englishContent = contentLanguage === "en" && (field.name === "name" || field.name === "description");
+            const arabicContent = field.rtl === true;
+            const direction = arabicContent ? "rtl" : field.ltr || englishContent ? "ltr" : undefined;
+            const language = arabicContent ? "ar" : englishContent ? "en" : undefined;
             const control =
               field.kind === "textarea" ? (
-                <Textarea id={id} name={field.name} defaultValue={typeof field.defaultValue === "string" ? field.defaultValue : ""} rows={4} maxLength={field.maxLength} readOnly={field.readOnly} required={field.required} dir={field.ltr || englishContent ? "ltr" : undefined} lang={englishContent ? "en" : undefined} />
+                <Textarea id={id} name={field.name} defaultValue={typeof field.defaultValue === "string" ? field.defaultValue : ""} rows={4} maxLength={field.maxLength} readOnly={field.readOnly} required={field.required} dir={direction} lang={language} />
               ) : field.kind === "select" ? (
                 <select id={id} name={field.name} defaultValue={typeof field.defaultValue === "string" ? field.defaultValue : ""} disabled={field.readOnly} required={field.required} className="h-11 w-full rounded-[var(--radius-sm)] border border-input bg-[var(--surface-card)] px-3 text-base text-foreground focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-offset-2 focus-visible:outline-[var(--focus-ring)] md:text-sm dark:bg-input/30">
                   {field.allowEmpty ? <option value="">{copy.common.none}</option> : null}
@@ -258,7 +277,7 @@ export function RecordForm({ fields, hiddenFields, action, resource, copyKey, pr
               ) : field.kind === "datetime" ? (
                 <Input id={id} name={field.name} type="datetime-local" defaultValue={typeof field.defaultValue === "string" ? field.defaultValue : ""} readOnly={field.readOnly} required={field.required} dir="ltr" className="font-mono" />
               ) : (
-                <Input id={id} name={field.name} defaultValue={typeof field.defaultValue === "string" ? field.defaultValue : ""} maxLength={field.maxLength} readOnly={field.readOnly} required={field.required} dir={field.ltr || englishContent ? "ltr" : undefined} lang={englishContent ? "en" : undefined} className={field.ltr ? "font-mono" : undefined} />
+                <Input id={id} name={field.name} defaultValue={typeof field.defaultValue === "string" ? field.defaultValue : ""} maxLength={field.maxLength} readOnly={field.readOnly} required={field.required} dir={direction} lang={language} className={field.ltr ? "font-mono" : undefined} />
               );
             return (
               <Field key={field.name} id={id} label={label} hint={field.hintKey ? labelOf(field.hintKey) : undefined} error={error} className={field.kind === "textarea" ? "md:col-span-2" : undefined} control={control} />

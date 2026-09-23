@@ -7,7 +7,7 @@
 
 **Status**: Block A (Phases 1–2) **COMPLETE — 12 / 12 verified**. Block B (Phases 3–4)
 **COMPLETE — 5 / 5 verified**. Block C (Phases 5 + 7) **COMPLETE — 3 / 3 verified**.
-**59 / 59 current tasks checked — Phases 1–13 COMPLETE — VERIFIED.** Post-closure addition T058 (hero redesign, 2026-09-23) also checked — 60 / 60. The `T0NN` line below is a
+**59 / 59 current tasks checked — Phases 1–13 COMPLETE — VERIFIED.** Post-closure addition T058 (hero redesign, 2026-09-23) also checked — 60 / 60. Pre-Stripe hardening additions T059–T063 (2026-09-24) checked — 65 / 65. The `T0NN` line below is a
 documentation template, not a task; the real task set is 59 items (`T000`–`T057` plus `T006a` and
 `T031a`).
 **Phase 5.5 (Full Product UI Foundation) is COMPLETE — VERIFIED and tracked separately** — see
@@ -755,6 +755,32 @@ catalogue rows inside a test, and do not assert against whatever data happens to
   `preload="none"`, zero CLS (absolute layer). Coffee cards/detail also render the coffee's own primary
   image when one exists (Feature 010 T053) and bilingual catalogue content (Feature 010 T054).
   - Verify: `tests/public/bilingual-content-hero.test.tsx` (10/10); public suite 151/151.
+
+## Post-closure scope additions — pre-Stripe public experience hardening (2026-09-24)
+
+> Approved additions after Feature 002 closed; recorded separately so earlier counts stay truthful. 60 → 65.
+
+- [x] T059 [PS-new] Coffee detail redesign: identity band (provenance, name, description, hero facts, RFQ + commercial
+  actions) with the product `MediaGallery` (primary dominant; next two images medium; the rest small thumbnails; tap/
+  click swaps the chosen image into the main slot and returns the previous one to its stored position; swipe, keyboard,
+  reduced motion; single image = clean frame); grouped specification cards + certifications + characteristics;
+  COMMERCIAL CONTEXT keeping Feature 011's price concepts apart — reference market data via the presentation contract
+  (coffee-scoped differentials), live seller offers stated as members-only (never public — `coffee_offers` is not
+  anonymous-readable), RFQ card. Card/grid surfaces show only the primary (`pickCardImage`).
+  - Verify: `tests/public/coffee-detail-page.test.tsx` (7/7), `media-display-rule.test.tsx` (17/17),
+    `tests/pricing/integration-boundary.test.ts` (25/25, allowlist extended with a coffee-scope assertion).
+- [x] T060 [PS-new] Origin detail redesign (dossier panel with real coffee-image mosaic or country motif, facts, coffee
+  grid with designed empty state, approved sourcing commitments, commercial band) and index openers with real counts.
+- [x] T061 [PS-new] Homepage final polish: hero film is muted autoplay/loop/inline with NO visible control (poster when
+  autoplay is blocked; static poster under reduced motion); arch-shaped header (rounded top, square gold-ruled base,
+  smaller logo); reference section as an editorial split explaining the four price concepts; closing CTA with real
+  photography and a three-step "what happens next".
+  - Verify: `tests/public/bilingual-content-hero.test.tsx` (10/10), `tests/admin/pre-stripe-hardening.test.tsx` (nav).
+- [x] T062 [PS-new] About redesign: opener with an "at a glance" panel of approved facts, commitments as a 2×2 card grid
+  beside editorial photography, shared `TraceabilityBand`, closing band with RFQ + Trading Portal actions.
+- [x] T063 [PS-new] Public quality fixes: RFQ (contact) submit bar floated over the form fields (sticky with no backing)
+  — made static, together with every other transparent sticky action bar in the product; 108 route × width × locale
+  combinations checked for horizontal overflow (0 found).
 
 ## Security requirement traceability
 

@@ -108,7 +108,7 @@ export function CoffeeMediaPanel({
           {m.none}
         </p>
       ) : (
-        <ul className="grid grid-cols-1 gap-4 min-[420px]:grid-cols-2 lg:grid-cols-3">
+        <ul className="grid grid-cols-1 gap-4 min-[520px]:grid-cols-2">
           {media.map((row, index) => (
             <MediaCard key={row.id} coffeeId={coffeeId} row={row} isFirst={index === 0} isLast={index === media.length - 1} canReplace={uploadAvailable} />
           ))}
@@ -200,12 +200,13 @@ function MediaCard({ coffeeId, row, isFirst, isLast, canReplace }: { coffeeId: s
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          {row.isPrimary ? null : (
+        <div className="flex items-center justify-between gap-2">
+          {row.isPrimary ? <span aria-hidden="true" /> : (
             <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => startTransition(() => dispatchPrimary(base()))}>
               {m.setPrimary}
             </Button>
           )}
+          <div className="flex shrink-0 items-center gap-1" role="group" aria-label={m.sortOrder}>
           <Button
             type="button"
             size="sm"
@@ -238,10 +239,11 @@ function MediaCard({ coffeeId, row, isFirst, isLast, canReplace }: { coffeeId: s
           >
             <Icon name="chevron-right" className="rtl:rotate-180" />
           </Button>
+          </div>
         </div>
 
         <form
-          className="flex items-center gap-2"
+          className="flex items-end gap-2"
           onSubmit={(event) => {
             event.preventDefault();
             const formData = new FormData(event.currentTarget);
@@ -250,10 +252,15 @@ function MediaCard({ coffeeId, row, isFirst, isLast, canReplace }: { coffeeId: s
             startTransition(() => dispatchOrder(formData));
           }}
         >
+          <div className="flex flex-col gap-1">
           <label htmlFor={`sort-${row.id}`} className="text-[length:var(--text-micro)] text-muted-foreground">
             {m.sortOrder}
           </label>
-          <Input id={`sort-${row.id}`} name="sortOrder" type="number" min={0} max={9999} step={1} defaultValue={row.sortOrder} className="h-9 w-20" dir="ltr" />
+          {/* Keyed by the CURRENT sort order: an uncontrolled input keeps its old DOM value across a
+              re-render, so after "move earlier/later" it would show — and on save silently restore —
+              the previous position. Re-keying remounts it with the fresh server value. */}
+          <Input key={`sort-${row.id}-${row.sortOrder}`} id={`sort-${row.id}`} name="sortOrder" type="number" min={0} max={9999} step={1} defaultValue={row.sortOrder} className="h-9 w-24 font-mono tabular-nums" dir="ltr" />
+          </div>
           <Button type="submit" size="sm" variant="text" disabled={busy}>
             {m.saveOrder}
           </Button>

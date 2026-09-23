@@ -75,7 +75,12 @@ export default async function ListingReviewPage({ params }: { params: Promise<{ 
                 <span className="block font-mono text-[length:var(--text-micro)] text-muted-foreground">{listing.sellerOrganizationId}</span>
               </Row>
               <Row label={<AppBilingual pick={(c) => c.admin.compliance.listings.detail.sellerType} />}>
-                <span className="font-mono text-[length:var(--text-micro)]">{listing.sellerType}</span>
+                <span className="flex flex-col">
+                  <AppBilingual pick={(c) => (c.marketplace.card.sellerType as Record<string, string>)[listing.sellerType] ?? listing.sellerType} />
+                  <span className="font-mono text-[length:var(--text-micro)] text-muted-foreground" dir="ltr">
+                    {listing.sellerType}
+                  </span>
+                </span>
               </Row>
               <Row label={<AppBilingual pick={(c) => c.admin.compliance.listings.detail.quantity} />}>
                 <span className="tabular-nums">{formatQuantity(listing.quantityKg, "kg")}</span>

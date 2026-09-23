@@ -71,7 +71,7 @@ export function OrganizationContactForm({
         <Field label={copy.phone} control={<Input {...register("phone")} />} error={errors.phone?.message} />
       </FieldGroup>
 
-      <FormActionBar className="justify-start bg-transparent backdrop-blur-none">
+      <FormActionBar className="static justify-start bg-transparent backdrop-blur-none">
         <Button type="submit" disabled={isPending}>
           {isPending ? copy.saving : copy.save}
         </Button>

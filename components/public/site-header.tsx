@@ -79,7 +79,7 @@ export { PUBLIC_ROUTES };
 const LOGO_WIDTH = 2624;
 const LOGO_HEIGHT = 996;
 
-const LOGO_CLASS = "block h-auto w-[118px] lg:w-[132px] 2xl:w-[142px]";
+const LOGO_CLASS = "block h-auto w-[102px] lg:w-[112px] 2xl:w-[120px]";
 
 const NAV_LINK =
   "hc-nav-link relative inline-flex h-10 shrink-0 items-center gap-1 whitespace-nowrap text-[0.78rem] font-semibold transition-colors duration-[var(--dur-fast)] after:absolute after:inset-x-2 after:bottom-0 after:h-px after:origin-center after:scale-x-0 after:bg-[var(--gold-on-dark)] after:transition-transform after:duration-[var(--dur-fast)] hover:after:scale-x-100 focus-visible:rounded-[var(--radius-xs)] focus-visible:outline-2 focus-visible:outline-offset-[-4px] focus-visible:outline-[var(--focus-ring)]";
@@ -149,7 +149,7 @@ export async function SiteHeader() {
 
   return (
     <header className="hc-header sticky top-0 z-40 px-3 py-3 sm:px-4">
-      <div className="hc-header-frame hc-public-container-wide flex h-16 items-center gap-3 rounded-full px-4 sm:px-5 lg:gap-4">
+      <div className="hc-header-frame hc-public-container-wide flex h-16 items-center gap-3 rounded-t-[1.375rem] rounded-b-none px-4 sm:px-5 lg:gap-4">
         <Link
           href={PUBLIC_ROUTES.home}
           aria-label={copy.a11y.homeLink}

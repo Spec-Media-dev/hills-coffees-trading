@@ -1,4 +1,5 @@
 import { AdminAccessDenied } from "@/components/admin/access-denied";
+import { arabicCreateFields } from "@/components/admin/catalogue/arabic-fields";
 import { RecordForm } from "@/components/admin/catalogue/record-form";
 import { taxonomyFields } from "@/components/admin/catalogue/reference-fields";
 import { AdminStateCard } from "@/components/admin/state-card";
@@ -27,7 +28,7 @@ export default async function NewTaxonomyEntryPage({ params }: { params: Promise
   return (
     <div className="flex flex-col gap-6">
       <PageHeader title={<AppBilingual pick={(c) => c.admin.catalogue.taxonomy.kinds[kind]} />} description={<AppBilingual pick={(c) => c.admin.catalogue.taxonomy.form.createTitle} />} trail={trail} />
-      <RecordForm resource="taxonomy" mode="create" formKey={`taxonomy-${kind}`} fields={taxonomyFields(kind, null, coffeeTypes)} hiddenFields={{ kind }} action={saveTaxonomyEntry} successHrefTemplate={`/dashboard-admin/taxonomy/${kind}/{id}`} />
+      <RecordForm resource="taxonomy" mode="create" formKey={`taxonomy-${kind}`} fields={[...taxonomyFields(kind, null, coffeeTypes), ...arabicCreateFields(false)]} hiddenFields={{ kind }} action={saveTaxonomyEntry} successHrefTemplate={`/dashboard-admin/taxonomy/${kind}/{id}`} />
     </div>
   );
 }

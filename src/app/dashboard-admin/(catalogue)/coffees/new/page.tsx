@@ -1,5 +1,6 @@
 import { AdminAccessDenied } from "@/components/admin/access-denied";
 import { coffeeFields } from "@/components/admin/catalogue/coffee-fields";
+import { arabicCreateFields } from "@/components/admin/catalogue/arabic-fields";
 import { RecordForm } from "@/components/admin/catalogue/record-form";
 import { PageHeader } from "@/components/app/page-header";
 import { AppBilingual } from "@/components/locale/app-bilingual";
@@ -22,7 +23,7 @@ export default async function NewCoffeePage() {
           { label: <AppBilingual pick={(c) => c.admin.catalogue.coffees.form.createTitle} /> },
         ]}
       />
-      <RecordForm resource="coffees" mode="create" formKey="coffee" fields={coffeeFields(options, null)} hiddenFields={{}} action={saveCoffee} successHrefTemplate="/dashboard-admin/coffees/{id}" />
+      <RecordForm resource="coffees" mode="create" formKey="coffee" fields={[...coffeeFields(options, null), ...arabicCreateFields(true)]} hiddenFields={{}} action={saveCoffee} successHrefTemplate="/dashboard-admin/coffees/{id}" />
     </div>
   );
 }

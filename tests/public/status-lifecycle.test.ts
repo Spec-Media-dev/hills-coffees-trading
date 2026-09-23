@@ -33,4 +33,20 @@ describe("T039 — public status lifecycle", () => {
       expect(source).toContain("notFound()");
     }
   });
+
+  it("index and detail agree: every published coffee in the index resolves on detail uncached and with trailing slash", async () => {
+    const { __fetchCoffeeIndexUncached } = await import("@/lib/public/coffees");
+    const index = await __fetchCoffeeIndexUncached();
+    expect(index.length).toBeGreaterThan(0);
+    for (const summary of index) {
+      const detail = await __fetchCoffeeDetailUncached(summary.slug);
+      expect(detail, `Detail for ${summary.slug} must resolve`).not.toBeNull();
+      expect(detail?.slug).toBe(summary.slug);
+
+      // Trailing slash normalization must resolve to the exact same detail
+      const detailWithSlash = await __fetchCoffeeDetailUncached(`${summary.slug}/`);
+      expect(detailWithSlash, `Detail with trailing slash for ${summary.slug}/ must resolve`).not.toBeNull();
+      expect(detailWithSlash?.slug).toBe(summary.slug);
+    }
+  });
 });

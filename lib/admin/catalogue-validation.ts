@@ -179,13 +179,13 @@ export type CoffeeMediaSortInput = z.infer<typeof CoffeeMediaSortInput>;
 
 // ── Arabic catalogue content (hardening run) ─────────────────────────────────────────────────────
 
-/** Entities with a normalized `*_translations` table. `tags` has none, so it is deliberately absent. */
-export const TRANSLATION_KINDS = ["coffee", "origin", "region", "coffee_type", "variety", "processing", "packaging"] as const;
+/** Entities with a normalized `*_translations` table (`tag` added by migration 20260924120000). */
+export const TRANSLATION_KINDS = ["coffee", "origin", "region", "coffee_type", "variety", "processing", "packaging", "tag"] as const;
 export type TranslationKind = (typeof TRANSLATION_KINDS)[number];
 /** Only coffees and origins carry a translated description (mirrors `set_catalogue_translation`). */
 export const TRANSLATION_KINDS_WITH_DESCRIPTION: readonly TranslationKind[] = ["coffee", "origin"];
 
-/** Taxonomy kind → translation kind (`null` for `tags`, which has no translation table). */
+/** Taxonomy kind → translation kind (every taxonomy kind now has one). */
 export function translationKindForTaxonomy(kind: TaxonomyKind): TranslationKind | null {
   switch (kind) {
     case "coffeeTypes":
@@ -196,6 +196,8 @@ export function translationKindForTaxonomy(kind: TaxonomyKind): TranslationKind 
       return "processing";
     case "packagingTypes":
       return "packaging";
+    case "tags":
+      return "tag";
     default:
       return null;
   }

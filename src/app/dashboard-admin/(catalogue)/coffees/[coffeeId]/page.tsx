@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { AdminAccessDenied } from "@/components/admin/access-denied";
+import { BilingualEditor } from "@/components/admin/catalogue/bilingual-editor";
 import { ArabicContentPanel } from "@/components/admin/catalogue/arabic-content-panel";
 import { coffeeFields } from "@/components/admin/catalogue/coffee-fields";
 import { CoffeeMediaPanel } from "@/components/admin/catalogue/coffee-media-panel";
@@ -73,8 +74,10 @@ export default async function CoffeeDetailPage({ params }: { params: Promise<{ c
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
         <div className="flex min-w-0 flex-col gap-6">
-          <RecordForm resource="coffees" mode="edit" contentLanguage="en" formKey="coffee" fields={coffeeFields(options, coffee)} hiddenFields={{ coffeeId: coffee.id }} action={saveCoffee} />
-          <ArabicContentPanel kind="coffee" entityId={coffee.id} hasDescription initial={arabic} returnPath={`/dashboard-admin/coffees/${coffee.id}`} />
+          <BilingualEditor
+            english={<RecordForm resource="coffees" mode="edit" contentLanguage="en" formKey="coffee" fields={coffeeFields(options, coffee)} hiddenFields={{ coffeeId: coffee.id }} action={saveCoffee} />}
+            arabic={<ArabicContentPanel kind="coffee" entityId={coffee.id} hasDescription initial={arabic} returnPath={`/dashboard-admin/coffees/${coffee.id}`} />}
+          />
           <CoffeeMediaPanel coffeeId={coffee.id} media={media} uploadAvailable={CATALOGUE_MEDIA_UPLOAD_AVAILABLE} maxImages={CATALOGUE_MEDIA_MAX_COUNT} maxBytes={CATALOGUE_MEDIA_MAX_BYTES} />
         </div>
         <div className="flex min-w-0 flex-col gap-6">

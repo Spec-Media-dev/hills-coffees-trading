@@ -54,7 +54,7 @@ export function ChangeEmailForm() {
   return (
     <form onSubmit={onValid} noValidate className="flex flex-col gap-4" data-account-form="email-change">
       <Field label={tApp.accountSecurity.email.newLabel} control={<Input type="email" autoComplete="email" {...register("newEmail")} />} error={errors.newEmail?.message} />
-      <FormActionBar className="justify-start bg-transparent backdrop-blur-none">
+      <FormActionBar className="static justify-start bg-transparent backdrop-blur-none">
         <Button type="submit" disabled={isPending}>
           {isPending ? tApp.accountSecurity.email.saving : tApp.accountSecurity.email.submit}
         </Button>

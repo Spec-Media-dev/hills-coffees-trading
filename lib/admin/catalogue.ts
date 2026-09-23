@@ -818,6 +818,7 @@ const TRANSLATION_SOURCES: Readonly<Record<TranslationKind, { table: string; key
   variety: { table: "coffee_variety_translations", key: "coffee_variety_id", hasDescription: false },
   processing: { table: "processing_method_translations", key: "processing_method_id", hasDescription: false },
   packaging: { table: "packaging_type_translations", key: "packaging_type_id", hasDescription: false },
+  tag: { table: "tag_translations", key: "tag_id", hasDescription: false },
 };
 
 export type ArabicTranslation = { name: string; description: string };

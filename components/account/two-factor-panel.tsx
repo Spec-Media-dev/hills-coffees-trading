@@ -129,7 +129,7 @@ function FactorRow({ factor }: { factor: MfaFactorSummary }) {
             control={<Input name="code" inputMode="numeric" autoComplete="one-time-code" maxLength={6} dir="ltr" className="max-w-40 font-mono" />}
             error={codeError}
           />
-          <FormActionBar className="justify-start gap-2 bg-transparent backdrop-blur-none">
+          <FormActionBar className="static justify-start gap-2 bg-transparent backdrop-blur-none">
             <Button type="submit" variant="destructive" disabled={isPending}>
               {isPending ? copy.removing : copy.confirmRemove}
             </Button>

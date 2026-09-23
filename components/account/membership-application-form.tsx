@@ -216,7 +216,7 @@ export function MembershipApplicationForm() {
         </p>
       ) : null}
 
-      <FormActionBar className="justify-start bg-transparent backdrop-blur-none">
+      <FormActionBar className="static justify-start bg-transparent backdrop-blur-none">
         <Button type="submit" disabled={isPending} className="w-full sm:w-auto">
           <AppBilingual pick={(c) => (isPending ? c.onboarding.form.submitting : c.onboarding.form.submit)} />
         </Button>

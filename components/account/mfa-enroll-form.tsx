@@ -77,7 +77,7 @@ export function MfaEnrollForm({
               : undefined
           }
         />
-        <FormActionBar className="justify-start bg-transparent backdrop-blur-none">
+        <FormActionBar className="static justify-start bg-transparent backdrop-blur-none">
           <Button type="submit" disabled={isPending} className="w-full">
             {isPending ? copy.enrollConfirming : copy.enrollConfirm}
           </Button>

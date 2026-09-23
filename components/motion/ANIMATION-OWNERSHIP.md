@@ -14,6 +14,9 @@ One interaction has one engine, and one rendered property has one owner. Later F
 | Skeleton | loading pulse | CSS token layer | opacity |
 | Reveal | viewport entrance | Motion | opacity, translate-y |
 | Presence | component/image enter and exit | Motion | opacity |
+| MediaGallery tiles (`components/media/media-gallery.tsx`) | supporting tiles re-flow when the active image changes | Motion (`layout`, disabled under reduced motion) | tile position/size (layout transform) |
+| MediaGallery main stage | active image cross-fade | CSS token layer | opacity, transform (on the stage image only — never the tiles) |
+| Homepage hero film (`components/public/hero-bean-media.tsx`) | ambient looping background film fade-in | CSS token layer | opacity (poster ↔ film); no playback control, none under reduced motion |
 | HoverLift | interactive card hover lift | Motion | translate-y |
 | Story timeline | seekable, multi-step synchronised sequence | GSAP | clip-path, x-percent, timeline progress |
 | AnimatedHero (UIF-024) | hero entrance sequence | GSAP | clip-path, scale, opacity, translate-y |

@@ -25,6 +25,7 @@ import {
   type CatalogueWriteOutcome,
   type CoffeeTransitionOutcome,
 } from "@/lib/admin/catalogue";
+import { isTaxonomyKind, translationKindForTaxonomy, type TranslationKind } from "@/lib/admin/catalogue-validation";
 import { ACTION_FEEDBACK, type ActionFeedbackResult } from "@/lib/types/action-feedback";
 
 /**
@@ -47,9 +48,24 @@ function revalidateAdmin(paths: readonly string[]) {
   revalidatePath("/dashboard-admin");
 }
 
+/**
+ * Pre-Stripe hardening run — bilingual CREATE. The create forms carry optional `nameAr` /
+ * `descriptionAr` fields so Arabic can be entered in the same step as English. The English record is
+ * created first (its own validated, RLS-checked write); only then — with its new id — is the Arabic
+ * row written through the SAME `saveArabicTranslation` writer the edit screen uses. Two separate rows,
+ * so neither language can overwrite the other. A failed Arabic write never undoes the English record:
+ * the detail page's Arabic panel shows exactly what was saved and offers the retry.
+ */
+async function saveArabicOnCreate(kind: TranslationKind, id: string, input: Record<string, string>) {
+  const name = (input.nameAr ?? "").trim();
+  if (!name) return;
+  await saveArabicTranslation({ kind, entityId: id, name, description: kind === "coffee" || kind === "origin" ? (input.descriptionAr ?? "") : "" });
+}
+
 export async function saveCoffee(_prev: Result | undefined, formData: FormData): Promise<Result> {
   const input = fields(formData);
   const result = input.coffeeId ? await updateCoffee(input) : await createCoffee(input);
+  if (result.ok && !input.coffeeId) await saveArabicOnCreate("coffee", result.data.id, input);
   if (result.ok) revalidateAdmin(["/dashboard-admin/coffees", `/dashboard-admin/coffees/${result.data.id}`]);
   return result;
 }
@@ -64,6 +80,7 @@ export async function runCoffeeTransition(_prev: ActionFeedbackResult<CoffeeTran
 export async function saveOrigin(_prev: Result | undefined, formData: FormData): Promise<Result> {
   const input = fields(formData);
   const result = input.originId ? await updateOrigin(input) : await createOrigin(input);
+  if (result.ok && !input.originId) await saveArabicOnCreate("origin", result.data.id, input);
   if (result.ok) revalidateAdmin(["/dashboard-admin/origins", `/dashboard-admin/origins/${result.data.id}`, "/dashboard-admin/coffees"]);
   return result;
 }
@@ -71,6 +88,7 @@ export async function saveOrigin(_prev: Result | undefined, formData: FormData):
 export async function saveRegion(_prev: Result | undefined, formData: FormData): Promise<Result> {
   const input = fields(formData);
   const result = input.regionId ? await updateRegion(input) : await createRegion(input);
+  if (result.ok && !input.regionId) await saveArabicOnCreate("region", result.data.id, input);
   if (result.ok) revalidateAdmin(["/dashboard-admin/regions", `/dashboard-admin/regions/${result.data.id}`, "/dashboard-admin/origins"]);
   return result;
 }
@@ -78,6 +96,8 @@ export async function saveRegion(_prev: Result | undefined, formData: FormData):
 export async function saveTaxonomyEntry(_prev: Result | undefined, formData: FormData): Promise<Result> {
   const input = fields(formData);
   const result = input.entryId ? await updateTaxonomyEntry(input) : await createTaxonomyEntry(input);
+  const taxonomyTranslationKind = isTaxonomyKind(input.kind) ? translationKindForTaxonomy(input.kind) : null;
+  if (result.ok && !input.entryId && taxonomyTranslationKind) await saveArabicOnCreate(taxonomyTranslationKind, result.data.id, input);
   if (result.ok) revalidateAdmin(["/dashboard-admin/taxonomy", `/dashboard-admin/taxonomy/${input.kind}/${result.data.id}`]);
   return result;
 }
