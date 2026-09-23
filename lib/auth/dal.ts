@@ -203,7 +203,7 @@ export const getRequestIdentity = cache(async (): Promise<RequestIdentity> => {
   const [profileRow, organizations, isAuthorizedMember, operationalRoles, requiresMfaStepUp] = await Promise.all([
     supabase
       .from("profiles")
-      .select("full_name, company_name")
+      .select("full_name, company_name, avatar_path")
       .eq("id", user.id)
       .maybeSingle(),
     resolveOrganizations(supabase, user.id),
@@ -229,6 +229,7 @@ export const getRequestIdentity = cache(async (): Promise<RequestIdentity> => {
     profile: {
       fullName: profileRow.data?.full_name ?? null,
       companyName: profileRow.data?.company_name ?? null,
+      avatarPath: profileRow.data?.avatar_path ?? null,
     },
     organizations,
     organization,

@@ -1,13 +1,14 @@
 import Link from "next/link";
 
 import { AdminAccessDenied } from "@/components/admin/access-denied";
+import { ArabicContentPanel } from "@/components/admin/catalogue/arabic-content-panel";
 import { RecordForm } from "@/components/admin/catalogue/record-form";
 import { regionFields } from "@/components/admin/catalogue/reference-fields";
 import { AdminStateCard } from "@/components/admin/state-card";
 import { PageHeader } from "@/components/app/page-header";
 import { AppBilingual } from "@/components/locale/app-bilingual";
 import { Button } from "@/components/ui/button";
-import { getRegion } from "@/lib/admin/catalogue";
+import { getArabicTranslation, getRegion } from "@/lib/admin/catalogue";
 import { checkAreaAccess } from "@/lib/admin/guards";
 import { saveRegion } from "@/src/app/dashboard-admin/(catalogue)/actions";
 
@@ -30,10 +31,12 @@ export default async function RegionDetailPage({ params }: { params: Promise<{ r
       </div>
     );
   }
+  const arabic = await getArabicTranslation("region", region.id);
   return (
     <div className="flex flex-col gap-6">
       <PageHeader title={region.name} description={<span className="font-mono text-[length:var(--text-micro)]" dir="ltr">{region.slug}</span>} trail={trail} />
-      <RecordForm resource="regions" mode="edit" formKey="region" fields={regionFields(region)} hiddenFields={{ regionId: region.id }} action={saveRegion} />
+      <RecordForm resource="regions" mode="edit" contentLanguage="en" formKey="region" fields={regionFields(region)} hiddenFields={{ regionId: region.id }} action={saveRegion} />
+      <ArabicContentPanel kind="region" entityId={region.id} hasDescription={false} initial={arabic} returnPath={`/dashboard-admin/regions/${region.id}`} />
     </div>
   );
 }

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import { Bilingual } from "@/components/locale/bilingual";
+import { Bilingual, LocalizedContent } from "@/components/locale/bilingual";
 import { JsonLd } from "@/components/public/json-ld";
 import { PageOpening } from "@/components/public/page-opening";
 import { PUBLIC_ROUTES } from "@/components/public/routes";
@@ -120,15 +120,15 @@ export default async function OriginsIndexPage() {
                     <span className="flex flex-col gap-2">
                       {origin.region ? (
                         <span className="hc-eyebrow text-[var(--gold-on-light)] dark:text-[var(--gold-on-dark)] font-semibold tracking-wider">
-                          {origin.region.name}
+                          <LocalizedContent en={origin.region.name} ar={origin.region.nameAr} />
                         </span>
                       ) : null}
                       <span className="font-heading text-[length:var(--text-h3)] font-semibold leading-[var(--lh-heading)] tracking-[var(--tracking-heading)] text-foreground group-hover:text-[var(--hc-accent)] dark:group-hover:text-[var(--gold-on-dark)] transition-colors duration-[var(--dur-fast)]">
-                        {origin.name}
+                        <LocalizedContent en={origin.name} ar={origin.nameAr} />
                       </span>
                       {origin.description ? (
                         <span className="max-w-[62ch] text-[length:var(--text-small)] leading-[1.7] text-foreground/80 dark:text-[rgba(242,245,235,0.88)] text-pretty">
-                          {origin.description}
+                          <LocalizedContent en={origin.description} ar={origin.descriptionAr} />
                         </span>
                       ) : null}
                     </span>

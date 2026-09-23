@@ -98,7 +98,8 @@ describe("T021 — coffee management uses the database's own vocabulary through 
 
   it("every catalogue write re-verifies is_platform_admin() before touching the database, and every catalogue page guards its own area", () => {
     const catalogue = stripComments(source("lib", "admin", "catalogue.ts"));
-    const writes = catalogue.match(/export async function (create|update|transition|set)\w+\(/g) ?? [];
+    // Hardening run: catalogue image upload/removal and Arabic content saves are writes too.
+    const writes = catalogue.match(/export async function (create|update|transition|set|upload|remove|save)\w+\(/g) ?? [];
     expect(writes.length).toBeGreaterThanOrEqual(14);
     expect((catalogue.match(/await requireCatalogueAdmin\(\)/g) ?? []).length).toBe(writes.length);
     expect(catalogue).toContain('checkRoleFunctionAccess("is_platform_admin")');
@@ -195,22 +196,34 @@ describe("T023 — every catalogue mutation revalidates Feature 002's exact publ
   });
 });
 
-describe("T024 — media records manageable; the upload path is inert with an honest explanation", () => {
-  it("no Storage upload, no bucket creation, no kyb-evidence reuse, no signed URL in catalogue code; the media panel renders no file input and no fake success", async () => {
-    const { CATALOGUE_MEDIA_UPLOAD_AVAILABLE } = await import("@/lib/admin/catalogue");
-    expect(CATALOGUE_MEDIA_UPLOAD_AVAILABLE).toBe(false);
+describe("T024 + hardening run — catalogue image management through the approved public-assets path only", () => {
+  it("upload is real but confined: public-assets bucket, catalogue/{coffeeId}/ paths, RPC-only row writes, no kyb-evidence, no signed URL, no direct file_assets write", async () => {
+    const { CATALOGUE_MEDIA_UPLOAD_AVAILABLE, CATALOGUE_MEDIA_MAX_BYTES, CATALOGUE_MEDIA_MAX_COUNT, CATALOGUE_MEDIA_MIME_TYPES } = await import("@/lib/admin/catalogue");
+    expect(CATALOGUE_MEDIA_UPLOAD_AVAILABLE).toBe(true);
+    expect(CATALOGUE_MEDIA_MAX_BYTES).toBe(5 * 1024 * 1024);
+    expect(CATALOGUE_MEDIA_MAX_COUNT).toBe(12);
+    expect([...CATALOGUE_MEDIA_MIME_TYPES]).toEqual(["image/jpeg", "image/png", "image/webp"]);
     for (const file of CATALOGUE_FILES) {
       const src = stripComments(source(file));
-      expect(src, file).not.toMatch(/storage\.from\(|createBucket|createSignedUrl|getPublicUrl|"kyb-evidence"|\.upload\(/);
-      expect(src, file).not.toMatch(/type="file"/);
+      expect(src, file).not.toMatch(/createBucket|createSignedUrl|getPublicUrl|"kyb-evidence"/);
       expect(src, file).not.toMatch(/\.from\(\s*"file_assets"\s*\)/);
+      // Every Storage call targets the one approved public bucket.
+      for (const match of src.matchAll(/storage\.from\(\s*"([^"]+)"\s*\)/g)) expect(match[1], file).toBe("public-assets");
     }
     const catalogue = stripComments(source("lib", "admin", "catalogue.ts"));
-    // Media writes touch `coffee_media.is_primary` / `sort_order` only — never insert a record or write file_assets.
+    expect(catalogue).toMatch(/const objectPath = `catalogue\/\$\{coffeeId\}\//);
+    expect(catalogue).toContain('supabase.rpc("attach_coffee_media"');
+    expect(catalogue).toContain('supabase.rpc("remove_coffee_media"');
+    // A failed DB link removes the just-uploaded object (no orphan).
+    expect(catalogue).toMatch(/if \(rpcError[^)]*\)\s*\{\s*await bucket\.remove\(\[objectPath\]\)/);
+    // Rows are never inserted/deleted directly — only through the SECURITY DEFINER RPCs.
     const mediaFromCalls = [...catalogue.matchAll(/\.from\("coffee_media"\)([\s\S]{0,160})/g)].map((m) => m[1]);
     expect(mediaFromCalls.length).toBeGreaterThan(0);
     for (const call of mediaFromCalls) expect(call).not.toMatch(/\.(insert|upsert|delete)\(/);
-    expect(source("components", "admin", "catalogue", "coffee-media-panel.tsx")).toContain('data-media-upload={uploadAvailable ? "available" : "unavailable"}');
+    const panel = source("components", "admin", "catalogue", "coffee-media-panel.tsx");
+    expect(panel).toContain('data-media-upload={uploadAvailable ? "available" : "unavailable"}');
+    expect(panel).toContain('const ACCEPT = "image/jpeg,image/png,image/webp";');
+    expect(panel).not.toMatch(/uploadUnavailable/);
   });
 
   it("T024 is catalogue media only — no avatar, logo, favicon or platform-branding capability in any RUN E file", () => {

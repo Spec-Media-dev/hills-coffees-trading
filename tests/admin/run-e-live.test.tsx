@@ -327,7 +327,7 @@ describe("T022 — origins, regions, taxonomy and warehouse reference data LIVE 
 });
 
 describe("T024 — media records (disposable ADMIN)", () => {
-  it("records are readable and manageable through the console layer; a missing record is NOT_FOUND; the detail page states the upload gap with no file input", async () => {
+  it("records are readable and manageable through the console layer; a missing record is NOT_FOUND; the detail page offers the real catalogue image upload (hardening run)", async () => {
     const media = await withLiveClient(admin, async () => (await import("@/lib/admin/catalogue")).listCoffeeMedia(PROOF.proofCoffeeId));
     const record = media.find((row) => row.id === PROOF.proofMediaId);
     expect(record).toMatchObject({ coffeeId: PROOF.proofCoffeeId, sortOrder: 0, isPrimary: false });
@@ -350,12 +350,13 @@ describe("T024 — media records (disposable ADMIN)", () => {
       const { default: CoffeeDetailPage } = await import("@/src/app/dashboard-admin/(catalogue)/coffees/[coffeeId]/page");
       await renderPage(await CoffeeDetailPage({ params: Promise.resolve({ coffeeId: PROOF.proofCoffeeId }) }));
     });
-    expect(document.querySelector('[data-media-upload="unavailable"]')).not.toBeNull();
+    // Hardening run: the upload seam is now real (one multi-file input + a replace input per image).
+    expect(document.querySelector('[data-media-upload="available"]')).not.toBeNull();
     expect(document.querySelector(`[data-media-record="${PROOF.proofMediaId}"]`)).not.toBeNull();
-    expect(document.querySelector('input[type="file"]')).toBeNull();
+    expect(document.querySelector('input[type="file"][data-media-file-input]')?.getAttribute("accept")).toBe("image/jpeg,image/png,image/webp");
     expect(document.querySelector('[data-record-form="coffee"]')).not.toBeNull();
     expect(document.querySelector('[data-decision-form="publication"]')).not.toBeNull();
-    expect(screen.getAllByText(/Image upload is not available yet/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Upload images/).length).toBeGreaterThan(0);
   }, LIVE_TIMEOUT_MS);
 });
 

@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { LocalizedContent } from "@/components/locale/bilingual";
 import { Icon } from "@/components/ui/icon";
 import type { PublicOriginSummary } from "@/lib/public/origins";
 
@@ -79,17 +80,17 @@ export function OriginCard({ origin, tone = "light" }: { origin: PublicOriginSum
 
         {origin.region ? (
           <span className={`hc-eyebrow relative ${t.region}`}>
-            {origin.region.name}
+            <LocalizedContent en={origin.region.name} ar={origin.region.nameAr} />
           </span>
         ) : null}
 
         <h3 className={`relative font-heading text-[length:var(--text-h3)] font-semibold leading-[var(--lh-heading)] tracking-[var(--tracking-heading)] ${t.name}`}>
-          {origin.name}
+          <LocalizedContent en={origin.name} ar={origin.nameAr} />
         </h3>
 
         {origin.description ? (
           <p className={`relative line-clamp-3 text-[length:var(--text-small)] leading-[1.7] text-pretty ${t.body}`}>
-            {origin.description}
+            <LocalizedContent en={origin.description} ar={origin.descriptionAr} />
           </p>
         ) : null}
 

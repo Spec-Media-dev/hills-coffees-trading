@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useActionState, useRef } from "react";
+import { startTransition, useActionState, useRef } from "react";
 
 import { Button } from "@/components/ui/button";
 import { useActionToast } from "@/components/app/use-action-toast";
@@ -51,7 +51,7 @@ export function ListingMediaManager({ offerId, media, editable, maxImages }: { o
     const formData = new FormData();
     formData.set("offerId", offerId);
     formData.set("image", file);
-    uploadDispatch(formData);
+    startTransition(() => uploadDispatch(formData));
     event.target.value = "";
   }
 
@@ -107,7 +107,7 @@ function MediaTile({ offerId, item, editable }: { offerId: string; item: OfferMe
                 const fd = new FormData();
                 fd.set("mediaId", item.id);
                 fd.set("offerId", offerId);
-                primaryDispatch(fd);
+                startTransition(() => primaryDispatch(fd));
               }}
             >
               {tApp.listings.media.setPrimary}
@@ -121,7 +121,7 @@ function MediaTile({ offerId, item, editable }: { offerId: string; item: OfferMe
               const fd = new FormData();
               fd.set("mediaId", item.id);
               fd.set("offerId", offerId);
-              removeDispatch(fd);
+              startTransition(() => removeDispatch(fd));
             }}
           >
             {isRemoving ? tApp.listings.media.removing : tApp.listings.media.remove}

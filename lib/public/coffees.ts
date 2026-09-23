@@ -9,6 +9,7 @@ import {
   type Stamped,
 } from "@/lib/public/cache";
 import { createPublicReadClient } from "@/lib/public/supabase";
+import { publicAssetUrl } from "@/lib/storage/public-url";
 
 /**
  * Public coffee reads (Feature 002, T007 — FR-003, FR-004, FR-010, FR-022, FR-024).
@@ -38,6 +39,15 @@ import { createPublicReadClient } from "@/lib/public/supabase";
  * RLS exposes it, but publishing a certificate identifier is a Content/Compliance disclosure
  * decision, not a developer's (contract §2).
  *
+ * BILINGUAL CONTENT (hardening run): the base columns are the canonical ENGLISH values. Arabic lives in
+ * the normalized `*_translations` tables (`locale = 'ar'`) and is published as a separate `…Ar` field
+ * (`nameAr`, `descriptionAr`) — `null` when no Arabic exists, in which case the page shows the English
+ * value marked `lang="en" dir="ltr"` (`LocalizedContent`), never a guessed translation.
+ * Coffee + origin translations are embedded in the main allowlist (tables already public-readable);
+ * region / type / variety / process / packaging translations and catalogue images come from a SECOND,
+ * fault-tolerant read, so the public catalogue keeps rendering (English, placeholder media) even
+ * before migration `20260923120000_catalogue_media_and_translations` is applied.
+ *
  * CACHING is Feature 001's pinned API, unchanged: `unstable_cache(fn, keyParts, { tags, revalidate })`
  * plus `revalidateTag(tag, { expire: 0 })` for invalidation. Nothing here varies by user, session,
  * organization or auth state, so every entry is safely shared (SEC-002).
@@ -50,16 +60,25 @@ import { createPublicReadClient } from "@/lib/public/supabase";
 /** A taxonomy or reference record, reduced to what a visitor may see. */
 export type PublicNamedRef = {
   name: string;
+  /** Arabic name, or `null` when no Arabic translation exists (English `name` is the fallback). */
+  nameAr: string | null;
   slug: string;
+};
+
+/** One published catalogue image — a public URL only (no storage/bookkeeping identifiers). */
+export type PublicCoffeeImage = {
+  url: string;
 };
 
 /** The origin of a coffee, as published on a coffee page. */
 export type PublicCoffeeOrigin = {
   name: string;
+  nameAr: string | null;
   slug: string;
   countryCode: string | null;
   region: {
     name: string;
+    nameAr: string | null;
     slug: string;
     countryCode: string | null;
   } | null;
@@ -75,15 +94,21 @@ export type PublicCoffeeCertification = {
 /** A coffee as it appears in the public index listing. */
 export type PublicCoffeeSummary = {
   name: string;
+  nameAr: string | null;
   slug: string;
   description: string | null;
+  descriptionAr: string | null;
   origin: PublicCoffeeOrigin | null;
   coffeeType: PublicNamedRef | null;
   processingMethod: PublicNamedRef | null;
+  /** The primary catalogue image, or `null` (the card shows the neutral placeholder). */
+  image: PublicCoffeeImage | null;
 };
 
 /** A coffee as it appears on its own public detail page. */
 export type PublicCoffeeDetail = PublicCoffeeSummary & {
+  /** Every published image in display order (primary first). */
+  images: PublicCoffeeImage[];
   variety: PublicNamedRef | null;
   packagingType: PublicNamedRef | null;
   tags: PublicNamedRef[];
@@ -98,6 +123,7 @@ const ORIGIN_COLUMNS = `
   name,
   slug,
   country_code,
+  origin_translations ( locale, name ),
   regions ( name, slug, country_code )
 `;
 
@@ -105,6 +131,7 @@ const SUMMARY_COLUMNS = `
   name,
   slug,
   description,
+  coffee_translations ( locale, name, description ),
   origins ( ${ORIGIN_COLUMNS} ),
   coffee_types ( name, slug ),
   processing_methods ( name, slug )
@@ -118,12 +145,31 @@ const DETAIL_COLUMNS = `
   coffee_certifications ( name, expires_at )
 `;
 
+/**
+ * The SECOND, fault-tolerant allowlist: Arabic names for the region and taxonomy references, keyed by
+ * the coffee's public slug. Reads only `locale`/`name` from the translation tables.
+ */
+const REFERENCE_TRANSLATION_COLUMNS = `
+  slug,
+  origins ( regions ( region_translations ( locale, name ) ) ),
+  coffee_types ( coffee_type_translations ( locale, name ) ),
+  processing_methods ( processing_method_translations ( locale, name ) ),
+  coffee_varieties ( coffee_variety_translations ( locale, name ) ),
+  packaging_types ( packaging_type_translations ( locale, name ) )
+`;
+
+/** The owner-run public image view: published coffees, public bucket, no bookkeeping columns. */
+const IMAGE_COLUMNS = "coffee_slug, object_path, sort_order, is_primary";
+
 /** The only status an anonymous visitor may ever see (FR-004). */
 const PUBLISHED = "PUBLISHED";
 
 // ---------------------------------------------------------------------------
 // Row shapes — what PostgREST returns for the allowlists above
 // ---------------------------------------------------------------------------
+
+type TranslationRow = { locale: string; name: string; description?: string | null };
+type TranslationsRow = TranslationRow[] | null;
 
 type NamedRefRow = { name: string; slug: string } | null;
 
@@ -137,6 +183,7 @@ type OriginRow = {
   name: string;
   slug: string;
   country_code: string | null;
+  origin_translations: TranslationsRow;
   regions: RegionRow;
 } | null;
 
@@ -144,6 +191,7 @@ type SummaryRow = {
   name: string;
   slug: string;
   description: string | null;
+  coffee_translations: TranslationsRow;
   origins: OriginRow;
   coffee_types: NamedRefRow;
   processing_methods: NamedRefRow;
@@ -158,25 +206,50 @@ type DetailRow = SummaryRow & {
     | null;
 };
 
+/** Supplemental Arabic reference names for one coffee (all `null` when unavailable). */
+type ReferenceArabic = {
+  region: string | null;
+  coffeeType: string | null;
+  processingMethod: string | null;
+  variety: string | null;
+  packagingType: string | null;
+};
+
+const NO_REFERENCE_ARABIC: ReferenceArabic = { region: null, coffeeType: null, processingMethod: null, variety: null, packagingType: null };
+
+/** Supplemental data joined onto a coffee by its public slug. */
+type Supplement = { arabic: ReferenceArabic; images: PublicCoffeeImage[] };
+
+const EMPTY_SUPPLEMENT: Supplement = { arabic: NO_REFERENCE_ARABIC, images: [] };
+
 // ---------------------------------------------------------------------------
 // Mappers — explicit field-by-field, never a spread
 // ---------------------------------------------------------------------------
 
-function toNamedRef(row: NamedRefRow): PublicNamedRef | null {
-  if (!row) return null;
-  return { name: row.name, slug: row.slug };
+/** The Arabic row's non-blank value for one field, or `null` — never the English value. */
+function arabic(rows: TranslationsRow, field: "name" | "description"): string | null {
+  const row = (rows ?? []).find((translation) => translation.locale === "ar");
+  const value = row?.[field];
+  return typeof value === "string" && value.trim() !== "" ? value : null;
 }
 
-function toOrigin(row: OriginRow): PublicCoffeeOrigin | null {
+function toNamedRef(row: NamedRefRow, nameAr: string | null = null): PublicNamedRef | null {
+  if (!row) return null;
+  return { name: row.name, nameAr, slug: row.slug };
+}
+
+function toOrigin(row: OriginRow, regionAr: string | null): PublicCoffeeOrigin | null {
   if (!row) return null;
   const region = row.regions;
   return {
     name: row.name,
+    nameAr: arabic(row.origin_translations, "name"),
     slug: row.slug,
     countryCode: row.country_code,
     region: region
       ? {
           name: region.name,
+          nameAr: regionAr,
           slug: region.slug,
           countryCode: region.country_code,
         }
@@ -184,29 +257,36 @@ function toOrigin(row: OriginRow): PublicCoffeeOrigin | null {
   };
 }
 
-function toSummary(row: SummaryRow): PublicCoffeeSummary {
+function toSummary(row: SummaryRow, supplement: Supplement): PublicCoffeeSummary {
   return {
     name: row.name,
+    nameAr: arabic(row.coffee_translations, "name"),
     slug: row.slug,
     description: row.description,
-    origin: toOrigin(row.origins),
-    coffeeType: toNamedRef(row.coffee_types),
-    processingMethod: toNamedRef(row.processing_methods),
+    descriptionAr: arabic(row.coffee_translations, "description"),
+    origin: toOrigin(row.origins, supplement.arabic.region),
+    coffeeType: toNamedRef(row.coffee_types, supplement.arabic.coffeeType),
+    processingMethod: toNamedRef(row.processing_methods, supplement.arabic.processingMethod),
+    image: supplement.images[0] ?? null,
   };
 }
 
-function toDetail(row: DetailRow): PublicCoffeeDetail {
+function toDetail(row: DetailRow, supplement: Supplement): PublicCoffeeDetail {
   return {
     // Explicit re-listing rather than `...toSummary(row)`: the no-spread rule applies to DTOs just
     // as much as to database rows, so the published shape stays readable in one place.
     name: row.name,
+    nameAr: arabic(row.coffee_translations, "name"),
     slug: row.slug,
     description: row.description,
-    origin: toOrigin(row.origins),
-    coffeeType: toNamedRef(row.coffee_types),
-    processingMethod: toNamedRef(row.processing_methods),
-    variety: toNamedRef(row.coffee_varieties),
-    packagingType: toNamedRef(row.packaging_types),
+    descriptionAr: arabic(row.coffee_translations, "description"),
+    origin: toOrigin(row.origins, supplement.arabic.region),
+    coffeeType: toNamedRef(row.coffee_types, supplement.arabic.coffeeType),
+    processingMethod: toNamedRef(row.processing_methods, supplement.arabic.processingMethod),
+    image: supplement.images[0] ?? null,
+    images: supplement.images.map((image) => ({ url: image.url })),
+    variety: toNamedRef(row.coffee_varieties, supplement.arabic.variety),
+    packagingType: toNamedRef(row.packaging_types, supplement.arabic.packagingType),
     tags: (row.coffee_tags ?? [])
       .map((link) => toNamedRef(link.tags))
       .filter((tag): tag is PublicNamedRef => tag !== null),
@@ -215,6 +295,67 @@ function toDetail(row: DetailRow): PublicCoffeeDetail {
       expiresAt: certification.expires_at,
     })),
   };
+}
+
+// ---------------------------------------------------------------------------
+// Supplemental, fault-tolerant reads (Arabic reference names + images)
+// ---------------------------------------------------------------------------
+
+type RefTranslationRow = {
+  slug: string;
+  origins: { regions: { region_translations: TranslationsRow } | null } | null;
+  coffee_types: { coffee_type_translations: TranslationsRow } | null;
+  processing_methods: { processing_method_translations: TranslationsRow } | null;
+  coffee_varieties: { coffee_variety_translations: TranslationsRow } | null;
+  packaging_types: { packaging_type_translations: TranslationsRow } | null;
+};
+
+type ImageRow = { coffee_slug: string; object_path: string; sort_order: number; is_primary: boolean };
+
+/**
+ * Reads the supplement for the given slugs (or every published coffee when `slug` is omitted). ANY
+ * failure — including the tables/view not existing yet — yields an empty supplement: the English,
+ * placeholder-media page is always the safe fallback, never an error page.
+ */
+async function fetchSupplements(slug?: string): Promise<Map<string, Supplement>> {
+  const supabase = createPublicReadClient();
+  let refQuery = supabase.from("coffees").select(REFERENCE_TRANSLATION_COLUMNS).eq("status", PUBLISHED);
+  let imageQuery = supabase.from("public_coffee_images").select(IMAGE_COLUMNS).order("sort_order", { ascending: true });
+  if (slug) {
+    refQuery = refQuery.eq("slug", slug);
+    imageQuery = imageQuery.eq("coffee_slug", slug);
+  }
+  const [refs, images] = await Promise.all([refQuery, imageQuery]);
+
+  const out = new Map<string, Supplement>();
+  const entry = (key: string): Supplement => {
+    let value = out.get(key);
+    if (!value) {
+      value = { arabic: { region: null, coffeeType: null, processingMethod: null, variety: null, packagingType: null }, images: [] };
+      out.set(key, value);
+    }
+    return value;
+  };
+
+  if (!refs.error && refs.data) {
+    for (const row of refs.data as unknown as RefTranslationRow[]) {
+      const target = entry(row.slug).arabic;
+      target.region = arabic(row.origins?.regions?.region_translations ?? null, "name");
+      target.coffeeType = arabic(row.coffee_types?.coffee_type_translations ?? null, "name");
+      target.processingMethod = arabic(row.processing_methods?.processing_method_translations ?? null, "name");
+      target.variety = arabic(row.coffee_varieties?.coffee_variety_translations ?? null, "name");
+      target.packagingType = arabic(row.packaging_types?.packaging_type_translations ?? null, "name");
+    }
+  }
+
+  if (!images.error && images.data) {
+    const rows = [...(images.data as unknown as ImageRow[])].sort((a, b) => Number(b.is_primary) - Number(a.is_primary) || a.sort_order - b.sort_order);
+    for (const row of rows) {
+      entry(row.coffee_slug).images.push({ url: publicAssetUrl(row.object_path) });
+    }
+  }
+
+  return out;
 }
 
 // ---------------------------------------------------------------------------
@@ -233,7 +374,8 @@ async function fetchCoffeeIndex(): Promise<PublicCoffeeSummary[]> {
   // failed read are both rendered as honest empty states by the caller.
   if (error) throw new Error("Public coffee index read failed.");
 
-  return (data as unknown as SummaryRow[]).map(toSummary);
+  const supplements = await fetchSupplements();
+  return (data as unknown as SummaryRow[]).map((row) => toSummary(row, supplements.get(row.slug) ?? EMPTY_SUPPLEMENT));
 }
 
 async function fetchCoffeeDetail(
@@ -250,7 +392,9 @@ async function fetchCoffeeDetail(
   if (error) throw new Error("Public coffee detail read failed.");
   if (!data) return null;
 
-  return toDetail(data as unknown as DetailRow);
+  const row = data as unknown as DetailRow;
+  const supplements = await fetchSupplements(row.slug);
+  return toDetail(row, supplements.get(row.slug) ?? EMPTY_SUPPLEMENT);
 }
 
 // ---------------------------------------------------------------------------

@@ -260,8 +260,9 @@ try {
     if (page.key === "media" || page.key === "coffee-detail") {
       const upload = await client.evaluate(`document.querySelector('[data-media-upload]')?.getAttribute("data-media-upload") ?? null`);
       const fileInputs = await client.evaluate(`document.querySelectorAll('input[type="file"]').length`);
-      if (page.key === "coffee-detail") assert(upload === "unavailable", `${label} media upload seam is not honest`, { upload });
-      assert(fileInputs === 0, `${label} renders a file input`, {});
+      // Hardening run: the coffee detail page now has the real catalogue image upload; the media list does not.
+      if (page.key === "coffee-detail") assert(upload === "available" && fileInputs >= 1, `${label} catalogue image upload is missing`, { upload, fileInputs });
+      else assert(fileInputs === 0, `${label} renders a file input`, {});
     }
   });
 

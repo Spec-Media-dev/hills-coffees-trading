@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { AdminAccessDenied } from "@/components/admin/access-denied";
+import { ArabicContentPanel } from "@/components/admin/catalogue/arabic-content-panel";
 import { coffeeFields } from "@/components/admin/catalogue/coffee-fields";
 import { CoffeeMediaPanel } from "@/components/admin/catalogue/coffee-media-panel";
 import { CoffeePublicationPanel } from "@/components/admin/catalogue/coffee-publication-panel";
@@ -11,14 +12,15 @@ import { AdminStateCard } from "@/components/admin/state-card";
 import { PageHeader } from "@/components/app/page-header";
 import { AppBilingual } from "@/components/locale/app-bilingual";
 import { Button } from "@/components/ui/button";
-import { CATALOGUE_MEDIA_UPLOAD_AVAILABLE, getCoffee, getCoffeeReferenceOptions, listCoffeeMedia } from "@/lib/admin/catalogue";
+import { CATALOGUE_MEDIA_MAX_BYTES, CATALOGUE_MEDIA_MAX_COUNT, CATALOGUE_MEDIA_UPLOAD_AVAILABLE, getArabicTranslation, getCoffee, getCoffeeReferenceOptions, listCoffeeMedia } from "@/lib/admin/catalogue";
 import { checkAreaAccess } from "@/lib/admin/guards";
 import { saveCoffee } from "@/src/app/dashboard-admin/(catalogue)/actions";
 
 /**
  * Feature 010 RUN E (T021/T023/T024) — one coffee: editable content fields (status excluded), the
  * publication panel (named, confirmed, compare-and-set operations that revalidate Feature 002's
- * tags) and the media-record panel with its honest upload gap. The page re-verifies
+ * tags) and the catalogue image manager (upload / primary / order / replace / remove — hardening run).
+ * The page re-verifies
  * `is_platform_admin()` itself.
  */
 export default async function CoffeeDetailPage({ params }: { params: Promise<{ coffeeId: string }> }) {
@@ -45,7 +47,7 @@ export default async function CoffeeDetailPage({ params }: { params: Promise<{ c
     );
   }
 
-  const [options, media] = await Promise.all([getCoffeeReferenceOptions(), listCoffeeMedia(coffee.id)]);
+  const [options, media, arabic] = await Promise.all([getCoffeeReferenceOptions(), listCoffeeMedia(coffee.id), getArabicTranslation("coffee", coffee.id)]);
 
   return (
     <div className="flex flex-col gap-6">
@@ -71,8 +73,9 @@ export default async function CoffeeDetailPage({ params }: { params: Promise<{ c
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
         <div className="flex min-w-0 flex-col gap-6">
-          <RecordForm resource="coffees" mode="edit" formKey="coffee" fields={coffeeFields(options, coffee)} hiddenFields={{ coffeeId: coffee.id }} action={saveCoffee} />
-          <CoffeeMediaPanel coffeeId={coffee.id} media={media} uploadAvailable={CATALOGUE_MEDIA_UPLOAD_AVAILABLE} />
+          <RecordForm resource="coffees" mode="edit" contentLanguage="en" formKey="coffee" fields={coffeeFields(options, coffee)} hiddenFields={{ coffeeId: coffee.id }} action={saveCoffee} />
+          <ArabicContentPanel kind="coffee" entityId={coffee.id} hasDescription initial={arabic} returnPath={`/dashboard-admin/coffees/${coffee.id}`} />
+          <CoffeeMediaPanel coffeeId={coffee.id} media={media} uploadAvailable={CATALOGUE_MEDIA_UPLOAD_AVAILABLE} maxImages={CATALOGUE_MEDIA_MAX_COUNT} maxBytes={CATALOGUE_MEDIA_MAX_BYTES} />
         </div>
         <div className="flex min-w-0 flex-col gap-6">
           <CoffeePublicationPanel coffeeId={coffee.id} status={coffee.status} />

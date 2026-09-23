@@ -69,6 +69,12 @@ export type RecordFormProps = {
   priceForm?: "priceSource" | "priceObservation" | "priceDifferential";
   mode: "create" | "edit";
   /**
+   * Hardening run — marks the form as the ENGLISH (canonical) half of a bilingual catalogue record:
+   * a visible "English" badge beside the heading, and the `name`/`description` inputs pinned to
+   * `lang="en" dir="ltr"` even inside the Arabic admin UI. Arabic lives in `ArabicContentPanel`.
+   */
+  contentLanguage?: "en";
+  /**
    * Detail route to navigate to after a successful CREATE, with `{id}` standing for the new record's
    * id — a plain string because a server page cannot hand a function to this client component.
    */
@@ -77,7 +83,7 @@ export type RecordFormProps = {
   formKey: string;
 };
 
-export function RecordForm({ fields, hiddenFields, action, resource, copyKey, priceForm, mode, successHrefTemplate, formKey }: RecordFormProps) {
+export function RecordForm({ fields, hiddenFields, action, resource, copyKey, priceForm, mode, successHrefTemplate, formKey, contentLanguage }: RecordFormProps) {
   const { tApp } = useLocale();
   const copy = tApp.admin.catalogue;
   const system = tApp.admin.system;
@@ -197,7 +203,14 @@ export function RecordForm({ fields, hiddenFields, action, resource, copyKey, pr
   return (
     <section className="flex flex-col gap-4 rounded-[var(--radius-lg)] border border-border bg-[var(--surface-card)] p-5" data-record-form={formKey}>
       <div className="flex flex-col gap-1">
-        <h2 className="font-heading text-[length:var(--text-h4)] font-semibold text-foreground">{heading}</h2>
+        <h2 className="flex flex-wrap items-center gap-2 font-heading text-[length:var(--text-h4)] font-semibold text-foreground">
+          {heading}
+          {contentLanguage === "en" ? (
+            <span className="rounded-[var(--radius-pill)] border border-border px-2 py-0.5 font-sans text-[length:var(--text-micro)] font-medium text-muted-foreground" data-content-language="en">
+              {copy.arabic.englishBadge}
+            </span>
+          ) : null}
+        </h2>
         {lead ? <p className="text-[length:var(--text-small)] leading-[var(--lh-body)] text-muted-foreground">{lead}</p> : null}
       </div>
       <form onSubmit={onSubmit} noValidate className="flex flex-col gap-5">
@@ -227,9 +240,10 @@ export function RecordForm({ fields, hiddenFields, action, resource, copyKey, pr
                 </div>
               );
             }
+            const englishContent = contentLanguage === "en" && (field.name === "name" || field.name === "description");
             const control =
               field.kind === "textarea" ? (
-                <Textarea id={id} name={field.name} defaultValue={typeof field.defaultValue === "string" ? field.defaultValue : ""} rows={4} maxLength={field.maxLength} readOnly={field.readOnly} required={field.required} dir={field.ltr ? "ltr" : undefined} />
+                <Textarea id={id} name={field.name} defaultValue={typeof field.defaultValue === "string" ? field.defaultValue : ""} rows={4} maxLength={field.maxLength} readOnly={field.readOnly} required={field.required} dir={field.ltr || englishContent ? "ltr" : undefined} lang={englishContent ? "en" : undefined} />
               ) : field.kind === "select" ? (
                 <select id={id} name={field.name} defaultValue={typeof field.defaultValue === "string" ? field.defaultValue : ""} disabled={field.readOnly} required={field.required} className="h-11 w-full rounded-[var(--radius-sm)] border border-input bg-[var(--surface-card)] px-3 text-base text-foreground focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-offset-2 focus-visible:outline-[var(--focus-ring)] md:text-sm dark:bg-input/30">
                   {field.allowEmpty ? <option value="">{copy.common.none}</option> : null}
@@ -244,7 +258,7 @@ export function RecordForm({ fields, hiddenFields, action, resource, copyKey, pr
               ) : field.kind === "datetime" ? (
                 <Input id={id} name={field.name} type="datetime-local" defaultValue={typeof field.defaultValue === "string" ? field.defaultValue : ""} readOnly={field.readOnly} required={field.required} dir="ltr" className="font-mono" />
               ) : (
-                <Input id={id} name={field.name} defaultValue={typeof field.defaultValue === "string" ? field.defaultValue : ""} maxLength={field.maxLength} readOnly={field.readOnly} required={field.required} dir={field.ltr ? "ltr" : undefined} className={field.ltr ? "font-mono" : undefined} />
+                <Input id={id} name={field.name} defaultValue={typeof field.defaultValue === "string" ? field.defaultValue : ""} maxLength={field.maxLength} readOnly={field.readOnly} required={field.required} dir={field.ltr || englishContent ? "ltr" : undefined} lang={englishContent ? "en" : undefined} className={field.ltr ? "font-mono" : undefined} />
               );
             return (
               <Field key={field.name} id={id} label={label} hint={field.hintKey ? labelOf(field.hintKey) : undefined} error={error} className={field.kind === "textarea" ? "md:col-span-2" : undefined} control={control} />

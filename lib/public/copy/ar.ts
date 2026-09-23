@@ -717,6 +717,8 @@ export const ar: DeepPartial<PublicCopy> = {
       enrollConfirming: "جارٍ التأكيد…",
       enrollSuccess: "تم تفعيل المصادقة الثنائية على حسابك الآن.",
       alreadyEnrolled: "المصادقة الثنائية مفعّلة بالفعل على حسابك.",
+      manageInAccount: "العودة إلى أمان الحساب",
+      manualKeyLabel: "لا يمكنك المسح؟ أدخل هذا المفتاح في تطبيق المصادقة:",
       metaTitleEnroll: "إعداد المصادقة الثنائية",
     },
     layout: {

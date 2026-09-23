@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useActionState, useRef } from "react";
+import { startTransition, useActionState, useRef } from "react";
 
 import { Button } from "@/components/ui/button";
 import { useActionToast } from "@/components/app/use-action-toast";
@@ -33,7 +33,7 @@ export function LogoUploadField({ logoPath }: { logoPath: string | null }) {
     if (!file) return;
     const formData = new FormData();
     formData.set("logo", file);
-    uploadDispatch(formData);
+    startTransition(() => uploadDispatch(formData));
     event.target.value = "";
   }
 
@@ -52,7 +52,7 @@ export function LogoUploadField({ logoPath }: { logoPath: string | null }) {
           {isUploading ? tApp.accountSecurity.avatar.uploading : logoPath ? tApp.accountSecurity.avatar.replace : tApp.accountSecurity.avatar.upload}
         </Button>
         {logoPath ? (
-          <Button type="button" variant="text" size="sm" disabled={isRemoving} onClick={() => removeDispatch(new FormData())}>
+          <Button type="button" variant="text" size="sm" disabled={isRemoving} onClick={() => startTransition(() => removeDispatch(new FormData()))}>
             {isRemoving ? tApp.accountSecurity.avatar.removing : tApp.accountSecurity.avatar.remove}
           </Button>
         ) : null}

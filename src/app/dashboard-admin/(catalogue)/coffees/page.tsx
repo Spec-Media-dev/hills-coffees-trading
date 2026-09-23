@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 
 import { AdminAccessDenied } from "@/components/admin/access-denied";
@@ -40,10 +41,15 @@ export default async function CoffeesPage({ searchParams }: { searchParams: Prom
       primary: true,
       header: <AppBilingual pick={(c) => c.admin.catalogue.coffees.columns.coffee} />,
       render: (row: CoffeeListRow) => (
-        <span className="flex min-w-0 flex-col">
-          <span className="font-medium text-foreground [overflow-wrap:anywhere]">{row.name}</span>
-          <span className="break-all font-mono text-[length:var(--text-micro)] text-muted-foreground" dir="ltr">
-            /coffee/{row.slug}/
+        <span className="flex min-w-0 items-center gap-3">
+          <span className="relative size-10 shrink-0 overflow-hidden rounded-[var(--radius-sm)] border border-border bg-[var(--surface-subtle)]" data-coffee-thumb={row.primaryImageUrl ? "image" : "none"}>
+            {row.primaryImageUrl ? <Image src={row.primaryImageUrl} alt="" fill sizes="40px" className="object-cover" /> : null}
+          </span>
+          <span className="flex min-w-0 flex-col">
+            <span className="font-medium text-foreground [overflow-wrap:anywhere]">{row.name}</span>
+            <span className="break-all font-mono text-[length:var(--text-micro)] text-muted-foreground" dir="ltr">
+              /coffee/{row.slug}/
+            </span>
           </span>
         </span>
       ),

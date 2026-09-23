@@ -185,6 +185,7 @@ export default async function DashboardLayout({
       topbarActions={
         <DashboardTopbarActions
           displayName={identity.profile.fullName ?? identity.profile.companyName ?? null}
+          avatarPath={identity.profile.avatarPath}
           organizationName={identity.organization.displayName}
         />
       }

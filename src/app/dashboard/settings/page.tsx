@@ -1,6 +1,8 @@
+import { TwoFactorPanel } from "@/components/account/two-factor-panel";
 import { StateScreen } from "@/components/layout/state-screen";
 import { AppBilingual } from "@/components/locale/app-bilingual";
 import { getRequestIdentity } from "@/lib/auth/dal";
+import { readMfaAccountState } from "@/lib/auth/mfa-status";
 import { createClient } from "@/lib/supabase/server";
 
 import { ActingOrganizationSwitcher } from "./acting-organization-switcher";
@@ -46,7 +48,7 @@ export default async function SettingsPage() {
   // partial patch). Same full-replace reasoning applies to `organizations.display_name/email/phone`
   // below, read fresh for `update_organization_contact`.
   const supabase = await createClient();
-  const [{ data: profile }, { data: organization }, { data: memberRows }, { data: authUser }] = await Promise.all([
+  const [{ data: profile }, { data: organization }, { data: memberRows }, { data: authUser }, mfa] = await Promise.all([
     supabase.from("profiles").select("full_name, phone, company_name, avatar_path").eq("id", identity.userId).maybeSingle(),
     supabase.from("organizations").select("display_name, email, phone").eq("id", organizationId).maybeSingle(),
     supabase
@@ -56,6 +58,7 @@ export default async function SettingsPage() {
       .eq("is_active", true)
       .order("created_at", { ascending: true }),
     supabase.auth.getUser(),
+    readMfaAccountState(supabase),
   ]);
   const signInEmail = authUser.user?.email ?? null;
 
@@ -121,6 +124,15 @@ export default async function SettingsPage() {
             </p>
           </div>
           <ChangePasswordForm />
+        </section>
+
+        <hr className="border-border" />
+
+        <section className="flex flex-col gap-3" data-account-section="security">
+          <h2 className="font-heading text-[length:var(--text-h4)] font-semibold text-foreground">
+            <AppBilingual pick={(c) => c.accountSecurity.twoFactor.title} />
+          </h2>
+          <TwoFactorPanel state={mfa} />
         </section>
 
         <hr className="border-border" />

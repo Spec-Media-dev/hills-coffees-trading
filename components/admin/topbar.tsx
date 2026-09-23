@@ -26,7 +26,7 @@ import type { OperationalRole } from "@/lib/auth/types";
  * decides nothing about authorization. The "My account" link points at `/dashboard-admin/account`,
  * which re-verifies the console boundary server-side like every other console route.
  */
-export function AdminAccountMenu({ displayName, roles }: { displayName: string | null; roles: readonly OperationalRole[] }) {
+export function AdminAccountMenu({ displayName, avatarPath, roles }: { displayName: string | null; avatarPath?: string | null; roles: readonly OperationalRole[] }) {
   const { t, tApp } = useLocale();
   const [logoutDialogOpen, setLogoutDialogOpen] = useState(false);
   const resolvedName = displayName ?? tApp.dashboardAccount.fallbackName;
@@ -38,7 +38,7 @@ export function AdminAccountMenu({ displayName, roles }: { displayName: string |
           aria-label={tApp.admin.shell.accountMenuLabel}
           className="grid size-11 shrink-0 place-items-center rounded-full transition-[box-shadow] duration-[var(--dur-fast)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus-ring)]"
         >
-          <UserAvatar displayName={resolvedName} />
+          <UserAvatar displayName={resolvedName} avatarPath={avatarPath} />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" sideOffset={8}>
           <div className="flex flex-col gap-1 px-2 py-1.5">
@@ -65,6 +65,6 @@ export function AdminAccountMenu({ displayName, roles }: { displayName: string |
   );
 }
 
-export function AdminTopbarActions({ displayName, roles }: { displayName: string | null; roles: readonly OperationalRole[] }) {
-  return <AdminAccountMenu displayName={displayName} roles={roles} />;
+export function AdminTopbarActions({ displayName, avatarPath, roles }: { displayName: string | null; avatarPath?: string | null; roles: readonly OperationalRole[] }) {
+  return <AdminAccountMenu displayName={displayName} avatarPath={avatarPath} roles={roles} />;
 }

@@ -306,8 +306,9 @@ export async function uploadMyAvatar(_prevState: ActionFeedbackResult | undefine
   }
 
   // 6. REVALIDATE
-  revalidatePath("/dashboard/settings");
-  revalidatePath("/dashboard-admin/account");
+  // Root layout: every shell that shows this user's avatar (public header, member topbar, console
+  // topbar) re-renders with the new path — no stale image, no sign-out required.
+  revalidatePath("/", "layout");
   return { ok: true, data: undefined, code: ACTION_FEEDBACK.AVATAR_UPDATED };
 }
 
@@ -334,7 +335,6 @@ export async function removeMyAvatar(prevState: ActionFeedbackResult | undefined
     await supabase.storage.from("public-assets").remove([oldPath]).catch(() => undefined);
   }
 
-  revalidatePath("/dashboard/settings");
-  revalidatePath("/dashboard-admin/account");
+  revalidatePath("/", "layout");
   return { ok: true, data: undefined, code: ACTION_FEEDBACK.AVATAR_REMOVED };
 }

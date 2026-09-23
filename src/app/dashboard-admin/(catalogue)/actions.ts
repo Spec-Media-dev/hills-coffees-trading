@@ -9,6 +9,9 @@ import {
   createTaxonomyEntry,
   createWarehouse,
   createWarehouseLocation,
+  listCoffeeMedia,
+  removeCoffeeImage,
+  saveArabicTranslation,
   setCoffeeMediaPrimary,
   setCoffeeMediaSortOrder,
   transitionCoffee,
@@ -18,10 +21,11 @@ import {
   updateTaxonomyEntry,
   updateWarehouse,
   updateWarehouseLocation,
+  uploadCoffeeImage,
   type CatalogueWriteOutcome,
   type CoffeeTransitionOutcome,
 } from "@/lib/admin/catalogue";
-import type { ActionFeedbackResult } from "@/lib/types/action-feedback";
+import { ACTION_FEEDBACK, type ActionFeedbackResult } from "@/lib/types/action-feedback";
 
 /**
  * Feature 010 RUN E (Phase 7) — thin Server Actions over `lib/admin/catalogue.ts`. They convert
@@ -103,5 +107,76 @@ export async function reorderCoffeeMedia(_prev: Result | undefined, formData: Fo
   const input = fields(formData);
   const result = await setCoffeeMediaSortOrder(input);
   if (result.ok) revalidateAdmin([`/dashboard-admin/coffees/${input.coffeeId}`, "/dashboard-admin/media"]);
+  return result;
+}
+
+/**
+ * Hardening run — catalogue image upload. Accepts one or more `images` files; each goes through the
+ * layer's full check (live admin → MIME/size/count → coffee exists → upload → `attach_coffee_media`).
+ * Stops at the first refusal and reports it; images already attached stay attached (each is complete
+ * on its own — there is no half-uploaded state).
+ */
+export async function uploadCoffeeImages(_prev: Result | undefined, formData: FormData): Promise<Result> {
+  const coffeeId = formData.get("coffeeId");
+  const files = formData.getAll("images").filter((value): value is File => value instanceof File && value.size > 0);
+  if (files.length === 0) return { ok: false, code: ACTION_FEEDBACK.VALIDATION_ERROR, fieldErrors: { images: ["Required"] } };
+  let last: Result | undefined;
+  for (const file of files) {
+    last = await uploadCoffeeImage(coffeeId, file);
+    if (!last.ok) break;
+  }
+  revalidateAdmin([`/dashboard-admin/coffees/${String(coffeeId)}`, "/dashboard-admin/media", "/dashboard-admin/coffees"]);
+  return last!;
+}
+
+export async function deleteCoffeeImage(_prev: Result | undefined, formData: FormData): Promise<Result> {
+  const input = fields(formData);
+  const result = await removeCoffeeImage(input);
+  if (result.ok) revalidateAdmin([`/dashboard-admin/coffees/${input.coffeeId}`, "/dashboard-admin/media", "/dashboard-admin/coffees"]);
+  return result;
+}
+
+/**
+ * Replace = upload the new file, give it the old image's position (and primary flag), then remove the
+ * old one. If the upload is refused nothing is removed, so a failed replace never loses an image.
+ */
+export async function replaceCoffeeImage(_prev: Result | undefined, formData: FormData): Promise<Result> {
+  const input = fields(formData);
+  const current = (await listCoffeeMedia(input.coffeeId ?? "").catch(() => [])).find((row) => row.id === input.mediaId);
+  if (!current) return { ok: false, code: ACTION_FEEDBACK.CATALOGUE_NOT_FOUND };
+  const uploaded = await uploadCoffeeImage(input.coffeeId, formData.get("image"));
+  if (!uploaded.ok) return uploaded;
+  await setCoffeeMediaSortOrder({ coffeeId: input.coffeeId, mediaId: uploaded.data.id, sortOrder: String(current.sortOrder) });
+  if (current.isPrimary) await setCoffeeMediaPrimary({ coffeeId: input.coffeeId, mediaId: uploaded.data.id });
+  const removed = await removeCoffeeImage({ coffeeId: input.coffeeId, mediaId: current.id });
+  revalidateAdmin([`/dashboard-admin/coffees/${input.coffeeId}`, "/dashboard-admin/media", "/dashboard-admin/coffees"]);
+  return removed.ok ? { ok: true, data: uploaded.data, code: ACTION_FEEDBACK.CATALOGUE_MEDIA_UPLOADED } : removed;
+}
+
+/** Move one image a step earlier/later: renumbers the coffee's images 0..n-1 in the new order. */
+export async function moveCoffeeImage(_prev: Result | undefined, formData: FormData): Promise<Result> {
+  const input = fields(formData);
+  const media = await listCoffeeMedia(input.coffeeId ?? "").catch(() => null);
+  if (!media) return { ok: false, code: ACTION_FEEDBACK.CATALOGUE_NOT_FOUND };
+  const order = [...media];
+  const index = order.findIndex((row) => row.id === input.mediaId);
+  const target = input.direction === "earlier" ? index - 1 : index + 1;
+  if (index < 0 || target < 0 || target >= order.length) return { ok: false, code: ACTION_FEEDBACK.VALIDATION_ERROR, fieldErrors: { direction: ["Invalid"] } };
+  [order[index], order[target]] = [order[target]!, order[index]!];
+  let last: Result = { ok: false, code: ACTION_FEEDBACK.CATALOGUE_SAVE_FAILED };
+  for (const [position, row] of order.entries()) {
+    if (row.sortOrder === position) continue;
+    last = await setCoffeeMediaSortOrder({ coffeeId: input.coffeeId, mediaId: row.id, sortOrder: String(position) });
+    if (!last.ok) return last;
+  }
+  revalidateAdmin([`/dashboard-admin/coffees/${input.coffeeId}`, "/dashboard-admin/media"]);
+  return last.ok ? last : { ok: true, data: { id: input.mediaId!, revalidatedTags: [] }, code: ACTION_FEEDBACK.CATALOGUE_SAVED };
+}
+
+/** Hardening run — save (or, with a blank name, clear) one entity's Arabic catalogue content. */
+export async function saveCatalogueArabic(_prev: Result | undefined, formData: FormData): Promise<Result> {
+  const input = fields(formData);
+  const result = await saveArabicTranslation(input);
+  if (result.ok && typeof input.returnPath === "string" && input.returnPath.startsWith("/dashboard-admin/")) revalidateAdmin([input.returnPath]);
   return result;
 }

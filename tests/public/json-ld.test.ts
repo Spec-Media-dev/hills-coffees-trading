@@ -24,28 +24,35 @@ beforeAll(async () => {
 
 const COFFEE: PublicCoffeeDetail = {
   name: `Yirgacheffe Reserve ${XSS_PAYLOAD}`,
+  nameAr: null,
   slug: "yirgacheffe-reserve",
   description: `A washed lot from the highlands. ${XSS_PAYLOAD}`,
+  descriptionAr: null,
   origin: {
     name: "Yirgacheffe",
+    nameAr: null,
     slug: "yirgacheffe",
     countryCode: "ET",
-    region: { name: "Gedeo", slug: "gedeo", countryCode: "ET" },
+    region: { name: "Gedeo", nameAr: null, slug: "gedeo", countryCode: "ET" },
   },
-  coffeeType: { name: "Arabica", slug: "arabica" },
-  processingMethod: { name: "Washed", slug: "washed" },
-  variety: { name: "Heirloom", slug: "heirloom" },
-  packagingType: { name: "GrainPro", slug: "grainpro" },
-  tags: [{ name: "Specialty", slug: "specialty" }],
+  coffeeType: { name: "Arabica", nameAr: null, slug: "arabica" },
+  processingMethod: { name: "Washed", nameAr: null, slug: "washed" },
+  image: null,
+  images: [],
+  variety: { name: "Heirloom", nameAr: null, slug: "heirloom" },
+  packagingType: { name: "GrainPro", nameAr: null, slug: "grainpro" },
+  tags: [{ name: "Specialty", nameAr: null, slug: "specialty" }],
   certifications: [{ name: "Organic", expiresAt: "2027-01-01" }],
 };
 
 const ORIGIN: PublicOriginDetail = {
   name: `Yirgacheffe ${XSS_PAYLOAD}`,
+  nameAr: null,
   slug: "yirgacheffe",
   description: "A renowned coffee-growing district.",
+  descriptionAr: null,
   countryCode: "ET",
-  region: { name: "Gedeo", slug: "gedeo", countryCode: "ET" },
+  region: { name: "Gedeo", nameAr: null, slug: "gedeo", countryCode: "ET" },
   parent: null,
 };
 

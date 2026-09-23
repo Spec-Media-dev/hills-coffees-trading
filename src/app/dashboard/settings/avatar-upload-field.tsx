@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useRef } from "react";
+import { startTransition, useActionState, useRef } from "react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -38,7 +38,9 @@ export function AvatarUploadField({ avatarPath, initials }: { avatarPath: string
     if (!file) return;
     const formData = new FormData();
     formData.set("avatar", file);
-    uploadDispatch(formData);
+    // Imperative dispatch (not a <form action>) must run inside a transition so React tracks
+    // `isUploading` and the action queue correctly.
+    startTransition(() => uploadDispatch(formData));
     event.target.value = "";
   }
 
@@ -55,7 +57,7 @@ export function AvatarUploadField({ avatarPath, initials }: { avatarPath: string
             {isUploading ? tApp.accountSecurity.avatar.uploading : avatarPath ? tApp.accountSecurity.avatar.replace : tApp.accountSecurity.avatar.upload}
           </Button>
           {avatarPath ? (
-            <Button type="button" variant="text" size="sm" disabled={isRemoving} onClick={() => removeDispatch(new FormData())}>
+            <Button type="button" variant="text" size="sm" disabled={isRemoving} onClick={() => startTransition(() => removeDispatch(new FormData()))}>
               {isRemoving ? tApp.accountSecurity.avatar.removing : tApp.accountSecurity.avatar.remove}
             </Button>
           ) : null}

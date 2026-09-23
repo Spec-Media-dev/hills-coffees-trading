@@ -225,6 +225,7 @@ export async function SiteHeader() {
           {identity.kind === "authenticated" ? (
             <AccountMenu
               displayName={identity.profile.fullName ?? identity.profile.companyName ?? "Account"}
+              avatarPath={identity.profile.avatarPath}
               organizationName={identity.organization?.displayName ?? null}
               showMemberDashboard={
                 identity.organizations.length > 0 ||
@@ -266,6 +267,7 @@ export async function SiteHeader() {
                 ? {
                     signedIn: true,
                     displayName: identity.profile.fullName ?? identity.profile.companyName ?? "Account",
+                    avatarPath: identity.profile.avatarPath,
                     showMemberDashboard:
                       identity.organizations.length > 0 ||
                       identity.requiresOrganizationSelection ||

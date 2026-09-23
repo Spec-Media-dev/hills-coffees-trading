@@ -50,12 +50,14 @@ type Facet = { key: string; label: string };
 /** Collects the distinct values actually present, so a facet can never offer an empty result. */
 function facetsOf(
   coffees: readonly PublicCoffeeSummary[],
-  pick: (c: PublicCoffeeSummary) => { name: string; slug: string } | null | undefined,
+  pick: (c: PublicCoffeeSummary) => { name: string; nameAr: string | null; slug: string } | null | undefined,
+  locale: string,
 ): Facet[] {
   const seen = new Map<string, string>();
   for (const coffee of coffees) {
     const value = pick(coffee);
-    if (value) seen.set(value.slug, value.name);
+    // Arabic label when the active locale is Arabic AND a translation exists; English otherwise.
+    if (value) seen.set(value.slug, locale === "ar" && value.nameAr ? value.nameAr : value.name);
   }
   return [...seen.entries()]
     .map(([key, label]) => ({ key, label }))
@@ -101,9 +103,10 @@ export function CatalogueFilter({ coffees }: { coffees: PublicCoffeeSummary[] })
   const [process, setProcess] = useState("");
   const [type, setType] = useState("");
 
-  const originFacets = useMemo(() => facetsOf(coffees, (c) => c.origin), [coffees]);
-  const processFacets = useMemo(() => facetsOf(coffees, (c) => c.processingMethod), [coffees]);
-  const typeFacets = useMemo(() => facetsOf(coffees, (c) => c.coffeeType), [coffees]);
+  const { t, locale } = useLocale();
+  const originFacets = useMemo(() => facetsOf(coffees, (c) => c.origin, locale), [coffees, locale]);
+  const processFacets = useMemo(() => facetsOf(coffees, (c) => c.processingMethod, locale), [coffees, locale]);
+  const typeFacets = useMemo(() => facetsOf(coffees, (c) => c.coffeeType, locale), [coffees, locale]);
 
   const shown = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -112,7 +115,7 @@ export function CatalogueFilter({ coffees }: { coffees: PublicCoffeeSummary[] })
       if (process && coffee.processingMethod?.slug !== process) return false;
       if (type && coffee.coffeeType?.slug !== type) return false;
       if (!needle) return true;
-      const haystack = [coffee.name, coffee.description ?? "", coffee.origin?.name ?? ""]
+      const haystack = [coffee.name, coffee.nameAr ?? "", coffee.description ?? "", coffee.descriptionAr ?? "", coffee.origin?.name ?? "", coffee.origin?.nameAr ?? ""]
         .join(" ")
         .toLowerCase();
       return haystack.includes(needle);
@@ -121,7 +124,6 @@ export function CatalogueFilter({ coffees }: { coffees: PublicCoffeeSummary[] })
 
   const isFiltered = Boolean(query.trim() || origin || process || type);
   // The island reads the active locale's dictionary, so the Arabic overlay applies here too.
-  const { t } = useLocale();
   const labels = t.coffee.index.filter;
 
   const clear = () => {

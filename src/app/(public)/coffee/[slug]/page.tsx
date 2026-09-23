@@ -1,13 +1,14 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { Bilingual } from "@/components/locale/bilingual";
+import { Bilingual, LocalizedContent, type CopySelector } from "@/components/locale/bilingual";
 import { JsonLd } from "@/components/public/json-ld";
 import { MediaPlaceholder } from "@/components/public/media-placeholder";
 import { PUBLIC_ROUTES } from "@/components/public/routes";
 import { Icon } from "@/components/ui/icon";
-import { getPublicCoffeeBySlug } from "@/lib/public/coffees";
+import { getPublicCoffeeBySlug, type PublicNamedRef } from "@/lib/public/coffees";
 import { copy } from "@/lib/public/copy";
 import {
   buildBreadcrumbJsonLd,
@@ -65,17 +66,20 @@ import { canonicalUrl } from "@/lib/public/site";
  * routes onward instead of a row in a list. The rhythm — forest → page → cream → forest — is the
  * homepage's, so the dossier belongs to the same product.
  *
- * Record media stays `MediaPlaceholder`: MEDIA-01 is unresolved, and a repository photograph placed
- * here would assert that it depicts this specific coffee.
+ * Record media: the coffee's OWN primary catalogue image when an admin has uploaded one (hardening
+ * run); otherwise `MediaPlaceholder` — a repository photograph placed here would assert that it
+ * depicts this specific coffee. Names, description and taxonomy render through `LocalizedContent`
+ * (Arabic translation when present, English marked `lang="en"` otherwise).
  *
  * Server Component; no client JavaScript.
  */
 
 type PageProps = { params: Promise<{ slug: string }> };
 
-/** Renders a value, or the honest "not specified" fallback — never a guess. */
-function orNotSpecified(value: string | undefined | null): string {
-  return value && value.trim() !== "" ? value : copy.coffee.detail.notSpecified;
+/** A localized reference name, or the bilingual "not specified" fallback. */
+function RefValue({ value }: { value: Pick<PublicNamedRef, "name" | "nameAr"> | null | undefined }) {
+  if (!value || value.name.trim() === "") return <Bilingual pick={(c) => c.coffee.detail.notSpecified} />;
+  return <LocalizedContent en={value.name} ar={value.nameAr} />;
 }
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
@@ -126,12 +130,12 @@ export default async function CoffeeDetailPage({ params }: PageProps) {
   );
 
   /** The four specification facts the public DTO carries. Nothing else is available to show. */
-  const specifications = [
-    { label: copy.coffee.detail.coffeeType, value: coffee.coffeeType?.name },
-    { label: copy.coffee.detail.variety, value: coffee.variety?.name },
-    { label: copy.coffee.detail.processingMethod, value: coffee.processingMethod?.name },
-    { label: copy.coffee.detail.packaging, value: coffee.packagingType?.name },
-  ] as const;
+  const specifications: readonly { key: string; label: CopySelector; value: PublicNamedRef | null }[] = [
+    { key: "coffeeType", label: (c) => c.coffee.detail.coffeeType, value: coffee.coffeeType },
+    { key: "variety", label: (c) => c.coffee.detail.variety, value: coffee.variety },
+    { key: "processingMethod", label: (c) => c.coffee.detail.processingMethod, value: coffee.processingMethod },
+    { key: "packaging", label: (c) => c.coffee.detail.packaging, value: coffee.packagingType },
+  ];
 
   return (
     <article>
@@ -161,7 +165,7 @@ export default async function CoffeeDetailPage({ params }: PageProps) {
             <span className="hc-eyebrow text-[var(--gold-on-dark)] font-semibold tracking-wider">
               {origin ? (
                 <>
-                  {origin.name}
+                  <LocalizedContent en={origin.name} ar={origin.nameAr} />
                   {origin.countryCode ? ` · ${origin.countryCode}` : ""}
                 </>
               ) : (
@@ -170,14 +174,14 @@ export default async function CoffeeDetailPage({ params }: PageProps) {
             </span>
 
             <h1 className="font-heading text-[length:var(--text-h1)] font-semibold leading-[var(--lh-display)] tracking-[var(--tracking-display)] text-balance text-[#ffffff]">
-              {coffee.name}
+              <LocalizedContent en={coffee.name} ar={coffee.nameAr} />
             </h1>
 
             <span aria-hidden="true" className="h-0.5 w-16 bg-[var(--hc-accent)] opacity-100" />
 
             {coffee.description ? (
               <p className="hc-body-lg max-w-[52ch] text-[rgba(242,245,235,0.92)] text-pretty">
-                {coffee.description}
+                <LocalizedContent en={coffee.description} ar={coffee.descriptionAr} />
               </p>
             ) : null}
 
@@ -190,12 +194,18 @@ export default async function CoffeeDetailPage({ params }: PageProps) {
           </div>
 
           {/*
-            Record media slot. MEDIA-01 keeps this a placeholder — the arch frame matches the
-            homepage's editorial media treatment so the empty state still reads as designed rather
-            than as something missing.
+            Record media slot — the coffee's own primary image, or the placeholder. The arch frame
+            matches the homepage's editorial media treatment; the 4:5 box is reserved either way, so
+            the image arriving never shifts the layout.
           */}
           <div className="overflow-hidden rounded-[var(--radius-arch)] border border-[rgba(242,245,235,0.18)] bg-black/20 backdrop-blur-xs">
-            <MediaPlaceholder aspectRatio="4 / 5" className="rounded-none border-0" />
+            {coffee.image ? (
+              <div className="relative aspect-[4/5] w-full" data-coffee-image>
+                <Image src={coffee.image.url} alt="" fill priority sizes="(min-width: 1024px) 40vw, 100vw" className="object-cover" />
+              </div>
+            ) : (
+              <MediaPlaceholder aspectRatio="4 / 5" className="rounded-none border-0" />
+            )}
           </div>
         </div>
       </section>
@@ -210,11 +220,11 @@ export default async function CoffeeDetailPage({ params }: PageProps) {
             <dl className="flex flex-col border-t border-border/80 dark:border-[rgba(242,245,235,0.14)]">
               {specifications.map((spec) => (
                 <div
-                  key={spec.label}
+                  key={spec.key}
                   className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1 border-b border-border/80 dark:border-[rgba(242,245,235,0.14)] py-4 text-[length:var(--text-small)]"
                 >
-                  <dt className="text-foreground/75 dark:text-[rgba(242,245,235,0.8)] font-medium">{spec.label}</dt>
-                  <dd className="font-semibold text-foreground dark:text-[#ffffff]">{orNotSpecified(spec.value)}</dd>
+                  <dt className="text-foreground/75 dark:text-[rgba(242,245,235,0.8)] font-medium"><Bilingual pick={spec.label} /></dt>
+                  <dd className="font-semibold text-foreground dark:text-[#ffffff]"><RefValue value={spec.value} /></dd>
                 </div>
               ))}
             </dl>
@@ -247,19 +257,19 @@ export default async function CoffeeDetailPage({ params }: PageProps) {
               {origin ? (
                 <>
                   <p className="font-heading text-[length:var(--text-h3)] font-semibold text-foreground">
-                    {origin.name}
+                    <LocalizedContent en={origin.name} ar={origin.nameAr} />
                   </p>
                   <dl className="flex flex-col border-t border-border">
                     <div className="flex flex-wrap items-baseline justify-between gap-x-6 border-b border-border py-3 text-[length:var(--text-small)]">
                       <dt className="text-muted-foreground"><Bilingual pick={(c) => c.coffee.detail.region} /></dt>
                       <dd className="font-medium text-foreground">
-                        {orNotSpecified(origin.region?.name)}
+                        <RefValue value={origin.region} />
                       </dd>
                     </div>
                     <div className="flex flex-wrap items-baseline justify-between gap-x-6 border-b border-border py-3 text-[length:var(--text-small)]">
                       <dt className="text-muted-foreground"><Bilingual pick={(c) => c.coffee.detail.country} /></dt>
                       <dd className="font-medium text-foreground">
-                        {orNotSpecified(origin.countryCode)}
+                        {origin.countryCode && origin.countryCode.trim() !== "" ? <span dir="ltr">{origin.countryCode}</span> : <Bilingual pick={(c) => c.coffee.detail.notSpecified} />}
                       </dd>
                     </div>
                   </dl>

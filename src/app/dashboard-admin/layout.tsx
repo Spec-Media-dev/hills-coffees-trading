@@ -102,7 +102,7 @@ export default async function DashboardAdminLayout({
       identitySubtitle={<AdminRoleBadges roles={identity.operationalRoles} />}
       logoHref="/dashboard-admin"
       footerNote={appCopy.roleVisibilityNote}
-      topbarActions={<AdminTopbarActions displayName={identity.profile.fullName} roles={identity.operationalRoles} />}
+      topbarActions={<AdminTopbarActions displayName={identity.profile.fullName} avatarPath={identity.profile.avatarPath} roles={identity.operationalRoles} />}
     >
       {children}
     </AppShell>

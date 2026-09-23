@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 
 import { AdminAccessDenied } from "@/components/admin/access-denied";
@@ -11,9 +12,9 @@ import { CATALOGUE_MEDIA_UPLOAD_AVAILABLE, listAllCoffeeMedia, type CoffeeMediaL
 import { checkAreaAccess } from "@/lib/admin/guards";
 
 /**
- * Feature 010 RUN E (T024) — every `coffee_media` record across the catalogue, exactly as stored,
- * with the honest byte-upload gap (DB-BLOCK-01: no public media bucket exists). Record management
- * (primary/order) lives on each coffee's detail page; nothing here uploads or deletes.
+ * Feature 010 RUN E (T024) + hardening run — every `coffee_media` record across the catalogue, with
+ * a thumbnail preview. Upload / primary / order / replace / remove live on each coffee's detail page;
+ * nothing here mutates.
  */
 export default async function MediaPage() {
   const access = await checkAreaAccess("media");
@@ -25,6 +26,15 @@ export default async function MediaPage() {
     rows = null;
   }
   const columns = [
+    {
+      key: "preview",
+      header: <span className="sr-only"><AppBilingual pick={(c) => c.admin.catalogue.media.columns.file} /></span>,
+      render: (row: CoffeeMediaListRow) => (
+        <span className="relative block size-12 overflow-hidden rounded-[var(--radius-sm)] border border-border bg-[var(--surface-subtle)]" data-media-thumb>
+          {row.imageUrl ? <Image src={row.imageUrl} alt="" fill sizes="48px" className="object-cover" /> : null}
+        </span>
+      ),
+    },
     {
       key: "coffee",
       primary: true,
@@ -51,10 +61,10 @@ export default async function MediaPage() {
       )}
       <section data-media-upload={CATALOGUE_MEDIA_UPLOAD_AVAILABLE ? "available" : "unavailable"} className="rounded-[var(--radius-lg)] border border-dashed border-border bg-[var(--surface-card)] p-5">
         <h2 className="font-heading text-[length:var(--text-h4)] font-semibold text-foreground">
-          <AppBilingual pick={(c) => c.admin.catalogue.coffees.media.uploadUnavailableTitle} />
+          <AppBilingual pick={(c) => c.admin.catalogue.coffees.media.uploadHeading} />
         </h2>
         <p className="mt-2 text-[length:var(--text-small)] leading-[var(--lh-body)] text-muted-foreground">
-          <AppBilingual pick={(c) => c.admin.catalogue.coffees.media.uploadUnavailableDescription} />
+          <AppBilingual pick={(c) => c.admin.catalogue.media.description} />
         </p>
         <Button variant="outline" size="sm" nativeButton={false} className="mt-4" render={<Link href="/dashboard-admin/coffees" />}>
           <AppBilingual pick={(c) => c.admin.catalogue.coffees.breadcrumb} />

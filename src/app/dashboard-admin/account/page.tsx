@@ -1,14 +1,12 @@
-import Link from "next/link";
-
 import { AdminRoleBadges } from "@/components/admin/role-badges";
 import { AdminSignOutButton } from "@/components/admin/sign-out-button";
+import { TwoFactorPanel } from "@/components/account/two-factor-panel";
 import { UserAvatar } from "@/components/account/user-avatar";
 import { PageHeader } from "@/components/app/page-header";
 import { AppBilingual } from "@/components/locale/app-bilingual";
 import { StateScreen } from "@/components/layout/state-screen";
-import { Button } from "@/components/ui/button";
-import { Icon } from "@/components/ui/icon";
 import { getRequestIdentity } from "@/lib/auth/dal";
+import { readMfaAccountState } from "@/lib/auth/mfa-status";
 import { createClient } from "@/lib/supabase/server";
 import { ChangePasswordForm } from "@/src/app/dashboard/settings/change-password-form";
 import { ProfileSettingsForm } from "@/src/app/dashboard/settings/profile-settings-form";
@@ -32,9 +30,11 @@ import { ChangeEmailForm } from "./change-email-form";
  * - Password: an in-session `ChangePasswordForm` (`auth.updateUser({ password })`, the SAME
  *   primitive the emailed reset-link flow already used, now reachable directly). No password value
  *   is ever accepted, logged, or echoed here.
- * - Two-factor: real enrolment status from `auth.mfa.listFactors()`, linking to the EXISTING
- *   `/mfa/` enrol/verify page.
- * - Profile image: no approved upload path exists (`avatar_path` has no bucket) — initials only.
+ * - Two-factor: the shared `TwoFactorPanel` — real Enabled / Disabled / Enrollment-pending status
+ *   from `auth.mfa.listFactors()`, the verified-factor list, removal re-verified by a fresh code
+ *   (`removeMyMfaFactor`), and enrolment on the EXISTING `/mfa/` page.
+ * - Profile image: the shared `UserAvatar` (the real `profiles.avatar_path` object, initials fallback),
+ *   uploaded/replaced/removed through `ProfileSettingsForm`'s avatar field.
  * - Sign out: the real `signOut` Server Action via the shared confirm dialog.
  *
  * Guarded by the root console layout (any attested operational role) and re-verified here with
@@ -48,15 +48,14 @@ export default async function AdminAccountPage() {
   }
 
   const supabase = await createClient();
-  const [{ data: profile }, { data: user }, factors] = await Promise.all([
+  const [{ data: profile }, { data: user }, mfa] = await Promise.all([
     supabase.from("profiles").select("full_name, phone, company_name, avatar_path").eq("id", identity.userId).maybeSingle(),
     supabase.auth.getUser(),
-    supabase.auth.mfa.listFactors(),
+    readMfaAccountState(supabase),
   ]);
 
   const email = user.user?.email ?? null;
   const pendingEmail = user.user?.new_email ?? null;
-  const totpEnrolled: boolean | null = factors.error || !factors.data ? null : factors.data.totp.length > 0;
   const displayName = identity.profile.fullName;
 
   return (
@@ -71,7 +70,7 @@ export default async function AdminAccountPage() {
       />
 
       <div className="flex flex-wrap items-center gap-4 rounded-[var(--radius-lg)] border border-border bg-[var(--surface-card)] p-5">
-        <UserAvatar displayName={displayName ?? "?"} />
+        <UserAvatar displayName={displayName ?? "?"} avatarPath={profile?.avatar_path ?? null} />
         <div className="flex min-w-0 flex-col gap-1.5">
           <span className="truncate text-[length:var(--text-body)] font-semibold text-foreground">{displayName ?? email ?? ""}</span>
           <AdminRoleBadges roles={identity.operationalRoles} />
@@ -143,24 +142,11 @@ export default async function AdminAccountPage() {
 
       <hr className="border-border" />
 
-      <section className="flex flex-col gap-3" data-account-section="security" data-totp-enrolled={totpEnrolled === null ? "unknown" : String(totpEnrolled)}>
+      <section className="flex flex-col gap-3" data-account-section="security" data-totp-enrolled={mfa.status === "unknown" ? "unknown" : String(mfa.status === "enabled")}>
         <h2 className="font-heading text-[length:var(--text-h4)] font-semibold text-foreground">
           <AppBilingual pick={(c) => c.admin.account.security.title} />
         </h2>
-        <p className="flex items-center gap-2 text-[length:var(--text-small)] text-foreground">
-          <Icon name={totpEnrolled ? "check" : "alert-circle"} className="size-4 shrink-0" aria-hidden="true" />
-          <AppBilingual
-            pick={(c) =>
-              totpEnrolled === null ? c.admin.account.security.unknown : totpEnrolled ? c.admin.account.security.enrolled : c.admin.account.security.notEnrolled
-            }
-          />
-        </p>
-        <div>
-          <Button variant="outline" nativeButton={false} render={<Link href="/mfa/" />}>
-            <Icon name="shield" />
-            <AppBilingual pick={(c) => c.admin.account.security.action} />
-          </Button>
-        </div>
+        <TwoFactorPanel state={mfa} />
       </section>
 
       <hr className="border-border" />

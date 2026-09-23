@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { Bilingual } from "@/components/locale/bilingual";
+import { Bilingual, LocalizedContent } from "@/components/locale/bilingual";
 import { CoffeeCard, COFFEE_GRID } from "@/components/public/coffee-card";
 import { JsonLd } from "@/components/public/json-ld";
 import { PUBLIC_ROUTES } from "@/components/public/routes";
@@ -129,18 +129,18 @@ export default async function OriginDetailPage({ params }: PageProps) {
           </Link>
 
           <span className="hc-eyebrow text-[var(--gold-on-dark)] font-semibold tracking-wider">
-            {origin.region ? origin.region.name : <Bilingual pick={(c) => c.origins.detail.identityEyebrow} />}
+            {origin.region ? <LocalizedContent en={origin.region.name} ar={origin.region.nameAr} /> : <Bilingual pick={(c) => c.origins.detail.identityEyebrow} />}
           </span>
 
           <h1 className="font-heading text-[length:var(--text-h1)] font-semibold leading-[var(--lh-display)] tracking-[var(--tracking-display)] text-balance text-[#ffffff]">
-            {origin.name}
+            <LocalizedContent en={origin.name} ar={origin.nameAr} />
           </h1>
 
           <span aria-hidden="true" className="h-0.5 w-16 bg-[var(--hc-accent)] opacity-100" />
 
           {origin.description ? (
             <p className="hc-body-lg max-w-[54ch] text-[rgba(242,245,235,0.92)] text-pretty">
-              {origin.description}
+              <LocalizedContent en={origin.description} ar={origin.descriptionAr} />
             </p>
           ) : null}
 
@@ -162,7 +162,7 @@ export default async function OriginDetailPage({ params }: PageProps) {
                   <dt className="text-[rgba(242,245,235,0.75)] font-medium">
                     <Bilingual pick={(c) => c.origins.detail.regionLabel} />
                   </dt>
-                  <dd className="font-medium text-[#ffffff]">{origin.region.name}</dd>
+                  <dd className="font-medium text-[#ffffff]"><LocalizedContent en={origin.region.name} ar={origin.region.nameAr} /></dd>
                 </div>
               ) : null}
               {origin.parent ? (

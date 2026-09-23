@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { AdminAccessDenied } from "@/components/admin/access-denied";
+import { ArabicContentPanel } from "@/components/admin/catalogue/arabic-content-panel";
 import { RecordForm } from "@/components/admin/catalogue/record-form";
 import { originFields } from "@/components/admin/catalogue/reference-fields";
 import { OriginStatusBadge } from "@/components/admin/catalogue/status-badges";
@@ -8,7 +9,7 @@ import { AdminStateCard } from "@/components/admin/state-card";
 import { PageHeader } from "@/components/app/page-header";
 import { AppBilingual } from "@/components/locale/app-bilingual";
 import { Button } from "@/components/ui/button";
-import { getOrigin, listOrigins, listRegions } from "@/lib/admin/catalogue";
+import { getArabicTranslation, getOrigin, listOrigins, listRegions } from "@/lib/admin/catalogue";
 import { checkAreaAccess } from "@/lib/admin/guards";
 import { saveOrigin } from "@/src/app/dashboard-admin/(catalogue)/actions";
 
@@ -31,11 +32,12 @@ export default async function OriginDetailPage({ params }: { params: Promise<{ o
       </div>
     );
   }
-  const [regions, parents] = await Promise.all([listRegions(), listOrigins()]);
+  const [regions, parents, arabic] = await Promise.all([listRegions(), listOrigins(), getArabicTranslation("origin", origin.id)]);
   return (
     <div className="flex flex-col gap-6">
       <PageHeader title={origin.name} description={<span className="font-mono text-[length:var(--text-micro)]" dir="ltr">/origins/{origin.slug}/</span>} trail={trail} actions={<OriginStatusBadge status={origin.status} />} />
-      <RecordForm resource="origins" mode="edit" formKey="origin" fields={originFields(origin, regions, parents)} hiddenFields={{ originId: origin.id }} action={saveOrigin} />
+      <RecordForm resource="origins" mode="edit" contentLanguage="en" formKey="origin" fields={originFields(origin, regions, parents)} hiddenFields={{ originId: origin.id }} action={saveOrigin} />
+      <ArabicContentPanel kind="origin" entityId={origin.id} hasDescription initial={arabic} returnPath={`/dashboard-admin/origins/${origin.id}`} />
       <p className="text-[length:var(--text-micro)] text-muted-foreground">
         <AppBilingual pick={(c) => c.admin.catalogue.common.noDeleteNote} />
       </p>

@@ -92,3 +92,29 @@ export function EnglishCopy({ children }: { children: React.ReactNode }) {
     </span>
   );
 }
+
+/**
+ * Hardening run — bilingual CATALOGUE CONTENT (coffee names/descriptions, origin/region/taxonomy
+ * names). Unlike `Bilingual`, the two values come from the database, not the dictionary: `en` is the
+ * canonical base column, `ar` the `locale = 'ar'` translation row (or `null`).
+ *
+ * Same CSS-picked, zero-JS technique as `Bilingual`, so public pages stay static and cacheable.
+ * FALLBACK POLICY: with no Arabic value, Arabic viewers see the English value once, marked
+ * `lang="en" dir="ltr"` (`EnglishCopy`) — an honest English fallback, never a machine guess and never
+ * Arabic shown to English viewers.
+ */
+export function LocalizedContent({ en, ar }: { en: string; ar: string | null | undefined }) {
+  if (!ar || ar === en) {
+    return <EnglishCopy>{en}</EnglishCopy>;
+  }
+  return (
+    <>
+      <span lang="en" dir="ltr" className="hc-lang-en">
+        {en}
+      </span>
+      <span lang="ar" dir="rtl" className="hc-lang-ar">
+        {ar}
+      </span>
+    </>
+  );
+}

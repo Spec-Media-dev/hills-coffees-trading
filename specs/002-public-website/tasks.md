@@ -7,7 +7,7 @@
 
 **Status**: Block A (Phases 1–2) **COMPLETE — 12 / 12 verified**. Block B (Phases 3–4)
 **COMPLETE — 5 / 5 verified**. Block C (Phases 5 + 7) **COMPLETE — 3 / 3 verified**.
-**59 / 59 current tasks checked — Phases 1–13 COMPLETE — VERIFIED.** The `T0NN` line below is a
+**59 / 59 current tasks checked — Phases 1–13 COMPLETE — VERIFIED.** Post-closure addition T058 (hero redesign, 2026-09-23) also checked — 60 / 60. The `T0NN` line below is a
 documentation template, not a task; the real task set is 59 items (`T000`–`T057` plus `T006a` and
 `T031a`).
 **Phase 5.5 (Full Product UI Foundation) is COMPLETE — VERIFIED and tracked separately** — see
@@ -744,6 +744,17 @@ catalogue rows inside a test, and do not assert against whatever data happens to
   - Why: honest status reporting across features is continuity-critical judgment, and seven blockers is a lot to report accurately.
 
 ---
+
+## Post-closure scope addition — hero redesign (2026-09-23 hardening run)
+
+> Approved addition after Feature 002 closed; recorded separately so the closed 59/59 count stays truthful.
+
+- [x] T058 [PS-new] Hero visual integrated into the hero background: film/still as a full-bleed layer
+  (masked toward the headline on desktop, strong forest scrim on mobile), fine-pointer hover plays and
+  gently enhances, explicit Play/Pause toggle for touch + keyboard, reduced motion keeps the still, film
+  `preload="none"`, zero CLS (absolute layer). Coffee cards/detail also render the coffee's own primary
+  image when one exists (Feature 010 T053) and bilingual catalogue content (Feature 010 T054).
+  - Verify: `tests/public/bilingual-content-hero.test.tsx` (10/10); public suite 151/151.
 
 ## Security requirement traceability
 

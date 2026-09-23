@@ -35,6 +35,8 @@ import { createPublicReadClient } from "@/lib/public/supabase";
 /** A region, reduced to what a visitor may see. */
 export type PublicRegion = {
   name: string;
+  /** Arabic name, or `null` (English `name` is the fallback). */
+  nameAr: string | null;
   slug: string;
   countryCode: string | null;
 };
@@ -42,8 +44,11 @@ export type PublicRegion = {
 /** An origin as it appears in the public index listing. */
 export type PublicOriginSummary = {
   name: string;
+  /** Arabic name/description from `origin_translations` (`locale = 'ar'`), or `null`. */
+  nameAr: string | null;
   slug: string;
   description: string | null;
+  descriptionAr: string | null;
   countryCode: string | null;
   region: PublicRegion | null;
 };
@@ -63,7 +68,14 @@ const SUMMARY_COLUMNS = `
   slug,
   description,
   country_code,
+  origin_translations ( locale, name, description ),
   regions ( name, slug, country_code )
+`;
+
+/** Second, fault-tolerant read: Arabic region names by origin slug (table added by migration 20260923120000). */
+const REGION_TRANSLATION_COLUMNS = `
+  slug,
+  regions ( region_translations ( locale, name ) )
 `;
 
 /**
@@ -95,11 +107,14 @@ type RegionRow = {
   country_code: string | null;
 } | null;
 
+type TranslationsRow = { locale: string; name: string; description?: string | null }[] | null;
+
 type SummaryRow = {
   name: string;
   slug: string;
   description: string | null;
   country_code: string | null;
+  origin_translations: TranslationsRow;
   regions: RegionRow;
 };
 
@@ -111,28 +126,38 @@ type DetailRow = SummaryRow & {
 // Mappers — explicit field-by-field, never a spread
 // ---------------------------------------------------------------------------
 
-function toRegion(row: RegionRow): PublicRegion | null {
-  if (!row) return null;
-  return { name: row.name, slug: row.slug, countryCode: row.country_code };
+/** The Arabic row's non-blank value for one field, or `null` — never the English value. */
+function arabic(rows: TranslationsRow, field: "name" | "description"): string | null {
+  const value = (rows ?? []).find((translation) => translation.locale === "ar")?.[field];
+  return typeof value === "string" && value.trim() !== "" ? value : null;
 }
 
-function toSummary(row: SummaryRow): PublicOriginSummary {
+function toRegion(row: RegionRow, nameAr: string | null): PublicRegion | null {
+  if (!row) return null;
+  return { name: row.name, nameAr, slug: row.slug, countryCode: row.country_code };
+}
+
+function toSummary(row: SummaryRow, regionAr: string | null): PublicOriginSummary {
   return {
     name: row.name,
+    nameAr: arabic(row.origin_translations, "name"),
     slug: row.slug,
     description: row.description,
+    descriptionAr: arabic(row.origin_translations, "description"),
     countryCode: row.country_code,
-    region: toRegion(row.regions),
+    region: toRegion(row.regions, regionAr),
   };
 }
 
-function toDetail(row: DetailRow): PublicOriginDetail {
+function toDetail(row: DetailRow, regionAr: string | null): PublicOriginDetail {
   return {
     name: row.name,
+    nameAr: arabic(row.origin_translations, "name"),
     slug: row.slug,
     description: row.description,
+    descriptionAr: arabic(row.origin_translations, "description"),
     countryCode: row.country_code,
-    region: toRegion(row.regions),
+    region: toRegion(row.regions, regionAr),
     parent: row.parent ? { name: row.parent.name, slug: row.parent.slug } : null,
   };
 }
@@ -140,6 +165,19 @@ function toDetail(row: DetailRow): PublicOriginDetail {
 // ---------------------------------------------------------------------------
 // Uncached fetchers
 // ---------------------------------------------------------------------------
+
+/** Arabic region names by origin slug. Any failure (e.g. table not yet migrated) → empty map. */
+async function fetchRegionArabic(slug?: string): Promise<Map<string, string | null>> {
+  const supabase = createPublicReadClient();
+  let query = supabase.from("origins").select(REGION_TRANSLATION_COLUMNS).eq("status", ACTIVE);
+  if (slug) query = query.eq("slug", slug);
+  const { data, error } = await query;
+  const out = new Map<string, string | null>();
+  if (error || !data) return out;
+  type Row = { slug: string; regions: { region_translations: TranslationsRow } | null };
+  for (const row of data as unknown as Row[]) out.set(row.slug, arabic(row.regions?.region_translations ?? null, "name"));
+  return out;
+}
 
 async function fetchOriginIndex(): Promise<PublicOriginSummary[]> {
   const supabase = createPublicReadClient();
@@ -151,7 +189,8 @@ async function fetchOriginIndex(): Promise<PublicOriginSummary[]> {
 
   if (error) throw new Error("Public origin index read failed.");
 
-  return (data as unknown as SummaryRow[]).map(toSummary);
+  const regionArabic = await fetchRegionArabic();
+  return (data as unknown as SummaryRow[]).map((row) => toSummary(row, regionArabic.get(row.slug) ?? null));
 }
 
 async function fetchOriginDetail(
@@ -168,7 +207,9 @@ async function fetchOriginDetail(
   if (error) throw new Error("Public origin detail read failed.");
   if (!data) return null;
 
-  return toDetail(data as unknown as DetailRow);
+  const row = data as unknown as DetailRow;
+  const regionArabic = await fetchRegionArabic(row.slug);
+  return toDetail(row, regionArabic.get(row.slug) ?? null);
 }
 
 // ---------------------------------------------------------------------------

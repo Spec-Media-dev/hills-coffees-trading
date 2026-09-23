@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { startTransition, useActionState } from "react";
 
 import { useLocale } from "@/components/locale/locale-provider";
 import { useActionToast } from "@/components/app/use-action-toast";
@@ -27,7 +27,7 @@ export function ResendVerificationButton() {
 
   return (
     <div className="flex flex-col items-center gap-2">
-      <Button type="button" variant="outline" disabled={isPending} onClick={() => dispatch()}>
+      <Button type="button" variant="outline" disabled={isPending} onClick={() => startTransition(() => dispatch())}>
         {isPending ? copy.resending : copy.resend}
       </Button>
     </div>

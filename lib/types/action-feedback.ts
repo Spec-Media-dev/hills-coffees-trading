@@ -21,6 +21,11 @@ export const ACTION_FEEDBACK = {
   MFA_INVALID_CODE: "mfa_invalid_code",
   MFA_ENABLED: "mfa_enabled",
   MFA_STEP_UP_REQUIRED: "mfa_step_up_required",
+  /** Hardening run (2FA management) — a verified factor was removed after a fresh code check. */
+  MFA_DISABLED: "mfa_disabled",
+  /** The factor id is not one of the caller's OWN verified TOTP factors. */
+  MFA_FACTOR_NOT_FOUND: "mfa_factor_not_found",
+  MFA_REMOVE_FAILED: "mfa_remove_failed",
   ONBOARDING_FAILED: "onboarding_failed",
   KYB_START_FAILED: "kyb_start_failed",
   KYB_DRAFT_SAVED: "kyb_draft_saved",
@@ -229,6 +234,11 @@ export const ACTION_FEEDBACK = {
   CATALOGUE_STALE: "catalogue_stale",
   CATALOGUE_NOT_FOUND: "catalogue_not_found",
   CATALOGUE_SAVE_FAILED: "catalogue_save_failed",
+  /** Hardening run — catalogue coffee image upload/removal (`attach_coffee_media` / `remove_coffee_media`). */
+  CATALOGUE_MEDIA_INVALID_FILE: "catalogue_media_invalid_file",
+  CATALOGUE_MEDIA_LIMIT_REACHED: "catalogue_media_limit_reached",
+  CATALOGUE_MEDIA_UPLOADED: "catalogue_media_uploaded",
+  CATALOGUE_MEDIA_REMOVED: "catalogue_media_removed",
   KYB_APPROVAL_BLOCKED: "kyb_approval_blocked",
   KYB_DOCUMENT_REVIEW_RECORDED: "kyb_document_review_recorded",
   KYB_DOCUMENT_REVIEW_STALE: "kyb_document_review_stale",

@@ -45,6 +45,8 @@ export type OrganizationMembership = {
 export type RequestProfile = {
   fullName: string | null;
   companyName: string | null;
+  /** `profiles.avatar_path` — a `public-assets` object path (never a URL). Absent/null → initials. */
+  avatarPath?: string | null;
 };
 
 /**

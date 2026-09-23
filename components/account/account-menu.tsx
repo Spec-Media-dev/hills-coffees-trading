@@ -19,6 +19,8 @@ import { UserAvatar } from "./user-avatar";
 export type AccountMenuProps = {
   /** Presentation-safe only — `profile.fullName` or a generic fallback. Never raw identity/rows. */
   displayName: string;
+  /** `profiles.avatar_path`, resolved per request; absent/null renders initials. */
+  avatarPath?: string | null;
   /** Shown under the name if present (spec §26 — safe profile data only, never fetched broader). */
   organizationName: string | null;
   showMemberDashboard: boolean;
@@ -40,7 +42,7 @@ export type AccountMenuProps = {
  * (`src/app/dashboard/layout.tsx`, `src/app/dashboard-admin/layout.tsx`) — this menu grants nothing
  * by existing or by being hidden.
  */
-export function AccountMenu({ displayName, organizationName, showMemberDashboard, showAdminConsole }: AccountMenuProps) {
+export function AccountMenu({ displayName, avatarPath, organizationName, showMemberDashboard, showAdminConsole }: AccountMenuProps) {
   const { t } = useLocale();
   const copy = t.account;
   const [logoutDialogOpen, setLogoutDialogOpen] = useState(false);
@@ -54,7 +56,7 @@ export function AccountMenu({ displayName, organizationName, showMemberDashboard
           aria-label={copy.menuLabel}
           className="grid size-11 shrink-0 place-items-center rounded-full transition-[box-shadow] duration-[var(--dur-fast)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus-ring)]"
         >
-          <UserAvatar displayName={displayName} />
+          <UserAvatar displayName={displayName} avatarPath={avatarPath} />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" sideOffset={8}>
           <div className="flex flex-col gap-0.5 px-2 py-1.5">

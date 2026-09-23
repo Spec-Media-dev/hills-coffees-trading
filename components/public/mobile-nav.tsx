@@ -19,6 +19,7 @@ export type MobileNavAuthState =
   | {
       signedIn: true;
       displayName: string;
+      avatarPath?: string | null;
       showMemberDashboard: boolean;
       showAdminConsole: boolean;
     };
@@ -189,7 +190,7 @@ export function MobileNav({ auth }: { auth: MobileNavAuthState }) {
         <div className="mt-auto flex flex-col gap-4 border-t border-[rgba(242,245,235,0.14)] p-5">
           {auth.signedIn ? (
             <div className="flex items-center gap-3">
-              <UserAvatar displayName={auth.displayName} size="sm" />
+              <UserAvatar displayName={auth.displayName} avatarPath={auth.avatarPath} size="sm" />
               <span className="truncate text-sm font-medium text-[#f2f5eb]">{auth.displayName}</span>
             </div>
           ) : null}

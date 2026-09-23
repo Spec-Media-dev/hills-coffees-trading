@@ -1,5 +1,6 @@
+import Image from "next/image";
 import Link from "next/link";
-import { Bilingual } from "@/components/locale/bilingual";
+import { Bilingual, LocalizedContent } from "@/components/locale/bilingual";
 
 import { MediaPlaceholder } from "@/components/public/media-placeholder";
 import type { PublicCoffeeSummary } from "@/lib/public/coffees";
@@ -58,27 +59,39 @@ export function CoffeeCard({ coffee, headingLevel = 3 }: CoffeeCardProps) {
         className="flex h-full flex-col overflow-hidden rounded-[var(--radius-lg)] border border-border bg-card transition-[border-color,box-shadow,transform] duration-[var(--dur-fast)] hover:-translate-y-0.5 hover:border-[var(--border-strong)] hover:shadow-[var(--shadow-md)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--hc-accent)] motion-reduce:transform-none"
       >
         {/*
-          Record media stays a placeholder: MEDIA-01 is unresolved, and a generic repository
-          photograph here would assert that it depicts this specific coffee. The reserved box keeps
-          the grid even and shifts nothing when real photography eventually lands.
+          The coffee's OWN primary catalogue image (uploaded by a platform admin for this record)
+          when one exists; otherwise the neutral placeholder — never a generic repository photograph
+          that would claim to depict this coffee. Same 4:3 box either way, so nothing shifts.
         */}
-        <MediaPlaceholder aspectRatio="4 / 3" className="rounded-none border-0 border-b" />
+        {coffee.image ? (
+          <div className="relative aspect-[4/3] w-full overflow-hidden border-b border-border bg-[var(--surface-subtle)]" data-coffee-image>
+            <Image
+              src={coffee.image.url}
+              alt=""
+              fill
+              sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
+              className="object-cover transition-transform duration-[var(--dur-slowest)] ease-out group-hover:scale-[1.04] motion-reduce:transition-none motion-reduce:group-hover:scale-100"
+            />
+          </div>
+        ) : (
+          <MediaPlaceholder aspectRatio="4 / 3" className="rounded-none border-0 border-b" />
+        )}
 
         <div className="flex flex-1 flex-col gap-3 p-6">
           {origin ? (
             <span className="hc-eyebrow text-[var(--hc-accent)] dark:text-[var(--gold-on-dark)]">
-              {origin.name}
+              <LocalizedContent en={origin.name} ar={origin.nameAr} />
               {origin.countryCode ? ` · ${origin.countryCode}` : ""}
             </span>
           ) : null}
 
           <Heading className="font-heading text-[length:var(--text-h3)] font-semibold leading-[var(--lh-heading)] tracking-[var(--tracking-heading)] text-foreground">
-            {coffee.name}
+            <LocalizedContent en={coffee.name} ar={coffee.nameAr} />
           </Heading>
 
           {coffee.description ? (
             <p className="line-clamp-3 text-[length:var(--text-small)] leading-[1.7] text-muted-foreground text-pretty">
-              {coffee.description}
+              <LocalizedContent en={coffee.description} ar={coffee.descriptionAr} />
             </p>
           ) : null}
 
@@ -92,7 +105,7 @@ export function CoffeeCard({ coffee, headingLevel = 3 }: CoffeeCardProps) {
               {coffee.coffeeType ? (
                 <div className="flex gap-2">
                   <dt className="sr-only"><Bilingual pick={(c) => c.coffee.detail.coffeeType} /></dt>
-                  <dd>{coffee.coffeeType.name}</dd>
+                  <dd><LocalizedContent en={coffee.coffeeType.name} ar={coffee.coffeeType.nameAr} /></dd>
                 </div>
               ) : null}
               {specs.length === 2 ? (
@@ -103,7 +116,7 @@ export function CoffeeCard({ coffee, headingLevel = 3 }: CoffeeCardProps) {
               {coffee.processingMethod ? (
                 <div className="flex gap-2">
                   <dt className="sr-only"><Bilingual pick={(c) => c.coffee.detail.processingMethod} /></dt>
-                  <dd>{coffee.processingMethod.name}</dd>
+                  <dd><LocalizedContent en={coffee.processingMethod.name} ar={coffee.processingMethod.nameAr} /></dd>
                 </div>
               ) : null}
             </dl>

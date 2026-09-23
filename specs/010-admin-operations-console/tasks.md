@@ -3,7 +3,12 @@
 **Input**: [spec.md](./spec.md), [plan.md](./plan.md), `docs/architecture/DATABASE-CAPABILITY-MAP.md`,
 `.specify/memory/constitution.md` (v2.0.0), SRS §14 (OPS-01, OPS-02), §3.1, §13.5.
 
-**Status**: **Account/media approved scope run (2026-09-22, RUN F010-ACCOUNT-MEDIA) — 41 / 51.
+**Status**: **Catalogue media & Arabic translations live verification run (2026-09-23) — 47 / 55.** Migration
+`supabase/migrations/20260923120000_catalogue_media_and_translations.sql` applied, postflight 12/12 passed.
+T053 (catalogue coffee images) and T054 (Arabic catalogue content) COMPLETE and verified live end-to-end
+against production Supabase (27/27 live checks passed). Remaining open tasks (8/55): T013–T015, T031–T033
+(blocked by Feature 008 finance/payments) and T038, T041 (Phase 12 final integration/sign-off).
+**Previous status**: **Account/media approved scope run (2026-09-22, RUN F010-ACCOUNT-MEDIA) — 41 / 51.
 T047 COMPLETE (platform logo), T048 COMPLETE (Admin/Super Admin sign-in email change), T050/T051
 ADDED (Phase 15, approved scope additions — avatar upload for every role; seller-owned listing media)
 and COMPLETE.** One new migration, `supabase/migrations/20260922130000_feature_010_branding_avatar_
@@ -1552,6 +1557,46 @@ scope has no owning task (flagged for RUN B planning, not silently added).
     verified live (direct public URL to `listing-media` blocked). `ListingMediaManager` mounted on seller listing
     detail page. Deliberate scope boundary: drag-to-reorder deferred (`reorder_offer_media()` RPC exists); admin
     manages media via RPC-level authorization. Fully evidenced and production-ready.
+
+## Phase 16 — Content / media / account UX hardening (ADDED 2026-09-23)
+
+> Approved scope additions from the 2026-09-23 hardening run prompt — none was an original Feature 010
+> task, so they are recorded here explicitly rather than ticked against older tasks. Count 51 → 55. The
+> public hero redesign from the same run belongs to Feature 002 and is recorded there.
+
+- [x] T052 [PS-new] Avatar consistency on every surface representing the signed-in user.
+  - Done: `RequestProfile.avatarPath` (DAL reads `profiles.avatar_path` per request); the ONE
+    `UserAvatar` (shared `publicAssetUrl`, Base UI fallback on load error) now receives it in the
+    Operations Console topbar/menu (every operational role), Member Portal topbar/menu (Buyer/Seller),
+    public header account menu + mobile drawer, and the admin account page. Avatar upload/remove
+    revalidate the root layout; each upload writes a new object path (no stale cache).
+  - Verify: `tests/auth/avatar-surfaces.test.tsx` (9/9). No migration.
+- [x] T053 [PS-new] Catalogue coffee image management (`/dashboard-admin/coffees/[coffeeId]`): upload
+  (multiple, one request per image), preview, set primary, move earlier/later + exact order, replace,
+  remove; primary image on public cards/detail and admin list/media pages. Reuses `coffees`/`coffee_media`/
+  `file_assets` + the existing `public-assets` bucket under `catalogue/{coffeeId}/` (no new bucket).
+  - Migration applied: storage-policy `catalogue` branch (platform admin only), one-primary unique
+    index, `attach_coffee_media` / `remove_coffee_media` SECURITY DEFINER RPCs (MIME jpeg/png/webp,
+    ≤ 5 MiB, ≤ 12 images, path prefix), `public_coffee_images` security_barrier view. Postflight 12/12 passed.
+  - Verify: `tests/admin/catalogue-media-translations.test.ts` (15/15), `tests/admin/run-e-static.test.tsx` (25/25),
+    live end-to-end suite `scripts/live-verify-catalogue-media-translations.ts` (27/27 live checks passed,
+    upload/storage-scope/metadata/admin-query/upload-second/switch-primary/reorder/remove-promotes-survivor/12-cap/invalid-mime/non-admin-refusal/public-render/draft-isolation).
+- [x] T054 [PS-new] Arabic catalogue content: coffee name/description, origin name/description, region,
+  coffee type, variety, processing method, packaging type (tags have no translation store). Base columns
+  = English (canonical); `locale='ar'` rows in the existing `coffee_translations`/`origin_translations`
+  plus five new `*_translations` tables; single writer `set_catalogue_translation` (blank name clears).
+  Admin: English-badged record form + separate RTL Arabic panel on coffee/origin/region/taxonomy pages.
+  Public: `LocalizedContent` — Arabic when present, otherwise English marked `lang="en" dir="ltr"`.
+  - Verify: `tests/public/bilingual-content-hero.test.tsx` (10/10), `tests/admin/catalogue-media-translations.test.ts` (15/15),
+    live end-to-end suite `scripts/live-verify-catalogue-media-translations.ts` (27/27 live checks passed,
+    EN/AR non-overwrite, 6 taxonomy tables, RTL/LTR, empty name clearing, missing Arabic fallback).
+- [x] T055 [PS-new] Two-factor management: shared `TwoFactorPanel` on `/dashboard-admin/account` and
+  `/dashboard/settings` — Enabled / Disabled / Enrollment pending / Unknown status, verified-factor list,
+  removal gated by ownership + a fresh TOTP code (`removeMyMfaFactor` → `challengeAndVerify` →
+  `unenroll`); `/mfa/` now discards abandoned unverified factors before enrolling (fixes accumulation),
+  shows a manual-key label and links back to the account. Login AAL2 enforcement unchanged (already
+  complete). Limitation documented in-product: Supabase TOTP has no recovery codes — none are invented.
+  - Verify: `tests/auth/mfa-management.test.ts` (13/13). No migration.
 
 ---
 

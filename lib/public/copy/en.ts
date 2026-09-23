@@ -879,6 +879,8 @@ export const en = {
       enrollConfirming: "Confirming…",
       enrollSuccess: "Two-factor authentication is now enabled on your account.",
       alreadyEnrolled: "Two-factor authentication is already enabled on your account.",
+      manageInAccount: "Back to account security",
+      manualKeyLabel: "Can't scan? Enter this key in your authenticator app:",
       metaTitleEnroll: "Set up two-factor authentication",
     },
     layout: {

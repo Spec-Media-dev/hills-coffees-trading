@@ -176,3 +176,42 @@ export const CoffeeMediaPrimaryInput = z.object({ coffeeId: uuid, mediaId: uuid 
 export type CoffeeMediaPrimaryInput = z.infer<typeof CoffeeMediaPrimaryInput>;
 export const CoffeeMediaSortInput = z.object({ coffeeId: uuid, mediaId: uuid, sortOrder: z.coerce.number().int("SORT_ORDER_INVALID").min(0, "SORT_ORDER_INVALID").max(9999, "SORT_ORDER_INVALID") });
 export type CoffeeMediaSortInput = z.infer<typeof CoffeeMediaSortInput>;
+
+// ── Arabic catalogue content (hardening run) ─────────────────────────────────────────────────────
+
+/** Entities with a normalized `*_translations` table. `tags` has none, so it is deliberately absent. */
+export const TRANSLATION_KINDS = ["coffee", "origin", "region", "coffee_type", "variety", "processing", "packaging"] as const;
+export type TranslationKind = (typeof TRANSLATION_KINDS)[number];
+/** Only coffees and origins carry a translated description (mirrors `set_catalogue_translation`). */
+export const TRANSLATION_KINDS_WITH_DESCRIPTION: readonly TranslationKind[] = ["coffee", "origin"];
+
+/** Taxonomy kind → translation kind (`null` for `tags`, which has no translation table). */
+export function translationKindForTaxonomy(kind: TaxonomyKind): TranslationKind | null {
+  switch (kind) {
+    case "coffeeTypes":
+      return "coffee_type";
+    case "varieties":
+      return "variety";
+    case "processingMethods":
+      return "processing";
+    case "packagingTypes":
+      return "packaging";
+    default:
+      return null;
+  }
+}
+
+/**
+ * The Arabic value for one entity. A BLANK name clears the Arabic translation (the public site then
+ * shows the English value, marked as English) — it never copies English into the Arabic slot.
+ */
+export const CatalogueTranslationInput = z
+  .object({
+    kind: z.enum(TRANSLATION_KINDS),
+    entityId: uuid,
+    name: z.string().trim().max(200, "NAME_TOO_LONG").default(""),
+    description: z.string().trim().max(4000, "DESCRIPTION_TOO_LONG").default(""),
+  })
+  .refine((value) => value.description === "" || TRANSLATION_KINDS_WITH_DESCRIPTION.includes(value.kind), { path: ["description"], message: "DESCRIPTION_NOT_APPLICABLE" })
+  .refine((value) => value.description === "" || value.name !== "", { path: ["name"], message: "NAME_REQUIRED" });
+export type CatalogueTranslationInput = z.infer<typeof CatalogueTranslationInput>;

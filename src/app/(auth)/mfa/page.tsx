@@ -1,9 +1,12 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { MfaChallengeForm } from "@/components/account/mfa-challenge-form";
 import { MfaEnrollForm } from "@/components/account/mfa-enroll-form";
 import { Bilingual } from "@/components/locale/bilingual";
+import { Button } from "@/components/ui/button";
+import { getRequestIdentity } from "@/lib/auth/dal";
 import { copy } from "@/lib/public/copy";
 import { createClient } from "@/lib/supabase/server";
 
@@ -18,6 +21,9 @@ import { createClient } from "@/lib/supabase/server";
  *    resulting QR/secret and factor id are handed to the one client form that verifies them, so a
  *    page refresh never silently produces a second unverified factor mid-flow without the user
  *    noticing (they'd simply see a fresh QR code, which is the correct, honest behaviour).
+ *    Hardening run: any ABANDONED unverified TOTP factor left by an earlier visit is unenrolled first
+ *    (Supabase allows removing an unverified factor at `aal1`), so repeated visits never accumulate
+ *    orphan factors or hit the provider's per-user factor limit.
  *
  * No session is required to have already reached `aal2` to VIEW this page — a user with no
  * protected-data access yet is exactly who needs to reach it — but every protected read/RPC beyond
@@ -59,6 +65,10 @@ export default async function MfaPage() {
     );
   }
 
+  const identity = await getRequestIdentity();
+  const accountHref =
+    identity.kind === "authenticated" && identity.operationalRoles.length > 0 ? "/dashboard-admin/account/" : "/dashboard/settings/";
+
   const { data: factors } = await supabase.auth.mfa.listFactors();
   if (factors && factors.totp.length > 0) {
     return (
@@ -69,8 +79,16 @@ export default async function MfaPage() {
         <p className="text-[length:var(--text-body)] leading-[1.7] text-muted-foreground text-pretty">
           <Bilingual pick={(c) => c.auth.mfa.alreadyEnrolled} />
         </p>
+        <Button variant="outline" nativeButton={false} render={<Link href={accountHref} />}>
+          <Bilingual pick={(c) => c.auth.mfa.manageInAccount} />
+        </Button>
       </div>
     );
+  }
+
+  const abandoned = (factors?.all ?? []).filter((factor) => factor.factor_type === "totp" && factor.status === "unverified");
+  for (const factor of abandoned) {
+    await supabase.auth.mfa.unenroll({ factorId: factor.id });
   }
 
   const { data: enrollment, error: enrollError } = await supabase.auth.mfa.enroll({ factorType: "totp" });
@@ -94,6 +112,7 @@ export default async function MfaPage() {
           factorId={enrollment.id}
           qrCodeSvgDataUri={`data:image/svg+xml;utf-8,${enrollment.totp.qr_code}`}
           secret={enrollment.totp.secret}
+          accountHref={accountHref}
         />
       </div>
     </div>

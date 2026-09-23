@@ -33,8 +33,11 @@ import { useLocale } from "@/components/locale/locale-provider";
  */
 export function DashboardAccountMenu({
   displayName,
+  avatarPath,
   organizationName,
 }: {
+  /** `profiles.avatar_path`, resolved per request; absent/null renders initials. */
+  avatarPath?: string | null;
   /**
    * Raw `fullName`/`companyName`, or `null` when neither is set — the "Account" fallback is
    * resolved HERE, client-side via `tApp`, not pre-baked server-side, so it renders in the
@@ -54,7 +57,7 @@ export function DashboardAccountMenu({
           aria-label={t.account.menuLabel}
           className="grid size-11 shrink-0 place-items-center rounded-full transition-[box-shadow] duration-[var(--dur-fast)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus-ring)]"
         >
-          <UserAvatar displayName={resolvedName} />
+          <UserAvatar displayName={resolvedName} avatarPath={avatarPath} />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" sideOffset={8}>
           <div className="flex flex-col gap-0.5 px-2 py-1.5">
@@ -109,15 +112,17 @@ export function DashboardNotificationsButton() {
 
 export function DashboardTopbarActions({
   displayName,
+  avatarPath,
   organizationName,
 }: {
   displayName: string | null;
+  avatarPath?: string | null;
   organizationName: string | null;
 }) {
   return (
     <>
       <DashboardNotificationsButton />
-      <DashboardAccountMenu displayName={displayName} organizationName={organizationName} />
+      <DashboardAccountMenu displayName={displayName} avatarPath={avatarPath} organizationName={organizationName} />
     </>
   );
 }

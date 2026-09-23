@@ -1,14 +1,15 @@
 import Link from "next/link";
 
 import { AdminAccessDenied } from "@/components/admin/access-denied";
+import { ArabicContentPanel } from "@/components/admin/catalogue/arabic-content-panel";
 import { RecordForm } from "@/components/admin/catalogue/record-form";
 import { taxonomyFields } from "@/components/admin/catalogue/reference-fields";
 import { AdminStateCard } from "@/components/admin/state-card";
 import { PageHeader } from "@/components/app/page-header";
 import { AppBilingual } from "@/components/locale/app-bilingual";
 import { Button } from "@/components/ui/button";
-import { getTaxonomyEntry, listTaxonomy } from "@/lib/admin/catalogue";
-import { isTaxonomyKind } from "@/lib/admin/catalogue-validation";
+import { getArabicTranslation, getTaxonomyEntry, listTaxonomy } from "@/lib/admin/catalogue";
+import { isTaxonomyKind, translationKindForTaxonomy } from "@/lib/admin/catalogue-validation";
 import { checkAreaAccess } from "@/lib/admin/guards";
 import { saveTaxonomyEntry } from "@/src/app/dashboard-admin/(catalogue)/actions";
 
@@ -31,11 +32,19 @@ export default async function TaxonomyEntryPage({ params }: { params: Promise<{ 
       </div>
     );
   }
-  const coffeeTypes = kind === "varieties" ? await listTaxonomy("coffeeTypes") : [];
+  const translationKind = translationKindForTaxonomy(kind);
+  const [coffeeTypes, arabic] = await Promise.all([kind === "varieties" ? listTaxonomy("coffeeTypes") : Promise.resolve([]), translationKind ? getArabicTranslation(translationKind, entry.id) : Promise.resolve(null)]);
   return (
     <div className="flex flex-col gap-6">
       <PageHeader title={entry.name} description={<span className="font-mono text-[length:var(--text-micro)]" dir="ltr">{entry.slug}</span>} trail={trail} actions={<span className="text-[length:var(--text-small)] text-muted-foreground"><AppBilingual pick={(c) => c.admin.catalogue.taxonomy.kinds[kind]} /></span>} />
-      <RecordForm resource="taxonomy" mode="edit" formKey={`taxonomy-${kind}`} fields={taxonomyFields(kind, entry, coffeeTypes)} hiddenFields={{ kind, entryId: entry.id }} action={saveTaxonomyEntry} />
+      <RecordForm resource="taxonomy" mode="edit" contentLanguage="en" formKey={`taxonomy-${kind}`} fields={taxonomyFields(kind, entry, coffeeTypes)} hiddenFields={{ kind, entryId: entry.id }} action={saveTaxonomyEntry} />
+      {translationKind ? (
+        <ArabicContentPanel kind={translationKind} entityId={entry.id} hasDescription={false} initial={arabic} returnPath={`/dashboard-admin/taxonomy/${kind}/${entry.id}`} />
+      ) : (
+        <p className="text-[length:var(--text-micro)] text-muted-foreground">
+          <AppBilingual pick={(c) => c.admin.catalogue.arabic.noTranslationForTags} />
+        </p>
+      )}
     </div>
   );
 }

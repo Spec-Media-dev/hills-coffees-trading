@@ -1,6 +1,7 @@
 import { revalidateTag } from "next/cache";
 
 import {
+  CatalogueTranslationInput,
   COFFEE_TRANSITIONS,
   CoffeeFieldsInput,
   CoffeeMediaPrimaryInput,
@@ -21,9 +22,11 @@ import {
   type CoffeeTransitionKey,
   type OriginStatus,
   type TaxonomyKind,
+  type TranslationKind,
 } from "@/lib/admin/catalogue-validation";
 import { checkRoleFunctionAccess } from "@/lib/admin/guards";
 import { TAG_PUBLIC_COFFEES, TAG_PUBLIC_ORIGINS, TAG_PUBLIC_TAXONOMY, tagPublicCoffee, tagPublicOrigin } from "@/lib/public/cache";
+import { publicAssetUrl } from "@/lib/storage/public-url";
 import { createClient } from "@/lib/supabase/server";
 import { ACTION_FEEDBACK, type ActionFeedbackCode, type ActionFeedbackResult } from "@/lib/types/action-feedback";
 
@@ -142,6 +145,8 @@ export type CoffeeListRow = {
   originName: string | null;
   coffeeTypeName: string | null;
   updatedAt: string;
+  /** Public URL of the coffee's primary catalogue image, or `null` when it has none. */
+  primaryImageUrl: string | null;
 };
 
 export type CoffeeDetail = {
@@ -174,11 +179,12 @@ const COFFEE_LIST_PAGE = 50;
 export async function listCoffees({ page = 0, status }: { page?: number; status?: CoffeeStatus } = {}): Promise<{ rows: readonly CoffeeListRow[]; hasMore: boolean }> {
   const supabase = await createClient();
   const from = Math.max(0, page) * COFFEE_LIST_PAGE;
-  let query = supabase.from("coffees").select("id, name, slug, status, updated_at, origins(name), coffee_types(name)").order("updated_at", { ascending: false }).order("id", { ascending: false }).range(from, from + COFFEE_LIST_PAGE);
+  let query = supabase.from("coffees").select("id, name, slug, status, updated_at, origins(name), coffee_types(name), coffee_media(is_primary, file_assets(bucket_name, is_private, object_path))").eq("coffee_media.is_primary", true).order("updated_at", { ascending: false }).order("id", { ascending: false }).range(from, from + COFFEE_LIST_PAGE);
   if (status) query = query.eq("status", status);
   const { data, error } = await query;
   if (error) throw new Error("catalogue_read_failed");
-  type Row = { id: string; name: string; slug: string; status: CoffeeStatus; updated_at: string; origins: { name: string } | { name: string }[] | null; coffee_types: { name: string } | { name: string }[] | null };
+  type FileRef = { bucket_name: string; is_private: boolean; object_path: string };
+  type Row = { id: string; name: string; slug: string; status: CoffeeStatus; updated_at: string; origins: { name: string } | { name: string }[] | null; coffee_types: { name: string } | { name: string }[] | null; coffee_media: { is_primary: boolean; file_assets: FileRef | FileRef[] | null }[] | null };
   const rows = ((data ?? []) as unknown as Row[]).slice(0, COFFEE_LIST_PAGE).map((row) => ({
     id: row.id,
     name: row.name,
@@ -187,6 +193,7 @@ export async function listCoffees({ page = 0, status }: { page?: number; status?
     originName: one(row.origins)?.name ?? null,
     coffeeTypeName: one(row.coffee_types)?.name ?? null,
     updatedAt: row.updated_at,
+    primaryImageUrl: catalogueImageUrl(one(row.coffee_media?.find((media) => media.is_primary)?.file_assets ?? null)),
   }));
   return { rows, hasMore: (data?.length ?? 0) > COFFEE_LIST_PAGE };
 }
@@ -378,14 +385,16 @@ export type CoffeeMediaRow = {
   isPrimary: boolean;
   createdAt: string;
   /** `file_assets` metadata (admin-readable); `null` when the referenced asset row is unreadable/missing. */
-  file: { originalName: string; mimeType: string; sizeBytes: number; bucketName: string; isPrivate: boolean } | null;
+  file: { originalName: string; mimeType: string; sizeBytes: number; bucketName: string; isPrivate: boolean; objectPath: string } | null;
+  /** Public URL of the image when it lives in the `public-assets` bucket; `null` otherwise (legacy/private rows). */
+  imageUrl: string | null;
 };
 
 export async function listCoffeeMedia(coffeeId: string): Promise<readonly CoffeeMediaRow[]> {
   const supabase = await createClient();
-  const { data, error } = await supabase.from("coffee_media").select("id, coffee_id, file_asset_id, sort_order, is_primary, created_at, file_assets(original_name, mime_type, size_bytes, bucket_name, is_private)").eq("coffee_id", coffeeId).order("sort_order").order("created_at");
+  const { data, error } = await supabase.from("coffee_media").select("id, coffee_id, file_asset_id, sort_order, is_primary, created_at, file_assets(original_name, mime_type, size_bytes, bucket_name, is_private, object_path)").eq("coffee_id", coffeeId).order("sort_order").order("created_at");
   if (error) throw new Error("catalogue_read_failed");
-  type Row = { id: string; coffee_id: string; file_asset_id: string; sort_order: number; is_primary: boolean; created_at: string; file_assets: { original_name: string; mime_type: string; size_bytes: number; bucket_name: string; is_private: boolean } | { original_name: string; mime_type: string; size_bytes: number; bucket_name: string; is_private: boolean }[] | null };
+  type Row = { id: string; coffee_id: string; file_asset_id: string; sort_order: number; is_primary: boolean; created_at: string; file_assets: { original_name: string; mime_type: string; size_bytes: number; bucket_name: string; is_private: boolean; object_path: string } | { original_name: string; mime_type: string; size_bytes: number; bucket_name: string; is_private: boolean; object_path: string }[] | null };
   return ((data ?? []) as unknown as Row[]).map((row) => {
     const file = one(row.file_assets);
     return {
@@ -395,7 +404,8 @@ export async function listCoffeeMedia(coffeeId: string): Promise<readonly Coffee
       sortOrder: row.sort_order,
       isPrimary: row.is_primary,
       createdAt: row.created_at,
-      file: file ? { originalName: file.original_name, mimeType: file.mime_type, sizeBytes: Number(file.size_bytes), bucketName: file.bucket_name, isPrivate: file.is_private } : null,
+      file: file ? { originalName: file.original_name, mimeType: file.mime_type, sizeBytes: Number(file.size_bytes), bucketName: file.bucket_name, isPrivate: file.is_private, objectPath: file.object_path } : null,
+      imageUrl: catalogueImageUrl(file),
     };
   });
 }
@@ -405,9 +415,9 @@ export type CoffeeMediaListRow = CoffeeMediaRow & { coffeeName: string; coffeeSl
 /** Every media record across the catalogue (T024 list), newest coffee first — read-only. */
 export async function listAllCoffeeMedia(): Promise<readonly CoffeeMediaListRow[]> {
   const supabase = await createClient();
-  const { data, error } = await supabase.from("coffee_media").select("id, coffee_id, file_asset_id, sort_order, is_primary, created_at, coffees(name, slug), file_assets(original_name, mime_type, size_bytes, bucket_name, is_private)").order("created_at", { ascending: false }).limit(500);
+  const { data, error } = await supabase.from("coffee_media").select("id, coffee_id, file_asset_id, sort_order, is_primary, created_at, coffees(name, slug), file_assets(original_name, mime_type, size_bytes, bucket_name, is_private, object_path)").order("created_at", { ascending: false }).limit(500);
   if (error) throw new Error("catalogue_read_failed");
-  type Row = { id: string; coffee_id: string; file_asset_id: string; sort_order: number; is_primary: boolean; created_at: string; coffees: { name: string; slug: string } | { name: string; slug: string }[] | null; file_assets: { original_name: string; mime_type: string; size_bytes: number; bucket_name: string; is_private: boolean } | { original_name: string; mime_type: string; size_bytes: number; bucket_name: string; is_private: boolean }[] | null };
+  type Row = { id: string; coffee_id: string; file_asset_id: string; sort_order: number; is_primary: boolean; created_at: string; coffees: { name: string; slug: string } | { name: string; slug: string }[] | null; file_assets: { original_name: string; mime_type: string; size_bytes: number; bucket_name: string; is_private: boolean; object_path: string } | { original_name: string; mime_type: string; size_bytes: number; bucket_name: string; is_private: boolean; object_path: string }[] | null };
   return ((data ?? []) as unknown as Row[]).map((row) => {
     const file = one(row.file_assets);
     const coffee = one(row.coffees);
@@ -418,7 +428,8 @@ export async function listAllCoffeeMedia(): Promise<readonly CoffeeMediaListRow[
       sortOrder: row.sort_order,
       isPrimary: row.is_primary,
       createdAt: row.created_at,
-      file: file ? { originalName: file.original_name, mimeType: file.mime_type, sizeBytes: Number(file.size_bytes), bucketName: file.bucket_name, isPrivate: file.is_private } : null,
+      file: file ? { originalName: file.original_name, mimeType: file.mime_type, sizeBytes: Number(file.size_bytes), bucketName: file.bucket_name, isPrivate: file.is_private, objectPath: file.object_path } : null,
+      imageUrl: catalogueImageUrl(file),
       coffeeName: coffee?.name ?? row.coffee_id,
       coffeeSlug: coffee?.slug ?? "",
     };
@@ -426,12 +437,24 @@ export async function listAllCoffeeMedia(): Promise<readonly CoffeeMediaListRow[
 }
 
 /**
- * T024 — the byte-upload capability probe: the ONLY Storage bucket the approved schema has is
- * `kyb-evidence` (private, KYB-scoped, written solely by `attach_kyb_document`). No public/catalogue
- * media bucket, Storage policy, or metadata RPC exists (DB-BLOCK-01 remains CURRENT for public
- * media), so the console's upload seam is inert by construction — this constant is what the UI states.
+ * Catalogue image upload (hardening run; supersedes T024's inert "upload unavailable" seam). Bytes go
+ * to the EXISTING `public-assets` bucket under `catalogue/{coffeeId}/…` — the bucket's own Storage
+ * policy (`public_asset_object_authorized`, `catalogue` branch = `is_platform_admin()`) refuses any
+ * other writer — and the `coffee_media` + `file_assets` rows are created only by the SECURITY DEFINER
+ * `attach_coffee_media()` RPC (admin re-check, path/MIME/size/count validation). Migration
+ * `20260923120000_catalogue_media_and_translations` must be applied for this to work; until then the
+ * upload fails honestly (`CATALOGUE_SAVE_FAILED`) and the orphan object is removed.
  */
-export const CATALOGUE_MEDIA_UPLOAD_AVAILABLE = false as const;
+export const CATALOGUE_MEDIA_UPLOAD_AVAILABLE = true as const;
+export const CATALOGUE_MEDIA_MAX_BYTES = 5 * 1024 * 1024;
+export const CATALOGUE_MEDIA_MAX_COUNT = 12;
+export const CATALOGUE_MEDIA_MIME_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
+const CATALOGUE_MEDIA_EXTENSION: Record<(typeof CATALOGUE_MEDIA_MIME_TYPES)[number], string> = { "image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp" };
+
+function catalogueImageUrl(file: { bucket_name: string; is_private: boolean; object_path: string } | null): string | null {
+  if (!file || file.bucket_name !== "public-assets" || file.is_private) return null;
+  return publicAssetUrl(file.object_path);
+}
 
 /* ═══════════════════════════════════════ writes ═══════════════════════════════════════ */
 
@@ -678,9 +701,9 @@ export async function updateWarehouseLocation(input: unknown): Promise<ActionFee
 }
 
 /**
- * T024 — media RECORD management on existing `coffee_media` rows (primary flag, sort order). No row
- * is created (no byte path exists — `CATALOGUE_MEDIA_UPLOAD_AVAILABLE`), none is deleted (no DELETE
- * grant, and a published coffee may reference it), and `file_assets` is never written here.
+ * T024 — media RECORD management on existing `coffee_media` rows (primary flag, sort order). Rows are
+ * created/removed ONLY by `uploadCoffeeImage` / `removeCoffeeImage` below (through their SECURITY
+ * DEFINER RPCs — the console itself still holds no DELETE grant and issues no `.delete()`).
  */
 export async function setCoffeeMediaPrimary(input: unknown): Promise<ActionFeedbackResult<CatalogueWriteOutcome>> {
   const parsed = CoffeeMediaPrimaryInput.safeParse(input);
@@ -711,6 +734,139 @@ export async function setCoffeeMediaSortOrder(input: unknown): Promise<ActionFee
   if (error) return { ok: false, code: mapCatalogueError(error) };
   if (!data) return { ok: false, code: ACTION_FEEDBACK.CATALOGUE_NOT_FOUND };
   return { ok: true, data: { id: data.id, revalidatedTags: revalidatePublicCatalogue({ kind: "media", slug: coffee.slug }) }, code: ACTION_FEEDBACK.CATALOGUE_SAVED };
+}
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Upload ONE catalogue image for a coffee. Order: authorize → validate file → confirm coffee → upload
+ * bytes (unguessable, timestamped path, `upsert: false`) → `attach_coffee_media()` → on any DB failure
+ * remove the just-uploaded object so no orphan remains.
+ */
+export async function uploadCoffeeImage(coffeeId: unknown, file: unknown): Promise<ActionFeedbackResult<CatalogueWriteOutcome>> {
+  const access = await requireCatalogueAdmin();
+  if (!access.ok) return { ok: false, code: access.code };
+  if (typeof coffeeId !== "string" || !UUID_PATTERN.test(coffeeId)) return { ok: false, code: ACTION_FEEDBACK.VALIDATION_ERROR, fieldErrors: { coffeeId: ["Invalid"] } };
+  if (!(file instanceof File) || file.size === 0) return { ok: false, code: ACTION_FEEDBACK.VALIDATION_ERROR, fieldErrors: { image: ["Required"] } };
+  const mime = file.type as (typeof CATALOGUE_MEDIA_MIME_TYPES)[number];
+  if (!CATALOGUE_MEDIA_MIME_TYPES.includes(mime) || file.size > CATALOGUE_MEDIA_MAX_BYTES) return { ok: false, code: ACTION_FEEDBACK.CATALOGUE_MEDIA_INVALID_FILE };
+
+  const supabase = await createClient();
+  const { data: coffee } = await supabase.from("coffees").select("id, slug").eq("id", coffeeId).maybeSingle();
+  if (!coffee) return { ok: false, code: ACTION_FEEDBACK.CATALOGUE_NOT_FOUND };
+  const { count } = await supabase.from("coffee_media").select("id", { count: "exact", head: true }).eq("coffee_id", coffeeId);
+  if ((count ?? 0) >= CATALOGUE_MEDIA_MAX_COUNT) return { ok: false, code: ACTION_FEEDBACK.CATALOGUE_MEDIA_LIMIT_REACHED };
+
+  const objectPath = `catalogue/${coffeeId}/${Date.now()}-${crypto.randomUUID().slice(0, 8)}${CATALOGUE_MEDIA_EXTENSION[mime]}`;
+  const bucket = supabase.storage.from("public-assets");
+  const { error: uploadError } = await bucket.upload(objectPath, file, { contentType: mime, upsert: false, cacheControl: "31536000" });
+  if (uploadError) return { ok: false, code: ACTION_FEEDBACK.CATALOGUE_SAVE_FAILED };
+
+  const { data: mediaId, error: rpcError } = await supabase.rpc("attach_coffee_media", {
+    p_coffee_id: coffeeId,
+    p_object_path: objectPath,
+    p_original_name: file.name.slice(0, 255),
+    p_mime_type: mime,
+    p_size_bytes: file.size,
+  });
+  if (rpcError || typeof mediaId !== "string") {
+    await bucket.remove([objectPath]).catch(() => undefined);
+    const message = typeof rpcError?.message === "string" ? rpcError.message : "";
+    return { ok: false, code: message.includes("coffee_media_limit_reached") ? ACTION_FEEDBACK.CATALOGUE_MEDIA_LIMIT_REACHED : ACTION_FEEDBACK.CATALOGUE_SAVE_FAILED };
+  }
+  return { ok: true, data: { id: mediaId, revalidatedTags: revalidatePublicCatalogue({ kind: "media", slug: coffee.slug }) }, code: ACTION_FEEDBACK.CATALOGUE_MEDIA_UPLOADED };
+}
+
+/**
+ * Remove ONE catalogue image. `remove_coffee_media()` deletes the `coffee_media` + `file_assets` rows
+ * (admin re-checked inside; the next image is promoted to primary) and returns the object path; the
+ * object itself is then removed best-effort (an orphan object is harmless — nothing references it).
+ */
+export async function removeCoffeeImage(input: unknown): Promise<ActionFeedbackResult<CatalogueWriteOutcome>> {
+  const parsed = CoffeeMediaPrimaryInput.safeParse(input);
+  if (!parsed.success) return validationFailure(parsed.error);
+  const access = await requireCatalogueAdmin();
+  if (!access.ok) return { ok: false, code: access.code };
+  const supabase = await createClient();
+  const { data: coffee } = await supabase.from("coffees").select("id, slug").eq("id", parsed.data.coffeeId).maybeSingle();
+  if (!coffee) return { ok: false, code: ACTION_FEEDBACK.CATALOGUE_NOT_FOUND };
+  const { data: target } = await supabase.from("coffee_media").select("id").eq("id", parsed.data.mediaId).eq("coffee_id", parsed.data.coffeeId).maybeSingle();
+  if (!target) return { ok: false, code: ACTION_FEEDBACK.CATALOGUE_NOT_FOUND };
+  const { data: objectPath, error } = await supabase.rpc("remove_coffee_media", { p_media_id: parsed.data.mediaId });
+  if (error) return { ok: false, code: ACTION_FEEDBACK.CATALOGUE_SAVE_FAILED };
+  if (typeof objectPath === "string" && objectPath.startsWith(`catalogue/${parsed.data.coffeeId}/`)) {
+    await supabase.storage.from("public-assets").remove([objectPath]).catch(() => undefined);
+  }
+  return { ok: true, data: { id: parsed.data.mediaId, revalidatedTags: revalidatePublicCatalogue({ kind: "media", slug: coffee.slug }) }, code: ACTION_FEEDBACK.CATALOGUE_MEDIA_REMOVED };
+}
+
+/* ═════════════════════════════ Arabic catalogue content ═════════════════════════════ */
+
+/**
+ * Hardening run — bilingual catalogue content. The entity's own base columns are the canonical
+ * ENGLISH values (edited by the existing record forms); Arabic lives in the normalized
+ * `*_translations` tables (`locale = 'ar'`), written ONLY through the SECURITY DEFINER
+ * `set_catalogue_translation()` RPC (admin re-check, length checks, blank name = delete). The two
+ * languages are separate rows/columns, so saving one can never overwrite the other, whatever the
+ * admin UI's own locale is.
+ */
+const TRANSLATION_SOURCES: Readonly<Record<TranslationKind, { table: string; key: string; hasDescription: boolean }>> = {
+  coffee: { table: "coffee_translations", key: "coffee_id", hasDescription: true },
+  origin: { table: "origin_translations", key: "origin_id", hasDescription: true },
+  region: { table: "region_translations", key: "region_id", hasDescription: false },
+  coffee_type: { table: "coffee_type_translations", key: "coffee_type_id", hasDescription: false },
+  variety: { table: "coffee_variety_translations", key: "coffee_variety_id", hasDescription: false },
+  processing: { table: "processing_method_translations", key: "processing_method_id", hasDescription: false },
+  packaging: { table: "packaging_type_translations", key: "packaging_type_id", hasDescription: false },
+};
+
+export type ArabicTranslation = { name: string; description: string };
+
+/**
+ * The saved Arabic value for one entity: `null` when none exists, `"unavailable"` when it cannot be
+ * read (e.g. migration 20260923120000 not applied yet — the panel then says so instead of pretending).
+ */
+export async function getArabicTranslation(kind: TranslationKind, entityId: string): Promise<ArabicTranslation | null | "unavailable"> {
+  const source = TRANSLATION_SOURCES[kind];
+  const supabase = await createClient();
+  const columns = source.hasDescription ? "name, description" : "name";
+  const { data, error } = await supabase.from(source.table).select(columns).eq(source.key, entityId).eq("locale", "ar").maybeSingle();
+  if (error) return "unavailable";
+  if (!data) return null;
+  const row = data as unknown as { name: string; description?: string | null };
+  return { name: row.name, description: row.description ?? "" };
+}
+
+async function publicEffectForTranslation(supabase: Supabase, kind: TranslationKind, entityId: string): Promise<PublicCatalogueEffect | null> {
+  if (kind === "coffee") {
+    const { data } = await supabase.from("coffees").select("slug").eq("id", entityId).maybeSingle();
+    return data ? { kind: "coffee", slugs: [data.slug] } : null;
+  }
+  if (kind === "origin") {
+    const { data } = await supabase.from("origins").select("slug").eq("id", entityId).maybeSingle();
+    return data ? { kind: "origin", slugs: [data.slug] } : null;
+  }
+  if (kind === "region") return { kind: "region" };
+  return { kind: "taxonomy" };
+}
+
+export async function saveArabicTranslation(input: unknown): Promise<ActionFeedbackResult<CatalogueWriteOutcome>> {
+  const parsed = CatalogueTranslationInput.safeParse(input);
+  if (!parsed.success) return validationFailure(parsed.error);
+  const access = await requireCatalogueAdmin();
+  if (!access.ok) return { ok: false, code: access.code };
+  const supabase = await createClient();
+  const effect = await publicEffectForTranslation(supabase, parsed.data.kind, parsed.data.entityId);
+  if (!effect) return { ok: false, code: ACTION_FEEDBACK.CATALOGUE_NOT_FOUND };
+  const { error } = await supabase.rpc("set_catalogue_translation", {
+    p_kind: parsed.data.kind,
+    p_entity_id: parsed.data.entityId,
+    p_locale: "ar",
+    p_name: parsed.data.name,
+    p_description: TRANSLATION_SOURCES[parsed.data.kind].hasDescription ? parsed.data.description : null,
+  });
+  if (error) return { ok: false, code: mapCatalogueError(error) };
+  return { ok: true, data: { id: parsed.data.entityId, revalidatedTags: revalidatePublicCatalogue(effect) }, code: ACTION_FEEDBACK.CATALOGUE_SAVED };
 }
 
 export { COFFEE_TRANSITIONS };

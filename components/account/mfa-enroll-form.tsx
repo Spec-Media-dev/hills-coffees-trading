@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { startTransition, useActionState } from "react";
 
 import { useLocale } from "@/components/locale/locale-provider";
@@ -20,10 +21,13 @@ export function MfaEnrollForm({
   factorId,
   qrCodeSvgDataUri,
   secret,
+  accountHref = "/dashboard/settings/",
 }: {
   factorId: string;
   qrCodeSvgDataUri: string;
   secret: string;
+  /** Where the confirmed state links back to — the caller's own account-security surface. */
+  accountHref?: string;
 }) {
   const { t } = useLocale();
   const copy = t.auth.mfa;
@@ -39,12 +43,25 @@ export function MfaEnrollForm({
     });
   };
 
+  if (state?.ok === true) {
+    return (
+      <div className="flex flex-col items-center gap-4 text-center" data-mfa-enroll="complete">
+        <p className="text-[length:var(--text-body)] text-foreground">{copy.enrollSuccess}</p>
+        <Button variant="outline" nativeButton={false} render={<Link href={accountHref} />}>
+          {copy.manageInAccount}
+        </Button>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col items-center gap-6">
+      {/* White plate in BOTH themes: authenticator scanners need dark-on-light contrast. */}
       {/* eslint-disable-next-line @next/next/no-img-element -- data: URI from Supabase's own MFA enroll response, not a Next-optimizable asset */}
-      <img src={qrCodeSvgDataUri} alt="" width={180} height={180} className="rounded-[var(--radius-md)] border border-border" />
-      <p className="text-center text-[length:var(--text-small)] text-muted-foreground">
-        <span className="select-all rounded-[var(--radius-xs)] bg-muted px-2 py-1 font-mono" dir="ltr">
+      <img src={qrCodeSvgDataUri} alt="" width={180} height={180} className="rounded-[var(--radius-md)] border border-border bg-white p-2" />
+      <p className="flex flex-col items-center gap-2 text-center text-[length:var(--text-small)] text-muted-foreground">
+        <span>{copy.manualKeyLabel}</span>
+        <span className="select-all break-all rounded-[var(--radius-xs)] bg-muted px-2 py-1 font-mono" dir="ltr">
           {secret}
         </span>
       </p>
