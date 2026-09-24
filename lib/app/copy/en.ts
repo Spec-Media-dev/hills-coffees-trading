@@ -1766,7 +1766,7 @@ export const en = {
         pendingTitle: "Email change pending",
         pendingDescription: "A confirmation is waiting for:",
         failure: "We couldn't request that email change. Please try again.",
-        forbidden: "You don't have permission to change this email address.",
+        notPermitted: "You don't have permission to change this email address.",
       },
       avatar: {
         title: "Profile photo",

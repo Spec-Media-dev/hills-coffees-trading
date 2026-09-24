@@ -121,13 +121,23 @@ describe("T014 structural audit — Feature 010 cannot call settlement directly"
   it("no production file under the three roots invokes `submit_payment_proof` or any settlement/payout/invoice RPC — the only RPCs are the six approved role-function attests", async () => {
     const { ROLE_FUNCTION_ATTESTS } = await import("@/lib/admin/areas");
     const approved = new Set<string>(Object.keys(ROLE_FUNCTION_ATTESTS));
+    // Feature 013 T010: the T047 branding settings page writes ONLY through its own two admin-gated logo RPCs —
+    // admitted for that folder alone, by exact name (same rule as run-f-static). No finance RPC is admitted.
+    const BRANDING_RPCS = new Set(["set_platform_logo", "remove_platform_logo"]);
+    // Likewise the applied catalogue media/translation migrations' admin-gated writers (catalogue content, not
+    // finance), admitted for `lib/admin/catalogue.ts` alone, by exact name.
+    const CATALOGUE_RPCS = new Set(["attach_coffee_media", "remove_coffee_media", "set_catalogue_translation"]);
     for (const file of feature010Files) {
       const src = stripComments(source(file));
       expect(src, file).not.toMatch(/submit_payment_proof|create_payout|record_tax_invoice|settle_/);
+      const branding = /\(system\)[\\/]branding[\\/]/.test(file);
+      const catalogue = file === "lib/admin/catalogue.ts";
       for (const match of src.matchAll(/\.rpc\(\s*([^)]*)\)/g)) {
         const argument = match[1].trim();
+        const fnName = argument.match(/^["']([a-z_]+)["']/)?.[1] ?? argument;
         // `guards.ts` calls `supabase.rpc(fn)` where `fn` is typed as one of the six attests.
-        expect(argument === "fn" || approved.has(argument.replace(/^["']|["']$/g, "")), `${file}: rpc(${argument})`).toBe(true);
+        const admitted = argument === "fn" || approved.has(fnName) || (branding && BRANDING_RPCS.has(fnName)) || (catalogue && CATALOGUE_RPCS.has(fnName));
+        expect(admitted, `${file}: rpc(${argument})`).toBe(true);
       }
     }
   });

@@ -138,7 +138,7 @@ type FixtureOrganization = {
 };
 
 type Fixture = {
-  label: "buyer-only" | "buyer-and-seller" | "warehouse-admin" | "finance-admin" | "delivery-admin" | "compliance-reviewer" | "catalogue-admin" | "auditor" | "super-admin";
+  label: "buyer-only" | "buyer-and-seller" | "warehouse-admin" | "finance-admin" | "delivery-admin" | "compliance-reviewer" | "catalogue-admin" | "auditor" | "super-admin" | "f013-finance" | "f013-warehouse" | "f013-auditor" | "f013-admin";
   email: string;
   fullName: string;
   organization: FixtureOrganization | null;
@@ -4140,6 +4140,190 @@ async function teardown(admin: SupabaseClient): Promise<void> {
 // Entry point
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Feature 013 T016 — bank-transfer commerce fixtures (AUTHORED IN BATCH A; NOT RUN IN BATCH A)
+// ---------------------------------------------------------------------------
+//
+// Exact identities only (tasks.md T016): buyer A, buyer B, member sellers S1/S2, a Hills-internal seller, and four
+// disposable operators (finance, warehouse, auditor, admin). Fixed ids live in the reserved `13000000-…` range so
+// they can never collide with application-generated rows. Every read/write below targets one of these exact ids or
+// emails — no wildcard, pattern or range filter.
+//
+// PRODUCTION SAFETY (Batch A preflight finding): the linked project is production and currently has NO shipping
+// rule, NO commission policy and NO payment account. The commerce configuration rows created here are therefore
+// GLOBAL. They are named "F013 FIXTURE — …", the bank account is fake and marked NOT FOR PAYMENT, and they are only
+// usable while `commerce_settings.bank_transfer_checkout_enabled` is false (pilot fixture organizations only).
+// Cleanup deactivates/archives them (they may be referenced by immutable snapshots, so they are never deleted), and
+// T235 (production activation) must verify they are inactive before the global switch is flipped.
+//
+// `--prepare-f013-fixtures` additionally requires F013_FIXTURES_APPROVED=1 (explicit human approval per run) and the
+// verified project ref. `--inspect-f013-fixtures` is read-only. `--cleanup-f013-fixtures` never hard-deletes a
+// business or financial row: it suspends the fixture organizations, de-lists fixture offers through the ordinary
+// suspension path, deactivates/archives fixture configuration, and de-privileges the operator fixtures through the
+// existing exact-identity helper.
+
+const F013_PROJECT_REF = "mxejnutukgxyccnohglo";
+
+const F013_FIXTURE_IDS = {
+  orgBuyerA: "13000000-0000-4000-8000-000000000001",
+  orgBuyerB: "13000000-0000-4000-8000-000000000002",
+  orgSellerS1: "13000000-0000-4000-8000-000000000003",
+  orgSellerS2: "13000000-0000-4000-8000-000000000004",
+  orgHills: "13000000-0000-4000-8000-000000000005",
+  kybBuyerA: "13000000-0000-4000-8000-000000000011",
+  kybBuyerB: "13000000-0000-4000-8000-000000000012",
+  kybSellerS1: "13000000-0000-4000-8000-000000000013",
+  kybSellerS2: "13000000-0000-4000-8000-000000000014",
+  warehouse1: "13000000-0000-4000-8000-000000000021",
+  warehouse2: "13000000-0000-4000-8000-000000000022",
+  coffee: "13000000-0000-4000-8000-000000000031",
+  lotS1W1: "13000000-0000-4000-8000-000000000041",
+  lotS2W2: "13000000-0000-4000-8000-000000000042",
+  lotHillsW1: "13000000-0000-4000-8000-000000000043",
+  lotS1W2: "13000000-0000-4000-8000-000000000044",
+  positionS1W1: "13000000-0000-4000-8000-000000000051",
+  positionS2W2: "13000000-0000-4000-8000-000000000052",
+  positionHillsW1: "13000000-0000-4000-8000-000000000053",
+  positionS1W2: "13000000-0000-4000-8000-000000000054",
+  offerS1W1: "13000000-0000-4000-8000-000000000061",
+  offerS2W2: "13000000-0000-4000-8000-000000000062",
+  offerHillsW1: "13000000-0000-4000-8000-000000000063",
+  offerS1W2: "13000000-0000-4000-8000-000000000064",
+  paymentAccount: "13000000-0000-4000-8000-000000000071",
+  shippingRule: "13000000-0000-4000-8000-000000000072",
+  commissionPolicy: "13000000-0000-4000-8000-000000000073",
+  commissionTierLow: "13000000-0000-4000-8000-000000000074",
+  commissionTierHigh: "13000000-0000-4000-8000-000000000075",
+} as const;
+
+type F013Member = { key: "buyerA" | "buyerB" | "sellerS1" | "sellerS2"; email: string; fullName: string; orgId: string; kybId: string; legalName: string; displayName: string; accountType: "BUYER" | "SELLER"; canSell: boolean };
+
+const F013_MEMBERS: readonly F013Member[] = [
+  { key: "buyerA", email: "buyer-a+f013-test@example.com", fullName: "F013 Fixture — Buyer A", orgId: F013_FIXTURE_IDS.orgBuyerA, kybId: F013_FIXTURE_IDS.kybBuyerA, legalName: "F013 Fixture Buyer A FZE", displayName: "F013 Fixture — Buyer A", accountType: "BUYER", canSell: false },
+  { key: "buyerB", email: "buyer-b+f013-test@example.com", fullName: "F013 Fixture — Buyer B", orgId: F013_FIXTURE_IDS.orgBuyerB, kybId: F013_FIXTURE_IDS.kybBuyerB, legalName: "F013 Fixture Buyer B FZE", displayName: "F013 Fixture — Buyer B", accountType: "BUYER", canSell: false },
+  { key: "sellerS1", email: "seller-s1+f013-test@example.com", fullName: "F013 Fixture — Seller S1", orgId: F013_FIXTURE_IDS.orgSellerS1, kybId: F013_FIXTURE_IDS.kybSellerS1, legalName: "F013 Fixture Seller S1 FZE", displayName: "F013 Fixture — Seller S1", accountType: "SELLER", canSell: true },
+  { key: "sellerS2", email: "seller-s2+f013-test@example.com", fullName: "F013 Fixture — Seller S2", orgId: F013_FIXTURE_IDS.orgSellerS2, kybId: F013_FIXTURE_IDS.kybSellerS2, legalName: "F013 Fixture Seller S2 FZE", displayName: "F013 Fixture — Seller S2", accountType: "SELLER", canSell: true },
+];
+
+const F013_OPERATORS: readonly Fixture[] = [
+  { label: "f013-finance", email: "finance+f013-test@example.com", fullName: "F013 Fixture — Finance Operator", organization: null, platformAdminRole: "FINANCE" },
+  { label: "f013-warehouse", email: "warehouse+f013-test@example.com", fullName: "F013 Fixture — Warehouse Operator", organization: null, platformAdminRole: "WAREHOUSE" },
+  { label: "f013-auditor", email: "auditor+f013-test@example.com", fullName: "F013 Fixture — Auditor", organization: null, platformAdminRole: "AUDITOR" },
+  { label: "f013-admin", email: "admin+f013-test@example.com", fullName: "F013 Fixture — Platform Admin", organization: null, platformAdminRole: "ADMIN" },
+];
+
+const F013_LISTINGS = [
+  { offer: F013_FIXTURE_IDS.offerS1W1, lot: F013_FIXTURE_IDS.lotS1W1, position: F013_FIXTURE_IDS.positionS1W1, seller: F013_FIXTURE_IDS.orgSellerS1, sellerType: "MEMBER_SELLER", warehouse: F013_FIXTURE_IDS.warehouse1, lotCode: "F013-LOT-S1-W1", title: "F013 Fixture — S1 @ W1", quantityKg: 500, pricePerKg: 11.4 },
+  { offer: F013_FIXTURE_IDS.offerS2W2, lot: F013_FIXTURE_IDS.lotS2W2, position: F013_FIXTURE_IDS.positionS2W2, seller: F013_FIXTURE_IDS.orgSellerS2, sellerType: "MEMBER_SELLER", warehouse: F013_FIXTURE_IDS.warehouse2, lotCode: "F013-LOT-S2-W2", title: "F013 Fixture — S2 @ W2", quantityKg: 300, pricePerKg: 9.85 },
+  { offer: F013_FIXTURE_IDS.offerHillsW1, lot: F013_FIXTURE_IDS.lotHillsW1, position: F013_FIXTURE_IDS.positionHillsW1, seller: F013_FIXTURE_IDS.orgHills, sellerType: "HILLS", warehouse: F013_FIXTURE_IDS.warehouse1, lotCode: "F013-LOT-HILLS-W1", title: "F013 Fixture — Hills @ W1", quantityKg: 400, pricePerKg: 12.2 },
+  { offer: F013_FIXTURE_IDS.offerS1W2, lot: F013_FIXTURE_IDS.lotS1W2, position: F013_FIXTURE_IDS.positionS1W2, seller: F013_FIXTURE_IDS.orgSellerS1, sellerType: "MEMBER_SELLER", warehouse: F013_FIXTURE_IDS.warehouse2, lotCode: "F013-LOT-S1-W2", title: "F013 Fixture — S1 @ W2", quantityKg: 50, pricePerKg: 10.05 },
+] as const;
+
+function assertF013Project(): void {
+  const ref = new URL(requireEnv("NEXT_PUBLIC_SUPABASE_URL")).hostname.split(".")[0];
+  if (ref !== F013_PROJECT_REF) throw new SafeFixtureError(`F013 fixtures refuse to run against project ${ref}.`);
+}
+
+async function inspectF013Fixtures(admin: SupabaseClient): Promise<Record<string, unknown>> {
+  assertF013Project();
+  const present = async (table: string, id: string): Promise<boolean> => {
+    const { data, error } = await admin.from(table).select("id").eq("id", id).maybeSingle();
+    if (error) throw new SafeFixtureError(`${table} inspect failed.`);
+    return data !== null;
+  };
+  const users: Record<string, boolean> = {};
+  for (const identity of [...F013_MEMBERS.map((m) => m.email), ...F013_OPERATORS.map((o) => o.email)]) users[identity] = (await findAuthUserIdByEmail(admin, identity)) !== null;
+  const rows: Record<string, boolean> = {};
+  for (const [name, id] of Object.entries(F013_FIXTURE_IDS)) {
+    const table = name.startsWith("org") ? "organizations" : name.startsWith("kyb") ? "kyb_applications" : name.startsWith("warehouse") ? "warehouses" : name === "coffee" ? "coffees" : name.startsWith("lot") ? "coffee_lots" : name.startsWith("position") ? "inventory_positions" : name.startsWith("offer") ? "coffee_offers" : name === "paymentAccount" ? "payment_accounts" : name === "shippingRule" ? "shipping_rules" : name === "commissionPolicy" ? "commission_policies" : "commission_tiers";
+    rows[name] = await present(table, id);
+  }
+  return { users, rows };
+}
+
+async function prepareF013Fixtures(admin: SupabaseClient, password: string): Promise<void> {
+  assertF013Project();
+  if (process.env.F013_FIXTURES_APPROVED !== "1") {
+    throw new SafeFixtureError("--prepare-f013-fixtures requires F013_FIXTURES_APPROVED=1 (explicit human approval for this run).");
+  }
+  const upsert = async (table: string, row: Record<string, unknown>, onConflict = "id"): Promise<void> => {
+    const { error } = await admin.from(table).upsert(row, { onConflict });
+    if (error) throw new SafeFixtureError(`${table} upsert failed (Feature 013 fixtures): ${error.message}`);
+  };
+  const insertIfAbsent = async (table: string, row: Record<string, unknown> & { id: string }): Promise<void> => {
+    const { data, error } = await admin.from(table).select("id").eq("id", row.id).maybeSingle();
+    if (error) throw new SafeFixtureError(`${table} existence check failed (Feature 013 fixtures).`);
+    if (data) return;
+    const { error: insertError } = await admin.from(table).insert(row);
+    if (insertError) throw new SafeFixtureError(`${table} insert failed (Feature 013 fixtures): ${insertError.message}`);
+  };
+
+  for (const member of F013_MEMBERS) {
+    const { userId } = await ensureAuthUser(admin, member.email, password);
+    await upsert("profiles", { id: userId, full_name: member.fullName, company_name: member.displayName, is_blocked: false });
+    await upsert("organizations", { id: member.orgId, legal_name: member.legalName, display_name: member.displayName, account_type: member.accountType, status: "ACTIVE", is_hills_internal: false, can_buy: true, can_sell: member.canSell });
+    await upsert("kyb_applications", { id: member.kybId, organization_id: member.orgId, submitted_by: userId, status: "APPROVED", submitted_at: new Date(0).toISOString(), decided_at: new Date(0).toISOString() });
+    await upsert("organization_members", { organization_id: member.orgId, user_id: userId, member_role: "OWNER", is_active: true }, "organization_id,user_id");
+  }
+  await upsert("organizations", { id: F013_FIXTURE_IDS.orgHills, legal_name: "F013 Fixture — Hills Internal FZE", display_name: "F013 Fixture — Hills Internal", account_type: "HILLS_INTERNAL", status: "ACTIVE", is_hills_internal: true, can_buy: true, can_sell: true });
+
+  await upsert("warehouses", { id: F013_FIXTURE_IDS.warehouse1, owner_organization_id: F013_FIXTURE_IDS.orgHills, code: "F013-WH-1", name: "F013 Fixture Warehouse 1", country_code: "AE", city: "Dubai", is_active: true });
+  await upsert("warehouses", { id: F013_FIXTURE_IDS.warehouse2, owner_organization_id: F013_FIXTURE_IDS.orgHills, code: "F013-WH-2", name: "F013 Fixture Warehouse 2", country_code: "AE", city: "Jebel Ali", is_active: true });
+  // DRAFT keeps the synthetic coffee off the public catalogue.
+  await upsert("coffees", { id: F013_FIXTURE_IDS.coffee, name: "F013 Fixture Coffee", slug: "f013-fixture-coffee", status: "DRAFT" });
+
+  for (const listing of F013_LISTINGS) {
+    await upsert("coffee_lots", { id: listing.lot, coffee_id: F013_FIXTURE_IDS.coffee, lot_code: listing.lotCode, total_quantity_kg: listing.quantityKg, status: "AVAILABLE", source_organization_id: F013_FIXTURE_IDS.orgHills });
+    await upsert("inventory_positions", { id: listing.position, lot_id: listing.lot, owner_organization_id: listing.seller, warehouse_id: listing.warehouse, available_quantity_kg: listing.quantityKg, reserved_quantity_kg: 0 });
+    await insertIfAbsent("coffee_offers", { id: listing.offer, coffee_id: F013_FIXTURE_IDS.coffee, lot_id: listing.lot, seller_organization_id: listing.seller, seller_type: listing.sellerType, warehouse_id: listing.warehouse, title: listing.title, quantity_kg: listing.quantityKg, reserved_quantity_kg: 0, filled_quantity_kg: 0, price_per_kg: listing.pricePerKg, currency: "USD", status: "PUBLISHED", is_visible: true, created_by: (await findAuthUserIdByEmail(admin, F013_MEMBERS[2]!.email))! });
+  }
+
+  // Commerce configuration (GLOBAL in this project — see the block header). Fake, clearly-labelled values only.
+  await insertIfAbsent("payment_accounts", { id: F013_FIXTURE_IDS.paymentAccount, account_name: "F013 FIXTURE — NOT FOR PAYMENT", bank_name: "F013 Fixture Bank (not a real account)", account_number: "0000000000000013", iban: "AE000000000000000000013", swift_code: "FIXTAEXX", currency: "USD", is_active: true, created_by: (await findAuthUserIdByEmail(admin, F013_OPERATORS[3]!.email)) ?? (await findAuthUserIdByEmail(admin, F013_MEMBERS[0]!.email))! });
+  const defaultFlagProbe = await admin.from("payment_accounts").select("is_default_for_currency").eq("id", F013_FIXTURE_IDS.paymentAccount).maybeSingle();
+  if (!defaultFlagProbe.error) {
+    // Column exists only after Feature 013 M1. Set it only when no other active USD default exists.
+    const { count } = await admin.from("payment_accounts").select("id", { count: "exact", head: true }).eq("currency", "USD").eq("is_active", true).eq("is_default_for_currency", true);
+    if (!count) await upsert("payment_accounts", { id: F013_FIXTURE_IDS.paymentAccount, is_default_for_currency: true });
+  }
+  await insertIfAbsent("shipping_rules", { id: F013_FIXTURE_IDS.shippingRule, country_code: "AE", delivery_method: "Courier", flat_fee: 25, currency: "USD", is_active: true });
+  await insertIfAbsent("commission_policies", { id: F013_FIXTURE_IDS.commissionPolicy, name: "F013 FIXTURE — commission policy", status: "ACTIVE", created_by: (await findAuthUserIdByEmail(admin, F013_MEMBERS[0]!.email))! });
+  await insertIfAbsent("commission_tiers", { id: F013_FIXTURE_IDS.commissionTierLow, policy_id: F013_FIXTURE_IDS.commissionPolicy, min_quantity_kg: 0, max_quantity_kg: 200, percentage: 8 });
+  await insertIfAbsent("commission_tiers", { id: F013_FIXTURE_IDS.commissionTierHigh, policy_id: F013_FIXTURE_IDS.commissionPolicy, min_quantity_kg: 200, max_quantity_kg: null, percentage: 5 });
+
+  for (const operator of F013_OPERATORS) {
+    await createDisposableOperatorFixture(admin, password, operator, `feature-013-${operator.label}`, { reuseIfActive: true });
+  }
+  console.log(JSON.stringify(await inspectF013Fixtures(admin)));
+}
+
+async function cleanupF013Fixtures(admin: SupabaseClient): Promise<Record<string, unknown>> {
+  assertF013Project();
+  const result: Record<string, unknown> = {};
+  // Suspend fixture organizations: they can no longer buy or sell. Nothing is deleted.
+  for (const orgId of [F013_FIXTURE_IDS.orgBuyerA, F013_FIXTURE_IDS.orgBuyerB, F013_FIXTURE_IDS.orgSellerS1, F013_FIXTURE_IDS.orgSellerS2, F013_FIXTURE_IDS.orgHills]) {
+    const { error } = await admin.from("organizations").update({ status: "SUSPENDED" }).eq("id", orgId);
+    if (error) throw new SafeFixtureError("F013 fixture organization suspension failed.");
+  }
+  result.organizationsSuspended = 5;
+  // De-list fixture offers through the ordinary suspension status (no delete; reserved/filled ledgers retained).
+  for (const listing of F013_LISTINGS) {
+    const { error } = await admin.from("coffee_offers").update({ status: "SUSPENDED", is_visible: false }).eq("id", listing.offer).in("status", ["PUBLISHED", "PARTIALLY_FILLED"]);
+    if (error) throw new SafeFixtureError("F013 fixture offer suspension failed.");
+  }
+  // Global commerce configuration: deactivate / archive, never delete (may be referenced by immutable snapshots).
+  const { error: accountError } = await admin.from("payment_accounts").update({ is_active: false }).eq("id", F013_FIXTURE_IDS.paymentAccount);
+  const { error: shippingError } = await admin.from("shipping_rules").update({ is_active: false }).eq("id", F013_FIXTURE_IDS.shippingRule);
+  const { error: policyError } = await admin.from("commission_policies").update({ status: "ARCHIVED" }).eq("id", F013_FIXTURE_IDS.commissionPolicy);
+  if (accountError || shippingError || policyError) throw new SafeFixtureError("F013 fixture configuration deactivation failed.");
+  result.configurationDeactivated = true;
+  const operators: Record<string, unknown> = {};
+  for (const operator of F013_OPERATORS) operators[operator.label] = await cleanupDisposableOperatorFixture(admin, operator);
+  result.operators = operators;
+  result.retained = "Orders, proformas, payments, proofs, invoices, payouts, ownership events and audit rows created by live proofs are retained (no hard delete).";
+  return result;
+}
+
 async function main(): Promise<void> {
   loadEnvLocal();
 
@@ -4269,6 +4453,18 @@ async function main(): Promise<void> {
     return;
   }
 
+  if (process.argv.includes("--inspect-f013-fixtures")) {
+    console.log(JSON.stringify(await inspectF013Fixtures(admin)));
+    return;
+  }
+  if (process.argv.includes("--prepare-f013-fixtures")) {
+    await prepareF013Fixtures(admin, requireEnv("TEST_FIXTURE_PASSWORD"));
+    return;
+  }
+  if (process.argv.includes("--cleanup-f013-fixtures")) {
+    console.log(JSON.stringify(await cleanupF013Fixtures(admin)));
+    return;
+  }
   if (process.argv.includes("--prepare-catalogue-admin-fixture")) {
     await createDisposableOperatorFixture(admin, requireEnv("TEST_FIXTURE_PASSWORD"), RUN_E_CATALOGUE_ADMIN_FIXTURE, "feature-010-run-e-catalogue-admin", { reuseIfActive: true });
     return;

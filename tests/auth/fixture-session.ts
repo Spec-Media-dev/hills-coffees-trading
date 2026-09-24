@@ -790,3 +790,37 @@ function runFixtureScript(args: readonly string[], options: { captureOutput?: bo
   );
   return options.captureOutput ? String(output) : "";
 }
+
+/**
+ * Feature 013 T016 — bank-transfer commerce fixtures (mirrors `F013_FIXTURE_IDS` / `F013_MEMBERS` / `F013_OPERATORS`
+ * in scripts/seed-test-fixtures.ts). Prepared only by `--prepare-f013-fixtures` with F013_FIXTURES_APPROVED=1;
+ * live suites are gated by F013_LIVE=1. Exact identities only.
+ */
+export const F013_LIVE = process.env.F013_LIVE === "1";
+export const F013_FIXTURES = {
+  members: {
+    buyerA: { email: "buyer-a+f013-test@example.com", organizationId: "13000000-0000-4000-8000-000000000001" },
+    buyerB: { email: "buyer-b+f013-test@example.com", organizationId: "13000000-0000-4000-8000-000000000002" },
+    sellerS1: { email: "seller-s1+f013-test@example.com", organizationId: "13000000-0000-4000-8000-000000000003" },
+    sellerS2: { email: "seller-s2+f013-test@example.com", organizationId: "13000000-0000-4000-8000-000000000004" },
+  },
+  hillsOrganizationId: "13000000-0000-4000-8000-000000000005",
+  operators: {
+    finance: { email: "finance+f013-test@example.com", role: "FINANCE" },
+    warehouse: { email: "warehouse+f013-test@example.com", role: "WAREHOUSE" },
+    auditor: { email: "auditor+f013-test@example.com", role: "AUDITOR" },
+    admin: { email: "admin+f013-test@example.com", role: "ADMIN" },
+  },
+  warehouses: { w1: "13000000-0000-4000-8000-000000000021", w2: "13000000-0000-4000-8000-000000000022" },
+  offers: {
+    s1w1: "13000000-0000-4000-8000-000000000061",
+    s2w2: "13000000-0000-4000-8000-000000000062",
+    hillsW1: "13000000-0000-4000-8000-000000000063",
+    s1w2: "13000000-0000-4000-8000-000000000064",
+  },
+  config: {
+    paymentAccount: "13000000-0000-4000-8000-000000000071",
+    shippingRule: "13000000-0000-4000-8000-000000000072",
+    commissionPolicy: "13000000-0000-4000-8000-000000000073",
+  },
+} as const;

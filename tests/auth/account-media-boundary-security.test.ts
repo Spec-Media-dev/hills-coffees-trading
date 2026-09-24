@@ -89,7 +89,7 @@ describe("EN/AR copy contract for the new account-security/branding/listing-medi
       expect(c.password.title.length, `${locale} password.title`).toBeGreaterThan(0);
       expect(c.password.submit.length, `${locale} password.submit`).toBeGreaterThan(0);
       expect(c.email.title.length, `${locale} email.title`).toBeGreaterThan(0);
-      expect(c.email.forbidden.length, `${locale} email.forbidden`).toBeGreaterThan(0);
+      expect(c.email.notPermitted.length, `${locale} email.notPermitted`).toBeGreaterThan(0);
       expect(c.avatar.upload.length, `${locale} avatar.upload`).toBeGreaterThan(0);
       expect(c.avatar.invalidFile.length, `${locale} avatar.invalidFile`).toBeGreaterThan(0);
     }
@@ -116,7 +116,7 @@ describe("EN/AR copy contract for the new account-security/branding/listing-medi
     const arabicPattern = /[؀-ۿ]/;
     const ar = getAppCopy("ar");
     expect(arabicPattern.test(ar.accountSecurity.password.title)).toBe(true);
-    expect(arabicPattern.test(ar.accountSecurity.email.forbidden)).toBe(true);
+    expect(arabicPattern.test(ar.accountSecurity.email.notPermitted)).toBe(true);
     expect(arabicPattern.test(ar.admin.branding.logo.lead)).toBe(true);
     expect(arabicPattern.test(ar.listings.media.heading)).toBe(true);
   });

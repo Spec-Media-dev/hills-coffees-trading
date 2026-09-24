@@ -38,7 +38,7 @@ export function ChangeEmailForm() {
     state?.ok === true
       ? { tone: "success", message: tApp.accountSecurity.email.requestedToast }
       : state?.ok === false && state.code !== ACTION_FEEDBACK.VALIDATION_ERROR
-        ? { tone: "error", message: state.code === ACTION_FEEDBACK.EMAIL_CHANGE_FORBIDDEN ? tApp.accountSecurity.email.forbidden : tApp.accountSecurity.email.failure }
+        ? { tone: "error", message: state.code === ACTION_FEEDBACK.EMAIL_CHANGE_FORBIDDEN ? tApp.accountSecurity.email.notPermitted : tApp.accountSecurity.email.failure }
         : null
   );
 

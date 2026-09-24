@@ -202,6 +202,13 @@ what makes historical commercial records auditable and defensible. Therefore:
 **Status**: OPEN — requires a **Business/Finance decision before production trading**. Not a code
 defect to be silently "fixed", and **no database change is proposed here**.
 
+**Resolution recorded (Feature 013, 2026-09-24)**: resolved by the Feature 013 specification, not by a
+change to this document's verified-behaviour sections. FR-042 ("refuse checkout when no valid … financial rule is
+available") makes the Feature 013 checkout **fail closed** (`commission_rule_missing`) when a member seller's quantity
+has no covering tier — Option B. The tier basis becomes **each member seller's own qualifying quantity within the
+order** (FIN-013, clarification 2026-09-24), not total order quantity. Hills-owned lines need no tier. The legacy
+`checkout_order()` behaviour described in §2 is unchanged until it is retired by Feature 013 M6.
+
 **Observed behaviour**: `checkout_order` initialises the commission rate to zero and coalesces to
 zero when the tier lookup matches nothing. If no ACTIVE, in-force policy has a tier band covering
 the order's total quantity, checkout still succeeds and records:

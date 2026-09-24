@@ -1,0 +1,4 @@
+indexname,indexdef
+payments_order_id_key,CREATE UNIQUE INDEX payments_order_id_key ON public.payments USING btree (order_id)
+uq_active_inventory_reservation_order,CREATE UNIQUE INDEX uq_active_inventory_reservation_order ON public.inventory_reservations USING btree (order_id) WHERE (status = 'ACTIVE'::text)
+uq_payment_proof_file,"CREATE UNIQUE INDEX uq_payment_proof_file ON public.payment_proofs USING btree (payment_id, file_asset_id)"

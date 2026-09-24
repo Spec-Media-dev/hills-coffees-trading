@@ -1612,12 +1612,13 @@ scope has no owning task (flagged for RUN B planning, not silently added).
 > run belong to Feature 002 and are recorded there (T059–T063).
 
 - [ ] T056 [PS-new] Arabic TAG names ("Characteristics"). Tags were the one public, admin-managed catalogue label
-  without an Arabic store. Migration `20260924120000_tag_translations` (NOT applied): `tag_translations`
+  without an Arabic store. Migration `20260924120000_tag_translations` (**APPLIED** — confirmed Feature 013 T002, 2026-09-24): `tag_translations`
   (select-only, public read), `set_catalogue_translation` re-declared verbatim + a `tag` branch; rollback restores the
-  previous writer; postflight 9 checks. App: `TRANSLATION_KINDS` + `tag`, taxonomy tag pages get the Arabic tab, the
+  previous writer; postflight 13 checks. App: `TRANSLATION_KINDS` + `tag`, taxonomy tag pages get the Arabic tab, the
   public DTO reads tag Arabic in its OWN tolerant query (a missing table degrades only tags).
-  - Verify so far: `tests/admin/pre-stripe-hardening.test.tsx` (migration pins, validation, DTO). **Remaining**:
-    review/apply, postflight, live EN/AR tag proof.
+  - Verify so far: `tests/admin/pre-stripe-hardening.test.tsx` (migration pins, validation, DTO). Operator postflight
+    `supabase/maintenance/20260924_tag_translations_postflight.sql` (2026-09-24): **13/13 true** (evidence:
+    `specs/013-bank-transfer-commerce-core/PREFLIGHT-REPORT.md` §T002). **Remaining**: live EN/AR tag proof.
 - [x] T057 [PS-new] Admin bilingual editing UX + catalogue admin fixes: `BilingualEditor` (EN canonical / AR tabs, both
   panels mounted, per-language unsaved marker cleared by the form's own save event, beforeunload guard, WAI-ARIA
   tablist) on coffee/origin/region/taxonomy detail; optional RTL Arabic fields on every catalogue CREATE form, written

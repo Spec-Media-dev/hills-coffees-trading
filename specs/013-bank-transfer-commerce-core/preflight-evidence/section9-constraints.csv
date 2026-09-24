@@ -1,0 +1,12 @@
+
+table_name,conname,definition
+inventory_reservations,inventory_reservations_status_check,"CHECK ((status = ANY (ARRAY['ACTIVE'::text, 'CONSUMED'::text, 'RELEASED'::text, 'EXPIRED'::text])))"
+notification_deliveries,notification_deliveries_channel_check,"CHECK ((channel = ANY (ARRAY['IN_APP'::text, 'EMAIL'::text, 'SMS'::text, 'WHATSAPP'::text])))"
+notification_deliveries,notification_deliveries_status_check,"CHECK ((status = ANY (ARRAY['PENDING'::text, 'SENT'::text, 'FAILED'::text, 'DELIVERED'::text])))"
+notification_preferences,notification_preferences_channel_check,"CHECK ((channel = ANY (ARRAY['EMAIL'::text, 'SMS'::text, 'WHATSAPP'::text])))"
+orders,orders_status_check,"CHECK ((status = ANY (ARRAY['DRAFT'::text, 'CONFIRMED'::text, 'HOLD'::text, 'PAYMENT_PROOF_SUBMITTED'::text, 'PAYMENT_UNDER_REVIEW'::text, 'PAID'::text, 'FULFILLMENT_IN_PROGRESS'::text, 'PARTIALLY_DELIVERED'::text, 'COMPLETED'::text, 'EXPIRED'::text, 'VOID'::text, 'DISPUTED'::text])))"
+payment_reviews,payment_reviews_decision_check,"CHECK ((decision = ANY (ARRAY['CONFIRMED'::text, 'REJECTED'::text])))"
+payments,payments_status_check,"CHECK ((status = ANY (ARRAY['PENDING'::text, 'PROOF_SUBMITTED'::text, 'UNDER_REVIEW'::text, 'CONFIRMED'::text, 'REJECTED'::text, 'EXPIRED'::text, 'VOID'::text])))"
+payouts,payouts_status_check,"CHECK ((status = ANY (ARRAY['PENDING_PAYOUT'::text, 'PROCESSING'::text, 'PAID'::text, 'VOID'::text])))"
+proforma_invoices,proforma_invoices_order_id_key,UNIQUE (order_id)
+proforma_invoices,proforma_invoices_status_check,"CHECK ((status = ANY (ARRAY['ISSUED'::text, 'PAID'::text, 'VOID'::text])))"

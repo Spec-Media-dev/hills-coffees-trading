@@ -92,8 +92,9 @@ ascending. This refines plan §4 by splitting M2, M4 and M5 into independently r
 
 **Goal**: a truthful, recorded baseline. **No production mutation.**
 
-- [ ] T001 Verify linked project identity and migration head — `specs/013-bank-transfer-commerce-core/PREFLIGHT-REPORT.md`
+- [X] T001 Verify linked project identity and migration head — `specs/013-bank-transfer-commerce-core/PREFLIGHT-REPORT.md`
   - Depends: —
+  - **Batch A (2026-09-24)**: identity VERIFIED (ref `mxejnutukgxyccnohglo` = `hillscoffees-trading` = env URL). `supabase migration list --linked` REFUSED (CLI account 403 on login-role endpoint). Remote object probes show `20260924120000` applied and no pending file. **Operator §0 (11:29:46 UTC): remote head `20260924120000` = local head; the top-10 versions match the local files exactly; no pending or Feature 013 migration.** Accept satisfied.
   - Accept:
     - `supabase/.temp/linked-project.json` ref = `NEXT_PUBLIC_SUPABASE_URL` ref (`hillscoffees-trading`);
     - `supabase migration list --linked` output recorded (Local vs Remote);
@@ -102,22 +103,23 @@ ascending. This refines plan §4 by splitting M2, M4 and M5 into independently r
   - Tests: none (read-only evidence).
   - Gate: read-only CLI only.
 
-- [ ] T002 Reconcile Tag Translation (Feature 010 T056) completion truth — `PREFLIGHT-REPORT.md`, `specs/010-admin-operations-console/tasks.md` (T056 line only, evidence-based)
+- [X] T002 Reconcile Tag Translation (Feature 010 T056) completion truth — `PREFLIGHT-REPORT.md`, `specs/010-admin-operations-console/tasks.md` (T056 line only, evidence-based)
   - Depends: T001
+  - **Batch A**: **CLOSED 2026-09-24.** `20260924120000_tag_translations` is applied. The operator ran `20260924_tag_translations_postflight.sql`: **13/13 true** (recorded in PREFLIGHT-REPORT.md §T002). Feature 010 T056 was updated with this evidence; it stays open only for its live EN/AR tag proof, which the Phase 6 gate T197 depends on.
   - Accept:
     - It is recorded whether `20260924120000_tag_translations` is applied.
     - If applied, the operator's postflight output is attached and T056 is updated with evidence.
     - If not applied, T056 stays open and the Phase 6 gate (T197) is marked as depending on it.
   - Tests: existing `tests/admin/pre-stripe-hardening.test.tsx` passes.
 
-- [ ] T003 [P] Reconcile Feature 008 task truth and record supersession — `docs/architecture/IMPLEMENTATION-ROADMAP.md`, `PREFLIGHT-REPORT.md`
+- [X] T003 [P] Reconcile Feature 008 task truth and record supersession — `docs/architecture/IMPLEMENTATION-ROADMAP.md`, `PREFLIGHT-REPORT.md`
   - Depends: T001
   - Accept:
     - The roadmap 008 row states "payment runtime superseded by 013; 008 tasks NOT completed".
     - No file under `specs/008-*` is modified.
   - Tests: T015 (historical-file guard) passes.
 
-- [ ] T004 [P] Reconcile Feature 010 finance-area and Feature 012 notification truth — `docs/architecture/DATABASE-CAPABILITY-MAP.md`, `docs/architecture/IMPLEMENTATION-ROADMAP.md`
+- [X] T004 [P] Reconcile Feature 010 finance-area and Feature 012 notification truth — `docs/architecture/DATABASE-CAPABILITY-MAP.md`, `docs/architecture/IMPLEMENTATION-ROADMAP.md`
   - Depends: T001
   - Accept:
     - C1–C14 are recorded as DB-OPEN entries (owner: 013).
@@ -125,7 +127,7 @@ ascending. This refines plan §4 by splitting M2, M4 and M5 into independently r
     - DB-BLOCK-04 is recorded as "→ 013 Phase 5".
   - Tests: none.
 
-- [ ] T005 Author the read-only commerce preflight — `supabase/maintenance/20260925_feature_013_preflight.sql`, `tests/commerce/preflight-readonly.test.ts`
+- [X] T005 Author the read-only commerce preflight — `supabase/maintenance/20260925_feature_013_preflight.sql`, `tests/commerce/preflight-readonly.test.ts`
   - Depends: T001
   - Accept: the script reports every R-21 item:
     - legacy order/reservation/payment/payout/proforma/tax-invoice counts by status;
@@ -137,13 +139,15 @@ ascending. This refines plan §4 by splitting M2, M4 and M5 into independently r
     - function `prosrc` fingerprints and policy definitions for every object M1–M9 will touch (the capture used by the rollbacks).
   - Tests: the static test proves the file contains no DML/DDL (`insert|update|delete|alter|create|drop|grant|revoke|truncate`) outside comments.
 
-- [ ] T006 OPERATOR — run the preflight on production and record the output — `PREFLIGHT-REPORT.md`
+- [X] T006 OPERATOR — run the preflight on production and record the output — `PREFLIGHT-REPORT.md`
   - Depends: T005
+  - **Batch A**: **CLOSED 2026-09-24.** The operator ran every section §0–§10. Evidence is recorded in PREFLIGHT-REPORT.md, and the raw files `preflight-evidence/section5…section10*.csv` are verified. Notable: remote head = local head; C1 and C2 confirmed live; no provider rows; `pg_cron` not enabled (planned at T164); 0 anon table grants; DB-OPEN-C15 (anon EXECUTE on 2 helpers) recorded.
   - Accept: the full output is attached (ids truncated where not needed; no secrets or bank identifiers).
   - Gate: OPERATOR, read-only SQL editor.
 
-- [ ] T007 Inspect active Stripe/provider transactions — `PREFLIGHT-REPORT.md` §Provider
+- [X] T007 Inspect active Stripe/provider transactions — `PREFLIGHT-REPORT.md` §Provider
   - Depends: T006
+  - **Batch A**: data verdict done read-only — 0 `PROVIDER` payments, 0 trusted-funding markers, 0 `payment_events`, 0 `payment_transfers`. **CLOSED 2026-09-24.** OPERATOR evidence: `supabase functions list` 0 rows (no `stripe-*` deployed); `supabase secrets list` 0 rows; Vercel env names contain no `STRIPE_*`. Verdict: no non-terminal provider transaction, so no drain is required; no Stripe Edge Functions, secrets or env vars are deployed. The three Stripe **PostgreSQL** functions (`ingest_stripe_event`, `record_stripe_payment_intent`, `record_payment_transfer`) are **still live** (§5) and are revoked by M9 (T206–T211). `TEST_FIXTURE_PASSWORD` in Vercel is left unchanged; it is verified and removed before T235 if no required test workflow depends on it. Recorded in PREFLIGHT-REPORT.md §T007.
   - Accept:
     - count and state of `PROVIDER` payments, provider events and transfers;
     - OPERATOR `supabase functions list` (which `stripe-*` functions are deployed);
@@ -151,8 +155,9 @@ ascending. This refines plan §4 by splitting M2, M4 and M5 into independently r
     - a verdict: "no non-terminal provider transaction" or an explicit drain list.
   - Gate: OPERATOR, read-only.
 
-- [ ] T008 Verify the Feature 009 settlement-hook regression (C1) — `PREFLIGHT-REPORT.md`, `docs/architecture/DATABASE-CAPABILITY-MAP.md`, `tests/delivery/settlement-seam-characterization.test.ts`
+- [X] T008 Verify the Feature 009 settlement-hook regression (C1) — `PREFLIGHT-REPORT.md`, `docs/architecture/DATABASE-CAPABILITY-MAP.md`, `tests/delivery/settlement-seam-characterization.test.ts`
   - Depends: T006
+  - **Batch A**: repository evidence + characterization test (3/3) + DB-OPEN-C1 recorded; live function not patched. **Operator §6 (2026-09-24): live `has_009_settlement_hook = false`, `has_008_trusted_funding_guard = true` → C1 CONFIRMED LIVE.** Accept satisfied; fix owner T117. The full live definition export (`preflight-evidence/section6-admin-review-payment-definition.csv`) is pending as T006 evidence.
   - Accept:
     - Live `admin_review_payment` `prosrc` is checked for `reserve_ready_deliveries_for_settlement`.
     - Result recorded as DB-OPEN-C1 with the fix owner = T117 (`finance_confirm_payment`, M5b).
@@ -160,7 +165,7 @@ ascending. This refines plan §4 by splitting M2, M4 and M5 into independently r
     - The live function is **not** patched in Phase 1.
   - Tests: characterization test passes (documents current truth).
 
-- [ ] T009 Identify old-flow orders that must finish before cutover — `PREFLIGHT-REPORT.md` §Legacy drain
+- [X] T009 Identify old-flow orders that must finish before cutover — `PREFLIGHT-REPORT.md` §Legacy drain
   - Depends: T006
   - Accept:
     - Every non-terminal legacy order is listed (`CONFIRMED`, `HOLD`, `PAYMENT_PROOF_SUBMITTED`, `PAYMENT_UNDER_REVIEW`, `PAID`-but-unfulfilled) with its drain action: finish under the legacy functions, expire via `expire_order_hold`, or return `CONFIRMED` → `DRAFT` by an audited admin action.
@@ -168,22 +173,22 @@ ascending. This refines plan §4 by splitting M2, M4 and M5 into independently r
     - The drain list feeds T014 and the M2b/M6 guards.
   - Tests: none.
 
-- [ ] T010 Fix the stale structural test `finance-delegation` (C15) — `tests/admin/finance-delegation.test.tsx`
+- [X] T010 Fix the stale structural test `finance-delegation` (C15) — `tests/admin/finance-delegation.test.tsx`
   - Depends: —
   - Accept: allowlists exactly `set_platform_logo` and `remove_platform_logo` for `src/app/dashboard-admin/(system)/branding/` files only (the same rule as `run-f-static`). Finance/settlement assertions are unchanged.
   - Tests: the file passes; `tests/admin` batch green.
 
-- [ ] T011 [P] Fix the stale `error-mapping` copy collision (C15) — `tests/orders/error-mapping.test.ts` and/or `lib/app/copy/en.ts` (rename the account email `forbidden` copy key only)
+- [X] T011 [P] Fix the stale `error-mapping` copy collision (C15) — `tests/orders/error-mapping.test.ts` and/or `lib/app/copy/en.ts` (rename the account email `forbidden` copy key only)
   - Depends: —
   - Accept: the copy audit passes without weakening the forbidden-vocabulary rule. `lib/app/copy/ar.ts` parity is kept.
   - Tests: `tests/orders` batch green; copy parity tests green.
 
-- [ ] T012 [P] Record the COMMISSION-OPEN-01 resolution — `docs/database/commission-capability.md`
+- [X] T012 [P] Record the COMMISSION-OPEN-01 resolution — `docs/database/commission-capability.md`
   - Depends: —
   - Accept: §8 records "resolved by Feature 013: FR-042 fail-closed; tier basis = each seller's own qualifying quantity (FIN-013)" without editing the verified behaviour sections.
   - Tests: none.
 
-- [ ] T013 [P] Define feature flags and the checkout kill switch — `specs/013-bank-transfer-commerce-core/ROLLOUT-FLAGS.md`
+- [X] T013 [P] Define feature flags and the checkout kill switch — `specs/013-bank-transfer-commerce-core/ROLLOUT-FLAGS.md`
   - Depends: —
   - Accept: documents the `commerce_settings` flags:
     - `bank_transfer_checkout_enabled` (default false);
@@ -194,7 +199,7 @@ ascending. This refines plan §4 by splitting M2, M4 and M5 into independently r
     For each flag: owner, audit, flip procedure, and the rollback meaning (MIG-006). The global `bank_transfer_checkout_enabled` is flipped only in T235 (production activation); Batches C–I use `pilot_organization_ids` only.
   - Tests: none.
 
-- [ ] T014 [P] Production backup and cutover checklist — `specs/013-bank-transfer-commerce-core/CUTOVER-CHECKLIST.md`
+- [X] T014 [P] Production backup and cutover checklist — `specs/013-bank-transfer-commerce-core/CUTOVER-CHECKLIST.md`
   - Depends: T009
   - Accept:
     - PITR/backup confirmation before each MP-5;
@@ -205,7 +210,7 @@ ascending. This refines plan §4 by splitting M2, M4 and M5 into independently r
     - sign-off lines (database/security review, finance, operator).
   - Tests: none.
 
-- [ ] T015 [P] Historical Feature 008 artifact guard — `tests/database/historical-008-unchanged.test.ts`
+- [X] T015 [P] Historical Feature 008 artifact guard — `tests/database/historical-008-unchanged.test.ts`
   - Depends: —
   - Accept: SHA-256 pins for:
     - `supabase/migrations/20260922120000_feature_008_stripe_trusted_funding.sql` and its rollback and postflight;
@@ -215,7 +220,7 @@ ascending. This refines plan §4 by splitting M2, M4 and M5 into independently r
     Any byte change fails.
   - Tests: passes on the current tree.
 
-- [ ] T016 [P] Author the Feature 013 fixture tooling (no execution) — `scripts/seed-test-fixtures.ts`, `tests/auth/fixture-session.ts`
+- [X] T016 [P] Author the Feature 013 fixture tooling (no execution) — `scripts/seed-test-fixtures.ts`, `tests/auth/fixture-session.ts`
   - Depends: —
   - Accept:
     - `--inspect-/--prepare-/--cleanup-f013-fixtures` for exact identities only: buyer A, buyer B, member sellers S1/S2, Hills seller, finance, warehouse, auditor, admin;
@@ -224,14 +229,16 @@ ascending. This refines plan §4 by splitting M2, M4 and M5 into independently r
     - Not run in Phase 1.
   - Tests: a static test asserts the cleanup targets exact identities only.
 
-- [ ] T017 Batched baseline run — `PREFLIGHT-REPORT.md` §Baseline
+- [X] T017 Batched baseline run — `PREFLIGHT-REPORT.md` §Baseline
   - Depends: T010, T011, T015
+  - **Batch A**: lint 0 errors, typecheck clean, static baseline 109 files passed + 1 skipped (1,521 tests, 0 failed). The 94 live-database test files were not run (they write fixture rows to production). **CLOSED 2026-09-24: WAIVED for Batch A only by owner decision.** The static suite is green, and production was observed changing during preflight. The waiver does **not** cover targeted live proofs required by later migrations (MP-6, e.g. T062) or the gates for Batches B–I.
   - Accept: `npm run lint`, `npm run typecheck` and every `tests/<dir>` batch are green and recorded (counts per batch).
   - Tests: all existing.
 
-- [ ] T018 **GATE — STOP/REVIEW BATCH A**
+- [X] T018 **GATE — STOP/REVIEW BATCH A**
   - Depends: T001–T017
   - Accept: the reviewer confirms the preflight is complete; no provider or legacy blocker is unaddressed; the backup plan is accepted. Recorded here.
+  - **Batch A result (2026-09-24): PASS.** T001–T017 complete; T017's live suites were WAIVED for Batch A only, by owner decision, and later targeted live proofs are not waived. The reviewer (owner) confirmed the preflight and instructed the gate to pass. No Stripe Edge Functions, secrets or env vars are deployed; the Stripe PostgreSQL functions are still live and are handled by Batch H (M9). Backup and cutover plan: `CUTOVER-CHECKLIST.md`. Final mechanical checks are recorded in PREFLIGHT-REPORT.md §T018. **STOP**: Batch B (T019+) was not started. No provider or real-customer legacy blocker exists (all 1,909 legacy orders are fixtures; 0 provider transactions).
 
 ---
 
@@ -365,14 +372,17 @@ here is database/security work; UI that depends on it comes later.
     - (h) `proforma_bank_instructions` and `payment_accounts`.
 
     Plus a full matrix for buyer / other buyer / seller / other seller / finance / warehouse / auditor / anon over every rls-storage §1 table and §2 view. Recorded as failing against the current policies (proving C2).
+
+    Plus the **DB-OPEN-C15 anonymous boundary** (`rls-anon-probe.live.test.ts`): `anon` gets a permission error executing `mfa_satisfied()` and `kyb_storage_object_authorized(text, boolean)`, while `authenticated` and `service_role` still execute both. This is recorded as failing before M3.
   - Tests: the suites themselves.
 
 - [ ] T057 MP-1 Author M3 — `supabase/migrations/20260925120000_feature_013_rls_realignment.sql`, rollback, postflight
   - Depends: T056
   - Accept: helper functions (`is_order_buyer_member`, `is_order_line_seller`, `order_seller_org_ids`, …); every policy replacement in rls-storage §1; restrictive MFA gates; views §2 (`security_invoker`); `payment_reviews_finance`/`payouts_finance`/`tax_invoice_finance` reduced to SELECT; `can_view_order()` unchanged. The rollback recreates the exact previous policy text from the T006 capture.
+  - **DB-OPEN-C15 (owner-approved 2026-09-24)**: `revoke execute on function public.mfa_satisfied() from public, anon` and the same for `public.kyb_storage_object_authorized(text, boolean)`. EXECUTE for `authenticated` and `service_role` is kept, and the bodies, `SECURITY DEFINER` and `search_path` are unchanged. The rollback restores the §5 ACL. Before authoring, confirm that no `anon`-reachable `SECURITY INVOKER` function calls either helper; all calling policies are already `to authenticated`. The postflight asserts `has_function_privilege('anon', …, 'execute') = false` for both.
 - [ ] T058 MP-2 Static tests — `tests/commerce/migrations/m3-rls.test.ts`
   - Depends: T057
-  - Accept: every replaced policy name/expression is pinned; no policy references `can_view_order` on the finance tables; no config-table policy is touched.
+  - Accept: every replaced policy name/expression is pinned; no policy references `can_view_order` on the finance tables; no config-table policy is touched; the C15 `revoke … from public, anon` statements for `mfa_satisfied()` and `kyb_storage_object_authorized(text, boolean)` are pinned, and no statement revokes them from `authenticated` or `service_role`.
 - [ ] T059 MP-3 Dry-run M3
   - Depends: T058
 - [ ] T060 MP-4 **GATE** dedicated security review of M3 (separate reviewer sign-off required)

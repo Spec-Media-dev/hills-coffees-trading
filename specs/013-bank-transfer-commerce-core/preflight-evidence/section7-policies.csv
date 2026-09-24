@@ -1,0 +1,66 @@
+tablename,policyname,permissive,roles,cmd,qual,with_check
+inventory_reservations,reservations_admin,PERMISSIVE,{public},ALL,is_platform_admin(),is_platform_admin()
+notification_deliveries,notification_deliveries_admin,PERMISSIVE,{authenticated},ALL,is_platform_admin(),is_platform_admin()
+notification_deliveries,notification_deliveries_view,PERMISSIVE,{authenticated},SELECT,"(EXISTS ( SELECT 1
+   FROM notifications n
+  WHERE ((n.id = notification_deliveries.notification_id) AND ((n.user_id = auth.uid()) OR is_platform_admin()))))",null
+notification_preferences,notification_preferences_own,PERMISSIVE,{public},ALL,(user_id = auth.uid()),(user_id = auth.uid())
+notifications,notifications_own,PERMISSIVE,{public},SELECT,((user_id = auth.uid()) OR is_platform_admin()),null
+order_financials,financials_finance_read,PERMISSIVE,{authenticated},SELECT,(is_finance_operator() OR is_auditor()),null
+order_financials,financials_view,PERMISSIVE,{public},SELECT,can_view_order(order_id),null
+order_items,order_items_admin,PERMISSIVE,{public},ALL,is_platform_admin(),is_platform_admin()
+order_items,order_items_create_buyer,PERMISSIVE,{public},INSERT,null,"(EXISTS ( SELECT 1
+   FROM orders o
+  WHERE ((o.id = order_items.order_id) AND (o.status = 'DRAFT'::text) AND is_org_member(o.buyer_organization_id))))"
+order_items,order_items_view,PERMISSIVE,{public},SELECT,can_view_order(order_id),null
+order_shipments,shipments_buyer_draft_update,PERMISSIVE,{authenticated},UPDATE,"((status = 'DRAFT'::text) AND (EXISTS ( SELECT 1
+   FROM (orders o
+     JOIN organization_members om ON ((om.organization_id = o.buyer_organization_id)))
+  WHERE ((o.id = order_shipments.order_id) AND (om.user_id = auth.uid()) AND (om.is_active = true)))))","(status = ANY (ARRAY['DRAFT'::text, 'REQUESTED'::text, 'CANCELLED'::text]))"
+order_shipments,shipments_buyer_insert,PERMISSIVE,{authenticated},INSERT,null,"((status = 'DRAFT'::text) AND (created_by = auth.uid()) AND (EXISTS ( SELECT 1
+   FROM (orders o
+     JOIN organization_members om ON ((om.organization_id = o.buyer_organization_id)))
+  WHERE ((o.id = order_shipments.order_id) AND (om.user_id = auth.uid()) AND (om.is_active = true)))))"
+order_shipments,shipments_view,PERMISSIVE,{authenticated},SELECT,(can_view_order(order_id) OR is_warehouse_operator()),null
+order_shipments,shipments_warehouse_manage,PERMISSIVE,{authenticated},ALL,is_warehouse_operator(),is_warehouse_operator()
+orders,orders_create_buyer,PERMISSIVE,{authenticated},INSERT,null,(is_org_member(buyer_organization_id) AND organization_can_buy(buyer_organization_id) AND (created_by = auth.uid()) AND (status = 'DRAFT'::text) AND (NOT is_blocked_user()))
+orders,orders_update_buyer_or_admin,PERMISSIVE,{public},UPDATE,"(is_platform_admin() OR (is_org_member(buyer_organization_id) AND (status = ANY (ARRAY['DRAFT'::text, 'CONFIRMED'::text]))))",(is_platform_admin() OR is_org_member(buyer_organization_id))
+orders,orders_view,PERMISSIVE,{public},SELECT,can_view_order(id),null
+payment_accounts,payment_accounts_admin,PERMISSIVE,{public},ALL,is_platform_admin(),is_super_admin()
+payment_events,payment_events_admin_read,PERMISSIVE,{authenticated},SELECT,is_platform_admin(),null
+payment_events,payment_events_finance_read,PERMISSIVE,{authenticated},SELECT,(is_finance_operator() OR is_auditor()),null
+payment_proofs,payment_proofs_finance_read,PERMISSIVE,{authenticated},SELECT,(is_finance_operator() OR is_auditor()),null
+payment_proofs,payment_proofs_view,PERMISSIVE,{public},SELECT,"(is_platform_admin() OR (EXISTS ( SELECT 1
+   FROM payments p
+  WHERE ((p.id = payment_proofs.payment_id) AND can_view_order(p.order_id)))))",null
+payment_reviews,payment_reviews_finance,PERMISSIVE,{authenticated},ALL,is_finance_operator(),is_finance_operator()
+payment_transfers,payment_transfers_finance,PERMISSIVE,{authenticated},ALL,is_finance_operator(),null
+payment_transfers,payment_transfers_view,PERMISSIVE,{authenticated},SELECT,"(is_platform_admin() OR (EXISTS ( SELECT 1
+   FROM payouts p
+  WHERE ((p.id = payment_transfers.payout_id) AND is_org_member(p.seller_organization_id)))))",null
+payments,payments_finance_read,PERMISSIVE,{authenticated},SELECT,(is_finance_operator() OR is_auditor()),null
+payments,payments_view,PERMISSIVE,{public},SELECT,(is_platform_admin() OR can_view_order(order_id)),null
+payouts,payouts_finance,PERMISSIVE,{authenticated},ALL,is_finance_operator(),is_finance_operator()
+payouts,payouts_view,PERMISSIVE,{public},SELECT,(is_platform_admin() OR is_org_member(seller_organization_id)),null
+proforma_invoice_items,proforma_items_view,PERMISSIVE,{public},SELECT,"(EXISTS ( SELECT 1
+   FROM proforma_invoices pi
+  WHERE ((pi.id = proforma_invoice_items.proforma_id) AND can_view_order(pi.order_id))))",null
+proforma_invoices,proforma_view,PERMISSIVE,{public},SELECT,can_view_order(order_id),null
+shipment_items,shipment_items_buyer_insert,PERMISSIVE,{authenticated},INSERT,null,"(EXISTS ( SELECT 1
+   FROM ((order_shipments s
+     JOIN orders o ON ((o.id = s.order_id)))
+     JOIN organization_members om ON ((om.organization_id = o.buyer_organization_id)))
+  WHERE ((s.id = shipment_items.shipment_id) AND (s.status = 'DRAFT'::text) AND (om.user_id = auth.uid()) AND (om.is_active = true))))"
+shipment_items,shipment_items_buyer_update,PERMISSIVE,{authenticated},UPDATE,"(EXISTS ( SELECT 1
+   FROM ((order_shipments s
+     JOIN orders o ON ((o.id = s.order_id)))
+     JOIN organization_members om ON ((om.organization_id = o.buyer_organization_id)))
+  WHERE ((s.id = shipment_items.shipment_id) AND (s.status = 'DRAFT'::text) AND (om.user_id = auth.uid()) AND (om.is_active = true))))","(EXISTS ( SELECT 1
+   FROM order_shipments s
+  WHERE ((s.id = shipment_items.shipment_id) AND (s.status = 'DRAFT'::text))))"
+shipment_items,shipment_items_view,PERMISSIVE,{authenticated},SELECT,"(is_warehouse_operator() OR (EXISTS ( SELECT 1
+   FROM order_items oi
+  WHERE ((oi.id = shipment_items.order_item_id) AND can_view_order(oi.order_id)))))",null
+shipment_items,shipment_items_warehouse_manage,PERMISSIVE,{authenticated},ALL,is_warehouse_operator(),is_warehouse_operator()
+tax_invoices,tax_invoice_finance,PERMISSIVE,{authenticated},ALL,is_finance_operator(),is_finance_operator()
+tax_invoices,tax_invoice_view,PERMISSIVE,{public},SELECT,can_view_order(order_id),null

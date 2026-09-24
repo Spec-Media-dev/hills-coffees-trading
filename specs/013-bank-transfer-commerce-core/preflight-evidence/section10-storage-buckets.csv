@@ -1,0 +1,4 @@
+id,public,file_size_limit,allowed_mime_types
+kyb-evidence,false,10485760,"[""application/pdf"",""image/jpeg"",""image/png""]"
+listing-media,false,8388608,"[""image/jpeg"",""image/png"",""image/webp""]"
+public-assets,true,5242880,"[""image/jpeg"",""image/png"",""image/webp""]"
