@@ -18,7 +18,8 @@ export type MobileNavAuthState =
   | { signedIn: false }
   | {
       signedIn: true;
-      displayName: string;
+      /** `null` → the localized generic account label. */
+      displayName: string | null;
       avatarPath?: string | null;
       showMemberDashboard: boolean;
       showAdminConsole: boolean;
@@ -51,9 +52,9 @@ export type MobileNavAuthState =
  * `aria-current="page"` from `usePathname()`. The desktop navigation in `site-header.tsx` is a Server
  * Component and deliberately stays one — see the note there.
  */
-export function MobileNav({ auth }: { auth: MobileNavAuthState }) {
+export function MobileNav({ auth, marketplaceHref }: { auth: MobileNavAuthState; marketplaceHref: string }) {
   const pathname = usePathname();
-  const { t } = useLocale();
+  const { t, tApp } = useLocale();
   const [open, setOpen] = useState(false);
   const [shownFor, setShownFor] = useState(pathname);
   const [logoutDialogOpen, setLogoutDialogOpen] = useState(false);
@@ -70,6 +71,7 @@ export function MobileNav({ auth }: { auth: MobileNavAuthState }) {
   }
 
   const labels = t;
+  const accountName = auth.signedIn ? (auth.displayName ?? tApp.dashboardAccount.fallbackName) : null;
 
   const isCurrent = (href: string) =>
     href === PUBLIC_ROUTES.home ? pathname === href : pathname.startsWith(href);
@@ -124,6 +126,22 @@ export function MobileNav({ auth }: { auth: MobileNavAuthState }) {
         </div>
 
         <nav aria-label={labels.a11y.primaryNavigation} className="flex flex-1 flex-col gap-1.5 overflow-y-auto p-4">
+          {/* Marketplace first and visually stronger: the members' trading product, distinct from the
+              Coffee catalogue below. Members open it directly; everyone else lands on the homepage
+              #marketplace gateway (the href is resolved server-side by SiteHeader). */}
+          <Link
+            href={marketplaceHref}
+            onClick={() => setOpen(false)}
+            aria-current={marketplaceHref !== "/#marketplace" && isCurrent(marketplaceHref) ? "page" : undefined}
+            data-mobile-nav-marketplace
+            className="mb-1 flex min-h-[3.75rem] items-center justify-between gap-3 rounded-[var(--radius-md)] border border-[rgba(214,178,94,0.35)] bg-[rgba(214,178,94,0.08)] px-4 text-[#ffffff] transition-colors duration-[var(--dur-fast)] hover:bg-[var(--hc-moss)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--hc-accent)]"
+          >
+            <span className="flex flex-col">
+              <span className="text-[length:var(--text-body)] font-semibold">{labels.nav.marketplace}</span>
+              <span className="text-[length:var(--text-micro)] text-[rgba(242,245,235,0.7)]">{labels.megaMenu.marketplace.badge}</span>
+            </span>
+            <Icon name="lock" className="size-4 text-[var(--gold-on-dark)]" />
+          </Link>
           {PRIMARY_NAV.map((item) => (
             <Link
               key={item.href}
@@ -190,8 +208,8 @@ export function MobileNav({ auth }: { auth: MobileNavAuthState }) {
         <div className="mt-auto flex flex-col gap-4 border-t border-[rgba(242,245,235,0.14)] p-5">
           {auth.signedIn ? (
             <div className="flex items-center gap-3">
-              <UserAvatar displayName={auth.displayName} avatarPath={auth.avatarPath} size="sm" />
-              <span className="truncate text-sm font-medium text-[#f2f5eb]">{auth.displayName}</span>
+              <UserAvatar displayName={accountName ?? ""} avatarPath={auth.avatarPath} size="sm" />
+              <span dir="auto" className="min-w-0 truncate text-sm font-medium text-[#f2f5eb]">{accountName}</span>
             </div>
           ) : null}
           <Link

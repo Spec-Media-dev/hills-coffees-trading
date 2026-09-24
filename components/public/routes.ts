@@ -27,6 +27,20 @@ export const PUBLIC_ROUTES = {
   portalEntry: "/portal-entry/",
 } as const;
 
+/**
+ * Feature 003 account entry points, used by every public membership CTA (final non-payment closure
+ * run). Account creation always goes to `/sign-up/` — never the homepage, sign-in or a dead
+ * membership page. No `next=`/return-URL parameter is added: neither route supports one.
+ */
+export const ACCOUNT_ROUTES = {
+  signUp: "/sign-up/",
+  signIn: "/sign-in/",
+  memberPortal: "/dashboard/",
+  marketplace: "/dashboard/coffee/",
+  operatorConsole: "/dashboard-admin/",
+  mfa: "/mfa/",
+} as const;
+
 /** Keys into `copy.nav`, so a label is looked up rather than duplicated per surface. */
 export type NavKey = "coffee" | "origins" | "sourcing" | "about" | "contact";
 

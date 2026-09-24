@@ -3,7 +3,8 @@
 **Input**: [spec.md](./spec.md), [plan.md](./plan.md), `docs/architecture/DATABASE-CAPABILITY-MAP.md`,
 `.specify/memory/constitution.md` (v2.0.0), SRS §14 (OPS-01, OPS-02), §3.1, §13.5.
 
-**Status**: **Pre-Stripe UX / localization / catalogue hardening run (2026-09-24) — 49 / 58.** Phase 17 ADDED
+**Status**: **Final non-payment closure run (2026-09-23) — 50 / 59.** Phase 18 ADDED (T059 fixtures + test taxonomy, COMPLETE). Still open: T013–T015, T031–T033 (Feature 008-dependent), T038, T041, T056 (tag migration awaiting reviewed apply).
+**Previous status**: **Pre-Stripe UX / localization / catalogue hardening run (2026-09-24) — 49 / 58.** Phase 17 ADDED
 (T056–T058, approved post-closure scope additions). T057 (admin bilingual editing UX + label/media fixes) and T058
 (listing media display rule) COMPLETE. T056 (tag translations) is CODE-COMPLETE but **blocked on human review +
 application of `supabase/migrations/20260924120000_tag_translations.sql`** (+ rollback + postflight) — NOT applied by
@@ -1633,6 +1634,28 @@ scope has no owning task (flagged for RUN B planning, not silently added).
     image-bearing listing state is proven by tests only; the placeholder state was checked visually.
 
 ---
+
+## Phase 18 — Final non-payment closure: fixtures & test taxonomy (ADDED 2026-09-23)
+
+Payment/Stripe/Feature 008 untouched. `20260924120000_tag_translations.sql` reviewed (GO for separate security
+review) but NOT applied — T056 stays open until a reviewed operator applies it and runs the postflight.
+T038 and T041 stay open (Phase 12 sign-off still includes the Feature 008-blocked areas).
+
+- [x] T059 [PS-new] Fixture cleanup + stale test taxonomy.
+  - Disposable coffee `run-e-created-coffee-proof-live-media` (DRAFT, no media) removed via the existing exact-slug
+    fixture cleanup (`--cleanup-run-e-created-rows`, extended with `RUN_E_CREATED_ROWS.liveMediaCoffeeSlug`) after a
+    project-identity check (`hillscoffees-trading`); the live-verify script now uses the same constant.
+  - Disposable admin `catalogue-admin+t021-test@example.com`: already blocked, no active capability, no memberships —
+    no further action; Auth user deliberately NOT deleted (manual decision).
+  - `public-test-*` coffee/origin fixtures: NOT archived — the canonical live suites (status-lifecycle, canary-leakage,
+    json-ld, seo) require them in the same project that serves production. OPEN PRODUCT DECISION: separate test
+    project or a non-public fixture mechanism.
+  - Branding page is a singleton settings page, not a list page: `state-coverage.test.tsx` taxonomy corrected with
+    focused branding assertions (no fake empty/error states added to production).
+  - `run-f-static.test.tsx`: the applied T047 branding migration and its two admin-gated logo RPCs admitted by exact
+    name (were failing since e22173e).
+  - NOT changed (payment boundary): `tests/admin/finance-delegation.test.tsx` fails for the same stale reason
+    (`set_platform_logo` not in its RPC allowlist) — left for an explicit decision.
 
 ## Dependencies & parallelisation
 

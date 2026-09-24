@@ -71,6 +71,7 @@ const CHECK_VALUES = (definition: string) => definition.match(/'[A-Z_]+'::text/g
 
 const SYSTEM_LIBS = ["lib/admin/system-validation.ts", "lib/admin/system-errors.ts", "lib/admin/roles.ts", "lib/admin/commission.ts", "lib/admin/pricing-rules.ts", "lib/admin/payment-accounts.ts"];
 const SYSTEM_FILES = [...SYSTEM_LIBS, ...walk("src/app/dashboard-admin/(system)"), ...walk("components/admin/system")];
+const BRANDING_RPCS = new Set(["set_platform_logo", "remove_platform_logo"]);
 const CONFIG_TABLES = ["platform_admins", "tax_rules", "shipping_rules", "commission_policies", "commission_tiers", "payment_accounts"] as const;
 
 afterEach(cleanup);
@@ -113,7 +114,9 @@ describe("Phase 9 — vocabularies are the schema's own CHECK constraints; polic
     // RUN F added no migration. Two later, human-approved Feature 010 migrations are exempted BY NAME only:
     // RUN J (DB-OPEN-22 — `organizations` read path + compliance guard) and M1 (DB-OPEN-21 — updated_at +
     // audit triggers on the six configuration tables). The content checks below still apply to every file.
-    const APPROVED_010_MIGRATIONS = /feature_010_db_open_22_compliance_organization_read|feature_010_db_open_21_config_attribution/;
+    // Final non-payment closure run: the (also human-approved, applied) T047 branding/avatar/listing-media migration is
+    // exempted by name too — it touches none of the six configuration tables (it adds `platform_settings`).
+    const APPROVED_010_MIGRATIONS = /feature_010_db_open_22_compliance_organization_read|feature_010_db_open_21_config_attribution|feature_010_branding_avatar_listing_media/;
     expect(migrations.filter((f) => !APPROVED_010_MIGRATIONS.test(f)).some((f) => /feature_010|run_f|commission|platform_admins|payment_accounts/i.test(f))).toBe(false);
     for (const [dir, files] of [["migrations", migrations], ["rollback", rollbacks]] as const) {
       for (const file of files) {
@@ -138,7 +141,13 @@ describe("Phase 9 — vocabularies are the schema's own CHECK constraints; polic
     for (const file of SYSTEM_FILES) {
       const src = stripComments(source(file));
       expect(src, file).not.toMatch(/\.delete\(|SERVICE_ROLE|service_role|unstable_cache|"use cache"|cacheTag|cacheLife|createSignedUrl/);
-      for (const match of src.matchAll(/\.rpc\(\s*([^)]*)\)/g)) expect(match[1] === "fn" || approved.has(match[1].replace(/^["']|["']$/g, "")), `${file}: rpc(${match[1]})`).toBe(true);
+      // The T047 branding settings page (a singleton, not a RUN F configuration table) writes ONLY through its own two
+      // admin-gated RPCs — admitted for that folder alone, by exact name.
+      const branding = /\(system\)[\/]branding[\/]/.test(file);
+      for (const match of src.matchAll(/\.rpc\(\s*([^)]*)\)/g)) {
+        const fnName = match[1].match(/^["']([a-z_]+)["']/)?.[1] ?? match[1];
+        expect(match[1] === "fn" || approved.has(fnName) || (branding && BRANDING_RPCS.has(fnName)), `${file}: rpc(${match[1]})`).toBe(true);
+      }
       for (const match of src.matchAll(/\.from\(\s*"([a-z_]+)"\s*\)/g)) expect([...CONFIG_TABLES, "profiles"], `${file}: .from("${match[1]}")`).toContain(match[1]);
     }
   });

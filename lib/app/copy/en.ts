@@ -43,6 +43,7 @@ export const en = {
     /** Recorded honestly: this run's shells own no live operational modules yet. */
     modulesArriveLater: "Modules arrive with later features.",
     foundationOverview: {
+      regionLabel: "Workspace orientation",
       foundation: {
         title: "Your workspace foundation is ready",
         description:

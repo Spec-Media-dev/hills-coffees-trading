@@ -70,7 +70,7 @@ describe("public coffee detail — commercial hierarchy", () => {
     const offers = container.querySelector('[data-coffee-offers="members-only"]');
     expect(offers).not.toBeNull();
     const hrefs = [...(offers?.querySelectorAll("a") ?? [])].map((a) => a.getAttribute("href"));
-    expect(hrefs).toEqual(expect.arrayContaining([expect.stringMatching(/^\/sign-in\/?$/), expect.stringMatching(/^\/portal-entry\/?$/)]));
+    expect(hrefs).toEqual(expect.arrayContaining([expect.stringMatching(/^\/sign-in\/?$/), expect.stringMatching(/^\/sign-up\/?$/)]));
     // No executable number anywhere on the page: no currency amount, no per-kg price, no stock figure.
     expect(container.textContent).not.toMatch(/\b(USD|AED|EUR)\s?\d|\d+\s?kg\b/i);
   });

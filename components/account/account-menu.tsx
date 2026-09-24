@@ -17,8 +17,8 @@ import { LogoutConfirmDialog } from "./logout-confirm-dialog";
 import { UserAvatar } from "./user-avatar";
 
 export type AccountMenuProps = {
-  /** Presentation-safe only — `profile.fullName` or a generic fallback. Never raw identity/rows. */
-  displayName: string;
+  /** Presentation-safe only — `profile.fullName`/company, or `null` for the localized generic fallback. */
+  displayName: string | null;
   /** `profiles.avatar_path`, resolved per request; absent/null renders initials. */
   avatarPath?: string | null;
   /** Shown under the name if present (spec §26 — safe profile data only, never fetched broader). */
@@ -43,8 +43,9 @@ export type AccountMenuProps = {
  * by existing or by being hidden.
  */
 export function AccountMenu({ displayName, avatarPath, organizationName, showMemberDashboard, showAdminConsole }: AccountMenuProps) {
-  const { t } = useLocale();
+  const { t, tApp } = useLocale();
   const copy = t.account;
+  const resolvedName = displayName ?? tApp.dashboardAccount.fallbackName;
   const [logoutDialogOpen, setLogoutDialogOpen] = useState(false);
 
   return (
@@ -56,11 +57,11 @@ export function AccountMenu({ displayName, avatarPath, organizationName, showMem
           aria-label={copy.menuLabel}
           className="grid size-11 shrink-0 place-items-center rounded-full transition-[box-shadow] duration-[var(--dur-fast)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus-ring)]"
         >
-          <UserAvatar displayName={displayName} avatarPath={avatarPath} />
+          <UserAvatar displayName={resolvedName} avatarPath={avatarPath} />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" sideOffset={8}>
           <div className="flex flex-col gap-0.5 px-2 py-1.5">
-            <span className="truncate text-sm font-semibold text-foreground">{displayName}</span>
+            <span dir="auto" className="truncate text-sm font-semibold text-foreground">{resolvedName}</span>
             {organizationName ? <span className="truncate text-xs text-muted-foreground">{organizationName}</span> : null}
           </div>
           <DropdownMenuSeparator />

@@ -7,7 +7,7 @@
 
 **Status**: Block A (Phases 1–2) **COMPLETE — 12 / 12 verified**. Block B (Phases 3–4)
 **COMPLETE — 5 / 5 verified**. Block C (Phases 5 + 7) **COMPLETE — 3 / 3 verified**.
-**59 / 59 current tasks checked — Phases 1–13 COMPLETE — VERIFIED.** Post-closure addition T058 (hero redesign, 2026-09-23) also checked — 60 / 60. Pre-Stripe hardening additions T059–T063 (2026-09-24) checked — 65 / 65. The `T0NN` line below is a
+**59 / 59 current tasks checked — Phases 1–13 COMPLETE — VERIFIED.** Post-closure addition T058 (hero redesign, 2026-09-23) also checked — 60 / 60. Pre-Stripe hardening additions T059–T063 (2026-09-24) checked — 65 / 65. Final non-payment closure additions T064–T068 (2026-09-23) checked — 70 / 70. The `T0NN` line below is a
 documentation template, not a task; the real task set is 59 items (`T000`–`T057` plus `T006a` and
 `T031a`).
 **Phase 5.5 (Full Product UI Foundation) is COMPLETE — VERIFIED and tracked separately** — see
@@ -781,6 +781,38 @@ catalogue rows inside a test, and do not assert against whatever data happens to
 - [x] T063 [PS-new] Public quality fixes: RFQ (contact) submit bar floated over the form fields (sticky with no backing)
   — made static, together with every other transparent sticky action bar in the product; 108 route × width × locale
   combinations checked for horizontal overflow (0 found).
+
+## Post-closure scope additions — final non-payment product closure (2026-09-23)
+
+Payment/Stripe/Feature 008 untouched by this run. No migration applied.
+
+- [x] T064 [PS-new] Homepage MARKETPLACE section (`src/app/page.tsx` §3, `#marketplace`): states the CATALOGUE
+  (coffee information, public) vs MARKETPLACE (real seller listings, approved members only) distinction side by side,
+  then "Recently listed" streamed behind `<Suspense>` from `components/marketplace/home-marketplace.tsx` (Feature 006
+  owns the data rule — see its T033). The homepage itself stays identity-independent (no `getRequestIdentity(`).
+  - Verify: `tests/public/home-marketplace.test.tsx`; browser: anonymous EN light / AR dark 1440, 375; member EN 1280,
+    AR dark 1440, AR 375.
+- [x] T065 [PS-new] Navigation: a first, visually stronger "Marketplace" entry (Members badge) with its own
+  identity-aware panel in `SiteHeader` (member → `/dashboard/coffee/`; everyone else → `/#marketplace` + Create
+  account / Sign in); the Coffee panel is now "Coffee catalogue". Same entry at the top of `MobileNav`. Account-name
+  fallback localized (was hardcoded "Account"); account names render `dir="auto"` so RTL truncation is correct.
+  - Verify: `tests/public/home-marketplace.test.tsx` (navigation block); mega-menu EN light 1440, AR dark 1280, member
+    EN 1440; drawer EN 375, AR dark 430, member AR 375.
+- [x] T066 [PS-new] Membership CTA routing: account creation goes to `/sign-up/` (coffee detail members-only panel,
+  locked marketplace teaser, marketplace panel); `/portal-entry/` rewritten as a truthful sign-up / sign-in gateway
+  (four real steps, contact fallback, no form, no identity, no `next=`). Route kept — not removed.
+  - Verify: `tests/design/uif-e.test.tsx`, `tests/public/coffee-detail-page.test.tsx`, `tests/public/metadata.test.ts`.
+- [x] T067 [PS-new] Dubai-only Contact: typed contact model `lib/public/contact.ts` (office · warehouse · factory,
+  official address/facility rendered LTR, hours, two `tel:` phones, key-less Google Maps preview + "Open in Google Maps"
+  in a new tab, optional channels hidden while `null` — never `href="#"`, nothing invented) rendered by
+  `components/public/contact-location.tsx`; no Cairo on the page. Fully localized EN/AR.
+  - Verify: `tests/public/contact-location.test.tsx`; browser: EN light/dark, AR light/dark 1440, 1024, EN/AR 375.
+- [x] T068 [PS-new] Localization + UI closure pass: shared dialog/sheet close labels localized (when inside the
+  LocaleProvider), workspace-orientation region label localized; dark-mode contrast for the marketplace card / lock
+  badge; 132 route × width (375–1440) × locale combinations checked for horizontal overflow — 0 found.
+  - Verify: `tests/design/uif-h.test.tsx`; `overflow.mjs` sweep (2026-09-23).
+  - Noted, not changed: the footer's "Dubai · Egypt" operating line is pre-existing brand copy (Egypt is an
+    operational office per the recommendations doc); the Contact page itself is Dubai-only as required.
 
 ## Security requirement traceability
 

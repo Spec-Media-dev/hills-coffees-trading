@@ -5,7 +5,8 @@ import { AccountMenu } from "@/components/account/account-menu";
 import { LanguageSwitcher } from "@/components/locale/language-switcher";
 import { Bilingual } from "@/components/locale/bilingual";
 import { MobileNav } from "@/components/public/mobile-nav";
-import { MEGA_MENU, PRIMARY_NAV, PUBLIC_ROUTES, type MegaMenuKey } from "@/components/public/routes";
+import { marketplaceDestination, resolveMarketplaceAccess, type MarketplaceAccess } from "@/components/marketplace/home-marketplace";
+import { ACCOUNT_ROUTES, MEGA_MENU, PRIMARY_NAV, PUBLIC_ROUTES, type MegaMenuKey } from "@/components/public/routes";
 import { SearchControl } from "@/components/public/search-control";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { Icon } from "@/components/ui/icon";
@@ -22,8 +23,14 @@ export { PUBLIC_ROUTES };
  *
  * ── COMPOSITION ──────────────────────────────────────────────────────────────────────────────────
  *
- *   logo · Coffee · Origins · Sourcing · About us · Contact · [search field] · theme · language ·
- *   Trading Portal · Request an offer
+ *   logo · Marketplace · Coffee · Origins · Sourcing · About us · Contact · [search field] · theme ·
+ *   language · Trading Portal · Request an offer
+ *
+ * MARKETPLACE vs CATALOGUE (final non-payment closure run): "Marketplace" leads the navigation with a
+ * "Members" badge — it is the trading product (real seller listings for approved members). Its panel is
+ * identity-aware (this component already resolves the request identity): an authorized member goes
+ * straight to `/dashboard/coffee/`; everyone else to the homepage `#marketplace` gateway with
+ * Create account / Sign in. "Coffee" opens the COFFEE CATALOGUE panel — information, not live offers.
  *
  * The lockup is larger than the 150px floor (176px, 200px at `xl`) inside an 84px bar, so the mark
  * reads with confidence without the bar becoming oversized. "Request an offer" is still the only
@@ -87,6 +94,51 @@ const NAV_LINK =
 const PANEL_LINK =
   "group/panel inline-flex min-h-11 items-center gap-2 text-[length:var(--text-small)] font-medium text-foreground underline-offset-4 hover:underline focus-visible:rounded-[var(--radius-xs)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus-ring)]";
 
+/** The marketplace flyout: members open the marketplace; everyone else sees the gateway actions. */
+function MarketplacePanel({ access }: { access: MarketplaceAccess }) {
+  const isMember = access === "member";
+  return (
+    <div className="hc-mega absolute start-0 top-full z-50 w-[min(40rem,calc(100vw-2*var(--gutter-page)))] pt-2">
+      <div className="grid gap-6 rounded-[var(--radius-xl)] border border-border/80 dark:border-[rgba(242,245,235,0.16)] bg-card/95 dark:bg-[#1c2e20]/95 backdrop-blur-2xl p-7 text-foreground shadow-[0_24px_54px_rgba(0,0,0,0.14)] dark:shadow-[0_28px_68px_rgba(0,0,0,0.65)] lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]" data-marketplace-panel={isMember ? "member" : "guest"}>
+        <div className="flex flex-col gap-3">
+          <span className="inline-flex items-center gap-2 self-start rounded-full bg-[var(--hc-forest)] dark:bg-[var(--hc-moss)] dark:ring-1 dark:ring-[rgba(214,178,94,0.4)] px-2.5 py-1 text-[length:var(--text-micro)] font-semibold text-[var(--gold-on-dark)]">
+            <Icon name="lock" className="size-3" aria-hidden="true" />
+            <Bilingual pick={(c) => c.megaMenu.marketplace.badge} />
+          </span>
+          <p className="font-heading text-[length:var(--text-h3)] font-semibold leading-[var(--lh-heading)] tracking-[var(--tracking-heading)] text-foreground">
+            <Bilingual pick={(c) => c.megaMenu.marketplace.title} />
+          </p>
+          <p className="max-w-[40ch] text-[length:var(--text-small)] leading-[1.65] text-muted-foreground text-pretty">
+            <Bilingual pick={(c) => c.megaMenu.marketplace.body} />
+          </p>
+          <Link href={isMember ? ACCOUNT_ROUTES.marketplace : "/#marketplace"} className={`${PANEL_LINK} mt-1 self-start hover:text-[var(--hc-accent)] dark:hover:text-[var(--gold-on-dark)]`}>
+            <Bilingual pick={(c) => (isMember ? c.megaMenu.marketplace.primary : c.megaMenu.marketplace.primaryGuest)} />
+            <Icon name="arrow-right" data-directional-icon="true" className="size-4 transition-transform duration-[var(--dur-fast)] group-hover/panel:translate-x-0.5 rtl:group-hover/panel:-translate-x-0.5" />
+          </Link>
+        </div>
+        <div className="flex flex-col gap-1 border-s border-border/80 dark:border-[rgba(242,245,235,0.14)] ps-6">
+          {isMember ? null : (
+            <>
+              <Link href={ACCOUNT_ROUTES.signUp} className={`${PANEL_LINK} font-semibold hover:text-[var(--hc-accent)] dark:hover:text-[var(--gold-on-dark)]`}>
+                <Bilingual pick={(c) => c.megaMenu.marketplace.createAccount} />
+              </Link>
+              <Link href={ACCOUNT_ROUTES.signIn} className={`${PANEL_LINK} hover:text-[var(--hc-accent)] dark:hover:text-[var(--gold-on-dark)]`}>
+                <Bilingual pick={(c) => c.megaMenu.marketplace.signIn} />
+              </Link>
+            </>
+          )}
+          <p className="mt-2 text-[length:var(--text-micro)] text-muted-foreground">
+            <Bilingual pick={(c) => c.megaMenu.marketplace.catalogueHint} />
+          </p>
+          <Link href={PUBLIC_ROUTES.coffee} className={`${PANEL_LINK} hover:text-[var(--hc-accent)] dark:hover:text-[var(--gold-on-dark)]`}>
+            <Bilingual pick={(c) => c.megaMenu.coffee.title} />
+          </Link>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function MegaPanel({ menuKey }: { menuKey: MegaMenuKey }) {
   const panel = MEGA_MENU[menuKey];
   return (
@@ -145,6 +197,8 @@ export async function SiteHeader() {
   // instruction). `null` (the honest default — including today, since the migration that creates
   // `platform_settings` is not yet applied) falls back to the original static assets unchanged.
   const logoPath = await getPlatformLogoPath();
+  const marketplaceAccess = resolveMarketplaceAccess(identity);
+  const marketplaceHref = marketplaceAccess === "member" ? marketplaceDestination("member") : "/#marketplace";
   const customLogoUrl = logoPath ? publicAssetUrl(logoPath) : null;
 
   return (
@@ -191,6 +245,17 @@ export async function SiteHeader() {
           className="relative ms-2 hidden min-w-0 xl:block xl:ms-3 2xl:ms-5"
         >
           <ul className="flex items-center gap-2 xl:gap-2.5 2xl:gap-4">
+            <li className="hc-nav-item" data-nav-marketplace>
+              <Link href={marketplaceHref} className={`${NAV_LINK} gap-1.5`}>
+                <span aria-hidden="true" className="size-1.5 rounded-full bg-[var(--gold-on-dark)]" />
+                <Bilingual pick={(c) => c.nav.marketplace} />
+                <Icon
+                  name="chevron-down"
+                  className="size-3.5 opacity-70 transition-transform duration-[var(--dur-fast)] [.hc-nav-item:hover_&]:rotate-180 [.hc-nav-item:focus-within_&]:rotate-180"
+                />
+              </Link>
+              <MarketplacePanel access={marketplaceAccess} />
+            </li>
             {PRIMARY_NAV.map((item) => {
               const hasPanel = item.key in MEGA_MENU;
               return (
@@ -224,7 +289,7 @@ export async function SiteHeader() {
               (authenticated) beside the filled CTA — see the Feature 003 header comment above. */}
           {identity.kind === "authenticated" ? (
             <AccountMenu
-              displayName={identity.profile.fullName ?? identity.profile.companyName ?? "Account"}
+              displayName={identity.profile.fullName ?? identity.profile.companyName ?? null}
               avatarPath={identity.profile.avatarPath}
               organizationName={identity.organization?.displayName ?? null}
               showMemberDashboard={
@@ -262,11 +327,12 @@ export async function SiteHeader() {
           </span>
 
           <MobileNav
+            marketplaceHref={marketplaceHref}
             auth={
               identity.kind === "authenticated"
                 ? {
                     signedIn: true,
-                    displayName: identity.profile.fullName ?? identity.profile.companyName ?? "Account",
+                    displayName: identity.profile.fullName ?? identity.profile.companyName ?? null,
                     avatarPath: identity.profile.avatarPath,
                     showMemberDashboard:
                       identity.organizations.length > 0 ||

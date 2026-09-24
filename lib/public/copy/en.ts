@@ -48,6 +48,7 @@ export const en = {
     about: "About us",
     contact: "Contact",
     portalEntry: "Trading Portal",
+    marketplace: "Marketplace",
   },
 
   /**
@@ -57,9 +58,19 @@ export const en = {
    */
   megaMenu: {
     coffee: {
-      title: "Published coffee",
-      body: "Every coffee Hills currently publishes, with its origin, processing method and packaging.",
+      title: "Coffee catalogue",
+      body: "Information about every coffee Hills publishes — origin, processing, packaging and quality context. Not a list of live offers.",
       primary: "Browse the catalogue",
+    },
+    marketplace: {
+      title: "Member marketplace",
+      body: "Live listings from reviewed sellers — price per kg, quantity and availability — for approved members of the Hills Trading Portal.",
+      primary: "Open the marketplace",
+      primaryGuest: "See recently listed",
+      badge: "Members",
+      createAccount: "Create an account",
+      signIn: "Sign in",
+      catalogueHint: "Looking for coffee information?",
     },
     origins: {
       title: "Producing regions",
@@ -370,6 +381,37 @@ export const en = {
     },
 
     /** Reference information band (Phase 5.5, UIF-025). PRICE-011 governs the value itself. */
+    marketplace: {
+      eyebrow: "Member marketplace",
+      title: "Where approved members trade real coffee",
+      lead:
+        "The Hills Trading Portal marketplace lists physical lots held under Hills-approved custody, offered by reviewed sellers to approved buyers.",
+      catalogueTitle: "Coffee catalogue",
+      catalogueBody: "Information about the coffees Hills sources — origin, processing and quality context. Open to everyone; not a list of live offers.",
+      catalogueAction: "Browse the catalogue",
+      marketplaceTitle: "Marketplace",
+      marketplaceBody: "Real seller listings with price per kg, available quantity and status — visible only to approved members.",
+      recentTitle: "Recently listed",
+      recentLead: "The five newest listings in the marketplace.",
+      lockedTitle: "Listings are visible to approved members",
+      lockedBody:
+        "Prices, quantities and seller details stay inside the Trading Portal. Create an account, set up your organization and complete Hills' review to see live listings.",
+      createAccount: "Create an account",
+      signIn: "Sign in",
+      howItWorks: "How membership works",
+      pendingTitle: "Your organization isn't approved for trading yet",
+      pendingBody: "Live listings appear here once your organization's review is complete. Continue from your account.",
+      pendingAction: "Go to your account",
+      mfaTitle: "Finish signing in",
+      mfaBody: "Complete two-factor verification to see live listings.",
+      mfaAction: "Verify now",
+      operatorTitle: "You're signed in as an operator",
+      operatorBody: "Listings are reviewed and managed from the Operations Console.",
+      operatorAction: "Open the console",
+      emptyTitle: "No live listings right now",
+      emptyBody: "New listings appear here as soon as sellers publish them.",
+      viewAll: "View all listings",
+    },
     reference: {
       eyebrow: "Reference information",
       title: "Benchmark pricing, kept separate",
@@ -483,6 +525,30 @@ export const en = {
         body: "How reviewed membership works and what the Hills Trading Portal is for.",
         action: "About the Trading Portal",
       },
+    },
+    location: {
+      eyebrow: "Hills in Dubai",
+      heading: "Visit or call us in Dubai",
+      lead: "Our Dubai site brings the office, the warehouse and the factory together.",
+      types: { office: "Office", warehouse: "Warehouse", factory: "Factory" },
+      city: "Dubai, United Arab Emirates",
+      addressLabel: "Address",
+      facilitiesLabel: "Facilities",
+      hoursLabel: "Working hours",
+      hoursValue: "10:00 AM – 7:00 PM",
+      phoneLabel: "Phone",
+      primaryPhone: "Main line",
+      secondaryPhone: "Office line",
+      call: "Call",
+      channelsHeading: "Other ways to reach us",
+      channels: { email: "Email", whatsapp: "WhatsApp", instagram: "Instagram", facebook: "Facebook", linkedin: "LinkedIn" },
+      openInMaps: "Open in Google Maps",
+      newTab: "(opens in a new tab)",
+      mapTitle: "Map showing Hills Coffee at DAMAC Smart Heights, Dubai",
+      mapOpenLabel: "Open the Hills Coffee location in Google Maps (opens in a new tab)",
+      quickHeading: "Prefer to call?",
+      quickBody: "Our Dubai team answers during working hours.",
+      seeLocation: "See the location",
     },
     rfq: {
       heading: "Send a request",
@@ -704,16 +770,25 @@ export const en = {
   /** Trading Portal entry placeholder (T018) — honest until Feature 003 owns the real destination. */
   portalEntry: {
     eyebrow: "Trading Portal",
-    title: "Membership is not open here yet",
+    title: "Join the Hills Trading Portal",
     lead:
-      "The Hills Trading Portal is where approved members buy, hold and resell green coffee. Sign-in and membership applications are not open on the public site yet.",
-    body:
-      "That capability is being built as its own feature. Until it is ready, if you want to talk through sourcing or start a commercial conversation, reach out directly and a member of the team will pick it up from there.",
-    action: "Request an offer",
+      "The Trading Portal is where approved members buy, hold and resell green coffee held under Hills-approved custody.",
+    stepsHeading: "How membership works",
+    steps: {
+      account: { title: "Create an account", body: "Sign up and confirm your email address." },
+      organization: { title: "Set up your organization", body: "Add your company and submit its verification documents." },
+      review: { title: "Reviewed by Hills", body: "Every organization is reviewed and approved manually. Registration alone never enables trading." },
+      trade: { title: "Trade in the marketplace", body: "Once approved, see live listings and buy, hold or resell." },
+    },
+    createAccount: "Create an account",
+    signIn: "Sign in",
+    memberPrompt: "Already a member?",
+    contactPrompt: "Prefer to talk first?",
+    contactAction: "Contact the commercial team",
     imageAlt: "Green coffee bags held in a warm warehouse setting.",
     metaTitle: "Trading Portal",
     metaDescription:
-      "The Hills Trading Portal entry point. Membership and sign-in are not yet open on the public site.",
+      "How to join the Hills Trading Portal: create an account, set up your organization and complete Hills' review.",
   },
 
   /** Public route-level not-found state (Phase 5.5, UIF-034). */

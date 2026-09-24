@@ -20,11 +20,16 @@ describe("Phase 5.5 UIF-E public story boundaries", () => {
     expect(source("specs", "002-public-website", "ASSET-MAP.json")).toContain('"sourcing-quality"');
   });
 
-  it("keeps portal entry an honest, contact-led transition owned by Feature 003", () => {
+  it("keeps portal entry a truthful sign-up / sign-in gateway (final non-payment closure run)", () => {
     const page = source("src", "app", "(public)", "portal-entry", "page.tsx");
-    expect(page).toContain("Feature 003 owns the real membership/sign-in destination");
+    // Account creation is the real membership start; sign-in for existing members; contact as a fallback.
+    expect(page).toContain("href={ACCOUNT_ROUTES.signUp}");
+    expect(page).toContain("href={ACCOUNT_ROUTES.signIn}");
     expect(page).toContain("PUBLIC_ROUTES.contact");
-    expect(page).not.toMatch(/<form|<input|signIn|signUp|createClient|getRequestIdentity/);
+    // Still a static, identity-independent public page: no form, no auth client, no identity, no client code.
+    expect(page).not.toMatch(/<form|<input|createClient|getRequestIdentity|"use client"/);
+    // No invented return-URL behaviour.
+    expect(page).not.toMatch(/[?&]next=/);
   });
 
   it("renders reference pricing only as an honest unavailable state", () => {

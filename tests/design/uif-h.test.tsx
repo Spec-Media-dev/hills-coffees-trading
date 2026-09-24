@@ -14,7 +14,7 @@ afterEach(cleanup)
 describe("Phase 5.5 UIF-H — protected overview convergence", () => {
   it("renders honest Member and Operations orientation without business figures or actions", () => {
     const { rerender } = render(<FoundationOverview surface="member" />)
-    expect(screen.getByRole("region", { name: "Workspace orientation" })).toBeTruthy()
+    expect(screen.getByRole("region", { name: /Workspace orientation/ })).toBeTruthy()
     expect(screen.getByText("Your workspace foundation is ready")).toBeTruthy()
     expect(screen.getByText("What this page does not show")).toBeTruthy()
 

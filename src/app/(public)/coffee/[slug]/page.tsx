@@ -7,7 +7,7 @@ import { MediaGallery } from "@/components/media/media-gallery";
 import { ReferencePriceStage } from "@/components/pricing/reference-price-section";
 import { JsonLd } from "@/components/public/json-ld";
 import { MediaPlaceholder } from "@/components/public/media-placeholder";
-import { PUBLIC_ROUTES } from "@/components/public/routes";
+import { ACCOUNT_ROUTES, PUBLIC_ROUTES } from "@/components/public/routes";
 import { Icon } from "@/components/ui/icon";
 import { getReferencePresentation } from "@/lib/pricing/presentation";
 import { getPublicCoffeeBySlug, type PublicNamedRef } from "@/lib/public/coffees";
@@ -437,10 +437,10 @@ export default async function CoffeeDetailPage({ params }: PageProps) {
                   <Bilingual pick={(c) => c.coffee.detail.offersBody} />
                 </p>
                 <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-                  <Link href="/sign-in/" className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-[#f2f5eb] px-5 text-sm font-semibold text-[var(--hc-forest)] transition-colors duration-[var(--dur-fast)] hover:bg-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--gold-on-dark)]">
+                  <Link href={ACCOUNT_ROUTES.signIn} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-[#f2f5eb] px-5 text-sm font-semibold text-[var(--hc-forest)] transition-colors duration-[var(--dur-fast)] hover:bg-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--gold-on-dark)]">
                     <Bilingual pick={(c) => c.coffee.detail.offersSignIn} />
                   </Link>
-                  <Link href={PUBLIC_ROUTES.portalEntry} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-[rgba(242,245,235,0.3)] px-5 text-sm font-semibold text-[#f2f5eb] transition-colors duration-[var(--dur-fast)] hover:bg-[rgba(242,245,235,0.1)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--gold-on-dark)]">
+                  <Link href={ACCOUNT_ROUTES.signUp} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-[rgba(242,245,235,0.3)] px-5 text-sm font-semibold text-[#f2f5eb] transition-colors duration-[var(--dur-fast)] hover:bg-[rgba(242,245,235,0.1)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--gold-on-dark)]">
                     <Bilingual pick={(c) => c.coffee.detail.offersApply} />
                   </Link>
                 </div>

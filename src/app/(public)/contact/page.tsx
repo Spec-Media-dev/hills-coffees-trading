@@ -4,9 +4,11 @@ import Link from "next/link";
 
 import { Bilingual } from "@/components/locale/bilingual";
 import { Reveal } from "@/components/motion/reveal";
+import { ContactLocation } from "@/components/public/contact-location";
 import { PUBLIC_ROUTES } from "@/components/public/routes";
 import { RfqForm } from "@/components/public/rfq-form";
 import { Icon } from "@/components/ui/icon";
+import { HILLS_DUBAI, telHref } from "@/lib/public/contact";
 import { copy } from "@/lib/public/copy";
 import type { PublicCopy } from "@/lib/public/copy";
 import { canonicalUrl } from "@/lib/public/site";
@@ -31,9 +33,12 @@ import { canonicalUrl } from "@/lib/public/site";
  * H1, intents, operating locations) exists and is crawlable whether or not the form's client JS ever
  * loads (contract §10, §26).
  *
- * NO CONTACT DETAIL IS INVENTED. No email, phone, street address, map or social handle appears —
- * none is approved for this surface — and the boards' sample details are not reproduced (contract
- * §14.1). The only location statement is the two operating offices the business publicly names.
+ * CONTACT DETAILS (final non-payment closure run): the Dubai office · warehouse · factory site the
+ * business confirmed — address, facility, working hours and the two phone lines — rendered from the
+ * typed model in `lib/public/contact.ts` by `ContactLocation`, with a real key-less Google Maps preview
+ * and "Open in Google Maps" action. Dubai only; no other office is listed. Email, WhatsApp, social
+ * profiles and a direct place URL are `null` until supplied, and a `null` channel renders nothing (never
+ * a dead `#` link). Nothing is invented.
  *
  * ── COMPOSITION ──────────────────────────────────────────────────────────────────────────────────
  *
@@ -109,6 +114,9 @@ export default function ContactPage() {
         </div>
       </section>
 
+      {/* ── THE DUBAI SITE ── address, hours, phones and the real Google Maps location. */}
+      <ContactLocation />
+
       {/* ── WHAT A CONVERSATION COVERS ── three hairline-divided intents. */}
       <section className="bg-background py-[clamp(4rem,8vw,8rem)] text-foreground">
         <div className="hc-container flex flex-col gap-10">
@@ -175,17 +183,37 @@ export default function ContactPage() {
             <RfqForm />
           </div>
 
-          <div className="flex flex-col gap-4">
-            <h2 className="font-heading text-[length:var(--text-h3)] font-semibold leading-[var(--lh-heading)] tracking-[var(--tracking-heading)]">
-              <Bilingual pick={(c) => c.contact.detailsHeading} />
+          <aside className="flex flex-col gap-4 self-start rounded-[var(--radius-xl)] border border-border bg-card p-6 lg:sticky lg:top-[calc(var(--header-h)+1.5rem)]" data-contact-quick>
+            <h2 className="font-heading text-[length:var(--text-h4,1.35rem)] font-semibold">
+              <Bilingual pick={(c) => c.contact.location.quickHeading} />
             </h2>
-            <p className="font-heading text-[length:var(--text-h2)] font-semibold leading-[var(--lh-heading)] tracking-[var(--tracking-heading)] text-[var(--hc-accent)] dark:text-[var(--gold-on-dark)]">
-              <Bilingual pick={(c) => c.footer.locationLine} />
+            <p className="text-[length:var(--text-small)] leading-[1.65] text-muted-foreground">
+              <Bilingual pick={(c) => c.contact.location.quickBody} />{" "}
+              <Bilingual pick={(c) => c.contact.location.hoursValue} />
             </p>
-            <p className="max-w-[48ch] text-[length:var(--text-body)] leading-[1.7] text-muted-foreground text-pretty">
-              <Bilingual pick={(c) => c.contact.detailsBody} />
-            </p>
-          </div>
+            <ul className="flex flex-col gap-2">
+              {HILLS_DUBAI.phones.map((phone) => (
+                <li key={phone.key}>
+                  <a
+                    href={telHref(phone.tel)}
+                    className="flex min-h-11 items-center justify-between gap-3 rounded-[var(--radius-md)] border border-border px-4 py-2 text-foreground transition-colors duration-[var(--dur-fast)] hover:bg-secondary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus-ring)]"
+                  >
+                    <span className="flex items-center gap-2 text-sm font-semibold">
+                      <Icon name="phone" className="size-4" aria-hidden="true" />
+                      <Bilingual pick={(c) => c.contact.location.call} />
+                    </span>
+                    <span dir="ltr" className="font-mono text-sm tabular-nums">
+                      {phone.display}
+                    </span>
+                  </a>
+                </li>
+              ))}
+            </ul>
+            <Link href="#location" className="inline-flex min-h-11 items-center gap-2 self-start text-[length:var(--text-small)] font-semibold underline decoration-[var(--hc-accent)] underline-offset-4 hover:decoration-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus-ring)]">
+              <Icon name="map-pin" className="size-4" aria-hidden="true" />
+              <Bilingual pick={(c) => c.contact.location.seeLocation} />
+            </Link>
+          </aside>
         </div>
       </section>
     </article>

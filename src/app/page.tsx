@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
+import { Suspense } from "react";
 
 import { Bilingual } from "@/components/locale/bilingual";
+import { MarketplaceLockedTeaser, RecentlyListed } from "@/components/marketplace/home-marketplace";
 import { CoffeeMarquee } from "@/components/public/coffee-marquee";
 import { CoffeeShowcase } from "@/components/public/coffee-showcase";
 import { FinalCta } from "@/components/public/final-cta";
@@ -114,7 +116,71 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {/* 3 — Credibility, as the timed lifecycle story. */}
+      {/*
+        3 — The member marketplace (final non-payment closure run). The static half states the product
+        distinction plainly — the public CATALOGUE is information about coffees; the MARKETPLACE is real
+        seller listings for approved members — and is identical for every visitor. "Recently listed" is
+        streamed behind Suspense from `components/marketplace/home-marketplace.tsx`, which resolves the
+        request identity itself (this page stays identity-free, T032) and loads listings ONLY for an
+        authorized member; everyone else gets the locked preview or their next step, never listing data.
+      */}
+      <section id="marketplace" className="scroll-mt-[calc(var(--header-h)+1rem)] bg-secondary py-[clamp(4.5rem,8vw,8rem)] text-foreground" aria-labelledby="home-marketplace-heading" data-home-marketplace>
+        <div className="hc-public-container flex flex-col gap-12">
+          <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:items-end lg:gap-16">
+            <div className="flex flex-col items-start gap-4">
+              <span className="hc-eyebrow text-[var(--hc-accent-hover)] dark:text-[var(--gold-on-dark)]">
+                <Bilingual pick={(c) => c.home.marketplace.eyebrow} />
+              </span>
+              <h2 id="home-marketplace-heading" className="font-heading text-[clamp(2.1rem,1.6rem+2.6vw,4rem)] font-semibold leading-[1.05] tracking-[-0.025em] text-balance rtl:leading-[1.2] rtl:tracking-normal">
+                <Bilingual pick={(c) => c.home.marketplace.title} />
+              </h2>
+              <p className="max-w-[52ch] text-[clamp(1rem,0.95rem+0.25vw,1.15rem)] leading-[1.7] text-foreground/80 text-pretty">
+                <Bilingual pick={(c) => c.home.marketplace.lead} />
+              </p>
+            </div>
+            <dl className="grid gap-3 sm:grid-cols-2" data-catalogue-vs-marketplace>
+              <div className="flex flex-col gap-2 rounded-[var(--radius-xl)] border border-border bg-card p-5">
+                <dt className="flex items-center gap-2 font-heading text-[length:var(--text-h4,1.35rem)] font-semibold">
+                  <Icon name="file-text" className="size-5 text-muted-foreground" aria-hidden="true" />
+                  <Bilingual pick={(c) => c.home.marketplace.catalogueTitle} />
+                </dt>
+                <dd className="flex flex-1 flex-col gap-3 text-[length:var(--text-small)] leading-[1.65] text-muted-foreground">
+                  <Bilingual pick={(c) => c.home.marketplace.catalogueBody} />
+                  <Link href={PUBLIC_ROUTES.coffee} className="mt-auto inline-flex min-h-11 items-center gap-2 font-semibold text-foreground underline decoration-[var(--hc-accent)] underline-offset-4 hover:decoration-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus-ring)]">
+                    <Bilingual pick={(c) => c.home.marketplace.catalogueAction} />
+                    <Icon name="arrow-right" data-directional-icon="true" className="size-4" />
+                  </Link>
+                </dd>
+              </div>
+              <div className="flex flex-col gap-2 rounded-[var(--radius-xl)] border border-[var(--hc-forest)] bg-[var(--hc-forest)] p-5 text-[#f2f5eb] dark:border-[rgba(214,178,94,0.4)] dark:bg-[var(--hc-moss)]">
+                <dt className="flex items-center gap-2 font-heading text-[length:var(--text-h4,1.35rem)] font-semibold">
+                  <Icon name="store" className="size-5 text-[var(--gold-on-dark)]" aria-hidden="true" />
+                  <Bilingual pick={(c) => c.home.marketplace.marketplaceTitle} />
+                </dt>
+                <dd className="text-[length:var(--text-small)] leading-[1.65] text-[rgba(242,245,235,0.85)]">
+                  <Bilingual pick={(c) => c.home.marketplace.marketplaceBody} />
+                </dd>
+              </div>
+            </dl>
+          </div>
+
+          <div className="flex flex-col gap-5">
+            <div className="flex flex-col gap-1">
+              <h3 className="font-heading text-[clamp(1.5rem,1.25rem+1vw,2.1rem)] font-semibold">
+                <Bilingual pick={(c) => c.home.marketplace.recentTitle} />
+              </h3>
+              <p className="text-[length:var(--text-small)] text-foreground/80">
+                <Bilingual pick={(c) => c.home.marketplace.recentLead} />
+              </p>
+            </div>
+            <Suspense fallback={<MarketplaceLockedTeaser loading />}>
+              <RecentlyListed />
+            </Suspense>
+          </div>
+        </div>
+      </section>
+
+      {/* 4 — Credibility, as the timed lifecycle story. */}
       <InteractiveStorySection />
 
       {/* 4 — Coffee discovery, static and editorial for now (see the component). */}

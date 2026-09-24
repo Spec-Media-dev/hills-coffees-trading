@@ -3,7 +3,7 @@
 **Input**: [spec.md](./spec.md), [plan.md](./plan.md), `docs/architecture/DATABASE-CAPABILITY-MAP.md`,
 `.specify/memory/constitution.md` (v2.0.0), SRS §8 (MKT-01..MKT-07), AC-01/AC-02.
 
-**Status**: **IMPLEMENTED / VERIFIED / CLOSED — 32/32 tasks complete (2026-09-21).** All tasks T001–T032
+**Status**: **IMPLEMENTED / VERIFIED / CLOSED — 32/32 tasks complete (2026-09-21).** Post-closure addition T033 (homepage authorized projection, 2026-09-23) checked. All tasks T001–T032
 are implemented, verified and closed. T012 is closed under explicit product owner decision: `SOLD_OUT` listings
 are excluded from buyer browse/list pages and return `notFound()`/404 on direct buyer URL with no purchase action,
 while seller/admin management views retain access for history/management. T015, T018, T023 and T024 are proven LIVE
@@ -653,6 +653,20 @@ See `IMPLEMENTATION-HANDOFF.md` for the full evidence trail.
     T024 deferred live fixture). **(2026-09-21 live-fixture closure run: now 31/32 — only T012 open; roadmap row updated.)**
 
 ---
+
+## Post-closure addition — homepage authorized projection (2026-09-23, final non-payment closure run)
+
+- [x] T033 [PS-new] "Recently listed" on the public homepage (`components/marketplace/home-marketplace.tsx`) — a
+  PROJECTION of the member marketplace, not a second marketplace. Only an authorized member (signed in, step-up done,
+  email verified, unambiguous acting organization, `isAuthorizedMember`) reaches `getBrowseListings({ page: 0,
+  pageSize: 5 })` (RLS `member_read_published_offers`, `created_at DESC, id DESC` — never `updated_at`) and
+  `getPrimaryOfferImages`, rendered with the same `ListingCard`, max 5 (page size + defensive slice), View all →
+  `/dashboard/coffee/`. Anonymous → a data-free locked teaser (Create account → `/sign-up/`, Sign in); pending / MFA /
+  operator → a state panel with the correct destination. In every non-member branch the listing and media queries are
+  NOT executed; the Suspense fallback is data-free. No service role, no shared cache.
+  - Verify: `tests/public/home-marketplace.test.tsx` (queries never called for anonymous/pending/MFA/operator; ≤5;
+    order preserved; no offer id / price / quantity / signed URL in non-member output; ordering pinned in
+    `lib/listings/browse.ts`). Browser: member homepage shows 5 real fixture listings (EN 1280, AR dark 1440, AR 375).
 
 ## Dependencies & parallelisation
 

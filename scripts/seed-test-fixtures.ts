@@ -3443,6 +3443,8 @@ async function resetRunECatalogueFixture(admin: SupabaseClient): Promise<void> {
  */
 const RUN_E_CREATED_ROWS = {
   coffeeSlug: "run-e-created-coffee-proof",
+  /** Created (and normally removed in its own `finally`) by `scripts/live-verify-catalogue-media-translations.ts`. */
+  liveMediaCoffeeSlug: "run-e-created-coffee-proof-live-media",
   originSlug: "run-e-origin-proof",
   regionSlug: "run-e-region-proof",
   tagSlug: "run-e-tag-proof",
@@ -3644,6 +3646,9 @@ async function cleanupRunECreatedRows(admin: SupabaseClient): Promise<void> {
     removed[label] = data?.length ?? 0;
   };
   await count("coffees", admin.from("coffees").delete().eq("slug", RUN_E_CREATED_ROWS.coffeeSlug).select("id"));
+  // The isolated coffee `scripts/live-verify-catalogue-media-translations.ts` creates. EXACT slug (never a
+  // pattern): an interrupted verification run left it behind, and it then blocked the script's next insert.
+  await count("coffees (live-media verification)", admin.from("coffees").delete().eq("slug", RUN_E_CREATED_ROWS.liveMediaCoffeeSlug).select("id"));
   const { data: warehouses } = await admin.from("warehouses").select("id").eq("code", RUN_E_CREATED_ROWS.warehouseCode);
   for (const warehouse of warehouses ?? []) await count("warehouse_locations", admin.from("warehouse_locations").delete().eq("warehouse_id", warehouse.id).select("id"));
   await count("warehouses", admin.from("warehouses").delete().eq("code", RUN_E_CREATED_ROWS.warehouseCode).select("id"));

@@ -13,7 +13,12 @@ export function FoundationOverview({ surface }: { surface: "member" | "admin" })
   const copy = surface === "member" ? "foundation" : "operations"
 
   return (
-    <section aria-label="Workspace orientation" className="grid gap-4 lg:grid-cols-2">
+    <section aria-labelledby={`foundation-overview-${surface}`} className="grid gap-4 lg:grid-cols-2">
+      {/* Accessible name in the active language: the inactive-language span is display:none, and
+          hidden descendants are skipped by accessible-name computation. */}
+      <span id={`foundation-overview-${surface}`} className="sr-only">
+        <AppBilingual pick={(c) => c.foundationOverview.regionLabel} />
+      </span>
       <Card className="min-w-0 border-border bg-[var(--surface-card)]">
         <CardHeader>
           <span aria-hidden="true" className="mb-2 inline-flex size-11 items-center justify-center rounded-[var(--radius-md)] bg-[var(--forest-100)] text-[var(--forest-700)] dark:bg-[var(--forest-800)] dark:text-[var(--forest-200)]">

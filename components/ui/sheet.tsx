@@ -6,6 +6,7 @@ import { cn } from "cn"
 
 import { IconButton } from "@/components/ui/icon-button"
 import { Icon } from "@/components/ui/icon"
+import { useOptionalLocale } from "@/components/locale/locale-provider"
 
 function Sheet({ ...props }: SheetPrimitive.Root.Props) {
   return <SheetPrimitive.Root data-slot="sheet" {...props} />
@@ -46,6 +47,8 @@ function SheetContent({
   side?: "top" | "bottom" | "inline-start" | "inline-end"
   showCloseButton?: boolean
 }) {
+  // Localized when rendered inside the LocaleProvider (every app surface); English otherwise.
+  const closeLabel = useOptionalLocale()?.t.controls.close ?? "Close"
   return (
     <SheetPortal>
       <SheetOverlay />
@@ -63,11 +66,11 @@ function SheetContent({
           <SheetPrimitive.Close
             data-slot="sheet-close"
             render={
-              <IconButton variant="text" aria-label="Close" className="absolute end-3 top-3" />
+              <IconButton variant="text" aria-label={closeLabel} className="absolute end-3 top-3" />
             }
           >
             <Icon name="x" />
-            <span className="sr-only">Close</span>
+            <span className="sr-only">{closeLabel}</span>
           </SheetPrimitive.Close>
         )}
       </SheetPrimitive.Popup>

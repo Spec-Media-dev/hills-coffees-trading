@@ -27,6 +27,7 @@ export const ar: DeepPartial<AppCopy> = {
     signedInAs: "مسجّل الدخول باسم {name}",
     modulesArriveLater: "الوحدات ستُضاف مع الميزات القادمة.",
     foundationOverview: {
+      regionLabel: "توجيه مساحة العمل",
       foundation: {
         title: "أساس مساحة العمل جاهز",
         description:

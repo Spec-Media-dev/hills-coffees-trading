@@ -540,6 +540,8 @@ export function resetRunECatalogueFixture(): void {
 /** Feature 010 RUN E (T021/T022) — the fixed slugs/codes the live suite creates through the console, and their removal. */
 export const RUN_E_CREATED_ROWS = {
   coffeeSlug: "run-e-created-coffee-proof",
+  /** Mirrors the seed script: the isolated coffee the live media/translation verification creates. */
+  liveMediaCoffeeSlug: "run-e-created-coffee-proof-live-media",
   originSlug: "run-e-origin-proof",
   regionSlug: "run-e-region-proof",
   tagSlug: "run-e-tag-proof",

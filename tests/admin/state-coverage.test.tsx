@@ -48,7 +48,14 @@ const PAGES = walk(ADMIN).filter((f) => f.endsWith("/page.tsx"));
 const isDetail = (f: string) => /\[[a-zA-Z]+\]\/page\.tsx$/.test(f) && !/\/new\/page\.tsx$/.test(f);
 const isCreate = (f: string) => /\/new\/page\.tsx$/.test(f);
 const DETAIL_PAGES = PAGES.filter(isDetail);
-const LIST_PAGES = PAGES.filter((f) => !isDetail(f) && !isCreate(f) && !/\/account\/|dashboard-admin\/page\.tsx$/.test(f) && !/\(finance\)/.test(f));
+/**
+ * SINGLETON SETTINGS pages edit one platform-wide record (no collection, so no "empty list" and no list
+ * read to fail). Classified separately — asserting list states on them would force fake empty/error UI
+ * into correct product behaviour. Their own contract is pinned in the dedicated describe below.
+ */
+const isSingletonSettings = (f: string) => /\(system\)\/branding\/page\.tsx$/.test(f);
+const SETTINGS_PAGES = PAGES.filter(isSingletonSettings);
+const LIST_PAGES = PAGES.filter((f) => !isDetail(f) && !isCreate(f) && !isSingletonSettings(f) && !/\/account\/|dashboard-admin\/page\.tsx$/.test(f) && !/\(finance\)/.test(f));
 
 const cookieState = vi.hoisted(() => ({ value: undefined as string | undefined }));
 vi.mock("next/headers", () => ({
@@ -327,4 +334,28 @@ describe("T036 — LIVE: not-found, empty and error states on the real surfaces 
       expect(() => render(element)).toThrow("NEXT_REDIRECT:/admin/sign-in/");
     });
   }, LIVE_TIMEOUT_MS);
+});
+
+describe("T036 — STATIC: singleton settings pages (branding) are not list pages", () => {
+  it("the branding page is the only singleton settings page and is excluded from the list-state contract", () => {
+    expect(SETTINGS_PAGES).toEqual(["src/app/dashboard-admin/(system)/branding/page.tsx"]);
+    expect(LIST_PAGES).not.toContain("src/app/dashboard-admin/(system)/branding/page.tsx");
+  });
+
+  it("branding re-verifies its own area, edits exactly one record, and never renders a list state", () => {
+    const page = source(SETTINGS_PAGES[0]!);
+    expect(page).toMatch(/checkAreaAccess\("branding"\)/);
+    expect(page).toMatch(/<AdminAccessDenied denial=\{access\.denial\}/);
+    expect(page).toContain('data-branding-section="logo"');
+    expect(page).toContain("<LogoUploadField logoPath={logoPath} />");
+    expect(page).not.toMatch(/emptyState=|kind="empty"|TableCardList/);
+  });
+
+  it("a failed logo read degrades to the honest default (null → built-in Hills logo), never a raw error", () => {
+    const reader = source("lib/admin/branding.ts");
+    const fn = reader.slice(reader.indexOf("export async function getPlatformLogoPath"));
+    expect(fn).toMatch(/if \(error \|\| !data\) return null;/);
+    expect(fn).toMatch(/catch \{\s*return null;/);
+    expect(source("components/public/site-header.tsx")).toMatch(/customLogoUrl \?\? "\/images\/hills-logo-light\.png"/);
+  });
 });

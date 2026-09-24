@@ -7,6 +7,7 @@ import { cn } from "cn"
 import { Button } from "@/components/ui/button"
 import { IconButton } from "@/components/ui/icon-button"
 import { Icon } from "@/components/ui/icon"
+import { useOptionalLocale } from "@/components/locale/locale-provider"
 
 function Dialog({ ...props }: DialogPrimitive.Root.Props) {
   return <DialogPrimitive.Root data-slot="dialog" {...props} />
@@ -48,6 +49,8 @@ function DialogContent({
 }: DialogPrimitive.Popup.Props & {
   showCloseButton?: boolean
 }) {
+  // Localized when rendered inside the LocaleProvider (every app surface); English otherwise.
+  const closeLabel = useOptionalLocale()?.t.controls.close ?? "Close"
   return (
     <DialogPortal>
       <DialogOverlay />
@@ -64,11 +67,11 @@ function DialogContent({
           <DialogPrimitive.Close
             data-slot="dialog-close"
             render={
-              <IconButton variant="text" aria-label="Close" className="absolute end-2 top-2" />
+              <IconButton variant="text" aria-label={closeLabel} className="absolute end-2 top-2" />
             }
           >
             <Icon name="x" />
-            <span className="sr-only">Close</span>
+            <span className="sr-only">{closeLabel}</span>
           </DialogPrimitive.Close>
         )}
       </DialogPrimitive.Popup>

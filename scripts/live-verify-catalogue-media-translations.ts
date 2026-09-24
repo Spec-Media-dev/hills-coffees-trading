@@ -76,7 +76,7 @@ async function run() {
   const uploadedStoragePaths: string[] = [];
 
   let testCoffeeId = "";
-  const testCoffeeSlug = `${RUN_E_CREATED_ROWS.coffeeSlug}-live-media`;
+  const testCoffeeSlug = RUN_E_CREATED_ROWS.liveMediaCoffeeSlug;
 
   try {
     // 0. Clean previous stray test rows
