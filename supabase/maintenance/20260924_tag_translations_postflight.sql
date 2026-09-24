@@ -25,4 +25,24 @@ select 'writer still SECURITY DEFINER + pinned search_path',
 union all
 select 'writer still admin-gated', position('is_platform_admin()' in pg_get_functiondef('public.set_catalogue_translation(text,uuid,text,text,text)'::regprocedure)) > 0
 union all
-select 'anon cannot execute the writer', not has_function_privilege('anon', 'public.set_catalogue_translation(text,uuid,text,text,text)', 'execute');
+select 'anon cannot execute the writer', not has_function_privilege('anon', 'public.set_catalogue_translation(text,uuid,text,text,text)', 'execute')
+union all
+select 'PUBLIC cannot execute the writer', not has_function_privilege('public', 'public.set_catalogue_translation(text,uuid,text,text,text)', 'execute')
+union all
+select 'PUBLIC holds no write privilege on tag_translations',
+  not has_table_privilege('public', 'public.tag_translations', 'insert')
+  and not has_table_privilege('public', 'public.tag_translations', 'update')
+  and not has_table_privilege('public', 'public.tag_translations', 'delete')
+union all
+select 'tag translation integrity: foreign key valid and no invalid rows',
+  not exists (select 1 from public.tag_translations tt left join public.tags t on t.id = tt.tag_id where t.id is null)
+  and not exists (select 1 from public.tag_translations where locale not in ('en', 'ar') or char_length(btrim(name)) < 1 or char_length(btrim(name)) > 200)
+union all
+select 'existing translation branches remain valid',
+  position('p_kind = ''coffee''' in pg_get_functiondef('public.set_catalogue_translation(text,uuid,text,text,text)'::regprocedure)) > 0
+  and position('p_kind = ''origin''' in pg_get_functiondef('public.set_catalogue_translation(text,uuid,text,text,text)'::regprocedure)) > 0
+  and position('p_kind = ''region''' in pg_get_functiondef('public.set_catalogue_translation(text,uuid,text,text,text)'::regprocedure)) > 0
+  and position('p_kind = ''coffee_type''' in pg_get_functiondef('public.set_catalogue_translation(text,uuid,text,text,text)'::regprocedure)) > 0
+  and position('p_kind = ''variety''' in pg_get_functiondef('public.set_catalogue_translation(text,uuid,text,text,text)'::regprocedure)) > 0
+  and position('p_kind = ''processing''' in pg_get_functiondef('public.set_catalogue_translation(text,uuid,text,text,text)'::regprocedure)) > 0
+  and position('p_kind = ''packaging''' in pg_get_functiondef('public.set_catalogue_translation(text,uuid,text,text,text)'::regprocedure)) > 0;
