@@ -433,29 +433,225 @@ here is database/security work; UI that depends on it comes later.
       - state: 9 offers all coded, 2,004 orders all `LEGACY`, checkout disabled.
     - **Owner decision (a), 2026-09-25 — DEFERRED, NOT WAIVED**: the exact "seller linked to the buyer's order" destination-isolation assertion moves to **T056/M3** (whose dedicated two-seller fixture order exists by design). Here it was proven only with a seller-capable member of another organization: no existing order links a test buyer to a member seller with a test login, and creating one would need an order_items cleanup exception, which was deliberately NOT created. The fixture no-hard-delete guard is unchanged.
 ### M2b — proforma versioning and frozen economics (per-seller economic snapshots, bank instruction snapshots, shipping group snapshots, seller commission assignment snapshot)
-- [ ] T032 MP-1 Author M2b — `supabase/migrations/20260925106000_feature_013_proforma_versioning_snapshots.sql`, rollback, postflight
+- [X] T032 MP-1 Author M2b — `supabase/migrations/20260925106000_feature_013_proforma_versioning_snapshots.sql`, rollback, postflight
   - Depends: T031
   - Accept:
     - Implements data-model §3.1–§3.7, including the funding/cap columns and CHECK identities (FIN-006/007/011/012).
     - The per-seller commission "assignment" is the snapshot of `commission_policy_id`, `commission_tier_id`, `commission_rate_snapshot` and `seller_qualifying_quantity_kg` per line and per seller settlement (FIN-013). **No seller-specific commission override table** is introduced (not in the approved plan).
     - `protect_proforma_snapshot`, `prevent_snapshot_mutation`, deferred `check_seller_settlement_totals`, `freeze_order_financials`; redacted audit functions (no bank values).
     - The guard aborts if any order has > 1 proforma or a non-terminal `LEGACY` order holds an `ISSUED` proforma not listed as drained in T009.
-- [ ] T033 MP-2 Static tests — `tests/commerce/migrations/m2b-snapshots.test.ts`
+  - **Batch B (2026-09-25)**: AUTHORED, **NOT APPLIED**. Files:
+    - `supabase/migrations/20260925106000_feature_013_proforma_versioning_snapshots.sql`;
+    - `supabase/rollback/20260925106000_feature_013_proforma_versioning_snapshots.rollback.sql`;
+    - `supabase/maintenance/20260925_feature_013_proforma_versioning_snapshots_postflight.sql` (23 checks + `ALL CHECKS PASSED`).
+  - **Owner decisions (2026-09-25, before authoring)**:
+    - **D1 — checkout_order**: the live legacy `checkout_order` (T006 md5 `75e07c35…`) upserted with `on conflict (order_id)`, whose only arbiter was `proforma_invoices_order_id_key`. PGlite proves that dropping the key makes every legacy checkout fail. M2b therefore re-creates `checkout_order` with **one statement changed**: `UPDATE … WHERE order_id` then `INSERT` if not found, under the order `FOR UPDATE` lock it already takes. Every other byte equals T006 (new md5 `54810aad…`). The rollback restores the T006 body.
+    - **D2 — header totals**: `NOT NULL DEFAULT 0`, as a LEGACY compatibility placeholder only. A BANK_TRANSFER_V1 header is never valid merely because it is zero:
+      - an all-or-none snapshot marker (8 columns) plus a legacy-placeholder CHECK;
+      - flow ↔ marker agreement on INSERT;
+      - a deferred check that header totals = frozen lines + groups, and that the snapshot is complete.
+      - Legacy-facing views/UI must show legacy header totals as N/A.
+  - Guard:
+    - M1 v2 fingerprint `603d04c5…` and M2a objects present;
+    - `checkout_order` = T006 (with its flags/ACL) and `admin_review_payment` = T006;
+    - T006 §9 text of `proforma_invoices_order_id_key` / `proforma_invoices_status_check`;
+    - no order with > 1 proforma;
+    - no non-terminal LEGACY order holding an ISSUED proforma, except the T009 drain-list codes `ORD-20260924-0006142/6143`;
+    - no BANK_TRANSFER_V1 order outside DRAFT; kill switch off;
+    - trigger baseline: `proforma_invoices` = only `trg_proforma_invoices_updated_at`; no user trigger on items/order_financials (T029 R2);
+    - no M2b object present; `audit_logs` columns; RLS-bypassing role.
+  - Design decisions for the T035 reviewer: see the T035 review package.
+- [X] T033 MP-2 Static tests — `tests/commerce/migrations/m2b-snapshots.test.ts`
   - Depends: T032
   - Accept: every CHECK identity is present; snapshot tables have no UPDATE/DELETE path; `proforma_bank_instructions` has no generic `write_audit_log` trigger.
-- [ ] T034 MP-3 Dry-run M2b
+  - **Batch B (2026-09-25)**: **59/59 pass**; the T019 conventions test also covers M2b (18/18). Expected values are read from `data-model.md` §3.1–§3.7, the T006 CSVs (§5 fingerprints, §8 triggers, §9 constraints), the PREFLIGHT-REPORT T009 drain line, and the 007/M1 files.
+    - Covers:
+      - MP-2 rules;
+      - exact column sets per §3.1–§3.7 (+ `commission_policy_id` on settlements per T032) and money/quantity/rate types;
+      - the assignment snapshot per line and per settlement; no override/commission table;
+      - every FIN-006/007/011/012 identity, the composite FKs, and the legacy-placeholder/marker discipline;
+      - the deferred checks (and what they compare);
+      - `protect_proforma_snapshot` (lifecycle allow-list, exactly the §7.2 edges, workflow-only, never deleted, legacy passthrough);
+      - `prevent_snapshot_mutation` on 5 tables; `freeze_order_financials`; the pointer guard;
+      - AUD-006/R2: no generic audit trigger, allow-list audits, last-4 only;
+      - the guard inputs;
+      - `checkout_order` = the T006 body with exactly the one statement replaced (FOR UPDATE lock precedes it; rollback = T006 md5);
+      - the rollback drops exactly M2b and restores the T006 CHECK and `UNIQUE (order_id)`.
+    - 10 mutation cases prove the M2b-specific rules bite.
+- [X] T034 MP-3 Dry-run M2b
   - Depends: T033
-- [ ] T035 MP-4 **GATE** review M2b
+  - **Batch B (2026-09-25): COMPLETE.**
+    - `npx supabase db push --linked --dry-run` (linked ref `mxejnutukgxyccnohglo` verified) — **agent-run, read-only; the CLI account was accepted this time**:
+      ```
+      Initialising login role...
+      DRY RUN: migrations will *not* be pushed to the database.
+      Connecting to remote database...
+      Would push these migrations:
+       • 20260925106000_feature_013_proforma_versioning_snapshots.sql
+      {"upToDate":false,"dryRun":true,"migrations":["20260925106000_feature_013_proforma_versioning_snapshots.sql"],"seeds":[],"roles":[],"message":"Finished supabase db push."}
+      ```
+      Exactly one pending migration (remote head `20260925103000`).
+    - Local shadow apply (`supabase db reset`): **not available**; the Docker Desktop daemon is not running. Not attempted.
+    - Supplementary execution check (not a substitute; `migration-evidence/m2b-supplementary-pglite.log`): in-memory PGlite, the M1/M2a fixture plus the production columns the legacy checkout needs. **150/150 passed**:
+      - guard negatives:
+        - refuses: 2 proformas per order; a non-drained HOLD+ISSUED legacy order; `checkout_order` drift; kill switch on; V1 order outside DRAFT; an extra (audit) trigger on `proforma_invoices`; status-CHECK drift;
+        - maps: the T009-listed HOLD order and an EXPIRED+ISSUED legacy order;
+      - apply; re-apply refused; postflight `ALL CHECKS PASSED`; legacy proforma rows byte-identical;
+      - **LEGACY equivalence (the real legacy `checkout_order`, pre- vs post-M2b)**: first checkout, idempotent retry and re-checkout over an existing VOID proforma (the upsert's UPDATE path, same row reused) give identical results and identical proforma/items/financials/reservation/payment/offer/position rows. Also:
+        - legacy `status → PAID`, the fixture-cleanup deletes and order_financials rewrites still work;
+        - a legacy row cannot acquire Feature 013 values;
+      - snapshot integrity:
+        - a balanced 2-seller + Hills-line snapshot with a seller promotion and a capped Hills promotion commits;
+        - refused: zero-placeholder header; no-line header; a 1-cent-off total; FIN-007 settlement mismatch; negative seller_net/hills_share; over-cap Hills discount; seller funding on a Hills line; platform-scope/seller-funding; Hills discount booked as seller-funded; FIN-013 Q_s from the whole order; tier mismatch; commission rounding; missing settlement/economics/bank; wrong payment reference; masked-bank mismatch or a full number in it; VAT; gross; partial marker; validity; F013 proforma on a LEGACY order; marker-less V1 proforma; pointer rules; order_financials mismatch/missing/non-workflow;
+      - after a real commit:
+        - every UPDATE/DELETE on the 6 snapshot tables and the header money/snapshot columns is refused; the V1 order cannot be deleted;
+        - §7.2 edges only, workflow-only, stamps set once;
+        - `uq_open_proforma_per_order` holds even with triggers bypassed;
+        - replacement after expiry works; a replacement while v1 is ISSUED is refused;
+        - order_financials frozen after PROFORMA_ISSUED and never deleted;
+      - **AUD-006/R2**: the audit rows exist but contain no account number, IBAN, address, phone, buyer name/tax number or promotion code (last-4 only);
+      - RLS as the real roles: buyer/anon SELECT denied; service_role read-only; buyer API writes change 0 rows; the legacy buyer read still works;
+      - rollback refused while snapshots exist;
+      - fresh DB: apply → legacy scenario → rollback → the catalogue is **identical** to pre-M2b (columns of the 4 touched tables, every constraint, index, policy, trigger, function body/flags/ACL, relation RLS/ACL); `checkout_order` md5 back to `75e07c35…`; M1/M2a postflights as before M2b; re-apply refused while the scenario's legacy HOLD orders hold ISSUED proformas, then accepted once terminal; postflight passes.
+    - Regression (static only; live-capable files excluded per the fixture-session/`createClient(`/`*_LIVE` rule): every test file that reads the migration/rollback/maintenance SQL + `tests/commerce` + finance/orders validation → **32 files: 768 passed, 1 failed**.
+      - The failure is **pre-existing and not M2b**: `tests/admin/run-f-static.test.tsx` "shipping_rules has no consumer in any migration" matches the read-only `select delivery_method … from public.shipping_rules` in the **applied M2a guard** (`20260925103000`, commit 3dc8757). No M2b file reads `shipping_rules`. M2a was not changed; owner decision needed (see the T035 package).
+    - `npm run typecheck` clean; eslint clean on the new test; `git diff --check` clean. Only 4 new files; no tracked file under `supabase/` or `specs/008-*` changed. No live suite was run; production was not modified.
+- [X] T035 MP-4 **GATE** review M2b
   - Depends: T034
-- [ ] T036 MP-5 **OPERATOR** apply M2b + postflight
+  - **VERDICT: GO / PASS** — reviewer: owner, 2026-09-25.
+  - Owner decisions:
+    - (c) **APPROVED**: `order_financials.base_subtotal = merchandise_gross` (before discounts); M4b must follow it.
+    - **F1 → hard M3 condition**: before M4b, M3 (T057) must remove seller access to the proforma header and line data (`proforma_view`/`proforma_items_view`), including `buyer_snapshot`/`destination_snapshot`/`bank_account_masked`, and add the rls-storage §1 policies for the 4 new tables. T056/T062 must prove it.
+    - D1 **APPROVED**: keep the `checkout_order` compatibility patch.
+    - D2 **APPROVED**: keep the LEGACY-only `NOT NULL DEFAULT 0` placeholder behaviour.
+    - F9 **RESOLVED**: `tests/admin/run-f-static.test.tsx` now ignores only read-only `do $guard$` blocks. A guard that writes (DML/DDL/grant/revoke) or schedules (`cron.`) is still checked, and so is any consumer outside a guard (4 new assertions prove it). The M2a guard itself is unchanged.
+      - Rerun: `run-f-static` 16/16. The affected static regression (the same 32 files as T034) → **769 passed, 0 failed**; typecheck, eslint and `git diff --check` clean.
+  - Before T036:
+    - the F7 read-only pre-check must return 0 rows;
+    - T014 backup and quiet-window confirmation (R3);
+    - expected postflight: **24 rows** (checks 1–23 + `999 | ALL CHECKS PASSED`), every `ok = true`.
+  - **Review package (agent, 2026-09-25)** — verified:
+    - **T006 fidelity**:
+      - the guard carries the exact §5 fingerprints (`checkout_order`, `admin_review_payment`), the §9 texts of the two replaced constraints and the §8 trigger baseline (T033 reads them from the CSVs);
+      - `checkout_order` differs from T006 by exactly one statement (T033 textual proof), and the real legacy checkout behaves identically (PGlite A/B).
+    - **Rollback symmetry**: full-catalogue identical to pre-M2b after the rollback (PGlite C); `checkout_order` md5 = T006. The guard refuses once any snapshot row, Feature 013 proforma/line, new status, second version, order pointer or order_financials pointer exists, or M2c+ is applied. The M2a rollback already refuses while M2b exists.
+    - **History unchanged**: no tracked file under `supabase/` or `specs/008-*` differs from HEAD; 4 new, paired files only; `historical-008-unchanged` and `migration-layout` pass.
+    - **Design decisions (not dictated verbatim by the data-model)**:
+      - (a) **Stricter than §3 (derived from R-5/R-3/§3.6)**:
+        - `gross = round(qty × unit_price, 2)`; `unit_price = list_unit_price` unless a tier applies;
+        - `commission_on_gross` and `commission` rounding identities;
+        - `valid_until = issued_at + validity_hours_snapshot`;
+        - status/lifecycle-stamp consistency;
+        - masked bank = `****` + ≤ 4 chars, consistent with the instructions; `payment_reference` must quote the order and proforma codes;
+        - line VAT = `round(net × rate, 2)`; shipping VAT per the tax base;
+        - one line per offer per proforma.
+      - (b) **Deferred `check_proforma_snapshot_totals`** (added to meet D2): at commit a V1 proforma needs:
+        - ≥ 1 line, all Feature 013, each with economics;
+        - ≥ 1 group, each with lines and group merchandise = its lines;
+        - header = Σ lines/groups;
+        - a settlement per seller of the lines;
+        - bank instructions;
+        - the order's `destination_snapshot` equal when the order points to it;
+        - for the newest version, `order_financials` pointing to it with the mapping below.
+      - (c) **order_financials mapping** that M4b must follow:
+        - `base_subtotal = merchandise_gross`, `discount_amount = discount_total`;
+        - shipping/VAT/buyer total = header;
+        - commission/seller_net/hills_share/discount split = Σ settlements;
+        - `total_quantity_kg = Σ lines`; tax snapshot = header.
+        - Owner to confirm `base_subtotal` = gross (the alternative is net).
+      - (d) `protect_proforma_snapshot` also runs **BEFORE INSERT** (contract said UPDATE/DELETE): LEGACY order ⇔ no marker; V1 inserts start ISSUED while the order is DRAFT/PROFORMA_ISSUED; version n supersedes the closed n−1 of the same order. Status changes require `app.internal_transition` (M4c/M5b must set it). `file_asset_id` is frozen on Feature 013 rows (a PDF cannot be attached after issuance).
+      - (e) `freeze_order_financials` also covers **INSERT/DELETE** (a delete+insert would bypass an UPDATE-only freeze): V1 writes require the workflow, a proforma pointer and DRAFT/PROFORMA_ISSUED; V1 rows are never deleted; LEGACY rows unchanged, but can never point to a proforma.
+      - (f) Immutability binds **Feature 013 rows only** on the existing tables (`proforma_invoices`, `proforma_invoice_items`): the legacy writers and the fixture cleanup (`seed-test-fixtures.ts` deletes legacy items/orders) keep working. The 4 new tables are fully append-only.
+      - (g) **No foreign key into the Feature 010 configuration tables**: `tax_rule_id`, `commission_policy_id`/`commission_tier_id`, `shipping_rule_id` and `payment_account_id` are plain snapshot ids, so no RI trigger lands on those tables (Feature 010 invariant) and the RUN F fixture cleanup is not blocked. `price_tier_id`/`promotion_id` have no FK yet (their tables arrive in M2d; M2d may add them).
+      - (h) **Composite same-row FKs**:
+        - `orders(current_proforma_id, id)` and `order_financials(proforma_id, order_id)` → `proforma_invoices(id, order_id)`;
+        - items → their group (same proforma, seller, warehouse);
+        - economics → their line (same proforma, seller, type, gross, net).
+      - (i) Hills lines/settlements: `commission_on_gross = commission_basis = 0` and no tier fields.
+      - (j) Feature 013 lines and groups require `warehouse_id` (an offer without a warehouse cannot be issued).
+      - (k) `promotion_code_applied` is a boolean ("the buyer's explicit code is this line's promotion").
+      - (l) `buyer_snapshot` keys = `legal_name, display_name, tax_number, country_code`.
+      - (m) New tables: RLS forced, **no policy and no client grant until M3**; `service_role` SELECT only (rls-storage "revoke even service_role writes").
+      - (n) Redacted audits:
+        - `write_audit_log_proforma_invoices` covers V1 rows only (legacy unchanged). Its allow-list has no buyer/destination/bank snapshot and no promotion code (a boolean only).
+        - `write_audit_log_proforma_bank_instructions` records ids, currency and last-4 only.
+    - **Findings / conditions for the reviewer**:
+      - **F1 (M3 condition, C2)**: the existing `proforma_view`/`proforma_items_view` (`can_view_order`) still let a seller of the order read the header (now incl. `buyer_snapshot`/`destination_snapshot`/`bank_account_masked`) and every line's promotion fields. No V1 proforma can exist before M4b and M3 precedes M4b, so there is no exposure today. **M3 (T057) must replace those policies and add the rls-storage §1 policies for the 4 new tables before M4b.**
+      - **F2 (T029 R2 status)**: M2b adds no generic audit path, and its own audits are proven redacted. M2b adds `orders.current_proforma_id` (a uuid, harmless) to `trg_audit_orders` payloads. **R2 itself stays open for M4b**: `trg_audit_orders → write_audit_log` would copy `orders.destination_snapshot` once M4b writes it.
+      - **F3 (M4a follow-up)**: the M4a guard's "checkout_order fingerprint" must now pin the M2b body `54810aadbcb05915d49374d5ceae738e`, not T006.
+      - **F4 (T037 planning)**:
+        - The deferred completeness checks and the read-only `service_role` make PostgREST per-table fixture inserts impossible by design. T037 must build its snapshots in **one SQL transaction** (operator-run proof script, `SET CONSTRAINTS ALL IMMEDIATE`, ideally ending in ROLLBACK), or through the M4b RPC.
+        - The T037 Accept item "`hills_funded_discount > commission_on_gross` rejected" surfaces as the Hills-share ≥ 0 CHECK: the explicit clause is implied by the other identities. T033 pins the clause statically.
+      - **F5 (PostgREST)**: `orders.current_proforma_id` creates a second orders↔proforma_invoices relationship. Any future embed must name the FK (`proforma_invoices!proforma_invoices_order_id_fkey`). No current embed exists (grep).
+      - **F6 (operational, R3)**: ACCESS EXCLUSIVE locks on `proforma_invoices`, `proforma_invoice_items`, `order_financials` and `orders`, plus SHARE ROW EXCLUSIVE on the FK targets (`coffee_offers`, `warehouses`, `organizations`, `profiles`). The tables are small and ADD COLUMN defaults are fast, but a quiet write window is required.
+      - **F7 (apply-time guard)**: live suites create legacy HOLD orders with ISSUED proformas (e.g. `ORD-20260924-0006201` in Batch A). If any exist at T036, the guard refuses with nothing applied: drain them with `expire_order_hold` first. Read-only pre-check for the operator:
+        `select o.order_code, o.status from orders o join proforma_invoices pi on pi.order_id = o.id where o.commerce_flow = 'LEGACY' and pi.status = 'ISSUED' and o.status not in ('COMPLETED','EXPIRED','VOID','CANCELLED','PAYMENT_REJECTED');` plus `select order_id from proforma_invoices group by 1 having count(*) > 1;`
+      - **F8 (point-in-time postflights, R4)**: the M2a postflight row 16 reads false once M2b exists; the M2b postflight rows 5/11/18/19 read false once M4b writes V1 rows.
+      - **F9 (pre-existing, not M2b)**: `tests/admin/run-f-static.test.tsx` fails on the applied M2a guard's read-only `shipping_rules` probe. Options: (a) scope that audit to exclude read-only `do $guard$` blocks (test change), or (b) accept and record. M2a is not edited.
+      - **F10 (rollback data loss, by design)**: the rollback only runs while no Feature 013 row exists; it then drops only empty structures and placeholder columns. It needs `supabase migration repair --status reverted 20260925106000`.
+      - **F11 (vocabulary)**: app constants (`PROFORMA_STATUSES` = 3 values) stay valid because legacy rows cannot hold the new statuses (placeholder CHECK); T064 aligns the vocabulary.
+    - **Agent recommendation: GO**, conditional on:
+      - acceptance of D1/D2 as implemented and design decisions (a)–(n), especially (c) `base_subtotal = gross`;
+      - F1 recorded as a hard M3 condition;
+      - F7's pre-check being empty at apply time, plus the T014 backup and quiet-window confirmation.
+- [X] T036 MP-5 **OPERATOR** apply M2b + postflight
   - Depends: T035
-- [ ] T037 MP-6 Live proof — `tests/commerce/snapshot-immutability.live.test.ts`
+  - **Pre-apply drain (2026-09-25)**: the F7 pre-check found 4 non-terminal LEGACY HOLD orders holding ISSUED proformas (`ORD-20260925-0006424/6425/6427/6429`).
+    - Read-only inspection:
+      - all four belong to the Foundation Buyer-And-Seller fixture org and were created by the 12:30 UTC legacy regression run;
+      - each has one ACTIVE reservation past its expiry (together exactly the listing's and the position's 10 kg reserved);
+      - each has a PENDING payment with no proofs, and no payouts or tax invoices.
+    - The operator drained them with `public.expire_order_hold(uuid)` (no direct status update, no delete).
+    - The pre-check then returned 0 rows, and the >1-proforma check returned 0.
+  - **OPERATOR evidence (2026-09-25, authoritative)**: `npx supabase db push --linked` applied `20260925106000_feature_013_proforma_versioning_snapshots.sql`. The postflight (`npx supabase db query --linked -f supabase/maintenance/20260925_feature_013_proforma_versioning_snapshots_postflight.sql`) returned **24 rows**: checks 1–23 all `ok = true`, and the last row was `999 | ALL CHECKS PASSED | true`.
+  - Note: an earlier SQL-editor run reported `relation "a" does not exist`. The current file was re-run read-only by the agent against the linked project and passed 24/24; the error came from the text executed in the editor, not from the file or any M2b object.
+- [X] T037 MP-6 Live proof — `tests/commerce/snapshot-immutability.live.test.ts`
   - Depends: T036
   - Accept:
     - service-role fixture inserts of balanced snapshot rows succeed;
     - unbalanced rows (FIN-007 mismatch, negative `seller_net`/`hills_share`, `hills_funded_discount > commission_on_gross`, seller funding on a Hills line) are rejected;
     - UPDATE/DELETE on snapshots is rejected;
     - legacy proforma reads still work.
+  - **Batch B (2026-09-25): COMPLETE.** Owner-authorized; linked ref `mxejnutukgxyccnohglo` verified; only `F013_LIVE=1` set; no other live suite was run.
+    - `F013_LIVE=1 npx vitest run tests/commerce/snapshot-immutability.live.test.ts` → **3/3 passed**. The proof block reported **59/59 cases ok**.
+    - **Method (T035 F4, the approved one-transaction setup)**:
+      - `tests/commerce/t037-snapshot-proof.ts` builds ONE `DO` block, executed by `supabase db query --linked` (role `postgres`).
+      - Fixtures, every probe (each in its own savepoint), and the deferred checks forced with `SET CONSTRAINTS ALL IMMEDIATE` (the triggers COMMIT would run) all happen inside that block.
+      - The block always ends in `raise exception 'T037_RESULT:<base64 json>'`, so everything it wrote rolls back atomically.
+      - Deviation from the Accept wording: the inserts run as the table owner in one SQL transaction, not as `service_role`. By design `service_role` is read-only on the snapshot tables (proved below), and PostgREST per-table inserts cannot satisfy the deferred completeness checks.
+      - A true COMMIT of a Feature 013 snapshot was not performed in production (it would leave undeletable rows); it was proved in PGlite (T034).
+    - Fixtures:
+      - reserved ids `13000000-0000-4000-8000-0000000003xx`: 1 BANK_TRANSFER_V1 DRAFT order and 2 LEGACY orders owned by the Foundation buyer-only org and user;
+      - order items on published Feature 005 Hills listings LST-0000002/3/5; READY Courier shipment plans;
+      - one pre-existing VOID legacy proforma (re-checkout path);
+      - member-seller economics attributed in the snapshot to the Foundation buyer-and-seller org (no member-seller listing exists in production);
+      - the real active AE VAT rule (`order_financials.tax_rule_id` keeps its pre-existing FK).
+    - Proved live:
+      - **LEGACY checkout unchanged** (the real `checkout_order`, as the buyer member):
+        - order → HOLD with a 20-minute hold;
+        - one ISSUED placeholder proforma whose `valid_until` = hold expiry, and one legacy line 2 kg × 5.00;
+        - order_financials 10.00 + 12.50 + 0.50 = 23.00, no pointer;
+        - ACTIVE 2 kg reservation, PENDING 23.00 payment, listing and position +2 kg;
+        - idempotent retry returns the same proforma;
+        - re-checkout over a VOID proforma reuses the same row (VOID → ISSUED);
+        - legacy `status → PAID` still accepted; legacy rows cannot acquire Feature 013 values.
+      - **Deferred totals**:
+        - a zero-placeholder V1 header is accepted at INSERT and refused when the deferred checks run (`no lines`);
+        - refused: zero header over real lines; 1-cent header; FIN-007 settlement mismatch; negative seller_net; negative hills_share; Hills discount above commission_on_gross; seller funding on a Hills line; Hills discount booked as seller-funded; FIN-013 Q_s from the whole order; missing bank instructions; a full account number in the masked copy; mismatched and missing order_financials; a V1 proforma on a LEGACY order; V1 order_financials outside the workflow.
+      - **Frozen snapshot**:
+        - header 900.00/56.00/844.00/25.00/42.20/911.20, validity 24 h;
+        - 3 lines, 3 economics rows, 2 groups, 2 settlements (member: policy/tier 3 %/Q_s 120, seller net 630.50), 1 bank instruction;
+        - order_financials pointing to the proforma (base 900.00 = gross, Hills share 213.50).
+      - **Immutability**:
+        - refused: UPDATE of header money/destination; UPDATE and DELETE on all 5 snapshot tables; DELETE of the proforma and of the V1 order; a later extra group;
+        - status change outside the workflow refused; workflow ISSUED → CONFIRMED → PAID accepted; ISSUED → PAID refused;
+        - replacement while v1 is ISSUED refused;
+        - order_financials frozen after PROFORMA_ISSUED and never deleted; pointer outside the workflow refused;
+        - `service_role` INSERT denied; `authenticated`/`anon` SELECT denied.
+      - **AUD-006 / R2**: the redacted header and bank-instruction audit rows exist (last-4 only). No audit row written in the proof contains the raw account number, IBAN, address, phone, buyer tax number/legal name or promotion code. No generic `write_audit_log` trigger exists on any proforma table or order_financials. (R2 for `orders.destination_snapshot` remains an M4b condition; the proof order carried no destination.)
+    - **Cleanup (independent read-only verification after the run)**: 0 T037 orders/proformas/lines/shipments; 0 snapshot rows; 0 Feature 013 proformas, lines, order_financials pointers or order pointers; 0 M2b/T037 audit rows; 0 non-terminal LEGACY HOLD+ISSUED orders; 0 ACTIVE reservations; LST-0000002 and its position reserved 0.000.
+    - **Production state**: 2,004 orders (0 BANK_TRANSFER_V1), 10 proformas, checkout disabled — identical to before the proof. Only sequence values (order/proforma codes, audit identity) were consumed by the rolled-back transactions (3 proof executions during authoring and 1 suite run).
+    - Static: typecheck and eslint clean; `tests/commerce` without the flag → 177 passed, 30 skipped (the 3 gated live suites).
 
 ### M2c — reconciliation, manual adjustments, final-invoice record, fulfillment columns
 - [ ] T038 MP-1 Author M2c — `supabase/migrations/20260925109000_feature_013_finance_fulfillment_records.sql`, rollback, postflight

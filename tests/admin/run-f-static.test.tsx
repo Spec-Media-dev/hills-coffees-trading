@@ -171,6 +171,18 @@ describe("T027 — platform-admin role management (SUPER_ADMIN only; grant attri
   });
 });
 
+/** Matches SQL that does NOT read shipping_rules (negative lookahead over the whole text). */
+const SQL_NOT_CONSUMING_SHIPPING_RULES = /^(?![\s\S]*(from|join)\s+public\.shipping_rules)/i;
+/**
+ * Removes read-only migration preflight blocks (`do $guard$ … $guard$;`) — e.g. Feature 013 M2a's delivery-method safety
+ * query — so they are not mistaken for a shipping_rules consumer. A guard that writes (DML/DDL/grants) or schedules
+ * (`cron.`) is NOT removed and stays subject to the rule.
+ */
+function withoutReadOnlyGuards(sql: string): string {
+  return sql.replace(/do\s+\$guard\$[\s\S]*?\$guard\$\s*;/gi, (block) =>
+    /\b(insert\s+into|update\s+public\.|delete\s+from|truncate|alter\s+table|create\s+|drop\s+|grant\s+|revoke\s+)|\bcron\./i.test(block.replace(/--[^\n]*/g, "")) ? block : "");
+}
+
 describe("T028 — tax and shipping rules (future snapshots only; shipping honestly unconsumed)", () => {
   it("pricing-rules.ts never touches order_financials/orders; tax resolution mirrors checkout_order; shipping_rules has no consumer in any migration or lib path", () => {
     const src = stripComments(source("lib", "admin", "pricing-rules.ts"));
@@ -179,9 +191,15 @@ describe("T028 — tax and shipping rules (future snapshots only; shipping hones
     expect(SHIPPING_RULES_CONSUMED_BY_CHECKOUT).toBe(false);
     for (const dir of ["migrations", "rollback"]) {
       for (const file of readdirSync(path.join(root, "supabase", dir)).filter((f) => f.endsWith(".sql"))) {
-        expect(source("supabase", dir, file), `${dir}/${file}`).not.toMatch(/from\s+public\.shipping_rules|join\s+public\.shipping_rules/i);
+        expect(withoutReadOnlyGuards(source("supabase", dir, file)), `${dir}/${file}`).toMatch(SQL_NOT_CONSUMING_SHIPPING_RULES);
       }
     }
+    // The guard exemption is narrow: a consumer outside a guard, or a guard that writes/schedules, is still caught.
+    const probe = "do $guard$ begin perform 1 from public.shipping_rules; end $guard$;";
+    expect(withoutReadOnlyGuards(probe)).toMatch(SQL_NOT_CONSUMING_SHIPPING_RULES);
+    expect(withoutReadOnlyGuards(`${probe} select flat_fee from public.shipping_rules;`)).not.toMatch(SQL_NOT_CONSUMING_SHIPPING_RULES);
+    expect(withoutReadOnlyGuards("do $guard$ begin update public.orders set status = 'X' from public.shipping_rules; end $guard$;")).not.toMatch(SQL_NOT_CONSUMING_SHIPPING_RULES);
+    expect(withoutReadOnlyGuards("do $guard$ begin perform cron.schedule('j', '* * * * *', 'select 1 from public.shipping_rules'); end $guard$;")).not.toMatch(SQL_NOT_CONSUMING_SHIPPING_RULES);
     for (const file of [...walk("lib/orders"), ...walk("lib/delivery"), ...walk("lib/finance")]) expect(stripComments(source(file)), file).not.toMatch(/shipping_rules/);
     const rules = [
       { id: "old", countryCode: "AE", taxName: "VAT", ratePercentage: 5, taxableBase: "MERCHANDISE_ONLY" as const, isActive: true, effectiveFrom: "2020-01-01T00:00:00Z", effectiveUntil: null, createdBy: null },

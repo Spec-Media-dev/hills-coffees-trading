@@ -1,0 +1,169 @@
+# Feature 013 M2b — supplementary execution check (NOT the MP-3 local Supabase shadow apply)
+# Engine: in-memory PGlite 0.5.8 (PostgreSQL 18.3 compiled to WASM), 2026-09-25. No remote connection.
+# Fixture: as M1/M2a (supabase/trading_schema.sql + T006-fingerprinted checkout_order/expire_order_hold/admin_review_payment + production-shaped
+#          triggers/grants), plus the production columns the legacy checkout reads (docs/database/database-schema-report.json).
+# Databases: A = M1+M2a (pre-M2b baseline); B = M1+M2a then M2b (guard negatives, apply, postflight, LEGACY equivalence vs A, snapshot
+#            integrity, immutability/lifecycle, audit redaction, RLS as real roles, rollback refusal); C = fresh M1+M2a → M2b → rollback
+#            symmetry → re-apply. Snapshot probes run in a transaction that is rolled back after SET CONSTRAINTS ALL IMMEDIATE.
+
+## A — pre-M2b baseline (M1 + M2a, T006 checkout_order)
+PASS A: legacy checkout succeeds (order → HOLD) — {"order_id":"uuid","buyer_total":327.5,"proforma_id":"uuid","correlation_id":"uuid","reservation_id":"uuid","hold_expires_at":"timestamp","idempotent_retry":false}
+PASS A: second call is the idempotent retry
+PASS A: re-checkout over an existing (VOID) proforma succeeds — {"order_id":"uuid","buyer_total":91.25,"proforma_id":"uuid","correlation_id":"uuid","reservation_id":"uuid","hold_expires_at":"timestamp","idempotent_retry":false}
+## B — M2b applied
+PASS guard refuses when an order holds two proformas — feature_013_proforma_versioning_snapshots preflight failed — nothing applied: proforma_invoices_order_id_key differs from T006; 1 order(s) hold more than one proforma; 
+PASS guard refuses a non-terminal LEGACY HOLD order holding an ISSUED proforma (not in T009) — feature_013_proforma_versioning_snapshots preflight failed — nothing applied: non-terminal LEGACY order(s) hold an ISSUED proforma and are not in the T009 drain list (drain them first): ORD-TEST-HOLD; 
+PASS guard treats the T009-listed HOLD order (ORD-20260924-0006142) as drained
+PASS guard maps an ISSUED proforma on a terminal EXPIRED legacy order (PREFLIGHT §2)
+PASS guard refuses when checkout_order drifted from T006 — feature_013_proforma_versioning_snapshots preflight failed — nothing applied: checkout_order(uuid) differs from the T006 fingerprint; 
+PASS guard refuses when the checkout kill switch is on — feature_013_proforma_versioning_snapshots preflight failed — nothing applied: bank_transfer_checkout_enabled is true; 
+PASS guard refuses when a BANK_TRANSFER_V1 order has left DRAFT — feature_013_proforma_versioning_snapshots preflight failed — nothing applied: a BANK_TRANSFER_V1 order has left DRAFT; 
+PASS guard refuses an unexpected (e.g. generic audit) trigger on proforma_invoices (T029 R2) — feature_013_proforma_versioning_snapshots preflight failed — nothing applied: proforma_invoices triggers differ from T006 (trg_audit_proforma_x, trg_proforma_invoices_updated_at); 
+PASS guard refuses a drifted proforma status CHECK — feature_013_proforma_versioning_snapshots preflight failed — nothing applied: proforma_invoices_status_check differs from T006; 
+PASS APPLY M2b
+PASS re-applying M2b is refused by its guard — feature_013_proforma_versioning_snapshots preflight failed — nothing applied: checkout_order(uuid) differs from the T006 fingerprint; proforma_invoices_order_id_key differs from T006; proforma_invoices_status_check differs from T006; proforma_invoices triggers differ from T006 (trg_audit_proforma_invoices, trg_proforma_invoices_protect_snapshot, trg_proforma_invoices_snapshot_totals, trg_proforma_invoices_updated_at); proforma_invoice_items/order_financials unexpectedly carry a user trigger; an M2b object already exists; 
+PASS postflight #1 proforma versioning: proforma_invoices_order_id_key gone; UNIQUE (order_id, version); one open proforma per order
+PASS postflight #2 proforma status CHECK = {ISSUED, CONFIRMED, PAID, EXPIRED, SUPERSEDED, CANCELLED, VOID}
+PASS postflight #3 proforma_invoices: the 24 §3.1 columns; the six header totals numeric(14,2) NOT NULL DEFAULT 0
+PASS postflight #4 proforma header CHECK identities, snapshot marker, legacy placeholder, validity, masked-bank and lifecycle CHECKs present
+PASS postflight #5 every existing proforma is a LEGACY row with placeholder values (no Feature 013 proforma yet), ≤ 1 per order
+PASS postflight #6 proforma_invoice_items: the 24 §3.2 columns, the marker/identity/promotion/cap CHECKs and the same-group foreign key
+PASS postflight #7 the four snapshot tables exist with their data-model column counts (groups 10, economics 17, settlements 15, bank 9)
+PASS postflight #8 seller commission assignment snapshotted per line AND per settlement (policy, tier, rate, Q_s); no override table
+PASS postflight #9 FIN-006/007/011/012 line-economics CHECKs + the line foreign key (proforma, seller, type, gross, net) present
+PASS postflight #10 new tables: RLS enabled + forced, no policy; anon/authenticated/PUBLIC nothing; service_role SELECT only
+PASS postflight #11 the new snapshot tables are empty
+PASS postflight #12 immutability: protect_proforma_snapshot BEFORE INSERT/UPDATE/DELETE; prevent_snapshot_mutation BEFORE UPDATE/DELETE on 5 tables
+PASS postflight #13 deferred checks: check_seller_settlement_totals ×2 and check_proforma_snapshot_totals ×7, all DEFERRABLE INITIALLY DEFERRED
+PASS postflight #14 freeze_order_financials BEFORE INSERT/UPDATE/DELETE on order_financials; order pointer guard on orders
+PASS postflight #15 AUD-006 / T029 R2: no generic write_audit_log trigger on any proforma table or order_financials; only the two redacted ones
+PASS postflight #16 M2b functions: SECURITY DEFINER as designed, search_path pinned, no anon/PUBLIC EXECUTE
+PASS postflight #17 checkout_order(uuid) = the M2b body (one statement changed); SECURITY DEFINER; EXECUTE authenticated + service_role only
+PASS postflight #18 orders.current_proforma_id (same-order composite FK) exists; no order points to a proforma yet
+PASS postflight #19 order_financials: proforma pointer + discount/Hills-share columns; every row a LEGACY placeholder
+PASS postflight #20 no foreign key from a snapshot into a Feature 010 configuration table added by M2b
+PASS postflight #21 existing proforma/financial read policies unchanged (proforma_view, proforma_items_view, financials_view)
+PASS postflight #22 M1/M2a untouched: validate_order_transition v2 fingerprint; destination guard bound; checkout still disabled
+PASS postflight #23 no Feature 013 object beyond M2b exists yet (M2c+ not applied)
+PASS postflight #999 ALL CHECKS PASSED
+PASS existing legacy proforma rows are byte-identical in their pre-M2b columns (no row rewritten)
+PASS every existing proforma reads as a LEGACY placeholder row
+## B — LEGACY checkout behaves exactly as before (compared with A)
+PASS legacy first: result and every resulting row equal the pre-M2b run
+PASS legacy retry: result and every resulting row equal the pre-M2b run
+PASS legacy recheck: result and every resulting row equal the pre-M2b run
+PASS re-checkout reuses the same proforma row (VOID → ISSUED, valid_until = the new hold), no second row
+PASS LEGACY: the admin_review_payment write (status → PAID) is still accepted
+PASS LEGACY: a legacy proforma cannot acquire Feature 013 values (buyer_total) — proforma_snapshot_immutable | the Feature 013 columns of a LEGACY proforma are fixed placeholders
+PASS LEGACY: a legacy proforma cannot take a Feature 013 status — new row for relation "proforma_invoices" violates check constraint "proforma_invoices_legacy_placeholder_check" | Failing row contains (597aeacf-5617-4346-bccf-bc99ecda88be, 00000000-0000-4000-8000-00000000f001, PI-20260925-0000005, CONFIRMED, 2026-09-25 18:57:25.144+02, 2026-09-25 19:17:25.144+02, null, 2026-09-25 18:57:25.182+02, 1, null, null, USD, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, null, null, null, null, null, null, null, null, null, null, null, null, null).
+PASS LEGACY: a legacy line cannot acquire a Feature 013 marker — snapshot_immutable | proforma_invoice_items rows are append-only (UPDATE refused)
+PASS LEGACY: the fixture-cleanup deletes (items, then the order with its proforma/financials cascade) still work
+PASS LEGACY: order_financials rewrites are unaffected by the freeze
+PASS LEGACY: order_financials cannot point to a proforma — order_financials_frozen | a LEGACY order's financials cannot reference a Feature 013 proforma
+## B — Feature 013 snapshot integrity (probes roll back; deferred checks forced with SET CONSTRAINTS ALL IMMEDIATE)
+PASS a complete, balanced snapshot (2 sellers, Hills line, capped Hills promo, seller promo) commits
+PASS header left at the zero placeholders is refused (never valid merely because the defaults are 0) — proforma_snapshot_unbalanced | proforma 00000000-0000-4000-8000-00000000a001: header totals differ from the frozen lines and groups; order_financials differs from the frozen proforma; 
+PASS a Feature 013 header with no lines at all is refused — proforma_snapshot_unbalanced | proforma 00000000-0000-4000-8000-00000000a001: no lines; no fulfillment group; header totals differ from the frozen lines and groups; no bank instructions; order_financials does not summarize this proforma; 
+PASS a header total one cent off is refused — proforma_snapshot_unbalanced | proforma 00000000-0000-4000-8000-00000000a001: header totals differ from the frozen lines and groups; order_financials differs from the frozen proforma; 
+PASS FIN-007: a settlement that does not equal its lines is refused (row identities intact) — seller_settlement_unbalanced | proforma 00000000-0000-4000-8000-00000000a001, seller 00000000-0000-4000-8000-0000000000b3: settlement amounts differ from the sum of the line economics; 
+PASS FIN-012: negative seller_net is refused — new row for relation "proforma_line_economics" violates check constraint "proforma_line_economics_amounts_nonnegative_check" | Failing row contains (00000000-0000-4000-8000-00000000a202, 00000000-0000-4000-8000-00000000a001, 00000000-0000-4000-8000-0000000000b3, MEMBER_SELLER, 00000000-0000-4000-8000-00000000a402, 00000000-0000-4000-8000-00000000a403, 3.0000, 150.000, 200.00, 0.00, 6.00, 6.00, 200.00, 206.00, -6.00, 200.00, 194.00).
+PASS FIN-012: negative hills_share is refused — new row for relation "proforma_line_economics" violates check constraint "proforma_line_economics_amounts_nonnegative_check" | Failing row contains (00000000-0000-4000-8000-00000000a202, 00000000-0000-4000-8000-00000000a001, 00000000-0000-4000-8000-0000000000b3, MEMBER_SELLER, 00000000-0000-4000-8000-00000000a402, 00000000-0000-4000-8000-00000000a403, 3.0000, 150.000, 200.00, 0.00, 7.00, 6.00, 200.00, 6.00, 194.00, -1.00, 193.00).
+PASS FIN-012: a Hills-funded discount above commission_on_gross (7.00 > 6.00) is refused (Hills share would go negative) — new row for relation "proforma_line_economics" violates check constraint "proforma_line_economics_amounts_nonnegative_check" | Failing row contains (00000000-0000-4000-8000-00000000a202, 00000000-0000-4000-8000-00000000a001, 00000000-0000-4000-8000-0000000000b3, MEMBER_SELLER, 00000000-0000-4000-8000-00000000a402, 00000000-0000-4000-8000-00000000a403, 3.0000, 150.000, 200.00, 0.00, 7.00, 6.00, 200.00, 6.00, 193.00, -1.00, 193.00).
+PASS R-18/FIN-011: seller funding on a Hills line is refused — new row for relation "proforma_invoice_items" violates check constraint "proforma_invoice_items_hills_line_funding_check" | Failing row contains (00000000-0000-4000-8000-00000000a203, 00000000-0000-4000-8000-00000000a001, 00000000-0000-4000-8000-00000000a303, Yirgacheffe, 20.000, 10.0000, 200.00, 00000000-0000-4000-8000-0000000000e3, LST-3, 00000000-0000-4000-8000-0000000000b4, HILLS, 00000000-0000-4000-8000-0000000000c2, 00000000-0000-4000-8000-00000000a102, 10.0000, null, 200.00, 00000000-0000-4000-8000-00000000a406, SELLER, SELLER, f, {}, 10.00, 10.00, f, null, 190.00, 9.50, 199.50, Yirgacheffe, null, LOT-H).
+PASS FIN-011: a PLATFORM-scoped promotion recorded as seller-funded is refused — new row for relation "proforma_invoice_items" violates check constraint "proforma_invoice_items_funding_scope_check" | Failing row contains (00000000-0000-4000-8000-00000000a201, 00000000-0000-4000-8000-00000000a001, 00000000-0000-4000-8000-00000000a301, Yirgacheffe, 100.000, 5.0000, 450.00, 00000000-0000-4000-8000-0000000000e1, LST-1, 00000000-0000-4000-8000-0000000000b3, MEMBER_SELLER, 00000000-0000-4000-8000-0000000000c1, 00000000-0000-4000-8000-00000000a101, 5.0000, null, 500.00, 00000000-0000-4000-8000-00000000a406, PLATFORM, SELLER, t, {"type": "PERCENT", "value": 10}, 50.00, 50.00, f, null, 450.00, 22.50, 472.50, Yirgacheffe, null, LOT-S1).
+PASS FIN-011: a Hills-funded discount booked as seller-funded in the economics is refused (deferred cross-check) — proforma_snapshot_unbalanced | proforma 00000000-0000-4000-8000-00000000a001: 1 line(s) split a discount against its funding source (FIN-011); 
+PASS FIN-013: Q_s taken from the whole order (170 kg) instead of the seller's own 150 kg is refused — seller_settlement_unbalanced | proforma 00000000-0000-4000-8000-00000000a001, seller 00000000-0000-4000-8000-0000000000b3: seller_qualifying_quantity_kg is not the seller's own member-line quantity (FIN-013); 
+PASS the commission assignment must be the same on every line of a seller — seller_settlement_unbalanced | proforma 00000000-0000-4000-8000-00000000a001, seller 00000000-0000-4000-8000-0000000000b3: 1 line(s) carry a different seller type or commission assignment than the settlement; 
+PASS commission = round(basis × rate, 2) is enforced per line — new row for relation "proforma_line_economics" violates check constraint "proforma_line_economics_member_check" | Failing row contains (00000000-0000-4000-8000-00000000a201, 00000000-0000-4000-8000-00000000a001, 00000000-0000-4000-8000-0000000000b3, MEMBER_SELLER, 00000000-0000-4000-8000-00000000a402, 00000000-0000-4000-8000-00000000a403, 3.0000, 150.000, 500.00, 50.00, 0.00, 15.00, 450.00, 13.51, 436.49, 13.51, 450.00).
+PASS a missing settlement row is refused — proforma_snapshot_unbalanced | proforma 00000000-0000-4000-8000-00000000a001: seller settlements do not match the sellers of the lines; order_financials differs from the frozen proforma; 
+PASS a line without economics is refused — proforma_snapshot_unbalanced | proforma 00000000-0000-4000-8000-00000000a001: 1 line(s) without line economics; seller settlements do not match the sellers of the lines; order_financials differs from the frozen proforma; 
+PASS missing bank instructions are refused — proforma_snapshot_unbalanced | proforma 00000000-0000-4000-8000-00000000a001: no bank instructions; 
+PASS a payment reference that does not quote the order and proforma codes is refused — proforma_snapshot_unbalanced | proforma 00000000-0000-4000-8000-00000000a001: payment_reference does not quote the order code and the proforma code; 
+PASS a masked bank copy that does not match the instructions is refused — proforma_snapshot_unbalanced | proforma 00000000-0000-4000-8000-00000000a001: bank_account_masked does not match the bank instructions; 
+PASS a full account number in bank_account_masked is refused (last-4 only) — new row for relation "proforma_invoices" violates check constraint "proforma_invoices_bank_account_masked_check" | Failing row contains (00000000-0000-4000-8000-00000000a001, 00000000-0000-4000-8000-00000000f003, PI-20260925-0000025, ISSUED, 2026-09-25 12:00:00+02, 2026-09-26 12:00:00+02, null, 2026-09-25 18:57:25.334+02, 1, null, 24, USD, 900.00, 56.00, 844.00, 25.00, 42.20, 911.20, 00000000-0000-4000-8000-00000000a401, 5.0000, MERCHANDISE_ONLY, SELLER10, {"legal_name": "Buyer LLC", "tax_number": "TRN-1", "country_code..., {"city": "Dubai", "label": "Main", "contact_name": "R", "country..., {"bank_name": "Bank", "iban_last4": "****3456", "swift_code": "A..., null, null, null, null, null, 00000000-0000-4000-8000-0000000000a3).
+PASS line VAT must be round(net × rate, 2) — proforma_snapshot_unbalanced | proforma 00000000-0000-4000-8000-00000000a001: 1 line VAT amount(s) differ from round(net × rate, 2); 
+PASS gross = round(qty × unit price, 2) is enforced — new row for relation "proforma_invoice_items" violates check constraint "proforma_invoice_items_gross_check" | Failing row contains (00000000-0000-4000-8000-00000000a201, 00000000-0000-4000-8000-00000000a001, 00000000-0000-4000-8000-00000000a301, Yirgacheffe, 100.000, 5.0000, 450.00, 00000000-0000-4000-8000-0000000000e1, LST-1, 00000000-0000-4000-8000-0000000000b3, MEMBER_SELLER, 00000000-0000-4000-8000-0000000000c1, 00000000-0000-4000-8000-00000000a101, 5.0000, null, 501.00, 00000000-0000-4000-8000-00000000a406, SELLER, SELLER, t, {"type": "PERCENT", "value": 10}, 50.00, 50.00, f, null, 450.00, 22.50, 472.50, Yirgacheffe, null, LOT-S1).
+PASS a line without the Feature 013 fields under a Feature 013 header is refused — new row for relation "proforma_invoice_items" violates check constraint "proforma_invoice_items_snapshot_marker_check" | Failing row contains (00000000-0000-4000-8000-00000000a201, 00000000-0000-4000-8000-00000000a001, 00000000-0000-4000-8000-00000000a301, Yirgacheffe, 100.000, 5.0000, 450.00, 00000000-0000-4000-8000-0000000000e1, LST-1, 00000000-0000-4000-8000-0000000000b3, null, 00000000-0000-4000-8000-0000000000c1, 00000000-0000-4000-8000-00000000a101, 5.0000, null, 500.00, 00000000-0000-4000-8000-00000000a406, SELLER, SELLER, t, {"type": "PERCENT", "value": 10}, 50.00, 50.00, f, null, 450.00, 22.50, 472.50, Yirgacheffe, null, LOT-S1).
+PASS a line assigned to another seller's fulfillment group is refused — insert or update on table "proforma_invoice_items" violates foreign key constraint "proforma_invoice_items_fulfillment_group_fkey" | Key (fulfillment_group_id, proforma_id, seller_organization_id, warehouse_id)=(00000000-0000-4000-8000-00000000a101, 00000000-0000-4000-8000-00000000a001, 00000000-0000-4000-8000-0000000000b4, 00000000-0000-4000-8000-0000000000c2) is not present in table "proforma_fulfillment_groups".
+PASS economics must match their line's gross/net (composite FK) — insert or update on table "proforma_line_economics" violates foreign key constraint "proforma_line_economics_item_fkey" | Key (proforma_item_id, proforma_id, seller_organization_id, seller_type_snapshot, gross_amount, buyer_net_amount)=(00000000-0000-4000-8000-00000000a203, 00000000-0000-4000-8000-00000000a001, 00000000-0000-4000-8000-0000000000b4, HILLS, 199.00, 199.00) is not present in table "proforma_invoice_items".
+PASS order_financials that differ from the frozen proforma are refused — proforma_snapshot_unbalanced | proforma 00000000-0000-4000-8000-00000000a001: order_financials differs from the frozen proforma; 
+PASS order_financials left pointing nowhere (zero defaults) are refused — proforma_snapshot_unbalanced | proforma 00000000-0000-4000-8000-00000000a001: order_financials does not summarize this proforma; 
+PASS a snapshot marker that is only partly present is refused — new row for relation "proforma_invoices" violates check constraint "proforma_invoices_snapshot_marker_check" | Failing row contains (00000000-0000-4000-8000-00000000a001, 00000000-0000-4000-8000-00000000f003, PI-20260925-0000033, ISSUED, 2026-09-25 12:00:00+02, 2026-09-26 12:00:00+02, null, 2026-09-25 18:57:25.363+02, 1, null, 24, USD, 900.00, 56.00, 844.00, 25.00, 42.20, 911.20, 00000000-0000-4000-8000-00000000a401, 5.0000, MERCHANDISE_ONLY, SELLER10, {"legal_name": "Buyer LLC", "tax_number": "TRN-1", "country_code..., {"city": "Dubai", "label": "Main", "contact_name": "R", "country..., {"bank_name": "Bank", "iban_last4": "****3456", "swift_code": "A..., null, null, null, null, null, null).
+PASS valid_until must be issued_at + validity_hours_snapshot — new row for relation "proforma_invoices" violates check constraint "proforma_invoices_validity_check" | Failing row contains (00000000-0000-4000-8000-00000000a001, 00000000-0000-4000-8000-00000000f003, PI-20260925-0000034, ISSUED, 2026-09-25 12:00:00+02, 2026-09-26 13:00:00+02, null, 2026-09-25 18:57:25.365+02, 1, null, 24, USD, 900.00, 56.00, 844.00, 25.00, 42.20, 911.20, 00000000-0000-4000-8000-00000000a401, 5.0000, MERCHANDISE_ONLY, SELLER10, {"legal_name": "Buyer LLC", "tax_number": "TRN-1", "country_code..., {"city": "Dubai", "label": "Main", "contact_name": "R", "country..., {"bank_name": "Bank", "iban_last4": "****3456", "swift_code": "A..., null, null, null, null, null, 00000000-0000-4000-8000-0000000000a3).
+PASS a Feature 013 proforma on a LEGACY order is refused — proforma_snapshot_invalid | a LEGACY order cannot hold a Feature 013 proforma
+PASS a proforma without the snapshot marker on a BANK_TRANSFER_V1 order is refused — proforma_snapshot_invalid | a BANK_TRANSFER_V1 proforma must carry the full snapshot marker
+PASS the order pointer cannot be set outside the workflow — order_field_not_client_writable
+PASS the order pointer cannot reference another order's proforma (same-order FK) — insert or update on table "orders" violates foreign key constraint "orders_current_proforma_fkey" | Key (current_proforma_id, id)=(00000000-0000-4000-8000-00000000a003, 00000000-0000-4000-8000-00000000f003) is not present in table "proforma_invoices".
+PASS BANK_TRANSFER_V1 order_financials are written only by the workflow — order_financials_frozen | BANK_TRANSFER_V1 financials are written only by issue_proforma
+## B — commit one real snapshot, then prove immutability and the §7.2 lifecycle
+PASS COMMIT a balanced Feature 013 snapshot (deferred checks at commit)
+PASS UPDATE proforma_invoices SET buyer_total = 1 refused (frozen) — proforma_snapshot_immutable | money, party and snapshot columns are frozen at issuance
+PASS UPDATE proforma_invoices SET destination_snapshot = '{}' refused (frozen) — proforma_snapshot_immutable | money, party and snapshot columns are frozen at issuance
+PASS UPDATE proforma_invoices SET valid_until = valid_until + interval '1 hour' refused (frozen) — proforma_snapshot_immutable | money, party and snapshot columns are frozen at issuance
+PASS UPDATE proforma_invoice_items refused (append-only) — snapshot_immutable | proforma_invoice_items rows are append-only (UPDATE refused)
+PASS DELETE proforma_invoice_items refused (append-only) — snapshot_immutable | proforma_invoice_items rows are append-only (DELETE refused)
+PASS UPDATE proforma_line_economics refused (append-only) — snapshot_immutable | proforma_line_economics rows are append-only (UPDATE refused)
+PASS DELETE proforma_line_economics refused (append-only) — snapshot_immutable | proforma_line_economics rows are append-only (DELETE refused)
+PASS UPDATE proforma_fulfillment_groups refused (append-only) — snapshot_immutable | proforma_fulfillment_groups rows are append-only (UPDATE refused)
+PASS DELETE proforma_fulfillment_groups refused (append-only) — snapshot_immutable | proforma_fulfillment_groups rows are append-only (DELETE refused)
+PASS UPDATE proforma_seller_settlements refused (append-only) — snapshot_immutable | proforma_seller_settlements rows are append-only (UPDATE refused)
+PASS DELETE proforma_seller_settlements refused (append-only) — snapshot_immutable | proforma_seller_settlements rows are append-only (DELETE refused)
+PASS UPDATE proforma_bank_instructions refused (append-only) — snapshot_immutable | proforma_bank_instructions rows are append-only (UPDATE refused)
+PASS DELETE proforma_bank_instructions refused (append-only) — snapshot_immutable | proforma_bank_instructions rows are append-only (DELETE refused)
+PASS DELETE of a Feature 013 proforma refused — proforma_snapshot_immutable | a Feature 013 proforma is never deleted
+PASS deleting the BANK_TRANSFER_V1 order (cascade) is refused — proforma_snapshot_immutable | a Feature 013 proforma is never deleted
+PASS adding a line to an issued proforma later is refused — proforma_snapshot_unbalanced | proforma 00000000-0000-4000-8000-00000000a001: 1 fulfillment group(s) without lines; 
+PASS ISSUED → CONFIRMED outside the workflow is refused — proforma_snapshot_immutable | proforma status changes only through the commerce workflow
+PASS ISSUED → CONFIRMED by the workflow (with confirmed_at/by) is accepted
+PASS ISSUED → PAID is not a §7.2 transition — proforma_transition_invalid | ISSUED -> PAID
+PASS CONFIRMED without confirmed_at is refused — new row for relation "proforma_invoices" violates check constraint "proforma_invoices_lifecycle_check" | Failing row contains (00000000-0000-4000-8000-00000000a001, 00000000-0000-4000-8000-00000000f003, PI-20260925-0000039, CONFIRMED, 2026-09-25 12:00:00+02, 2026-09-26 12:00:00+02, null, 2026-09-25 18:57:25.417+02, 1, null, 24, USD, 900.00, 56.00, 844.00, 25.00, 42.20, 911.20, 00000000-0000-4000-8000-00000000a401, 5.0000, MERCHANDISE_ONLY, SELLER10, {"legal_name": "Buyer LLC", "tax_number": "TRN-1", "country_code..., {"city": "Dubai", "label": "Main", "contact_name": "R", "country..., {"bank_name": "Bank", "iban_last4": "****3456", "swift_code": "A..., null, null, null, null, null, 00000000-0000-4000-8000-0000000000a3).
+PASS CONFIRMED → ISSUED is not a §7.2 transition — proforma_transition_invalid | CONFIRMED -> ISSUED
+PASS confirmed_at/confirmed_by cannot be rewritten after confirmation — proforma_snapshot_immutable | confirmed_at/confirmed_by are set once, on ISSUED -> CONFIRMED
+PASS CONFIRMED → PAID by the workflow is accepted
+PASS EXPIRED is terminal (EXPIRED → ISSUED refused) — proforma_transition_invalid | EXPIRED -> ISSUED
+PASS a second OPEN proforma for the order is refused by uq_open_proforma_per_order (even with triggers bypassed) — duplicate key value violates unique constraint "uq_open_proforma_per_order" | Key (order_id)=(00000000-0000-4000-8000-00000000f003) already exists.
+PASS replacement: v1 EXPIRED, then v2 (supersedes v1) with a complete snapshot and a rewritten order_financials is accepted
+PASS replacement while v1 is still ISSUED is refused — proforma_snapshot_invalid | a replacement supersedes the closed previous version of the same order
+PASS after a replacement, v1's order_financials pointer cannot be restored behind v2 — proforma_snapshot_unbalanced | proforma 00000000-0000-4000-8000-00000000a002: order_financials does not summarize this proforma; 
+PASS order_financials are frozen once the order leaves PROFORMA_ISSUED — order_financials_frozen | the order has left PROFORMA_ISSUED (HOLD)
+PASS BANK_TRANSFER_V1 order_financials are never deleted — order_financials_frozen | a BANK_TRANSFER_V1 financial summary is never deleted
+## B — AUD-006 / T029 R2: the audit trail carries no destination, party or full bank value
+PASS the redacted audit rows exist for the header and the bank instructions — 2 rows
+PASS no audit row contains the account number, IBAN, address, phone, buyer tax number/name or promotion code — []
+PASS bank-instruction audit keeps only the last four characters
+PASS no generic write_audit_log trigger on any proforma table or order_financials
+## B — RLS / grants on the new tables as the real roles
+PASS authenticated (buyer member) SELECT proforma_line_economics refused — permission denied for table proforma_line_economics
+PASS anon SELECT proforma_line_economics refused — permission denied for table proforma_line_economics
+PASS service_role INSERT into proforma_line_economics refused (read-only) — permission denied for table proforma_line_economics
+PASS service_role may read proforma_line_economics
+PASS authenticated (buyer member) SELECT proforma_seller_settlements refused — permission denied for table proforma_seller_settlements
+PASS anon SELECT proforma_seller_settlements refused — permission denied for table proforma_seller_settlements
+PASS service_role INSERT into proforma_seller_settlements refused (read-only) — permission denied for table proforma_seller_settlements
+PASS service_role may read proforma_seller_settlements
+PASS authenticated (buyer member) SELECT proforma_bank_instructions refused — permission denied for table proforma_bank_instructions
+PASS anon SELECT proforma_bank_instructions refused — permission denied for table proforma_bank_instructions
+PASS service_role INSERT into proforma_bank_instructions refused (read-only) — permission denied for table proforma_bank_instructions
+PASS service_role may read proforma_bank_instructions
+PASS authenticated (buyer member) SELECT proforma_fulfillment_groups refused — permission denied for table proforma_fulfillment_groups
+PASS anon SELECT proforma_fulfillment_groups refused — permission denied for table proforma_fulfillment_groups
+PASS service_role INSERT into proforma_fulfillment_groups refused (read-only) — permission denied for table proforma_fulfillment_groups
+PASS service_role may read proforma_fulfillment_groups
+PASS a buyer member changes 0 proforma/order_financials rows through the API role (no write policy) — 0
+PASS LEGACY read: the buyer member still reads its legacy proforma (proforma_view unchanged) — [{"id":"00000000-0000-4000-8000-00000000a003","status":"ISSUED"}]
+## B — rollback is refused while Feature 013 rows exist
+PASS rollback refuses (changing nothing) once a snapshot exists — feature_013_proforma_versioning_snapshots rollback refused — nothing changed: a proforma snapshot table has rows; a Feature 013 proforma, a second version or a new status value exists; a Feature 013 proforma line exists; an order or order_financials row points to a proforma; 
+## C — rollback symmetry (fresh database, M2b applied then rolled back)
+PASS C: APPLY M2b
+PASS C: legacy checkout/retry/re-checkout under M2b equal the pre-M2b run
+PASS C: ROLLBACK M2b (legacy rows only)
+PASS ROLLBACK SYMMETRY: columns of the 4 touched tables, every constraint, index, policy, trigger, public function (body md5, flags, ACL) and relation (RLS, ACL) identical to pre-M2b
+PASS C: checkout_order restored to the T006 body (md5 75e07c35…)
+PASS C: M1 postflight after the M2b rollback — only its point-in-time row 22 ('no M2a+', R4) reads false, as before M2b — 22,999
+PASS C: M2a postflight passes after the M2b rollback (incl. its point-in-time 'no M2b+' row)
+PASS C: re-apply is refused while the scenario's LEGACY HOLD orders still hold ISSUED proformas (guard 0.4) — feature_013_proforma_versioning_snapshots preflight failed — nothing applied: non-terminal LEGACY order(s) hold an ISSUED proforma and are not in the T009 drain list (drain them first): ORD-20260925-0000001, ORD-20260925-0000002; 
+PASS C: RE-APPLY M2b after rollback (once those orders are terminal)
+PASS C: M2b postflight after re-apply
+## D — M1/M2a point-in-time postflights after M2b (expected R4 behaviour)
+PASS M2a postflight: only its point-in-time row 16 ('no M2b+') reads false once M2b exists — 16 no Feature 013 object beyond M2a exists yet (M2b+ not applied) | 999 CHECKS FAILED: 1 of 16
+ALL SUPPLEMENTARY CHECKS PASSED
