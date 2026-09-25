@@ -654,20 +654,159 @@ here is database/security work; UI that depends on it comes later.
     - Static: typecheck and eslint clean; `tests/commerce` without the flag → 177 passed, 30 skipped (the 3 gated live suites).
 
 ### M2c — reconciliation, manual adjustments, final-invoice record, fulfillment columns
-- [ ] T038 MP-1 Author M2c — `supabase/migrations/20260925109000_feature_013_finance_fulfillment_records.sql`, rollback, postflight
+- [X] T038 MP-1 Author M2c — `supabase/migrations/20260925109000_feature_013_finance_fulfillment_records.sql`, rollback, postflight
   - Depends: T037
   - Accept: data-model §5.4, §5.5, §5.6, and the `order_shipments` fulfillment columns + unique group index (research R-13); append-only triggers; `tax_invoice_code_seq`.
-- [ ] T039 MP-2 Static tests — `tests/commerce/migrations/m2c-finance-records.test.ts`
+  - **Batch B (2026-09-25)**: AUTHORED, **NOT APPLIED**. Files:
+    - `supabase/migrations/20260925109000_feature_013_finance_fulfillment_records.sql`;
+    - `supabase/rollback/20260925109000_feature_013_finance_fulfillment_records.rollback.sql`;
+    - `supabase/maintenance/20260925_feature_013_finance_fulfillment_records_postflight.sql` (19 checks + `ALL CHECKS PASSED` → **20 rows**).
+  - Content:
+    - `reconciliation_cases` (18 §5.4 columns; `REC-YYYYMMDD-<7>` codes; queue index `(status, opened_at)`) and `reconciliation_case_events` (append-only; one event on open and per status change);
+    - `manual_financial_adjustments` (11 §5.5 columns; append-only);
+    - `tax_invoices` §5.6 (file/uploader nullable; status/proforma_id/issued_by/issued_at_ts/snapshot; `INV-YYYYMMDD-<7>` from `tax_invoice_code_seq`; UNIQUE(order_id) kept);
+    - `order_shipments` R-13 columns + `uq_order_shipment_fulfillment_group`.
+  - Guard:
+    - pins M1 (`603d04c5…`), M2b (`prevent_snapshot_mutation` `286e0209…`, `checkout_order` `54810aad…`) and Feature 009 (`validate_shipment_transition` `27148260…`, `sync_shipment_ready` `07166e5e…`);
+    - pins the 4-trigger `order_shipments` baseline and the pre-013 `tax_invoices` shape (7 columns, file/uploader NOT NULL, UNIQUE(order_id), the `tax_invoice_finance`/`tax_invoice_view` pair, no trigger);
+    - no M2c object present; kill switch off; RLS-bypassing role.
+    - The guard **passed read-only against production** on 2026-09-25 (READ ONLY transaction, rolled back).
+- [X] T039 MP-2 Static tests — `tests/commerce/migrations/m2c-finance-records.test.ts`
   - Depends: T038
-- [ ] T040 MP-3 Dry-run M2c
+  - **Batch B (2026-09-25)**: **40/40 pass**; the T019 conventions test also covers M2c (18/18). Expected values are read from data-model §5.4/§5.5/§5.6/§7.6, research R-13/R-23 and contracts/database-rpc.md.
+    - Covers:
+      - exact column and CHECK sets; the §7.6 lifecycle; workflow-only writes; frozen identity; payment/proof/payout-to-order binding;
+      - AC-009 (no inventory reference); append-only events and adjustments via the reused M2b `prevent_snapshot_mutation`;
+      - tax_invoices legacy/Feature 013 shapes, no-bank snapshot, ISSUED → VOID, one file attachment; the fulfillment guard and unique index;
+      - the guard pins; grants; rollback exactness and refusal.
+    - 10 mutation cases prove the M2c-specific rules bite.
+  - **Two existing static guards had to learn about M2c** (both strengthened or narrowly scoped, not weakened):
+    - `scripts/seed-test-fixtures.ts`: the T016 M1 proof-order delete exception now also requires 0 `reconciliation_cases` and 0 `manual_financial_adjustments` rows. Its pinned test (`tests/commerce/f013-fixtures.test.ts`) demands the dependent list equal every table referencing `orders(id)`. Before M2c is applied the extra check errors and nothing is deleted (fail closed).
+    - `tests/admin/warehouse-operations.test.ts` (Feature 009 T020 "no inventory reconciliation model"): the M2c file is excluded **by exact name**, like the approved Feature 005 variance migration. A compensating assertion pins that it adds exactly the three financial tables, none with an inventory/custody column, and no variance/quarantine/stock-count vocabulary.
+- [X] T040 MP-3 Dry-run M2c
   - Depends: T039
-- [ ] T041 MP-4 **GATE** review M2c
+  - **Batch B (2026-09-25): COMPLETE.**
+    - `npx supabase db push --linked --dry-run` (linked ref `mxejnutukgxyccnohglo` verified; agent-run, read-only):
+      ```
+      Initialising login role...
+      DRY RUN: migrations will *not* be pushed to the database.
+      Connecting to remote database...
+      Would push these migrations:
+       • 20260925109000_feature_013_finance_fulfillment_records.sql
+      {"upToDate":false,"dryRun":true,"migrations":["20260925109000_feature_013_finance_fulfillment_records.sql"],"seeds":[],"roles":[],"message":"Finished supabase db push."}
+      ```
+      Exactly one pending migration (remote head `20260925106000`).
+    - Local shadow apply (`supabase db reset`): **not available**; the Docker Desktop daemon is not running. Not attempted.
+    - Supplementary check (`migration-evidence/m2c-supplementary-pglite.log`): PGlite, the M2b fixture made production-shaped for shipments/invoices (Feature 009/005 bodies with matching fingerprints, live status CHECK and policies). **108/108 passed**:
+      - guard negatives (M2b drift, extra tax_invoices trigger, pre-relaxed tax_invoices, shipment trigger drift, kill switch, `checkout_order` drift); apply; re-apply refused; postflight all ok; M2b postflight: only its point-in-time row 23 false (R4); existing shipments byte-identical and `DELIVERY_REQUEST`;
+      - LEGACY checkout/retry/re-checkout identical to pre-M2c; buyer DRAFT shipment insert and DRAFT → REQUESTED unchanged;
+      - reconciliation:
+        - workflow-only open, REC- code and OPENED event;
+        - payment/proof bound to the order;
+        - §7.6: OPEN → IN_REVIEW → RESOLVED and OPEN → CLOSED_NO_ACTION accepted; OPEN → RESOLVED refused; RESOLVED needs a type; closed cases final; observed values frozen; never deleted; linked order only for APPLIED_TO_NEW_ORDER;
+        - events append-only, carrying the transition reason;
+      - adjustments: workflow-only; payment bound to the order; amount > 0; reason required; append-only;
+      - tax_invoices:
+        - LEGACY uploads unchanged (still deletable; cannot acquire Feature 013 values);
+        - a Feature 013 invoice only via the workflow, with an INV- number;
+        - refused: bank data in the snapshot (also nested); a wrong-order proforma; a second invoice per order;
+        - the file attaches once; ISSUED → VOID only; snapshot frozen; never deleted;
+      - shipments:
+        - FULFILLMENT only via the workflow (a buyer cannot, even through its insert policy);
+        - one per group (unique index); must match its frozen group of the same order; kind never changes; the fields CHECK bites with triggers bypassed;
+        - DRAFT → REQUESTED through the unchanged Feature 009 function;
+      - RLS as the real roles: SELECT denied to authenticated/anon; service_role read-only;
+      - rollback refused while a case exists; fresh DB: apply → rollback → catalogue **identical** (columns, constraints, indexes, policies, triggers, function bodies/flags/ACLs, relation RLS/ACLs); M2b postflight passes again; re-apply and postflight pass.
+    - Regression (static only; live-capable files excluded by the fixture-session/`createClient(`/`*_LIVE` rule): the 32-file T034 batch + the M2c test → **33 files: 809 passed, 0 failed**. `npm run typecheck`, eslint (new test, the 2 changed files) and `git diff --check` clean. No live suite was run; production was not modified.
+- [X] T041 MP-4 **GATE** review M2c
   - Depends: T040
-- [ ] T042 MP-5 **OPERATOR** apply M2c + postflight
+  - **VERDICT: GO / PASS** — reviewer: owner, 2026-09-25. Design decisions (a)–(i) accepted.
+  - Follow-up conditions (owner-recorded):
+    - **F1**: the direct LEGACY finance write paths (`tax_invoice_finance FOR ALL`, and the other finance `FOR ALL` policies) must be closed by the planned security/workflow work (M3/M5b) **before activation**.
+    - **F2**: deleting a FULFILLMENT shipment must be refused by the appropriate later migration/workflow (M3/M5c) **before activation**.
+    - **F5**: T042 applied in a quiet window with no legacy live suite running.
+    - **F3**: the M1 proof-order cleanup stays fail-closed until M2c is live.
+    - **F4 APPROVED**: the warehouse-test exemption, because the compensating assertion limits it to exactly the approved M2c financial tables and forbids inventory/custody columns.
+  - **Review package (agent, 2026-09-25)** — verified:
+    - **Fidelity**:
+      - column/CHECK sets are read from data-model §5.4/§5.5/§5.6 and research R-13/R-23 (T039);
+      - the guard pins M1/M2b/Feature 009 by fingerprint and passed read-only on production;
+      - M2b's `prevent_snapshot_mutation` is reused unchanged (not redefined), as contracts/database-rpc.md lists it for these two tables.
+    - **Rollback symmetry**: full-catalogue identical after the rollback (PGlite C). It restores `tax_invoices.file_asset_id/uploaded_by` NOT NULL and drops the `invoice_number` default. The guard refuses while any case/event/adjustment, any Feature 013/VOID/file-less invoice or any FULFILLMENT shipment exists, or M2d+ is applied. The M2b rollback already refuses while M2c exists.
+    - **History unchanged**: every applied migration and the Feature 008 files are untouched (`historical-008-unchanged`, `migration-layout` pass); 4 new files + 2 changed test/fixture files.
+    - **Design decisions (not dictated verbatim by the data-model)**:
+      - (a) **Lifecycle triggers** (§7 says "enforced in triggers/RPCs"):
+        - `guard_reconciliation_case` implements §7.6 exactly. The contract text "OPEN/IN_REVIEW → RESOLVED" must be realized by M5b as OPEN → IN_REVIEW → RESOLVED in one transaction.
+        - Cases, adjustments and Feature 013 invoices are written only under `app.internal_transition` (the M5b RPCs).
+      - (b) **Auto-history**: `record_reconciliation_case_event` writes the events (no RPC can skip them); the note comes from `app.transition_reason`.
+      - (c) **`reconciliation_case_events` columns** (§5.4 names the table, not its columns): `id, case_id, from_status, to_status, note, actor_user_id, created_at`.
+      - (d) **Adjustments**: `order_id` NOT NULL; `amount > 0` (the kind carries the direction); `currency = 'USD'` (all money is USD); payment/payout must belong to the order.
+      - (e) **`protect_tax_invoice`** (FIN-010 "final invoices remain non-destructive"; §5.6 names no trigger): Feature 013 invoices are frozen except ISSUED → VOID and a one-time file attachment, and are never deleted. LEGACY invoices keep full behaviour (0 exist in production).
+      - (f) **Bank-free snapshot CHECK** (R-23), enforced at any depth with `jsonb_path_exists`.
+      - (g) **Fulfillment guard**: FULFILLMENT values only under the internal flag, immutable afterwards, and matching a frozen `proforma_fulfillment_groups` row of a proforma of the same order. This closes the buyer insert-policy and warehouse `FOR ALL` paths for FULFILLMENT rows.
+      - (h) **RLS**: the new tables have no policy until M3 (consistent with M2b; M3 adds F ∨ PA, auditors on adjustments, `v_buyer_reconciliation` and the MFA gates); `service_role` SELECT only.
+      - (i) **Code generators** `next_tax_invoice_code`/`next_reconciliation_case_code` are non-definer and not client-executable. Legacy invoice inserts still supply their own number.
+    - **Findings / conditions for the reviewer**:
+      - **F1 (M3 condition)**: `tax_invoice_finance FOR ALL` (finance may still write LEGACY invoices directly) and `shipments_warehouse_manage FOR ALL` remain until M3 (plan: finance → SELECT). Feature 013 rows are already protected by the M2c triggers.
+      - **F2 (M5c follow-up)**: a FULFILLMENT shipment can still be DELETEd by a warehouse operator through `shipments_warehouse_manage` (Feature 009 behaviour; M2c does not change DELETE). M5c/M3 should refuse deleting FULFILLMENT shipments.
+      - **F3 (fixture cleanup)**: the M1 proof-order cleanup now checks the two M2c tables. Until T042 applies M2c in production it fails closed (errors, deletes nothing). Only the M1 live-proof tooling uses it.
+      - **F4 (test scope)**: the Feature 009 warehouse test now exempts the M2c file by exact name with a compensating assertion. Owner to confirm this reading of that test's intent (inventory, not financial, reconciliation).
+      - **F5 (operational, R3)**: `ALTER TABLE` takes ACCESS EXCLUSIVE locks on `order_shipments` (1,273 rows; constant-default ADD COLUMN, no rewrite; CHECK validation scan) and `tax_invoices` (0 rows), and SHARE ROW EXCLUSIVE on the new FK targets. A quiet write window is needed; no legacy live suite may run during the apply.
+      - **F6 (point-in-time postflights, R4)**: the M2b postflight row 23 reads false once M2c exists (verified in PGlite); the M2c postflight rows 8/11/14 read false once M5b/M5c write records.
+      - **F7 (no data loss)**: no backfill, no row rewritten; the rollback only runs while M2c holds no record.
+    - **Agent recommendation: GO**, conditional on acceptance of (a)–(i), F1/F2 recorded as M3/M5c conditions, the F4 test-scope reading, and the T014 backup + quiet window.
+    - T042 expected postflight: **20 rows** (checks 1–19 + `999 | ALL CHECKS PASSED`), every `ok = true`.
+- [X] T042 MP-5 **OPERATOR** apply M2c + postflight
   - Depends: T041
-- [ ] T043 MP-6 Live proof — `tests/commerce/finance-records.live.test.ts`
+  - **2026-09-25 — applied by the agent on the owner's explicit instruction** (owner: GO at T041; "Proceed with T042 ONLY"). Linked ref `mxejnutukgxyccnohglo` verified.
+    - **Backup (CUTOVER-CHECKLIST §A)**:
+      - PITR is disabled; the latest platform backup (daily physical, id `1776661458`, 2026-09-25 03:05:49 UTC) predates M2a/M2b, so a **fresh logical backup** was taken (owner option 1, Docker Desktop started by the owner).
+      - Command: `supabase db dump --linked` (schema), `--data-only` (data), `--role-only` (roles), 2026-09-25 **19:12:27–19:14:45 UTC**.
+      - Stored outside the repo in `C:\Users\Dell\hills-coffee-backups\2026-09-25-pre-m2c\`:
+        - `schema.sql` 472,281 B, sha256 `93e92946…9def`;
+        - `data.sql` 61,301,878 B, sha256 `85e9db69…77b4`;
+        - `roles.sql` 370 B, sha256 `168a95a9…2308`;
+        - `SHA256SUMS` alongside.
+      - Content check: orders 2,004, order_shipments 1,273, proforma_invoices 10, payments 10, coffee_offers 9, audit_logs 52,437 rows (matching the live counts).
+      - `pg_dump` hint (expected): a data-only restore needs `--disable-triggers` because of the M2b orders ↔ proforma_invoices FK cycle.
+    - **Quiet window**:
+      - confirmed by the owner (no live suite, agent or session writing);
+      - read-only indicators at 19:09 UTC: 0 other active/non-idle client sessions; last write 18:13:50 UTC (the T036 drain); 0 audit rows in the previous 30 minutes.
+    - **Dry-run (immediately before apply)**: `npx supabase db push --linked --dry-run` → exactly one pending migration, `20260925109000_feature_013_finance_fulfillment_records.sql`.
+    - **Apply**: `npx supabase db push --linked` at 19:15:37–19:15:47 UTC → `Applying migration 20260925109000_feature_013_finance_fulfillment_records.sql...` / `Finished supabase db push.`; no error or notice. `supabase migration list --linked`: local = remote through `20260925109000`.
+    - **Postflight** (`npx supabase db query --linked -f supabase/maintenance/20260925_feature_013_finance_fulfillment_records_postflight.sql`): **20 rows**, checks 1–19 all `ok = true`, and the last row was `999 | ALL CHECKS PASSED | true`.
+    - Expected point-in-time effect (R4): the M2b postflight row 23 ("no M2c+") now reads false.
+- [X] T043 MP-6 Live proof — `tests/commerce/finance-records.live.test.ts`
   - Depends: T042
   - Accept: adjustments and case events are append-only; the unique fulfillment-group index rejects a duplicate group; legacy `tax_invoices` rows are intact; `tests/delivery` green.
+  - **Batch B (2026-09-25): COMPLETE.** Owner-authorized; linked ref `mxejnutukgxyccnohglo` verified; only `F013_LIVE=1` set; no other live suite beyond the T043-required `tests/delivery`.
+    - `F013_LIVE=1 npx vitest run tests/commerce/finance-records.live.test.ts` → **2/2 passed**. The proof block reported **55/55 cases ok** (also 55/55 on one direct authoring run).
+    - **Method (the T037 one-transaction setup)**:
+      - `tests/commerce/t043-finance-records-proof.ts` builds ONE `DO` block (reusing the T037 balanced snapshot and savepoint helpers, now exported from `t037-snapshot-proof.ts` without change), executed by `supabase db query --linked`.
+      - It always ends in `raise exception 'T043_RESULT:<base64 json>'`, so every fixture, record and audit row rolls back.
+      - Fixtures: the T037 V1 proforma (ids `…03xx`) plus T043 ids `…04xx` (a V1 payment/proof/payout, a LEGACY "other" order + payment, file assets).
+    - Proved live:
+      - **Reconciliation**:
+        - workflow-only open; a payment of another order and a proof of another payment are refused;
+        - OPEN → RESOLVED directly refused; OPEN → IN_REVIEW → RESOLVED produces a `REC-` code and exactly 3 events (reason recorded);
+        - a resolved case is final; observed values frozen; a non-workflow status change refused; never deleted;
+        - **events: UPDATE and DELETE refused**.
+      - **Adjustments**: workflow-only; a payment and a payout of another order are refused (**same-order references**); zero amount and blank reason refused; **UPDATE and DELETE refused**.
+      - **Invoices**:
+        - LEGACY upload insert/edit/delete still works outside the workflow; a legacy invoice still needs file + uploader and cannot acquire Feature 013 values;
+        - Feature 013: workflow-only, `INV-` number, nested bank data refused, a wrong-order proforma refused, a second invoice per order refused, snapshot frozen, non-workflow change refused, never deleted;
+        - the file attaches once (replacement refused); ISSUED → VOID accepted; VOID → ISSUED refused.
+      - **Fulfillment**:
+        - refused outside the workflow and for a buyer member through its insert policy;
+        - one DRAFT shipment per frozen group; a **duplicate group rejected by `uq_order_shipment_fulfillment_group`**; a mismatched group and another order's group refused; kind/group immutable;
+        - DRAFT → REQUESTED through the unchanged Feature 009 function; a legacy DELIVERY_REQUEST insert unchanged.
+      - **Grants**: authenticated/anon SELECT denied on the 3 tables; service_role INSERT denied.
+      - **Legacy rows intact**: every pre-existing `tax_invoices` row (production: 0) and every pre-existing `order_shipments` row byte-identical. No generic audit row for the M2c tables.
+    - **Cleanup / state**: a read-only state query before and after the suite (orders, the 3 M2c tables, invoices + fingerprint, shipments + fingerprint, proof payments/payouts/proofs/files, Feature 013 proformas, snapshot rows, proof audit rows, payments, kill switch) is **identical**. The proof created 0 persistent rows; only sequence values were consumed.
+    - **Delivery regression** (`tests/delivery`, one file per run, default gating, `F013_LIVE=1`): **21 files: 210 passed, 6 skipped, 0 failed**. The skips are the suites' own opt-in gates (`T017_LIVE_PROOF`, `T024_LIVE_PROOF`).
+      - As at T025, these legacy suites retained their own disposable fixtures by their existing conventions: +33 LEGACY DRAFT orders (+33 items), +31 DELIVERY_REQUEST shipments (18 DRAFT, 8 REQUESTED, 2 READY, 2 CANCELLED, 1 FAILED) and +226 audit rows, all for the Foundation Buyer-And-Seller fixture org, 19:23:37–19:26:26 UTC.
+      - They created no payment, proforma, reservation, invoice, M2c record or FULFILLMENT shipment; there are 0 LEGACY HOLD+ISSUED orders and 0 ACTIVE reservations. They join the T147 drain backlog (DRAFTs with shipment plans → `admin_void_order`).
+    - Static: typecheck and eslint clean; `tests/commerce` without the flag → 217 passed, 32 skipped (the 4 gated live suites).
 
 ### M2d — pricing inputs (promotion data model, offer quantity price tiers)
 - [ ] T044 MP-1 Author M2d — `supabase/migrations/20260925112000_feature_013_pricing_inputs.sql`, rollback, postflight

@@ -316,13 +316,30 @@ describe("T019/T020 — no inventory mutation, no arithmetic on inventory truth,
     const migrationsDir = join(root, "supabase", "migrations");
     // Feature 005 T014's DB-OPEN-19 migration (2026-09-21) is the deliberate, approved addition of exactly this model — this
     // check pins that NOTHING ELSE smuggled the vocabulary in, so that one migration is the only file excluded.
-    const migrations = readdirSync(migrationsDir).filter((f) => f.endsWith(".sql") && !f.includes("rollback") && !f.includes("feature_005_db_open_19"));
+    // Feature 013 M2c (approved plan, data-model §5.4/§5.5) adds FINANCIAL reconciliation of bank transfers and manual
+    // financial adjustments — not an inventory model. It is excluded by exact name and pinned separately below.
+    const FEATURE_013_FINANCE_RECORDS = "20260925109000_feature_013_finance_fulfillment_records.sql";
+    const migrations = readdirSync(migrationsDir).filter((f) => f.endsWith(".sql") && !f.includes("rollback") && !f.includes("feature_005_db_open_19") && f !== FEATURE_013_FINANCE_RECORDS);
     expect(migrations.length).toBeGreaterThanOrEqual(7);
     for (const file of migrations) {
       const sql = read(`supabase/migrations/${file}`).replace(/--[^\n]*/g, "");
       expect(sql, file).not.toMatch(/create\s+table[^;]*\b(varian|reconcil|quarantin|discrepan|stock_count|adjustment)/i);
       expect(sql, file).not.toMatch(/add\s+column[^;]*\b(varian|reconcil|quarantin|discrepan|hold_status|quarantine)/i);
       expect(sql, file).not.toMatch(/'(QUARANTINE|QUARANTINED|VARIANCE|ON_HOLD)'/);
+    }
+    // …and that one file adds exactly the three financial tables, none carrying an inventory/custody column, and no other
+    // vocabulary (no variance/quarantine/stock-count table, column or status value).
+    if (readdirSync(migrationsDir).includes(FEATURE_013_FINANCE_RECORDS)) {
+      const sql = read(`supabase/migrations/${FEATURE_013_FINANCE_RECORDS}`).replace(/--[^\n]*/g, "");
+      const vocabularyTables = [...sql.matchAll(/create\s+table\s+public\.(\w+)/gi)].map((m) => m[1]!).filter((t) => /varian|reconcil|quarantin|discrepan|stock_count|adjustment/i.test(t)).sort();
+      expect(vocabularyTables).toEqual(["manual_financial_adjustments", "reconciliation_case_events", "reconciliation_cases"]);
+      for (const table of vocabularyTables) {
+        const body = new RegExp(`create\\s+table\\s+public\\.${table}\\s*\\(([\\s\\S]*?)\\n\\);`, "i").exec(sql)![1]!;
+        expect(body, table).not.toMatch(/quantity|inventory|position|lot_id|warehouse|custody|storage_allocation/i);
+      }
+      expect(sql).not.toMatch(/add\s+column[^;]*\b(varian|reconcil|quarantin|discrepan|hold_status|quarantine)/i);
+      expect(sql).not.toMatch(/'(QUARANTINE|QUARANTINED|VARIANCE|ON_HOLD)'/);
+      expect(sql).not.toMatch(/create\s+table[^;]*\b(varian|quarantin|discrepan|stock_count)/i);
     }
   });
 

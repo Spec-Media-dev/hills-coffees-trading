@@ -1,0 +1,128 @@
+# Feature 013 M2c — supplementary execution check (NOT the MP-3 local Supabase shadow apply)
+# Engine: in-memory PGlite 0.5.8 (PostgreSQL 18.3 compiled to WASM), 2026-09-25. No remote connection.
+# Fixture: the M2b harness fixture (supabase/trading_schema.sql + T006-fingerprinted functions + M1 + M2a + M2b) made production-shaped for
+#          shipments/invoices: Feature 009 validate_shipment_transition (md5 27148260…) and Feature 005 guard_shipment_inventory_hold (a6ade836…)
+#          from their applied migrations, sync_shipment_ready (07166e5e…) from docs/database/database-schema-report.json, production's
+#          order_shipments_status_allowed CHECK, the four live order_shipments policies and the live tax_invoice_finance/tax_invoice_view pair.
+# Databases: A = pre-M2c baseline; B = guard negatives, apply, postflight, LEGACY equivalence vs A, reconciliation/adjustment/invoice/
+#            fulfillment probes, RLS as real roles, rollback refusal; C = fresh apply → rollback symmetry → re-apply.
+
+## A — M1 + M2a + M2b (pre-M2c baseline)
+PASS A: legacy checkout / retry / re-checkout run
+## B — guard, apply, postflight
+PASS guard refuses a drifted prevent_snapshot_mutation (M2b) — feature_013_finance_fulfillment_records preflight failed — nothing applied: prevent_snapshot_mutation() differs from the M2b body; 
+PASS guard refuses an extra trigger on tax_invoices — feature_013_finance_fulfillment_records preflight failed — nothing applied: tax_invoices unexpectedly carries a user trigger; 
+PASS guard refuses an already-relaxed tax_invoices — feature_013_finance_fulfillment_records preflight failed — nothing applied: tax_invoices.file_asset_id/uploaded_by are already nullable; 
+PASS guard refuses a changed order_shipments trigger set — feature_013_finance_fulfillment_records preflight failed — nothing applied: order_shipments triggers differ from T006 (trg_order_shipments_inventory_hold_guard, trg_shipment_transition, trg_shipments_updated_at); 
+PASS guard refuses when the checkout kill switch is on — feature_013_finance_fulfillment_records preflight failed — nothing applied: bank_transfer_checkout_enabled is true; 
+PASS guard refuses a drifted checkout_order (M2b body pinned) — feature_013_finance_fulfillment_records preflight failed — nothing applied: checkout_order(uuid) differs from the M2b body; 
+PASS guard passes on the post-M2b fixture
+PASS APPLY M2c
+PASS re-applying M2c is refused by its guard — feature_013_finance_fulfillment_records preflight failed — nothing applied: order_shipments triggers differ from T006 (trg_order_shipments_fulfillment_guard, trg_order_shipments_inventory_hold_guard, trg_shipment_ready, trg_shipment_transition, trg_shipments_updated_at); tax_invoices has 12 columns (expected 7); tax_invoices.file_asset_id/uploaded_by are already nullable; tax_invoices unexpectedly carries a user trigger; an M2c object already exists; 
+PASS postflight #1 reconciliation_cases: the data-model §5.4 columns (18) with kind/status/resolution CHECK sets
+PASS postflight #2 reconciliation_cases: REC- case codes from their own sequence; queue index (status, opened_at)
+PASS postflight #3 no inventory column on the reconciliation tables (AC-009)
+PASS postflight #4 reconciliation_case_events and manual_financial_adjustments exist (7 and 11 columns)
+PASS postflight #5 append-only: prevent_snapshot_mutation BEFORE UPDATE OR DELETE on the events and the adjustments
+PASS postflight #6 reconciliation case guard (BEFORE INSERT/UPDATE/DELETE), history trigger (AFTER INSERT/UPDATE OF status), adjustment validator
+PASS postflight #7 new tables: RLS enabled + forced, no policy; anon/authenticated/PUBLIC nothing; service_role SELECT only
+PASS postflight #8 the new tables are empty
+PASS postflight #9 tax_invoices §5.6: file_asset_id/uploaded_by nullable; status/proforma_id/issued_by/issued_at_ts/snapshot added; UNIQUE(order_id) kept
+PASS postflight #10 tax_invoices: INV- numbers from tax_invoice_code_seq; status {ISSUED, VOID}; same-order proforma FK; legacy/F013 shape and no-bank CHECKs
+PASS postflight #11 tax_invoices: protect_tax_invoice BEFORE INSERT/UPDATE/DELETE; existing policies unchanged; every existing invoice LEGACY-shaped
+PASS postflight #12 order_shipments R-13: shipment_kind (DELIVERY_REQUEST default | FULFILLMENT) + group seller/warehouse/group columns + fields CHECK
+PASS postflight #13 one FULFILLMENT shipment per order × seller × warehouse (unique partial index, AC-012)
+PASS postflight #14 every existing shipment is a DELIVERY_REQUEST (no FULFILLMENT row yet); the Feature 009 triggers are unchanged + the fulfillment guard
+PASS postflight #15 existing order_shipments policies unchanged (buyer insert/draft update, view, warehouse manage)
+PASS postflight #16 M2c functions: SECURITY DEFINER as designed, search_path pinned, no anon/PUBLIC EXECUTE
+PASS postflight #17 no generic write_audit_log trigger on any M2c table (AUD-006)
+PASS postflight #18 M1/M2a/M2b untouched: validate_order_transition v2, checkout_order M2b body, M2b snapshot tables empty, checkout disabled
+PASS postflight #19 no Feature 013 object beyond M2c exists yet (M2d+ not applied)
+PASS postflight #999 ALL CHECKS PASSED
+PASS M2b postflight after M2c: only its point-in-time row 23 ('no M2c+', R4) reads false — 23,999
+PASS existing shipments unchanged and all read DELIVERY_REQUEST (column default, no row rewritten)
+## B — LEGACY behaviour unchanged
+PASS legacy first: identical to the pre-M2c run
+PASS legacy retry: identical to the pre-M2c run
+PASS legacy recheck: identical to the pre-M2c run
+PASS LEGACY: a buyer-style DELIVERY_REQUEST shipment insert (no internal flag) still works
+PASS LEGACY: DRAFT → REQUESTED by a client is unchanged
+## B — reconciliation cases (data-model §5.4, §7.6)
+PASS opening a case outside the workflow is refused — reconciliation_case_immutable | reconciliation cases change only through the finance workflow
+PASS the workflow opens a case (OPEN) with a REC- code and an OPENED history event
+PASS a case whose payment belongs to another order is refused — reconciliation_case_invalid | the payment does not belong to the order
+PASS a case cannot be opened in another status — reconciliation_case_invalid | a case is opened OPEN
+PASS an unknown kind is refused — new row for relation "reconciliation_cases" violates check constraint "reconciliation_cases_kind_check" | Failing row contains (00000000-0000-4000-8000-00000000c001, REC-20260925-0000005, MYSTERY, 00000000-0000-4000-8000-00000000f001, 49886a3d-84da-4e54-83d3-187a992b3fee, null, 100.00, USD, 2026-09-25, FT-REF-1, OPEN, null, null, null, 00000000-0000-4000-8000-0000000000a3, 2026-09-25 20:58:12.475+02, null, null).
+PASS OPEN → IN_REVIEW → RESOLVED (with resolution type, note, resolver) is accepted, with one event per change and the reason as note
+PASS OPEN → CLOSED_NO_ACTION is accepted
+PASS OPEN → RESOLVED directly is not a §7.6 transition — reconciliation_case_transition_invalid | OPEN -> RESOLVED
+PASS RESOLVED without a resolution type is refused — new row for relation "reconciliation_cases" violates check constraint "reconciliation_cases_resolution_check" | Failing row contains (00000000-0000-4000-8000-00000000c001, REC-20260925-0000009, LATE, 00000000-0000-4000-8000-00000000f001, 49886a3d-84da-4e54-83d3-187a992b3fee, null, 100.00, USD, 2026-09-25, FT-REF-1, RESOLVED, null, null, null, 00000000-0000-4000-8000-0000000000a3, 2026-09-25 20:58:12.485+02, 00000000-0000-4000-8000-0000000000a3, 2026-09-25 20:58:12.485+02).
+PASS closing without resolver/time is refused — new row for relation "reconciliation_cases" violates check constraint "reconciliation_cases_closed_check" | Failing row contains (00000000-0000-4000-8000-00000000c001, REC-20260925-0000010, LATE, 00000000-0000-4000-8000-00000000f001, 49886a3d-84da-4e54-83d3-187a992b3fee, null, 100.00, USD, 2026-09-25, FT-REF-1, CLOSED_NO_ACTION, null, null, null, 00000000-0000-4000-8000-0000000000a3, 2026-09-25 20:58:12.487+02, null, null).
+PASS a closed case is final — reconciliation_case_immutable | a closed case is final
+PASS observed values are frozen once opened — reconciliation_case_immutable | identity and observed values are frozen once a case is opened
+PASS a status change outside the workflow is refused — reconciliation_case_immutable | reconciliation cases change only through the finance workflow
+PASS a case is never deleted — reconciliation_case_immutable | a reconciliation case is never deleted
+PASS linked_order_id is only for APPLIED_TO_NEW_ORDER — new row for relation "reconciliation_cases" violates check constraint "reconciliation_cases_linked_order_check" | Failing row contains (00000000-0000-4000-8000-00000000c001, REC-20260925-0000015, LATE, 00000000-0000-4000-8000-00000000f001, 49886a3d-84da-4e54-83d3-187a992b3fee, null, 100.00, USD, 2026-09-25, FT-REF-1, RESOLVED, OTHER, null, 00000000-0000-4000-8000-00000000f002, 00000000-0000-4000-8000-0000000000a3, 2026-09-25 20:58:12.495+02, 00000000-0000-4000-8000-0000000000a3, 2026-09-25 20:58:12.495+02).
+PASS history events are append-only (UPDATE) — snapshot_immutable | reconciliation_case_events rows are append-only (UPDATE refused)
+PASS history events are append-only (DELETE) — snapshot_immutable | reconciliation_case_events rows are append-only (DELETE refused)
+## B — manual financial adjustments (append-only, FIN-010, FR-044)
+PASS recording an adjustment outside the workflow is refused — manual_adjustment_invalid | manual adjustments are recorded only through the finance workflow
+PASS the workflow records an adjustment
+PASS the payment must belong to the order — manual_adjustment_invalid | the payment does not belong to the order
+PASS amount must be positive — new row for relation "manual_financial_adjustments" violates check constraint "manual_financial_adjustments_amount_check" | Failing row contains (a28f7e7d-d56e-4c64-b062-47463d91409c, REFUND_EXTERNAL, 00000000-0000-4000-8000-00000000f001, 49886a3d-84da-4e54-83d3-187a992b3fee, null, 0.00, USD, BANK-REF-9, late transfer refunded, 00000000-0000-4000-8000-0000000000a3, 2026-09-25 20:58:12.508+02).
+PASS a reason is required (blank refused) — new row for relation "manual_financial_adjustments" violates check constraint "manual_financial_adjustments_reason_check" | Failing row contains (fc0c85f0-e429-4603-b098-1ba8341aaf9f, REFUND_EXTERNAL, 00000000-0000-4000-8000-00000000f001, 49886a3d-84da-4e54-83d3-187a992b3fee, null, 10.00, USD, BANK-REF-9,    , 00000000-0000-4000-8000-0000000000a3, 2026-09-25 20:58:12.51+02).
+PASS an unknown kind is refused — new row for relation "manual_financial_adjustments" violates check constraint "manual_financial_adjustments_kind_check" | Failing row contains (fc17b112-3e04-45e8-bf14-8d3f58f04113, WRITE_OFF, 00000000-0000-4000-8000-00000000f001, 49886a3d-84da-4e54-83d3-187a992b3fee, null, 10.00, USD, BANK-REF-9, late transfer refunded, 00000000-0000-4000-8000-0000000000a3, 2026-09-25 20:58:12.511+02).
+PASS adjustments are append-only (UPDATE) — snapshot_immutable | manual_financial_adjustments rows are append-only (UPDATE refused)
+PASS adjustments are append-only (DELETE) — snapshot_immutable | manual_financial_adjustments rows are append-only (DELETE refused)
+## B — tax_invoices (data-model §5.6, R-23)
+PASS fixture: a committed balanced Feature 013 proforma (M2b)
+PASS LEGACY: an uploaded invoice (file + uploader + number, no proforma) is still accepted outside the workflow
+PASS LEGACY: an invoice without proforma still requires the file and uploader — new row for relation "tax_invoices" violates check constraint "tax_invoices_legacy_shape_check" | Failing row contains (3c6e342c-c678-439d-829d-329e55f894c7, 00000000-0000-4000-8000-00000000f001, LEG-2, null, null, null, 2026-09-25 20:58:12.564+02, ISSUED, null, null, null, null).
+PASS a Feature 013 invoice outside the workflow is refused — tax_invoice_immutable | a Feature 013 final invoice is issued only by the settlement workflow
+PASS the workflow issues a Feature 013 invoice with an INV- number and no file yet
+PASS a snapshot carrying an IBAN is refused — new row for relation "tax_invoices" violates check constraint "tax_invoices_snapshot_no_bank_check" | Failing row contains (0f41402d-3a52-4e4c-a6cf-1a5b35356149, 00000000-0000-4000-8000-00000000f003, INV-20260925-0000003, null, null, null, 2026-09-25 20:58:12.569+02, ISSUED, 00000000-0000-4000-8000-00000000a001, 00000000-0000-4000-8000-0000000000a3, 2026-09-25 20:58:12.569+02, {"iban": "AE07", "buyer": {"legal_name": "Buyer LLC"}, "totals":...).
+PASS a snapshot carrying bank data at depth is refused — new row for relation "tax_invoices" violates check constraint "tax_invoices_snapshot_no_bank_check" | Failing row contains (344e77e9-9b4c-4bbd-a1e2-d76ebb49c239, 00000000-0000-4000-8000-00000000f003, INV-20260925-0000004, null, null, null, 2026-09-25 20:58:12.571+02, ISSUED, 00000000-0000-4000-8000-00000000a001, 00000000-0000-4000-8000-0000000000a3, 2026-09-25 20:58:12.571+02, {"buyer": {"bank": {"account_number": "123"}, "legal_name": "Buy...).
+PASS a Feature 013 invoice needs its snapshot, issuer and time — new row for relation "tax_invoices" violates check constraint "tax_invoices_feature_013_shape_check" | Failing row contains (a6e20ce4-6fdc-42e1-b154-391226f041cc, 00000000-0000-4000-8000-00000000f003, INV-20260925-0000005, null, null, null, 2026-09-25 20:58:12.572+02, ISSUED, 00000000-0000-4000-8000-00000000a001, null, null, null).
+PASS the invoiced proforma must belong to the invoiced order — insert or update on table "tax_invoices" violates foreign key constraint "tax_invoices_proforma_fkey" | Key (proforma_id, order_id)=(00000000-0000-4000-8000-00000000a001, 00000000-0000-4000-8000-00000000f001) is not present in table "proforma_invoices".
+PASS one final invoice per order (UNIQUE(order_id) kept) — duplicate key value violates unique constraint "tax_invoices_order_id_key" | Key (order_id)=(00000000-0000-4000-8000-00000000f003) already exists.
+PASS the signed PDF can be attached once, by the workflow
+PASS the attached file cannot be replaced — tax_invoice_immutable | the signed file is attached once
+PASS ISSUED → VOID by the workflow is accepted
+PASS VOID → ISSUED is refused — tax_invoice_transition_invalid | VOID -> ISSUED
+PASS the snapshot is frozen — tax_invoice_immutable | a final invoice is frozen at issuance
+PASS a Feature 013 invoice is never deleted — tax_invoice_immutable | a final invoice is never deleted
+PASS a status change outside the workflow is refused — tax_invoice_immutable | final invoices change only through the finance workflow
+PASS LEGACY: a legacy invoice can still be deleted (pre-M2c behaviour)
+PASS LEGACY: a legacy invoice cannot acquire Feature 013 values — tax_invoice_immutable | a LEGACY invoice cannot acquire Feature 013 values
+## B — order_shipments FULFILLMENT columns (R-13, AC-012)
+PASS a FULFILLMENT shipment outside the workflow is refused (e.g. via the buyer insert policy) — order_field_not_client_writable | FULFILLMENT shipments are created only by the settlement workflow
+PASS the workflow creates one FULFILLMENT shipment per group (both groups)
+PASS a second shipment for the same order × seller × warehouse is refused (unique partial index) — duplicate key value violates unique constraint "uq_order_shipment_fulfillment_group" | Key (order_id, fulfillment_seller_organization_id, fulfillment_warehouse_id)=(00000000-0000-4000-8000-00000000f003, 00000000-0000-4000-8000-0000000000b3, 00000000-0000-4000-8000-0000000000c1) already exists.
+PASS a shipment that does not match its frozen group is refused — fulfillment_group_mismatch | the shipment does not match a frozen fulfillment group of this order
+PASS a group of another order's proforma is refused — fulfillment_group_mismatch | the shipment does not match a frozen fulfillment group of this order
+PASS FULFILLMENT without its group columns is refused — fulfillment_group_mismatch | the shipment does not match a frozen fulfillment group of this order
+PASS … and the fields CHECK alone refuses it (triggers bypassed) — new row for relation "order_shipments" violates check constraint "order_shipments_fulfillment_fields_check" | Failing row contains (3f26b36b-ec9e-48d6-9212-a57b294c8d38, 00000000-0000-4000-8000-00000000f003, SHP-71312834711F, DRAFT, Courier, AE, null, x, R, +971500000000, 0.00, USD, null, null, 00000000-0000-4000-8000-0000000000a3, 2026-09-25 20:58:12.6+02, 2026-09-25 20:58:12.6+02, null, FULFILLMENT, null, null, null).
+PASS DELIVERY_REQUEST carrying a group is refused by the fields CHECK (triggers bypassed) — new row for relation "order_shipments" violates check constraint "order_shipments_fulfillment_fields_check" | Failing row contains (124211d1-4b53-4dbf-90e9-fc10da540b98, 00000000-0000-4000-8000-00000000f003, SHP-874FC7A6DC1E, DRAFT, Courier, AE, null, x, R, +971500000000, 0.00, USD, null, null, 00000000-0000-4000-8000-0000000000a3, 2026-09-25 20:58:12.601+02, 2026-09-25 20:58:12.601+02, null, DELIVERY_REQUEST, null, null, 00000000-0000-4000-8000-00000000a101).
+PASS a shipment's kind never changes afterwards — order_field_not_client_writable | a shipment's kind and fulfillment group never change
+PASS FULFILLMENT shipments start DRAFT and move to REQUESTED through the unchanged Feature 009 machinery
+## B — RLS / grants on the new tables as the real roles
+PASS authenticated SELECT reconciliation_cases refused — permission denied for table reconciliation_cases
+PASS anon SELECT reconciliation_cases refused — permission denied for table reconciliation_cases
+PASS service_role INSERT into reconciliation_cases refused (read-only) — permission denied for table reconciliation_cases
+PASS authenticated SELECT reconciliation_case_events refused — permission denied for table reconciliation_case_events
+PASS anon SELECT reconciliation_case_events refused — permission denied for table reconciliation_case_events
+PASS service_role INSERT into reconciliation_case_events refused (read-only) — permission denied for table reconciliation_case_events
+PASS authenticated SELECT manual_financial_adjustments refused — permission denied for table manual_financial_adjustments
+PASS anon SELECT manual_financial_adjustments refused — permission denied for table manual_financial_adjustments
+PASS service_role INSERT into manual_financial_adjustments refused (read-only) — permission denied for table manual_financial_adjustments
+PASS a buyer member cannot create a FULFILLMENT shipment through its insert policy — order_field_not_client_writable | FULFILLMENT shipments are created only by the settlement workflow
+## B — rollback refused while M2c rows exist
+PASS rollback refuses (changing nothing) once a case exists — feature_013_finance_fulfillment_records rollback refused — nothing changed: a reconciliation case/event or manual adjustment exists; 
+## C — rollback symmetry (fresh database)
+PASS C: APPLY M2c
+PASS C: ROLLBACK M2c
+PASS ROLLBACK SYMMETRY: columns of tax_invoices/order_shipments/shipment_items/groups, every constraint, index, policy, trigger, public function (body md5, flags, ACL) and relation (RLS, ACL) identical to pre-M2c
+PASS C: M2b postflight passes again after the M2c rollback
+PASS C: RE-APPLY M2c after rollback
+PASS C: M2c postflight after re-apply
+ALL SUPPLEMENTARY CHECKS PASSED

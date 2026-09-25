@@ -316,3 +316,6 @@ begin
 end
 $t037$;`;
 }
+
+/** Shared with the T043 (M2c) proof: the same balanced snapshot and savepoint case helpers, unchanged. */
+export { snapshot as t037Snapshot, refused as t037Refused, accepted as t037Accepted, check as t037Check, internal as t037Internal, q as sqlLiteral };

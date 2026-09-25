@@ -4337,7 +4337,8 @@ async function cleanupF013Fixtures(admin: SupabaseClient): Promise<Record<string
 //   - it carries the proof marker (so it was created by the dedicated M1 proof-fixture command);
 //   - it is owned by the Foundation buyer-only fixture organization;
 //   - it has no order_items, payments (so no payment proofs/reviews), inventory_reservations, proforma_invoices,
-//     order_financials (no amount / economic snapshot), order_shipments, payouts, tax_invoices or support_tickets.
+//     order_financials (no amount / economic snapshot), order_shipments, payouts, tax_invoices, support_tickets,
+//     reconciliation_cases or manual_financial_adjustments (M2c).
 // Only its own order_status_history rows cascade. Audit rows remain (append-only).
 const F013_M1_PROOF_MARKER = "13000000-0000-4000-8000-0000000001ff";
 const F013_M1_ORDER_IDS = {
@@ -4358,6 +4359,8 @@ const F013_M1_ALL_IDS = Object.values(F013_M1_ORDER_IDS);
 const F013_M1_ORDER_DEPENDENTS = [
   "order_items", "payments", "inventory_reservations", "proforma_invoices", "order_financials",
   "order_shipments", "payouts", "tax_invoices", "support_tickets",
+  // Feature 013 M2c finance records. Requires M2c applied: before that the check errors and nothing is deleted.
+  "reconciliation_cases", "manual_financial_adjustments",
 ] as const;
 
 /** Read-only: rows still present for the exact proof ids, per table (all zero after a clean run). */
