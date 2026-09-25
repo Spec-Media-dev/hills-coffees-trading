@@ -4503,6 +4503,97 @@ async function probeF013M1Schema(admin: SupabaseClient): Promise<Record<string, 
   };
 }
 
+// ── Feature 013 T031 — M2a live proof (tests/commerce/rls-destinations.live.test.ts) ─────────────────────────────
+// Minimum fixture rows: two synthetic, PII-free delivery destinations with exact ids, one per Foundation fixture org
+// (buyer-only = the owning buyer; buyer-and-seller = another organization, seller-capable), each carrying the proof
+// label. The platform-admin view uses the exact F013 operator identity (admin+f013-test@example.com), created and
+// removed by the existing disposable-operator helpers. No global configuration, listing or financial row is created.
+//
+// SECOND NAMED HARD-DELETE EXCEPTION (owner-approved 2026-09-25, T031 "clean them up afterwards by exact id"; disposable
+// proof destinations ONLY). deleteF013T031ProofDestinations() deletes nothing (it throws) unless EVERY existing row:
+//   - has one of the exact F013_T031_DESTINATION_IDS (no wildcard, pattern or range filter);
+//   - carries the proof label written only by --f013-t031-setup;
+//   - belongs to one of the two Foundation fixture organizations;
+//   - is referenced by no order (orders.delivery_destination_id).
+const F013_T031_PROOF_LABEL = "F013 T031 PROOF FIXTURE";
+const F013_T031_DESTINATION_IDS = {
+  buyerOnly: "13000000-0000-4000-8000-0000000002a1",
+  otherOrg: "13000000-0000-4000-8000-0000000002b1",
+} as const;
+const F013_T031_ALL_DESTINATION_IDS = Object.values(F013_T031_DESTINATION_IDS);
+const F013_T031_ADMIN = F013_OPERATORS.find((operator) => operator.label === "f013-admin")!;
+
+async function deleteF013T031ProofDestinations(admin: SupabaseClient): Promise<number> {
+  assertF013Project();
+  const { data: rows, error } = await admin.from("delivery_destinations").select("id, label, organization_id").in("id", F013_T031_ALL_DESTINATION_IDS);
+  if (error) throw new SafeFixtureError("F013 T031 proof-destination read failed.");
+  const problems: string[] = [];
+  for (const row of rows ?? []) {
+    if (row.label !== F013_T031_PROOF_LABEL) problems.push(`${row.id}: no proof label`);
+    if (row.organization_id !== ORGANIZATION_IDS.buyerOnly && row.organization_id !== ORGANIZATION_IDS.buyerAndSeller) problems.push(`${row.id}: not a Foundation fixture org`);
+  }
+  const ids = (rows ?? []).map((row) => row.id as string);
+  if (ids.length > 0) {
+    const { count, error: referenceError } = await admin.from("orders").select("id", { count: "exact", head: true }).in("delivery_destination_id", ids);
+    if (referenceError) throw new SafeFixtureError("F013 T031 order-reference check failed.");
+    if ((count ?? 0) !== 0) problems.push(`orders reference them: ${count}`);
+  }
+  if (problems.length > 0) throw new SafeFixtureError(`F013 T031 proof-destination delete refused (nothing deleted): ${problems.join("; ")}`);
+  if (ids.length === 0) return 0;
+  const { error: deleteError } = await admin.from("delivery_destinations").delete().in("id", ids).eq("label", F013_T031_PROOF_LABEL);
+  if (deleteError) throw new SafeFixtureError("F013 T031 proof-destination delete failed.");
+  return ids.length;
+}
+
+/** Read-only: nothing of the T031 proof (or any destination PII) remains. */
+async function verifyF013T031Cleanup(admin: SupabaseClient): Promise<Record<string, unknown>> {
+  assertF013Project();
+  const count = async (query: PromiseLike<{ count: number | null; error: unknown }>) => {
+    const { count: value, error } = await query;
+    if (error) throw new SafeFixtureError("F013 T031 verification read failed.");
+    return value ?? -1;
+  };
+  const allOrders = await count(admin.from("orders").select("id", { count: "exact", head: true }));
+  const withoutDestinationId = await count(admin.from("orders").select("id", { count: "exact", head: true }).is("delivery_destination_id", null));
+  const withoutSnapshot = await count(admin.from("orders").select("id", { count: "exact", head: true }).is("destination_snapshot", null));
+  const adminUser = await findAuthUserIdByEmail(admin, F013_T031_ADMIN.email);
+  return {
+    proofDestinations: await count(admin.from("delivery_destinations").select("id", { count: "exact", head: true }).in("id", F013_T031_ALL_DESTINATION_IDS)),
+    allDestinations: await count(admin.from("delivery_destinations").select("id", { count: "exact", head: true })),
+    ordersWithDestinationId: allOrders - withoutDestinationId,
+    ordersWithDestinationSnapshot: allOrders - withoutSnapshot,
+    destinationAuditRows: await count(admin.from("audit_logs").select("id", { count: "exact", head: true }).eq("entity_type", "delivery_destinations")),
+    proofIdAuditRows: await count(admin.from("audit_logs").select("id", { count: "exact", head: true }).in("entity_id", F013_T031_ALL_DESTINATION_IDS)),
+    f013AdminPlatformPrivilege: adminUser ? await count(admin.from("platform_admins").select("user_id", { count: "exact", head: true }).eq("user_id", adminUser)) : 0,
+  };
+}
+
+async function setupF013T031(admin: SupabaseClient, password: string): Promise<Record<string, unknown>> {
+  assertF013Project();
+  await deleteF013T031ProofDestinations(admin);
+  await createDisposableOperatorFixture(admin, password, F013_T031_ADMIN, "feature-013-f013-admin", { reuseIfActive: true });
+  const owner = await findAuthUserIdByEmail(admin, "buyer-only+foundation-test@example.com");
+  const other = await findAuthUserIdByEmail(admin, "buyer-and-seller+foundation-test@example.com");
+  if (!owner || !other) throw new SafeFixtureError("Foundation fixtures missing; run npm run test:seed first.");
+  const row = (id: string, organizationId: string, createdBy: string) => ({
+    id, organization_id: organizationId, label: F013_T031_PROOF_LABEL, country_code: "AE", city: "Dubai",
+    address_line_1: "F013 T031 synthetic fixture - not a real address", contact_name: "F013 Fixture", contact_phone: "+971500000013",
+    delivery_method: "Courier", is_default: true, created_by: createdBy,
+  });
+  const { error } = await admin.from("delivery_destinations").insert([
+    row(F013_T031_DESTINATION_IDS.buyerOnly, ORGANIZATION_IDS.buyerOnly, owner),
+    row(F013_T031_DESTINATION_IDS.otherOrg, ORGANIZATION_IDS.buyerAndSeller, other),
+  ]);
+  if (error) throw new SafeFixtureError(`F013 T031 setup failed: ${error.message}`);
+  return { destinations: 2, owningOrgDestination: F013_T031_DESTINATION_IDS.buyerOnly, otherOrgDestination: F013_T031_DESTINATION_IDS.otherOrg };
+}
+
+async function cleanupF013T031(admin: SupabaseClient): Promise<Record<string, unknown>> {
+  const deleted = await deleteF013T031ProofDestinations(admin);
+  const adminFixture = await cleanupDisposableOperatorFixture(admin, F013_T031_ADMIN);
+  return { deleted, adminFixture, remaining: await verifyF013T031Cleanup(admin) };
+}
+
 async function main(): Promise<void> {
   loadEnvLocal();
 
@@ -4662,6 +4753,18 @@ async function main(): Promise<void> {
   }
   if (process.argv.includes("--f013-m1-live-verify")) {
     console.log(JSON.stringify(await verifyF013M1ProofCleanup(admin)));
+    return;
+  }
+  if (process.argv.includes("--f013-t031-setup")) {
+    console.log(JSON.stringify(await setupF013T031(admin, requireEnv("TEST_FIXTURE_PASSWORD"))));
+    return;
+  }
+  if (process.argv.includes("--f013-t031-cleanup")) {
+    console.log(JSON.stringify(await cleanupF013T031(admin)));
+    return;
+  }
+  if (process.argv.includes("--f013-t031-verify")) {
+    console.log(JSON.stringify(await verifyF013T031Cleanup(admin)));
     return;
   }
   if (process.argv.includes("--prepare-catalogue-admin-fixture")) {

@@ -1,0 +1,70 @@
+# Feature 013 M2a — supplementary execution check (NOT the MP-3 local Supabase shadow apply)
+# Engine: in-memory PGlite 0.5.8 (PostgreSQL compiled to WASM), 2026-09-25. No remote connection.
+# Fixture: same as M1 (supabase/trading_schema.sql + T006-fingerprinted functions + production-shaped triggers/indexes),
+#          plus Supabase-style default privileges for new public tables and production's anon revocations on the finance tables (T006 §10).
+#          Sequence: apply M1 -> M1 postflight -> M2a guard negatives -> apply M2a -> postflight -> probes -> RLS as authenticated/anon -> rollback -> symmetry -> re-apply.
+
+PASS Supabase stand-ins
+PASS load supabase/trading_schema.sql
+PASS create checkout_order from 20260913100000_feature_007_db_blockers.sql
+PASS create expire_order_hold from 20260913100000_feature_007_db_blockers.sql
+PASS create admin_review_payment from 20260922120000_feature_008_stripe_trusted_funding.sql
+PASS production-shaped triggers/indexes/grants (T006 §8/§9 + Supabase default privileges)
+PASS seed orgs/members/admin/order
+PASS APPLY M1
+PASS M1 postflight before M2a
+PASS guard refuses when a non-Courier method is in use — feature_013_delivery_destinations preflight failed — nothing applied: delivery methods other than Courier are in use (DHL): re-author the CHECK; 
+PASS guard refuses when the checkout kill switch is on — feature_013_delivery_destinations preflight failed — nothing applied: bank_transfer_checkout_enabled is true; 
+PASS APPLY M2a
+PASS re-applying M2a is refused by its guard — feature_013_delivery_destinations preflight failed — nothing applied: an M2a object already exists; 
+PASS postflight #1 delivery_destinations exists with the data-model §2.3 columns (16)
+PASS postflight #2 NOT NULL: organization_id, label, country_code, city, address_line_1, contact_name, contact_phone, delivery_method, is_default, created_by
+PASS postflight #3 delivery_method CHECK = the T006 value set {Courier}
+PASS postflight #4 every delivery method in use is in the CHECK set (shipping_rules and order_shipments)
+PASS postflight #5 country ISO-2 / E.164 phone / field-length / retired-pair / retired-not-default CHECKs present
+PASS postflight #6 one non-retired default per organization (unique partial index)
+PASS postflight #7 RLS enabled + forced; exactly one policy: SELECT to authenticated for org members or platform admin
+PASS postflight #8 no client write path: anon nothing; authenticated SELECT only; PUBLIC nothing
+PASS postflight #9 updated_at maintained by set_updated_at
+PASS postflight #10 orders.delivery_destination_id (FK → delivery_destinations) and orders.destination_snapshot (jsonb) exist; pair + shape CHECKs
+PASS postflight #11 no order carries a destination yet and no destination row exists (no backfill)
+PASS postflight #12 orders destination guard trigger bound (BEFORE INSERT OR UPDATE OF the two columns)
+PASS postflight #13 M1 untouched: validate_order_transition v2 fingerprint and trg_order_transition binding
+PASS postflight #14 existing orders policies unchanged (orders_create_buyer, orders_update_buyer_or_admin, orders_view; 3 total)
+PASS postflight #15 every order is still LEGACY and checkout is still disabled
+PASS postflight #16 no Feature 013 object beyond M2a exists yet (M2b+ not applied)
+PASS postflight #999 ALL CHECKS PASSED
+PASS a valid destination is accepted
+PASS delivery_method outside {Courier} refused — new row for relation "delivery_destinations" violates check constraint "delivery_destinations_delivery_method_check"
+PASS lower-case country refused — new row for relation "delivery_destinations" violates check constraint "delivery_destinations_country_code_check"
+PASS non-E.164 phone refused — new row for relation "delivery_destinations" violates check constraint "delivery_destinations_contact_phone_check"
+PASS blank label refused — new row for relation "delivery_destinations" violates check constraint "delivery_destinations_label_check"
+PASS two non-retired defaults for one org refused — duplicate key value violates unique constraint "uq_delivery_destination_default_per_org"
+PASS defaults in two different orgs are fine
+PASS a new default after retiring the old one is fine
+PASS a retired destination cannot stay default — new row for relation "delivery_destinations" violates check constraint "delivery_destinations_retired_not_default_check"
+PASS retired_at without retired_by refused — new row for relation "delivery_destinations" violates check constraint "delivery_destinations_retired_pair_check"
+PASS non-internal UPDATE of destination_snapshot refused — order_field_not_client_writable
+PASS non-internal INSERT carrying a destination refused — order_field_not_client_writable
+PASS internal transition sets both fields
+PASS pair check: id without snapshot refused — new row for relation "orders" violates check constraint "orders_destination_pair_check"
+PASS shape check: snapshot missing address_lines refused — new row for relation "orders" violates check constraint "orders_destination_snapshot_shape_check"
+PASS LEGACY: an unrelated non-internal update is unaffected (guard fires only on its columns)
+PASS LEGACY: DRAFT → CONFIRMED by a client still works
+PASS a referenced destination cannot be deleted (FK, soft retire only) — update or delete on table "delivery_destinations" violates foreign key constraint "orders_delivery_destination_id_fkey" on table "orders"
+PASS RLS: a member of org A sees only org A's destination — ["00000000-0000-4000-8000-0000000000b1"]
+PASS RLS: a member of org B sees only org B's destination
+PASS RLS: a signed-in non-member (e.g. a seller of the buyer's order) sees 0 rows
+PASS RLS: a platform admin sees both
+PASS authenticated member INSERT refused (no grant) — permission denied for table delivery_destinations
+PASS authenticated member UPDATE refused (no grant) — permission denied for table delivery_destinations
+PASS authenticated member DELETE refused (no grant) — permission denied for table delivery_destinations
+PASS anon SELECT refused — permission denied for table delivery_destinations
+PASS a buyer member cannot set destination fields on its own DRAFT order (RLS allows the UPDATE, the guard refuses) — order_field_not_client_writable
+PASS rollback refuses while a destination exists — feature_013_delivery_destinations rollback refused — nothing changed: delivery_destinations has rows; 
+PASS ROLLBACK M2a
+PASS ROLLBACK SYMMETRY: orders columns/constraints/indexes/policies/triggers, every public function (body, ACL) and every relation identical to post-M1/pre-M2a
+PASS M1 postflight passes again after the M2a rollback
+PASS RE-APPLY M2a after rollback
+PASS M2a postflight after re-apply
+ALL SUPPLEMENTARY CHECKS PASSED

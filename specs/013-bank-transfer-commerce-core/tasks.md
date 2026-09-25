@@ -361,21 +361,77 @@ here is database/security work; UI that depends on it comes later.
     - **Post-cleanup verification (read-only, production)**: all 10 exact proof ids have 0 rows in `orders`, `order_status_history` and all 9 dependent tables.
     - Affected static suites after the change: `tests/commerce` (4 files) + `migration-layout` + `historical-008-unchanged` → **161 passed, 16 skipped** (the gated live suite), 0 failed; typecheck, eslint and `git diff --check` clean. No further live suite was run.
 ### M2a — delivery destinations
-- [ ] T026 MP-1 Author M2a — `supabase/migrations/20260925103000_feature_013_delivery_destinations.sql`, rollback, postflight
+- [X] T026 MP-1 Author M2a — `supabase/migrations/20260925103000_feature_013_delivery_destinations.sql`, rollback, postflight
   - Depends: T025
   - Accept: data-model §2.3 + `orders.delivery_destination_id`/`destination_snapshot`; `delivery_method` CHECK equals the T006-recorded value set; default-per-org partial unique; RLS (owning org members ∨ PA read; no client writes).
-- [ ] T027 MP-2 Static tests — `tests/commerce/migrations/m2a-destinations.test.ts`
+  - **Batch B (2026-09-25)**: AUTHORED, **NOT APPLIED**. Files:
+    - `supabase/migrations/20260925103000_feature_013_delivery_destinations.sql`;
+    - `supabase/rollback/20260925103000_feature_013_delivery_destinations.rollback.sql`;
+    - `supabase/maintenance/20260925_feature_013_delivery_destinations_postflight.sql` (16 checks + `ALL CHECKS PASSED`).
+  - `delivery_destinations` has exactly the 16 §2.3 columns, and `delivery_method` CHECK = `{Courier}`: the T006 §3 value set, re-verified by a read-only probe on 2026-09-25 (shipping_rules 0 rows; order_shipments 1,273 × `Courier`). Other checks: ISO-2 upper country, E.164 phone, field lengths, the retired pair and retired-never-default CHECKs, the unique partial `uq_delivery_destination_default_per_org (organization_id) WHERE is_default AND retired_at IS NULL`, an active-org index and `set_updated_at`.
+  - RLS enabled + forced; revoked from public/anon/authenticated; `authenticated` gets SELECT only; one policy `delivery_destinations_member_read` = `is_org_member(organization_id) OR is_platform_admin()`; no write policy or grant (writes via the M4a RPCs).
+  - `orders.delivery_destination_id` (FK, no cascade → soft retire only) + `orders.destination_snapshot` (jsonb), with a pair CHECK, a snapshot shape CHECK (the 7 §2.1 keys; `address_lines` array) and a partial FK index.
+  - Guard: M1 applied with the `validate_order_transition` v2 fingerprint `603d04c5…`; delivery methods in use ⊆ {Courier}; the kill switch still off; no M2a object present; required helpers; the migration role bypasses RLS.
+  - Design decisions for T029:
+    - **Destination-field protection**: `guard_order_destination_fields()` + `trg_orders_destination_fields_guard` (BEFORE INSERT OR UPDATE OF the two columns) refuses any non-internal write, so the existing buyer INSERT/UPDATE order policies cannot set them. This applies T023 decision 3 to the M2a columns; nothing else on `orders` is changed.
+    - No audit trigger on `delivery_destinations`: generic `write_audit_log` would copy addresses/phones into `audit_logs`; the redacted commerce audit arrives with the M4a RPCs (AUD-006).
+    - `current_proforma_id` is not in M2a: it references the versioned proforma, so it belongs to M2b.
+- [X] T027 MP-2 Static tests — `tests/commerce/migrations/m2a-destinations.test.ts`
   - Depends: T026
-- [ ] T028 MP-3 Dry-run M2a
+  - **Batch B (2026-09-25)**: 16/16 pass; the T019 conventions test also covers M2a (18/18). Expected values are read from `data-model.md` §2.3 (the 16 columns) and the PREFLIGHT-REPORT T006 §3 line (`{Courier}`), and the M1 fingerprint is computed from the M1 file.
+    - Covers: MP-2 rules and no top-level DML; column set; NOT NULL/format/length CHECKs; delivery_method = T006 set and the guard's in-use check; the default-per-org partial unique + retired rules; RLS forced; grants exactly `select → authenticated`; exactly one SELECT policy; the two orders columns + pair/shape checks; the guard trigger body; `validate_order_transition`/policies/`commerce_settings` untouched.
+    - Rollback: drops exactly the 8 M2a objects and nothing of M1; it refuses on rows, destination-bearing orders or M2b+; the M1 rollback already refuses while M2a exists.
+- [X] T028 MP-3 Dry-run M2a
   - Depends: T027
-- [ ] T029 MP-4 **GATE** review M2a
+  - **Batch B (2026-09-25): COMPLETE.** OPERATOR evidence (authoritative): `npx supabase db push --linked --dry-run` passed and listed exactly one pending migration, `20260925103000_feature_013_delivery_destinations.sql`. The agent-side notes follow.
+    - `npx supabase db push --linked --dry-run` (linked ref `mxejnutukgxyccnohglo` verified) was **refused** for the agent's CLI account: `DbConfigLoginRoleStatusError … 403` (as at T001/T022). **OPERATOR** must run it; expected: exactly one pending migration, `20260925103000_feature_013_delivery_destinations.sql` (remote head = `20260925100000`).
+    - Local shadow apply (`supabase db reset`): **not available** — the Docker Desktop daemon is not running. Not attempted.
+    - Supplementary execution check (not a substitute; `migration-evidence/m2a-supplementary-pglite.log`): in-memory PGlite, same T006-fingerprinted fixture as M1 plus Supabase-style default privileges and production's anon revocations. **63/63 passed**:
+      - M1 applies and its postflight passes; the M2a guard refuses a non-Courier method in use and a kill switch that is on; M2a applies; a re-apply is refused; postflight `ALL CHECKS PASSED`;
+      - CHECK probes: method, country, phone, label, default-per-org, retired default, retired pair;
+      - orders fields: non-internal INSERT/UPDATE refused, internal allowed, pair/shape enforced, FK blocks deleting a referenced destination; LEGACY non-status updates and client DRAFT→CONFIRMED unaffected;
+      - **RLS as the real roles**: org A member sees only A, org B member only B, a signed-in non-member (e.g. a seller of the buyer's order) 0 rows, platform admin both; authenticated INSERT/UPDATE/DELETE → permission denied; anon SELECT → permission denied; a buyer member setting destination fields on its own DRAFT order → `order_field_not_client_writable`;
+      - rollback refused while a destination exists; then rollback restores the orders columns/constraints/indexes/policies/triggers, every public function and every relation **identically**; the M1 postflight passes again; M2a re-applies and passes its postflight.
+    - Static: `tests/commerce` + `migration-layout` + `historical-008-unchanged` → 177 passed, 16 skipped (the gated live suite). Every other static test that reads `supabase/migrations/` (26 files, live-capable ones excluded) → 595 passed, 22 skipped, 0 failed. Typecheck and eslint clean. No live suite was run.
+- [X] T029 MP-4 **GATE** review M2a
   - Depends: T028
-- [ ] T030 MP-5 **OPERATOR** apply M2a + postflight
+  - **VERDICT: GO / PASS** — reviewer: owner, 2026-09-25. Agent review found no new blocker: re-checked after the decisions, the M2a files are unchanged, `tests/commerce/migrations` + `historical-008-unchanged` + `migration-layout` pass 153/153, and no tracked file under `supabase/` or `specs/008-*` differs from HEAD.
+  - Owner decisions:
+    - **D1 APPROVED**: keep `trg_orders_destination_fields_guard` (non-workflow callers cannot set `delivery_destination_id`/`destination_snapshot`).
+    - **D2 APPROVED**: no generic audit trigger on `delivery_destinations` (it would copy address/phone PII); the redacted, audited workflow arrives in M4a.
+    - **D3 APPROVED**: `current_proforma_id` stays deferred to M2b.
+    - **R1 → required M3 condition** (recorded on T056/T057).
+    - **R2 → required M4b condition** (recorded on T077).
+    - **R3**: production apply requires a quiet write window.
+    - **R4**: expected point-in-time M1 postflight behaviour (its "no M2a+ object" row reads false once M2a exists).
+    - **R5**: rollback procedure accepted (rollback file, then `supabase migration repair --status reverted 20260925103000`).
+- [X] T030 MP-5 **OPERATOR** apply M2a + postflight
   - Depends: T029
-- [ ] T031 MP-6 Live proof — `tests/commerce/rls-destinations.live.test.ts`
+  - **OPERATOR evidence (2026-09-25, authoritative)**: `npx supabase db push --linked` applied `20260925103000_feature_013_delivery_destinations.sql` to the linked production project. The postflight `supabase/maintenance/20260925_feature_013_delivery_destinations_postflight.sql` returned **17 rows, every `ok = true`**, and the last row was `999 | ALL CHECKS PASSED | true`.
+- [X] T031 MP-6 Live proof — `tests/commerce/rls-destinations.live.test.ts`
   - Depends: T030
   - Accept: another org's members, sellers of the buyer's orders and anon read 0 destination rows; direct INSERT/UPDATE by `authenticated` is refused.
-
+  - **Batch B (2026-09-25): COMPLETE — owner decision (a), with ONE explicitly DEFERRED assertion (not a waiver; see the end of this entry).** Owner-authorized run; linked ref `mxejnutukgxyccnohglo` verified; only `F013_LIVE=1` set; no other live suite run.
+    - `F013_LIVE=1 npx vitest run tests/commerce/rls-destinations.live.test.ts`:
+      - **11/11 passed** (second run). The first run was 10/11: the fixture wrapper parsed the operator helper's JSON line instead of the setup result (harness fix: take the LAST JSON line). Its cleanup was verified complete before the re-run.
+    - What it proved:
+      - the owning org reads only its own rows;
+      - a member of another organization (the seller-capable buyer-and-seller org) reads 0 of the owner's rows, only its own, and 0 by direct id;
+      - anon → no table privilege, 0 rows;
+      - the platform admin (exact F013 identity `admin+f013-test@example.com`, ADMIN) reads both;
+      - authenticated INSERT, UPDATE (own and foreign row) and DELETE are refused, and the rows are unchanged;
+      - a buyer cannot attach its own or a foreign destination to its own DRAFT order (`order_field_not_client_writable`);
+      - LEGACY DRAFT → CONFIRMED is unchanged; the buyer still reads its orders, none with a destination.
+    - Fixtures (minimum): 2 synthetic PII-free destinations, exact ids `13000000-0000-4000-8000-0000000002a1/2b1`, labelled `F013 T031 PROOF FIXTURE`, owned by the Foundation buyer-only and buyer-and-seller orgs; the F013 admin operator (existing disposable helper); the M1 proof orders (approved M1 exception) for the LEGACY checks. No listing, order item, configuration or financial row.
+    - Cleanup (exact ids): a **second named exception**, `deleteF013T031ProofDestinations()`, pinned by the T016 guard like the M1 one:
+      - exact ids, proof label, Foundation fixture orgs, no order reference, refusal first, a single delete;
+      - 7 mutation cases; the block has exactly 2 deletes, one in each exception; the generic no-hard-delete rule is unchanged;
+      - `tests/commerce/f013-fixtures.test.ts` 29/29.
+    - Post-cleanup verification (read-only, production), unchanged after both runs:
+      - T031: `{proofDestinations 0, allDestinations 0, ordersWithDestinationId 0, ordersWithDestinationSnapshot 0, destinationAuditRows 0, proofIdAuditRows 0, f013AdminPlatformPrivilege 0}`;
+      - M1 proof ids: 0 rows in all 11 tables;
+      - state: 9 offers all coded, 2,004 orders all `LEGACY`, checkout disabled.
+    - **Owner decision (a), 2026-09-25 — DEFERRED, NOT WAIVED**: the exact "seller linked to the buyer's order" destination-isolation assertion moves to **T056/M3** (whose dedicated two-seller fixture order exists by design). Here it was proven only with a seller-capable member of another organization: no existing order links a test buyer to a member seller with a test login, and creating one would need an order_items cleanup exception, which was deliberately NOT created. The fixture no-hard-delete guard is unchanged.
 ### M2b — proforma versioning and frozen economics (per-seller economic snapshots, bank instruction snapshots, shipping group snapshots, seller commission assignment snapshot)
 - [ ] T032 MP-1 Author M2b — `supabase/migrations/20260925106000_feature_013_proforma_versioning_snapshots.sql`, rollback, postflight
   - Depends: T031
@@ -461,6 +517,8 @@ here is database/security work; UI that depends on it comes later.
     - (f) `proforma_invoices` header;
     - (g) `delivery_destinations` of the buyer;
     - (h) `proforma_bank_instructions` and `payment_accounts`.
+  - **T029 condition R1 (owner-approved 2026-09-25)**: prove that a seller of the buyer's order (and any other seller) cannot obtain `orders.delivery_destination_id` or `orders.destination_snapshot` by any path: a direct `orders` select, embedded selects, views or RPCs.
+  - **T031 deferred assertion (owner decision 2026-09-25, NOT a waiver)**: with an actual order-linked member-seller session (a seller with a line on the buyer's fixture order), prove that the seller reads **0** rows of that buyer's `delivery_destinations` and cannot obtain `delivery_destination_id` or `destination_snapshot` by any route (direct `orders` select, embedded selects, views, RPCs). T031 is closed on the condition that this assertion is proven here.
 
     Plus a full matrix for buyer / other buyer / seller / other seller / finance / warehouse / auditor / anon over every rls-storage §1 table and §2 view. Recorded as failing against the current policies (proving C2).
 
@@ -470,6 +528,7 @@ here is database/security work; UI that depends on it comes later.
 - [ ] T057 MP-1 Author M3 — `supabase/migrations/20260925120000_feature_013_rls_realignment.sql`, rollback, postflight
   - Depends: T056
   - Accept: helper functions (`is_order_buyer_member`, `is_order_line_seller`, `order_seller_org_ids`, …); every policy replacement in rls-storage §1; restrictive MFA gates; views §2 (`security_invoker`); `payment_reviews_finance`/`payouts_finance`/`tax_invoice_finance` reduced to SELECT; `can_view_order()` unchanged. The rollback recreates the exact previous policy text from the T006 capture.
+  - **T029 condition R1 (owner-approved 2026-09-25)**: do NOT rely on row-level RLS alone to hide columns. Seller-facing order access must go through a safe projection/view (or an equivalent boundary) that excludes the buyer destination PII (`delivery_destination_id`, `destination_snapshot`), and any direct seller path to the full `orders` row must be removed where required. The T056 suites must prove it.
   - **DB-OPEN-C15 (owner-approved 2026-09-24)**: `revoke execute on function public.mfa_satisfied() from public, anon` and the same for `public.kyb_storage_object_authorized(text, boolean)`. EXECUTE for `authenticated` and `service_role` is kept, and the bodies, `SECURITY DEFINER` and `search_path` are unchanged. The rollback restores the §5 ACL. Before authoring, confirm that no `anon`-reachable `SECURITY INVOKER` function calls either helper; all calling policies are already `to authenticated`. The postflight asserts `has_function_privilege('anon', …, 'execute') = false` for both.
 - [ ] T058 MP-2 Static tests — `tests/commerce/migrations/m3-rls.test.ts`
   - Depends: T057
@@ -564,6 +623,7 @@ CONFIRMATION (M4c, T091–T106) are separate migrations, services and UI.**
       - `negative_economics` guard.
     - `estimate_cart` returns buyer-facing fields only.
     - `issue_proforma`: checkout switch/pilot check; `DRAFT` or expired-replacement; version n+1; persists every snapshot table + `order_financials`; destination snapshot; bank snapshot from the default USD account; `valid_until = issued_at + proforma_validity_hours`; **no offer/position write**; emits `proforma.issued`.
+  - **T029 condition R2 (owner-approved 2026-09-25)**: before M4b writes `destination_snapshot`, verify that the existing orders audit path (`trg_audit_orders` → `write_audit_log`) cannot copy the raw destination address/phone into `audit_logs`; redesign or redact the audit path as needed before snapshot writes are enabled. Static and live tests must prove no destination PII reaches `audit_logs`.
 - [ ] T078 [US1] MP-2 Static tests — `tests/commerce/migrations/m4b-issuance.test.ts`
   - Depends: T077
   - Accept: `issue_proforma` body contains no UPDATE of `coffee_offers`/`inventory_positions`/`inventory_reservations`; `compute_order_quote` has no client EXECUTE.

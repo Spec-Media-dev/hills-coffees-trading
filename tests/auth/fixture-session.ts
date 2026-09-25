@@ -832,7 +832,8 @@ export const F013_FIXTURES = {
  */
 function f013M1Json(flag: string): Record<string, unknown> {
   const output = runFixtureScript([flag], { captureOutput: true });
-  const line = output.trim().split(/\r?\n/).find((candidate) => candidate.startsWith("{"));
+  // The command's own result is its LAST JSON line (helpers it calls may print their own JSON first).
+  const line = output.trim().split(/\r?\n/).filter((candidate) => candidate.startsWith("{")).at(-1);
   if (!line) throw new Error(`${flag} produced no JSON result.`);
   return JSON.parse(line) as Record<string, unknown>;
 }
@@ -841,3 +842,6 @@ export const setupF013M1LiveOrders = () => f013M1Json("--f013-m1-live-setup");
 export const probeF013M1Transitions = () => f013M1Json("--f013-m1-live-probe");
 export const cleanupF013M1LiveOrders = () => f013M1Json("--f013-m1-live-cleanup");
 export const verifyF013M1ProofCleanup = () => f013M1Json("--f013-m1-live-verify");
+export const setupF013T031 = () => f013M1Json("--f013-t031-setup");
+export const cleanupF013T031 = () => f013M1Json("--f013-t031-cleanup");
+export const verifyF013T031Cleanup = () => f013M1Json("--f013-t031-verify");

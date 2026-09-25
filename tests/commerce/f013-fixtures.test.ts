@@ -28,7 +28,33 @@ const functionText = (source: string, header: string) => {
   return start === -1 ? "" : source.slice(start, source.indexOf("\n}\n", start) + 3);
 };
 const exceptionFn = functionText(block, EXCEPTION_NAME);
-const cleanupWithoutException = cleanup.replace(exceptionFn, "");
+/**
+ * The SECOND named exception (owner-approved 2026-09-25, T031 "clean them up afterwards by exact id"): the two
+ * disposable T031 proof destinations only, in `deleteF013T031ProofDestinations`.
+ */
+const T031_EXCEPTION_NAME = "async function deleteF013T031ProofDestinations(";
+const t031ExceptionFn = functionText(block, T031_EXCEPTION_NAME);
+const cleanupWithoutException = cleanup.replace(exceptionFn, "").replace(t031ExceptionFn, "");
+/** Every condition the T031 destination exception must keep; each returned string is a violation. */
+function t031ExceptionViolations(fn: string, source: string): string[] {
+  const problems: string[] = [];
+  if (!fn) return ["T031 exception function missing"];
+  if ((fn.match(/\.delete\(\)/g) ?? []).length !== 1) problems.push("expected exactly one delete");
+  if (!/await admin\.from\("delivery_destinations"\)\.delete\(\)\.in\("id", ids\)\.eq\("label", F013_T031_PROOF_LABEL\);/.test(fn)) problems.push("delete is not delivery_destinations by checked ids AND the proof label");
+  if (!/await admin\.from\("delivery_destinations"\)\.select\("id, label, organization_id"\)\.in\("id", F013_T031_ALL_DESTINATION_IDS\);/.test(fn)) problems.push("candidates are not read by the exact id list");
+  if (!/const ids = \(rows \?\? \[\]\)\.map\(\(row\) => row\.id as string\);/.test(fn)) problems.push("delete ids are not exactly the rows read");
+  if (!/row\.label !== F013_T031_PROOF_LABEL/.test(fn)) problems.push("proof-label precondition missing");
+  if (!/row\.organization_id !== ORGANIZATION_IDS\.buyerOnly && row\.organization_id !== ORGANIZATION_IDS\.buyerAndSeller/.test(fn)) problems.push("fixture-org precondition missing");
+  if (!/admin\.from\("orders"\)\.select\("id", \{ count: "exact", head: true \}\)\.in\("delivery_destination_id", ids\)[\s\S]*?if \(\(count \?\? 0\) !== 0\) problems\.push/.test(fn)) problems.push("order-reference precondition missing");
+  const refusal = fn.indexOf("if (problems.length > 0) throw new SafeFixtureError");
+  if (refusal === -1 || refusal > fn.indexOf(".delete()")) problems.push("refusal does not precede the delete");
+  const ids = /const F013_T031_DESTINATION_IDS = \{([\s\S]*?)\} as const;/.exec(source)?.[1] ?? "";
+  const literal = [...ids.matchAll(/"([^"]+)"/g)].map((m) => m[1]!);
+  if (literal.length !== 2 || !literal.every((id) => /^13000000-0000-4000-8000-0000000002[0-9a-f]{2}$/.test(id))) problems.push("proof destination ids are not the 2 exact reserved 13000000-…-0000000002xx ids");
+  if (!/const F013_T031_ALL_DESTINATION_IDS = Object\.values\(F013_T031_DESTINATION_IDS\);/.test(source)) problems.push("F013_T031_ALL_DESTINATION_IDS is not exactly the proof id list");
+  if (!/const F013_T031_PROOF_LABEL = "F013 T031 PROOF FIXTURE";/.test(source)) problems.push("proof label changed");
+  return problems;
+}
 /** Tables that reference public.orders(id), except order_status_history (the only child a proof order may have). */
 function tablesReferencingOrders(): string[] {
   const files = ["supabase/trading_schema.sql", ...readdirSync("supabase/migrations").map((f: string) => `supabase/migrations/${f}`)];
@@ -96,9 +122,32 @@ describe("T016 — Feature 013 fixtures are exact-identity only", () => {
     }
   });
 
-  it("the block has exactly one hard delete, and it is inside the named proof-fixture exception", () => {
-    expect((block.match(/\.delete\(/g) ?? []).length).toBe(1);
+  it("the block has exactly two hard deletes, one inside each named proof-fixture exception", () => {
+    expect((block.match(/\.delete\(/g) ?? []).length).toBe(2);
     expect((exceptionFn.match(/\.delete\(/g) ?? []).length).toBe(1);
+    expect((t031ExceptionFn.match(/\.delete\(/g) ?? []).length).toBe(1);
+  });
+
+  it("the T031 proof-destination exception keeps every condition (exact ids, proof label, fixture orgs, unreferenced, refusal first)", () => {
+    expect(t031ExceptionViolations(t031ExceptionFn, block)).toEqual([]);
+  });
+
+  it.each([
+    ["delete without the proof label", (s: string) => s.replace('.eq("label", F013_T031_PROOF_LABEL);', ";")],
+    ["delete of a different table", (s: string) => s.replace('admin.from("delivery_destinations").delete()', 'admin.from("orders").delete()')],
+    ["delete by the raw id list", (s: string) => s.replace('.delete().in("id", ids)', '.delete().in("id", F013_T031_ALL_DESTINATION_IDS)')],
+    ["no refusal before the delete", (s: string) => s.replace("if (problems.length > 0) throw new SafeFixtureError", "if (false) console.log")],
+    ["order-reference check removed", (s: string) => s.replace("if ((count ?? 0) !== 0) problems.push", "if (false) problems.push")],
+    ["label check removed", (s: string) => s.replace("row.label !== F013_T031_PROOF_LABEL", "false")],
+    ["a second delete", (s: string) => s.replace("return ids.length;", 'await admin.from("delivery_destinations").delete().in("id", ids);\n  return ids.length;')],
+  ])("the T031 exception check rejects: %s", (_label, mutate) => {
+    expect(t031ExceptionViolations(mutate(t031ExceptionFn), block).length).toBeGreaterThan(0);
+  });
+
+  it("T031 setup writes the proof label on every destination and never touches orders", () => {
+    const setup = functionText(block, "async function setupF013T031(");
+    expect(setup).toContain("label: F013_T031_PROOF_LABEL,");
+    expect(setup).not.toMatch(/from\("orders"\)/);
   });
 
   it("the proof-fixture exception keeps every owner-approved condition (exact ids, proof marker, fixture org, no dependent row, refusal first)", () => {
