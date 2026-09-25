@@ -4324,6 +4324,185 @@ async function cleanupF013Fixtures(admin: SupabaseClient): Promise<Record<string
   return result;
 }
 
+// ── Feature 013 T025 — M1 live proof (tests/commerce/schema-m1.live.test.ts) ─────────────────────────────────────
+// Deliberately does NOT use --prepare-f013-fixtures: that creates GLOBAL active commerce configuration (shipping rule,
+// commission policy, default payment account) that legacy checkout would read. M1's proof needs only disposable,
+// PRE-FINANCIAL order rows: exact ids in the reserved 13000000-…-00000001xx range, owned by the existing Foundation
+// buyer-only fixture and stamped with the proof marker in orders.correlation_id by --f013-m1-live-setup.
+//
+// THE ONE HARD-DELETE EXCEPTION (owner-approved 2026-09-25, T025/T016; disposable pre-financial proof fixtures ONLY).
+// The general Feature 013 rule stays: exact ids only, never a hard delete of a real business or financial row.
+// deleteF013M1ProofOrders() may delete an order only when ALL hold, checked first, and nothing is deleted otherwise:
+//   - its id is one of the exact F013_M1_ORDER_IDS (no wildcard, pattern or range filter);
+//   - it carries the proof marker (so it was created by the dedicated M1 proof-fixture command);
+//   - it is owned by the Foundation buyer-only fixture organization;
+//   - it has no order_items, payments (so no payment proofs/reviews), inventory_reservations, proforma_invoices,
+//     order_financials (no amount / economic snapshot), order_shipments, payouts, tax_invoices or support_tickets.
+// Only its own order_status_history rows cascade. Audit rows remain (append-only).
+const F013_M1_PROOF_MARKER = "13000000-0000-4000-8000-0000000001ff";
+const F013_M1_ORDER_IDS = {
+  legacyDraft: "13000000-0000-4000-8000-000000000101",
+  legacyDraftRefusals: "13000000-0000-4000-8000-000000000102",
+  legacyDisputed: "13000000-0000-4000-8000-000000000103",
+  legacyDraftForMember: "13000000-0000-4000-8000-000000000104",
+  v1Draft: "13000000-0000-4000-8000-000000000111",
+  v1Paid: "13000000-0000-4000-8000-000000000112",
+  v1ProformaIssued: "13000000-0000-4000-8000-000000000113",
+  v1Cancelled: "13000000-0000-4000-8000-000000000114",
+  v1PaymentRejected: "13000000-0000-4000-8000-000000000115",
+  bogusStatus: "13000000-0000-4000-8000-000000000119",
+} as const;
+const F013_M1_ALL_IDS = Object.values(F013_M1_ORDER_IDS);
+
+/** Every table that references orders(id) (plus order_status_history), per the schema. */
+const F013_M1_ORDER_DEPENDENTS = [
+  "order_items", "payments", "inventory_reservations", "proforma_invoices", "order_financials",
+  "order_shipments", "payouts", "tax_invoices", "support_tickets",
+] as const;
+
+/** Read-only: rows still present for the exact proof ids, per table (all zero after a clean run). */
+async function verifyF013M1ProofCleanup(admin: SupabaseClient): Promise<Record<string, number>> {
+  assertF013Project();
+  const counts: Record<string, number> = {};
+  for (const table of ["orders", "order_status_history", ...F013_M1_ORDER_DEPENDENTS]) {
+    const column = table === "orders" ? "id" : "order_id";
+    const { count, error } = await admin.from(table).select("*", { count: "exact", head: true }).in(column, F013_M1_ALL_IDS);
+    if (error) throw new SafeFixtureError(`F013 M1 cleanup verification failed on ${table}.`);
+    counts[table] = count ?? -1;
+  }
+  return counts;
+}
+
+/**
+ * The single approved hard delete in the F013 block (see the header above). Refuses, deleting nothing, unless every
+ * existing proof order satisfies every precondition.
+ */
+async function deleteF013M1ProofOrders(admin: SupabaseClient): Promise<number> {
+  assertF013Project();
+  const { data: orders, error } = await admin.from("orders").select("id, correlation_id, buyer_organization_id").in("id", F013_M1_ALL_IDS);
+  if (error) throw new SafeFixtureError("F013 M1 proof-order read failed.");
+  const problems: string[] = [];
+  for (const order of orders ?? []) {
+    if (order.correlation_id !== F013_M1_PROOF_MARKER) problems.push(`${order.id}: no proof marker`);
+    if (order.buyer_organization_id !== ORGANIZATION_IDS.buyerOnly) problems.push(`${order.id}: not the buyer-only fixture org`);
+  }
+  const ids = (orders ?? []).map((order) => order.id as string);
+  if (ids.length > 0) {
+    for (const table of F013_M1_ORDER_DEPENDENTS) {
+      const { count, error: countError } = await admin.from(table).select("*", { count: "exact", head: true }).in("order_id", ids);
+      if (countError) throw new SafeFixtureError(`F013 M1 dependency check failed on ${table}.`);
+      if ((count ?? 0) !== 0) problems.push(`${table}: ${count} row(s)`);
+    }
+  }
+  if (problems.length > 0) throw new SafeFixtureError(`F013 M1 proof-order delete refused (nothing deleted): ${problems.join("; ")}`);
+  if (ids.length === 0) return 0;
+  const { error: deleteError } = await admin.from("orders").delete().in("id", ids).eq("correlation_id", F013_M1_PROOF_MARKER);
+  if (deleteError) throw new SafeFixtureError("F013 M1 proof-order delete failed.");
+  return ids.length;
+}
+
+async function cleanupF013M1LiveOrders(admin: SupabaseClient): Promise<Record<string, unknown>> {
+  const deleted = await deleteF013M1ProofOrders(admin);
+  return { deleted, remaining: await verifyF013M1ProofCleanup(admin) };
+}
+
+async function setupF013M1LiveOrders(admin: SupabaseClient): Promise<Record<string, unknown>> {
+  assertF013Project();
+  await deleteF013M1ProofOrders(admin);
+  const buyer = await findAuthUserIdByEmail(admin, "buyer-only+foundation-test@example.com");
+  if (!buyer) throw new SafeFixtureError("Foundation buyer-only fixture missing; run npm run test:seed first.");
+  const row = (id: string, status: string, commerceFlow: "LEGACY" | "BANK_TRANSFER_V1") => ({
+    id, buyer_organization_id: ORGANIZATION_IDS.buyerOnly, created_by: buyer, status, commerce_flow: commerceFlow,
+    correlation_id: F013_M1_PROOF_MARKER,
+  });
+  const rows = [
+    row(F013_M1_ORDER_IDS.legacyDraft, "DRAFT", "LEGACY"),
+    row(F013_M1_ORDER_IDS.legacyDraftRefusals, "DRAFT", "LEGACY"),
+    row(F013_M1_ORDER_IDS.legacyDisputed, "DISPUTED", "LEGACY"),
+    row(F013_M1_ORDER_IDS.legacyDraftForMember, "DRAFT", "LEGACY"),
+    row(F013_M1_ORDER_IDS.v1Draft, "DRAFT", "BANK_TRANSFER_V1"),
+    row(F013_M1_ORDER_IDS.v1Paid, "PAID", "BANK_TRANSFER_V1"),
+  ];
+  const { error } = await admin.from("orders").insert(rows);
+  if (error) throw new SafeFixtureError(`F013 M1 live-proof setup failed: ${error.message}`);
+  return { created: rows.length, memberOrderId: F013_M1_ORDER_IDS.legacyDraftForMember };
+}
+
+/** Service-role probes: the service role is neither an internal transition nor a platform admin. */
+async function probeF013M1Transitions(admin: SupabaseClient): Promise<Record<string, unknown>> {
+  assertF013Project();
+  const ids = F013_M1_ORDER_IDS;
+  const attempt = async (key: keyof typeof F013_M1_ORDER_IDS, patch: Record<string, unknown>) => {
+    const { error } = await admin.from("orders").update(patch).eq("id", F013_M1_ORDER_IDS[key]);
+    return error ? error.message : "OK";
+  };
+  const insert = async (id: string, status: string, commerceFlow: string) => {
+    const buyer = await findAuthUserIdByEmail(admin, "buyer-only+foundation-test@example.com");
+    const { error } = await admin.from("orders").insert({ id, buyer_organization_id: ORGANIZATION_IDS.buyerOnly, created_by: buyer, status, commerce_flow: commerceFlow, correlation_id: F013_M1_PROOF_MARKER });
+    return error ? error.message : "OK";
+  };
+  const result: Record<string, unknown> = {
+    legacyDraftToConfirmed: await attempt("legacyDraft", { status: "CONFIRMED" }),
+    legacyDraftToProformaIssued: await attempt("legacyDraftRefusals", { status: "PROFORMA_ISSUED" }),
+    legacyDraftToCancelled: await attempt("legacyDraftRefusals", { status: "CANCELLED" }),
+    legacyDisputedToPaymentRejected: await attempt("legacyDisputed", { status: "PAYMENT_REJECTED" }),
+    legacyFlowToV1: await attempt("legacyDraftRefusals", { commerce_flow: "BANK_TRANSFER_V1" }),
+    legacyManualAdjustment: await attempt("legacyDraftRefusals", { has_manual_adjustment: true }),
+    v1DraftToProformaIssued: await attempt("v1Draft", { status: "PROFORMA_ISSUED" }),
+    v1DraftToConfirmed: await attempt("v1Draft", { status: "CONFIRMED" }),
+    v1DraftToCancelled: await attempt("v1Draft", { status: "CANCELLED" }),
+    v1PaidToVoid: await attempt("v1Paid", { status: "VOID" }),
+    v1PaidToDisputed: await attempt("v1Paid", { status: "DISPUTED" }),
+    v1FlowToLegacy: await attempt("v1Draft", { commerce_flow: "LEGACY" }),
+    v1CancelReason: await attempt("v1Draft", { cancel_reason: "probe" }),
+    v1UnrelatedColumnUpdate: await attempt("v1Draft", { updated_at: new Date().toISOString() }),
+    checkAcceptsV1ProformaIssued: await insert(ids.v1ProformaIssued, "PROFORMA_ISSUED", "BANK_TRANSFER_V1"),
+    checkAcceptsV1Cancelled: await insert(ids.v1Cancelled, "CANCELLED", "BANK_TRANSFER_V1"),
+    checkAcceptsV1PaymentRejected: await insert(ids.v1PaymentRejected, "PAYMENT_REJECTED", "BANK_TRANSFER_V1"),
+    checkRefusesUnknownStatus: await insert(ids.bogusStatus, "BOGUS", "BANK_TRANSFER_V1"),
+    checkRefusesUnknownFlow: await insert(ids.bogusStatus, "DRAFT", "STRIPE"),
+  };
+  const { data } = await admin.from("orders").select("id, status, commerce_flow, has_manual_adjustment, cancel_reason").in("id", F013_M1_ALL_IDS).order("id");
+  result.finalRows = data ?? [];
+  return result;
+}
+
+/** Read-only: M1 production state (T025). */
+async function probeF013M1Schema(admin: SupabaseClient): Promise<Record<string, unknown>> {
+  assertF013Project();
+  const offers: { offer_code: string | null }[] = [];
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await admin.from("coffee_offers").select("offer_code").range(from, from + 999);
+    if (error) throw new SafeFixtureError(`offer read failed: ${error.message}`);
+    offers.push(...(data ?? []));
+    if (!data || data.length < 1000) break;
+  }
+  const codes = offers.map((o) => o.offer_code);
+  const flows: Record<string, number> = {};
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await admin.from("orders").select("id, commerce_flow").order("id").range(from, from + 999);
+    if (error) throw new SafeFixtureError(`order read failed: ${error.message}`);
+    // The proof's own rows are excluded by exact id, client-side (no pattern/range filter in the F013 block).
+    for (const r of data ?? []) if (!(F013_M1_ALL_IDS as readonly string[]).includes(r.id)) flows[r.commerce_flow] = (flows[r.commerce_flow] ?? 0) + 1;
+    if (!data || data.length < 1000) break;
+  }
+  const { data: settings, error: settingsError } = await admin.from("commerce_settings").select("*");
+  const { count: proofsWithoutSubmittedAt } = await admin.from("payment_proofs").select("id", { count: "exact", head: true }).is("submitted_at", null);
+  const { count: defaultAccounts } = await admin.from("payment_accounts").select("id", { count: "exact", head: true }).eq("is_default_for_currency", true);
+  const { count: requestLogRows } = await admin.from("commerce_request_log").select("request_id", { count: "exact", head: true });
+  return {
+    offers: offers.length,
+    offerCodeNull: codes.filter((c) => c === null).length,
+    offerCodeBadFormat: codes.filter((c) => c !== null && !/^LST-[0-9]{7,}$/.test(c)).length,
+    offerCodeDistinct: new Set(codes).size,
+    orderFlows: flows,
+    settings: settingsError ? settingsError.message : settings,
+    proofsWithoutSubmittedAt,
+    defaultAccounts,
+    requestLogRows,
+  };
+}
+
 async function main(): Promise<void> {
   loadEnvLocal();
 
@@ -4463,6 +4642,26 @@ async function main(): Promise<void> {
   }
   if (process.argv.includes("--cleanup-f013-fixtures")) {
     console.log(JSON.stringify(await cleanupF013Fixtures(admin)));
+    return;
+  }
+  if (process.argv.includes("--f013-m1-schema-probe")) {
+    console.log(JSON.stringify(await probeF013M1Schema(admin)));
+    return;
+  }
+  if (process.argv.includes("--f013-m1-live-setup")) {
+    console.log(JSON.stringify(await setupF013M1LiveOrders(admin)));
+    return;
+  }
+  if (process.argv.includes("--f013-m1-live-probe")) {
+    console.log(JSON.stringify(await probeF013M1Transitions(admin)));
+    return;
+  }
+  if (process.argv.includes("--f013-m1-live-cleanup")) {
+    console.log(JSON.stringify(await cleanupF013M1LiveOrders(admin)));
+    return;
+  }
+  if (process.argv.includes("--f013-m1-live-verify")) {
+    console.log(JSON.stringify(await verifyF013M1ProofCleanup(admin)));
     return;
   }
   if (process.argv.includes("--prepare-catalogue-admin-fixture")) {

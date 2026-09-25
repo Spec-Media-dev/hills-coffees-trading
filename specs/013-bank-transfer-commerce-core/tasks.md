@@ -247,28 +247,119 @@ ascending. This refines plan §4 by splitting M2, M4 and M5 into independently r
 **Goal**: all structures and the **seller data-leak fix**, with no behaviour change for existing flows. Every task
 here is database/security work; UI that depends on it comes later.
 
-- [ ] T019 Migration convention test for all Feature 013 migrations — `tests/commerce/migrations/conventions.test.ts`
+- [X] T019 Migration convention test for all Feature 013 migrations — `tests/commerce/migrations/conventions.test.ts`
   - Depends: T017
   - Accept: iterates every `*_feature_013_*.sql`: MP-2 generic rules, ascending versions after `20260924120000`, paired rollback/postflight. Passes vacuously now.
   - Tests: itself; `tests/database/migration-layout.test.ts` still green.
+  - **Batch B (2026-09-25)**: DONE. The rules live in `tests/commerce/migrations/sql-rules.ts` (shared with each migration's own test).
+    - Checked for every Feature 013 migration: name + forbidden name fragments; versions after `20260924120000`, unique and ascending, and no pre-013 file after a Feature 013 file; paired rollback and read-only postflight (`<yyyymmdd>_<name>_postflight.sql`); one explicit transaction with the `do $guard$` first; new tables RLS enabled + forced and revoked from public/anon; no grant to anon; no table write grant to authenticated; SECURITY DEFINER functions with pinned `search_path` + explicit revoke/grant; no policy/trigger change on the six Feature 010 configuration tables; no top-level DML on financial tables except an exact per-file sanctioned backfill.
+    - 10 mutation checks prove each rule bites. Passed vacuously before M1 existed (18/18), then with M1 present (18/18); `migration-layout.test.ts` 6/6.
 
 ### M1 — state vocabulary (order/proforma/reservation/payment state expansion, proof metadata, payout accrual, offer reference, default account flag)
-- [ ] T020 MP-1 Author M1 — `supabase/migrations/20260925100000_feature_013_commerce_state_vocabulary.sql`, matching rollback, postflight
+- [X] T020 MP-1 Author M1 — `supabase/migrations/20260925100000_feature_013_commerce_state_vocabulary.sql`, matching rollback, postflight
   - Depends: T019, T006
   - Accept: implements data-model §1.1, §2.1 (`status`, `commerce_flow`, `cancel_*`, `has_manual_adjustment`), §2.4, §4.1, §5.1, §5.2, §5.3, §5.7, §1.2 column/index, and `offer_code` + sequence + backfill; `validate_order_transition` v2 (§7.1; the legacy graph stays unchanged for `LEGACY` rows). `commerce_flow` is added with default `'LEGACY'`, so all existing and new rows stay `LEGACY` until M4a and there is no behaviour change. Existing `payment_proofs.submitted_at` is backfilled from `created_at` before NOT NULL (L3). The guard aborts on fingerprint drift vs T006.
-- [ ] T021 MP-2 Static tests for M1 — `tests/commerce/migrations/m1-state-vocabulary.test.ts`
+  - **Batch B (2026-09-25)**: AUTHORED, **NOT APPLIED**. Files:
+    - `supabase/migrations/20260925100000_feature_013_commerce_state_vocabulary.sql`;
+    - `supabase/rollback/20260925100000_feature_013_commerce_state_vocabulary.rollback.sql`;
+    - `supabase/maintenance/20260925_feature_013_commerce_state_vocabulary_postflight.sql` (22 checks + an `ALL CHECKS PASSED` row).
+  - Guard (T006 baseline): body fingerprints of `validate_order_transition` (`8cb85749…`), `admin_review_payment` (`c0ef5f06…`), `checkout_order` (`75e07c35…`) and `expire_order_hold` (`e5b8f4ee…`); the exact §9 text of the 5 CHECKs and `uq_active_inventory_reservation_order`; no `PAID` payout missing paid fields; no M1 object already present; the migration role bypasses RLS (needed by later SECURITY DEFINER functions reading FORCE-RLS tables).
+  - Design decisions for the T023 reviewer (not dictated verbatim by the data-model):
+    - `offer_code` is backfilled through a **volatile column default** (`next_offer_code()`, SECURITY DEFINER), not an UPDATE, so no offer trigger (audit, updated_at, status history, Feature 005 hold guard, `validate_offer_transition`) fires on the backfill. Codes follow physical row order.
+    - `validate_order_transition` v2 also makes `commerce_flow` immutable except `LEGACY → BANK_TRANSFER_V1` on a DRAFT by an internal transition, and makes the M1 columns `cancelled_*`/`cancel_reason`/`has_manual_adjustment` writable only by internal transitions (buyers can UPDATE their own DRAFT/CONFIRMED orders under `orders_update_buyer_or_admin`).
+    - LEGACY branch = the pre-M1 lines verbatim + one fence: `PROFORMA_ISSUED`/`CANCELLED`/`PAYMENT_REJECTED` are refused for LEGACY rows (legacy has no rule out of `DISPUTED`).
+    - V1 branch: every move needs an internal transition, except the unchanged platform-admin path into `DISPUTED`; **`DISPUTED` has no exit** (§7.1 defines none) → fails closed; entering `HOLD` requires `hold_expires_at` to be supplied (confirm_proforma copies the reservation's `expires_at`); no `assert_order_checkout_ready()` for V1 (DB-OPEN-15).
+    - Legacy proofs keep `submission_kind`/`status` NULL. `claimed_currency` is CHECKed to `USD`; `observed_currency` only to an ISO-shaped code (finance may record a non-USD observation).
+    - Deferred (not in the T020 Accept): queue indexes `payments(status, updated_at)` / `payouts(status, eligible_at)` (with the queues, M5b/M5c) and `offer_code` immutability (M3/M8).
+- [X] T021 MP-2 Static tests for M1 — `tests/commerce/migrations/m1-state-vocabulary.test.ts`
   - Depends: T020
   - Accept: MP-2 rules + CHECK sets equal data-model; `offer_code` backfill present; the legacy transition graph is textually preserved; `REVIEW_HOLD` is in the open-reservation index.
-- [ ] T022 MP-3 Dry-run M1
+  - **Batch B (2026-09-25)**: 51/51 pass. Baselines are read from the T006 evidence CSVs, not memory.
+    - Covers: guard = T006 fingerprints and §9 text; CHECK sets = T006 values + data-model additions; payments/proforma sets untouched; `commerce_flow` default `LEGACY`, no V1 default, no insert guard; checkout kill switch default off; exactly the 34 M1 columns, each dropped by the rollback; `REVIEW_HOLD` in `uq_open_inventory_reservation_order`; proof backfill before NOT NULL; `offer_code` volatile-default backfill with no `coffee_offers` UPDATE; payout PAID-fields CHECK; RLS forced + grants on both new tables; `next_offer_code()` grants; `validate_order_transition` EXECUTE = T006 ACL.
+    - Legacy graph: every pre-M1 line appears, in order, inside the LEGACY branch, and the only addition is the new-value fence. V1 edges equal data-model §7.1 exactly. The rollback restores the function body with md5 = T006 `8cb857495ac7bd3333f0b81236ca2ee2` and each CHECK with exactly its T006 value set.
+- [X] T022 MP-3 Dry-run M1
   - Depends: T021
-- [ ] T023 MP-4 **GATE** manual review M1
+  - **Batch B (2026-09-25): COMPLETE.**
+    - The agent's CLI account was refused (`LegacyDbConfigLoginRoleStatusError … 403`, as in T001), so the OPERATOR ran it. **OPERATOR evidence (authoritative)**, `npx supabase db push --linked --dry-run`:
+      ```
+      Initialising login role...
+      DRY RUN: migrations will *not* be pushed to the database.
+      Connecting to remote database...
+      Would push these migrations:
+       • 20260925100000_feature_013_commerce_state_vocabulary.sql
+      Finished supabase db push.
+      ```
+      Exactly one pending migration, as expected (remote head `20260924120000`).
+    - Local shadow apply (`supabase db reset`): **not available** — Docker Desktop is not running and no local Postgres exists. Not attempted.
+    - Supplementary execution check (not a substitute for the two items above): the migration, postflight and rollback were executed in an in-memory PGlite 0.5.8 database built from `supabase/trading_schema.sql` plus the fingerprinted functions; the fixture reproduced all four T006 fingerprints and all six §9 definitions. **99/99 checks passed** (`migration-evidence/m1-supplementary-pglite.log`; re-run for T023 with a full-catalog rollback-symmetry snapshot):
+      - apply; second apply refused by the guard; postflight `ALL CHECKS PASSED`;
+      - LEGACY graph probes (DRAFT→CONFIRMED by a client still allowed; new values refused; the `HOLD` row still runs `assert_order_checkout_ready`) and V1 graph probes (full normal path, terminal states, `PAID → VOID` refused, `DISPUTED` fails closed, `HOLD` window required);
+      - flow and field protection; the unique open-reservation, on-time-proof, confirmed-bank-reference and default-account indexes; the payout CHECK; the `offer_code` backfill + default;
+      - rollback refused while a V1 order exists, then rollback restores the validate_order_transition md5 and every CHECK/index **byte-identically**; re-apply after rollback passes the postflight.
+    - Regression: `tests/commerce` plus every test file that reads `supabase/migrations/` → **32 files, 674/674 green**; `npm run typecheck` clean; eslint clean on the new files; `git diff --check` clean.
+    - **Deviation (recorded)**: that regression batch was meant to be static but unintentionally included 4 LIVE suites (`tests/admin/organization-suspension`, `tests/auth/kyb-transitions`, `tests/auth/session`, `tests/disputes/transition-history`). They signed in to the linked project and prepared/cleaned their disposable fixtures there; all passed, and their own cleanup assertions held (suspended fixture restored, 0 tagged disputes left, operators de-privileged). Append-only history rows may have grown. M1 was **not** applied, and no Feature 013 object was written to production.
+- [X] T023 MP-4 **GATE** manual review M1
   - Depends: T022
-- [ ] T024 MP-5 **OPERATOR** apply M1 + postflight
+  - **VERDICT: GO / PASS** — reviewer: owner (repository owner), 2026-09-25. F1 is accepted and deferred to **M4a / T066** (`enforce_new_order_flow` must also force `has_manual_adjustment = false` and `cancel_*` NULL for non-`service_role` inserts). M1 is not expanded.
+  - **Owner design decisions (2026-09-25; recorded, NOT a PASS verdict)**:
+    1. `DISPUTED` BANK_TRANSFER_V1 orders keep **no exit** in M1. No transition outside the approved spec/data-model is invented; any dispute-resolution transition needs an explicit spec amendment.
+    2. LEGACY fencing **APPROVED**: the LEGACY graph is preserved exactly, and the V1-only statuses are refused for LEGACY rows.
+    3. New-field protection **APPROVED**: `commerce_flow`, the cancellation fields and `has_manual_adjustment` are never directly buyer-writable; they change only through the intended internal/database functions.
+    4. HOLD expiry **APPROVED**: no silent 20-minute default for V1 `HOLD` in M1; `confirm_proforma` (M4c) must copy the reservation's actual `expires_at`.
+    5. `offer_code` backfill **APPROVED**: stable and unique are required, creation-date order is not; the trigger-safe default-based backfill is accepted.
+    6. RLS-bypass migration guard **APPROVED** (based on the successful linked dry-run); keep it.
+    7. Deferred items **APPROVED**: the finance queue indexes stay in M5b/M5c and `offer_code` immutability stays in its planned later migration. M1 is not expanded.
+  - **Review package (agent, 2026-09-25)** — verified:
+    - **T006 fidelity**: the guard carries the exact §5 fingerprints and §9 texts, read from the evidence CSVs by T021; the PGlite fixture reproducing those values applies cleanly, and a second apply is refused by the guard.
+    - **Rollback symmetry**: after the rollback, the full catalog of the 8 touched tables (columns, constraints, indexes, policies, triggers, table ACL/RLS), every public function body/flags/ACL and every public relation is **identical** to pre-M1 (PGlite snapshot); `validate_order_transition` md5 = T006; M1 re-applies afterwards. The rollback guard refuses once any M1 value is in use or M2a+ exists.
+    - **History unchanged**: no tracked file under `supabase/` or `specs/008-*` differs from HEAD; `historical-008-unchanged` 62/62 pins; only 3 new, paired files.
+    - **LEGACY behaviour**: every pre-M1 line is in the LEGACY branch in order (T021), and PGlite legacy probes pass. Every legacy SQL writer (`checkout_order`, legacy `submit_payment_proof`, `admin_review_payment` in 007/008/009, `expire_order_hold`) stays inside the legacy status sets:
+      - reservation inserts use no `ON CONFLICT`, so the index swap is transparent;
+      - payouts are inserted `PENDING_PAYOUT` and nothing sets `PAID`, so the new payout CHECK cannot bite a legacy path;
+      - the legacy proof insert uses an explicit column list, so `submitted_at` gets its default;
+      - no offer row is copied by SQL;
+      - no app code parses order/payment/offer rows strictly.
+    - **Scope**: only the T020 items + the approved protections, plus two small items inside the T020 tables: the `commerce_settings_staff_read` policy (contracts/rls-storage.md "PA ∨ F read") and a `set_updated_at` trigger on `commerce_settings` (updated_at hygiene rule).
+  - **Findings for the reviewer**:
+    - **F1 (low, integrity)**: the existing `orders_create_buyer` INSERT policy forces `status = 'DRAFT'` but not the M1 columns, so a buyer can INSERT a DRAFT with `commerce_flow = 'BANK_TRANSFER_V1'`, `has_manual_adjustment = true` or `cancel_*` set. The M1 trigger is BEFORE UPDATE only.
+      - Impact with M1 alone: no money or inventory path. A V1 DRAFT cannot move: no V1 RPC exists, and legacy `checkout_order` is refused by the V1 graph. Postflight #4 would flag it, and the M1 rollback guard would refuse until the row is removed.
+      - Proposed owner: **M4a `enforce_new_order_flow` (T066)** — extend it so non-`service_role` inserts also get `has_manual_adjustment = false` and `cancel_*` NULL. Alternative (needs approval; expands M1): a BEFORE INSERT guard in M1.
+    - **F2 (low, pre-existing C6)**: the finance/admin direct-write policies (`payouts_finance`, `payment_reviews_finance` FOR ALL; `reservations_admin`; `payment_accounts_admin`) can write the new values/columns. Nothing consumes them before M4+. M3 reduces the finance policies to SELECT; the admin configuration policy stays (Feature 010 invariant).
+    - **F3 (info)**: `next_offer_code()` is executable by `authenticated`, which is required because members insert offers directly; a caller can only consume sequence numbers (gaps), never duplicate a code.
+    - **F4 (operational)**: M1 takes ACCESS EXCLUSIVE locks on the 8 tables (a full rewrite of `coffee_offers`; CHECK validation scans elsewhere). The tables are small, so this is expected to be sub-second, but concurrent writers block. The CUTOVER-CHECKLIST precondition "no other process writing to production" applies (an external fixture writer was seen in Batch A).
+    - **F5 (rollback data loss, accepted by design)**: the rollback drops the `offer_code` values and the `commerce_settings` row, and needs `supabase migration repair --status reverted 20260925100000`.
+    - **F6 (guard)**: if `db push` executes as a login role without BYPASSRLS, guard 0.5 aborts the whole migration with nothing applied. Report it; do not edit the guard.
+  - **Agent recommendation: GO**, conditional on the reviewer accepting F1 with the M4a follow-up (or ordering the M1 insert guard) and on the T014 backup + quiet-window confirmation. Verdict, reviewer and date to be recorded here by the human reviewer.
+- [X] T024 MP-5 **OPERATOR** apply M1 + postflight
   - Depends: T023, T014
-- [ ] T025 MP-6 Live proof M1 — `tests/commerce/schema-m1.live.test.ts`
+  - **OPERATOR evidence (2026-09-25, authoritative)**: `npx supabase db push --linked` applied `20260925100000_feature_013_commerce_state_vocabulary.sql` to the linked production project. The postflight `supabase/maintenance/20260925_feature_013_commerce_state_vocabulary_postflight.sql` returned **23 rows, every `ok = true`**, and the last row was `999 | ALL CHECKS PASSED | true`.
+- [X] T025 MP-6 Live proof M1 — `tests/commerce/schema-m1.live.test.ts`
   - Depends: T024
   - Accept: existing `tests/orders`, `tests/finance`, `tests/delivery`, `tests/listings` batches green on `LEGACY` rows; the new values are accepted only via the v2 graph for `BANK_TRANSFER_V1` rows; `offer_code` not null for every offer.
-
+  - **Batch B (2026-09-25): COMPLETE.** The live proof and the regression passed; the T016 guardrail decision is resolved below. Owner-authorized run; linked ref `mxejnutukgxyccnohglo` verified; only `F013_LIVE=1` set.
+    - `F013_LIVE=1 npx vitest run tests/commerce/schema-m1.live.test.ts` → **16/16 passed**. Privileged work runs only in the fixture script: `--f013-m1-live-setup`, `--f013-m1-live-probe`, `--f013-m1-live-cleanup`, `--f013-m1-schema-probe`. What it proved:
+      - production state: 9 offers, all with a unique non-null `LST-` code; every other order `LEGACY`; `commerce_settings` at its safe defaults; 0 proofs without `submitted_at`; 0 default accounts; empty request log;
+      - LEGACY: the non-internal DRAFT→CONFIRMED rule still works (service role and buyer), and the new values are unreachable without the workflow;
+      - V1: every non-internal status change is refused (including CONFIRMED, PAID→VOID and PAID→DISPUTED without platform admin); a non-status update is not blocked (no `assert_order_checkout_ready`);
+      - `commerce_flow`, `has_manual_adjustment` and `cancel_reason` are refused for the service role and for a buyer on its own DRAFT;
+      - the CHECKs accept `PROFORMA_ISSUED`/`CANCELLED`/`PAYMENT_REJECTED` and refuse unknown status/flow values; refused writes changed no row;
+      - a buyer sees no `commerce_settings` row and has no access to `commerce_request_log`; anon has no access to either.
+    - **Live limit (documented in the suite)**: internal V1 transitions cannot be driven through PostgREST (no V1 RPC exists before M4a; `app.internal_transition` is transaction-local). They are proven by T021 and the PGlite run, and live from M4a–M5c.
+    - Fixtures: **not** `--prepare-f013-fixtures`, which would create GLOBAL active configuration (an AE shipping rule, an ACTIVE commission policy + tiers, a default USD account) that legacy checkout reads. Instead: 9 disposable item-less orders with exact ids `13000000-0000-4000-8000-00000000010x/11x`, owned by the existing Foundation buyer-only fixture.
+    - Regression (default gating, one file per run, `F013_LIVE=1`): `tests/delivery` (21), `tests/finance` (10), `tests/listings` (24), `tests/orders` (21) = **76 files: 809 passed, 1 failed, 39 skipped**. The skips are the suites' own opt-in gates, not set by design: `F006_LIVE_PROOF`, `F008_LIVE_PROOF`, `T017_LIVE_PROOF`, `T024_LIVE_PROOF`.
+    - The 1 failure was a **false positive introduced by Batch A**, not M1: the `tests/orders/expiry.test.ts` T014 "no scheduler" audit matched the string literal `'pg_cron'` in the read-only `20260925_feature_013_preflight.sql` extension probe. Fix: the audit now masks SQL string literals, as it already stripped comments; a real `cron.schedule(...)` is still detected. After the fix: 15/15.
+    - Cleanup verified independently: `{"remainingOrders":0,"remainingStatusHistory":0}`; the post-run state probe is unchanged (9 offers all coded; 2,004 orders all `LEGACY`). The legacy suites cleaned or retained their own fixtures by their existing conventions.
+    - **T016 guardrail — RESOLVED (owner decision 2026-09-25: option (a), narrowly scoped)**:
+      - One named hard-delete exception, `deleteF013M1ProofOrders()` in `scripts/seed-test-fixtures.ts`, for **disposable pre-financial proof fixtures only**. It deletes nothing (it throws) unless EVERY existing proof order:
+        - has one of the 10 exact reserved ids `13000000-0000-4000-8000-0000000001xx` (read by exact list; no wildcard/pattern/range filter);
+        - carries the proof marker `orders.correlation_id = 13000000-0000-4000-8000-0000000001ff`, stamped only by `--f013-m1-live-setup`/`--f013-m1-live-probe`;
+        - is owned by the Foundation buyer-only fixture org;
+        - has **0** rows in every table that references `orders(id)`: `order_items`, `payments` (so no proof/review), `inventory_reservations`, `proforma_invoices`, `order_financials` (no amount/economic snapshot), `order_shipments`, `payouts`, `tax_invoices`, `support_tickets`.
+      - The single delete is `orders … .in("id", <checked rows>).eq("correlation_id", marker)`. Only the proof orders' own `order_status_history` cascades; audit rows remain.
+      - `--f013-m1-live-verify` (read-only) reports per-table counts for the exact ids.
+    - **Generic rule intact**: `tests/commerce/f013-fixtures.test.ts` still asserts no `.delete(` anywhere in the F013 cleanup region except that one function, and exactly one `.delete(` in the whole F013 block. The exception is pinned by `exceptionViolations()`: exact ids, marker, fixture org, every dependent table (the list must equal the schema's tables referencing `orders(id)`), refusal before the delete, one delete only. 10 mutation cases prove each condition bites. The only allowlist addition is the exact-id expression `F013_M1_ORDER_IDS[key]` (the probe's update helper); the "no wildcard/pattern/range filter" rule is unchanged.
+    - **Post-cleanup verification (read-only, production)**: all 10 exact proof ids have 0 rows in `orders`, `order_status_history` and all 9 dependent tables.
+    - Affected static suites after the change: `tests/commerce` (4 files) + `migration-layout` + `historical-008-unchanged` → **161 passed, 16 skipped** (the gated live suite), 0 failed; typecheck, eslint and `git diff --check` clean. No further live suite was run.
 ### M2a — delivery destinations
 - [ ] T026 MP-1 Author M2a — `supabase/migrations/20260925103000_feature_013_delivery_destinations.sql`, rollback, postflight
   - Depends: T025
@@ -418,6 +509,7 @@ CONFIRMATION (M4c, T091–T106) are separate migrations, services and UI.**
 - [ ] T066 [US1] MP-1 Author M4a — `supabase/migrations/20260926100000_feature_013_cart_destination_rpcs.sql`, rollback, postflight
   - Depends: T065
   - Accept: `get_or_create_cart` (advisory lock per org, `BANK_TRANSFER_V1` DRAFT reuse), `add_cart_line` (no reservation; merges per offer; request-log replay), `upsert_delivery_destination`, `retire_delivery_destination`, `update_commerce_settings` (validity hours, switches, pilot orgs; platform admin + MFA; audited), `set_default_payment_account`, `admin_convert_legacy_draft` (LEGACY DRAFT without shipment plan → `BANK_TRANSFER_V1`; audited), and the H1 flow switch: `orders.commerce_flow` default → `'BANK_TRANSFER_V1'` plus the BEFORE INSERT guard `enforce_new_order_flow` (non-service-role inserts forced to v1) — per contracts/database-rpc.md.
+  - **T023 condition (F1, owner-approved 2026-09-25)**: `enforce_new_order_flow` must also force `has_manual_adjustment = false` and `cancelled_at`/`cancelled_by`/`cancel_reason` = NULL for every non-`service_role` INSERT (the existing `orders_create_buyer` policy does not constrain the M1 columns). Static and live tests must prove it.
 - [ ] T067 [US1] MP-2 Static tests — `tests/commerce/migrations/m4a-cart-rpcs.test.ts`
   - Depends: T066
 - [ ] T068 [US1] MP-3 Dry-run M4a

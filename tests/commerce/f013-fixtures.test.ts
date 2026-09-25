@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
 
@@ -12,10 +12,61 @@ import { F013_FIXTURES } from "@/tests/auth/fixture-session";
  * explicit per-run approval gate and a project-ref check before any write, and constants mirrored exactly in
  * tests/auth/fixture-session.ts.
  */
-const script = readFileSync("scripts/seed-test-fixtures.ts", "utf8");
+const script = readFileSync("scripts/seed-test-fixtures.ts", "utf8").replace(/\r\n/g, "\n");
 const block = script.slice(script.indexOf("// Feature 013 T016"), script.indexOf("async function main(): Promise<void> {"));
 const cleanup = block.slice(block.indexOf("async function cleanupF013Fixtures"));
 const prepare = block.slice(block.indexOf("async function prepareF013Fixtures"), block.indexOf("async function cleanupF013Fixtures"));
+
+/**
+ * The ONE hard-delete exception (owner-approved 2026-09-25, T025/T016): disposable PRE-FINANCIAL M1 proof orders only.
+ * It lives in exactly one function, `deleteF013M1ProofOrders`; everything else in the block stays under the generic
+ * "never hard-delete" rule.
+ */
+const EXCEPTION_NAME = "async function deleteF013M1ProofOrders(";
+const functionText = (source: string, header: string) => {
+  const start = source.indexOf(header);
+  return start === -1 ? "" : source.slice(start, source.indexOf("\n}\n", start) + 3);
+};
+const exceptionFn = functionText(block, EXCEPTION_NAME);
+const cleanupWithoutException = cleanup.replace(exceptionFn, "");
+/** Tables that reference public.orders(id), except order_status_history (the only child a proof order may have). */
+function tablesReferencingOrders(): string[] {
+  const files = ["supabase/trading_schema.sql", ...readdirSync("supabase/migrations").map((f: string) => `supabase/migrations/${f}`)];
+  const tables = new Set<string>();
+  for (const file of files) {
+    const sql = readFileSync(file, "utf8");
+    for (const m of sql.matchAll(/create table (?:if not exists )?public\.(\w+)\s*\(([\s\S]*?)\n\);/g)) {
+      if (/\breferences public\.orders\(id\)/.test(m[2]!)) tables.add(m[1]!);
+    }
+    for (const m of sql.matchAll(/alter table public\.(\w+)[^;]*?\badd column \w+ uuid[^;,]*references public\.orders\(id\)/g)) tables.add(m[1]!);
+  }
+  tables.delete("order_status_history");
+  return [...tables].sort();
+}
+/** Every condition the exception must keep; each returned string is a violation. */
+function exceptionViolations(fn: string, source: string): string[] {
+  const problems: string[] = [];
+  if (!fn) return ["exception function missing"];
+  const deletes = [...fn.matchAll(/\.delete\(\)/g)];
+  if (deletes.length !== 1) problems.push(`expected exactly one delete, found ${deletes.length}`);
+  if (!/await admin\.from\("orders"\)\.delete\(\)\.in\("id", ids\)\.eq\("correlation_id", F013_M1_PROOF_MARKER\);/.test(fn)) problems.push("delete is not orders by exact proof ids AND the proof marker");
+  if (!/const \{ data: orders, error \} = await admin\.from\("orders"\)\.select\("id, correlation_id, buyer_organization_id"\)\.in\("id", F013_M1_ALL_IDS\);/.test(fn)) problems.push("candidate ids are not read by the exact F013_M1_ALL_IDS list");
+  if (!/const ids = \(orders \?\? \[\]\)\.map\(\(order\) => order\.id as string\);/.test(fn)) problems.push("delete ids are not exactly the rows read");
+  if (!/order\.correlation_id !== F013_M1_PROOF_MARKER/.test(fn)) problems.push("proof-marker precondition missing");
+  if (!/order\.buyer_organization_id !== ORGANIZATION_IDS\.buyerOnly/.test(fn)) problems.push("fixture-org precondition missing");
+  if (!/for \(const table of F013_M1_ORDER_DEPENDENTS\)[\s\S]*?\.in\("order_id", ids\)[\s\S]*?if \(\(count \?\? 0\) !== 0\) problems\.push/.test(fn)) problems.push("dependent-row precondition missing");
+  const refusal = fn.indexOf("if (problems.length > 0) throw new SafeFixtureError");
+  if (refusal === -1 || refusal > fn.indexOf(".delete()")) problems.push("refusal does not precede the delete");
+  const ids = /const F013_M1_ORDER_IDS = \{([\s\S]*?)\} as const;/.exec(source)?.[1] ?? "";
+  const literal = [...ids.matchAll(/"([^"]+)"/g)].map((m) => m[1]!);
+  if (literal.length !== 10 || !literal.every((id) => /^13000000-0000-4000-8000-0000000001[0-9a-f]{2}$/.test(id))) problems.push("proof ids are not the 10 exact reserved 13000000-…-0000000001xx ids");
+  if (!/const F013_M1_ALL_IDS = Object\.values\(F013_M1_ORDER_IDS\);/.test(source)) problems.push("F013_M1_ALL_IDS is not exactly the proof id list");
+  if (!/const F013_M1_PROOF_MARKER = "13000000-0000-4000-8000-0000000001ff";/.test(source)) problems.push("proof marker changed");
+  const dependents = /const F013_M1_ORDER_DEPENDENTS = \[([\s\S]*?)\] as const;/.exec(source)?.[1] ?? "";
+  const listed = [...dependents.matchAll(/"(\w+)"/g)].map((m) => m[1]!).sort();
+  if (JSON.stringify(listed) !== JSON.stringify(tablesReferencingOrders())) problems.push(`dependent list ${listed.join(",")} != tables referencing orders ${tablesReferencingOrders().join(",")}`);
+  return problems;
+}
 
 describe("T016 — Feature 013 fixtures are exact-identity only", () => {
   it("every fixed id is in the reserved 13000000- range and unique", () => {
@@ -37,11 +88,49 @@ describe("T016 — Feature 013 fixtures are exact-identity only", () => {
   });
 
   it("cleanup never hard-deletes a business or financial row (operator de-privilege goes through the existing helper)", () => {
-    expect(cleanup).not.toMatch(/\.delete\(/);
+    // Generic rule, unchanged: the only code allowed to delete is the one named proof-fixture exception below.
+    expect(cleanupWithoutException).not.toMatch(/\.delete\(/);
     expect(cleanup).toMatch(/cleanupDisposableOperatorFixture\(admin, operator\)/);
     for (const call of cleanup.matchAll(/\.update\([^)]*\)\.eq\("id", ([^)]+)\)/g)) {
-      expect(call[1]).toMatch(/^(orgId|listing\.offer|F013_FIXTURE_IDS\.[A-Za-z0-9]+)$/);
+      expect(call[1]).toMatch(/^(orgId|listing\.offer|F013_FIXTURE_IDS\.[A-Za-z0-9]+|F013_M1_ORDER_IDS\[key\])$/);
     }
+  });
+
+  it("the block has exactly one hard delete, and it is inside the named proof-fixture exception", () => {
+    expect((block.match(/\.delete\(/g) ?? []).length).toBe(1);
+    expect((exceptionFn.match(/\.delete\(/g) ?? []).length).toBe(1);
+  });
+
+  it("the proof-fixture exception keeps every owner-approved condition (exact ids, proof marker, fixture org, no dependent row, refusal first)", () => {
+    expect(exceptionViolations(exceptionFn, block)).toEqual([]);
+  });
+
+  it("every proof order is stamped with the proof marker by the dedicated setup/probe commands", () => {
+    const setup = functionText(block, "async function setupF013M1LiveOrders(");
+    const probe = functionText(block, "async function probeF013M1Transitions(");
+    expect(setup).toContain("correlation_id: F013_M1_PROOF_MARKER,");
+    expect(probe).toContain("correlation_id: F013_M1_PROOF_MARKER });");
+    expect((block.match(/admin\.from\("orders"\)\.insert\(/g) ?? []).length).toBe(2);
+  });
+
+  it.each([
+    ["delete without the proof marker", (s: string) => s.replace('.eq("correlation_id", F013_M1_PROOF_MARKER);', ";")],
+    ["delete of a different table", (s: string) => s.replace('admin.from("orders").delete()', 'admin.from("payments").delete()')],
+    ["delete by the raw id list instead of the checked rows", (s: string) => s.replace('.delete().in("id", ids)', '.delete().in("id", F013_M1_ALL_IDS)')],
+    ["no refusal before the delete", (s: string) => s.replace("if (problems.length > 0) throw new SafeFixtureError", "if (false) console.log")],
+    ["dependent-row check removed", (s: string) => s.replace("if ((count ?? 0) !== 0) problems.push", "if (false) problems.push")],
+    ["marker check removed", (s: string) => s.replace("order.correlation_id !== F013_M1_PROOF_MARKER", "false")],
+    ["a second delete", (s: string) => s.replace("return ids.length;", 'await admin.from("orders").delete().in("id", ids);\n  return ids.length;')],
+  ])("the exception check rejects: %s", (_label, mutate) => {
+    expect(exceptionViolations(mutate(exceptionFn), block).length).toBeGreaterThan(0);
+  });
+
+  it.each([
+    ["a dependent table dropped from the list", (s: string) => s.replace('"payouts", ', "")],
+    ["a non-reserved proof id", (s: string) => s.replace('"13000000-0000-4000-8000-000000000101"', '"f0000000-0000-4000-8000-000000000101"')],
+    ["a different marker", (s: string) => s.replace('F013_M1_PROOF_MARKER = "13000000-0000-4000-8000-0000000001ff"', 'F013_M1_PROOF_MARKER = "13000000-0000-4000-8000-0000000001fe"')],
+  ])("the exception check rejects a source change: %s", (_label, mutate) => {
+    expect(exceptionViolations(exceptionFn, mutate(block)).length).toBeGreaterThan(0);
   });
 
   it("prepare is gated by an explicit per-run approval and the verified project ref", () => {

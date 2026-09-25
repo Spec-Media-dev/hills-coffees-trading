@@ -404,14 +404,16 @@ describe("T012/T014 — sole-caller, no-reservation-read and no-scheduler source
     }
     // Comments may NAME a scheduler to say it is NOT approved (this feature's own expiry.ts header,
     // the SQL baseline's own "could use pg_cron" note) — only a reference surviving comment
-    // stripping would be a real scheduler.
+    // stripping would be a real scheduler. SQL string literals are masked too: a read-only
+    // catalog probe such as `where extname in ('pg_cron', …)` (Feature 013 preflight) names the
+    // extension as data; it schedules nothing.
     const codeHits = hits
       .trim()
       .split(/\r?\n/)
       .filter(Boolean)
       .filter((file) => {
         const raw = readFileSync(file, "utf8");
-        const withoutComments = file.endsWith(".sql") ? raw.replace(/--.*$/gm, "") : stripComments(raw);
+        const withoutComments = file.endsWith(".sql") ? raw.replace(/--.*$/gm, "").replace(/'(?:[^']|'')*'/g, "''") : stripComments(raw);
         return /pg_cron|cron\.schedule|node-cron|bullmq|upstash|@vercel\/cron/i.test(withoutComments);
       });
     expect(codeHits).toEqual([]);

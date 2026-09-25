@@ -824,3 +824,20 @@ export const F013_FIXTURES = {
     commissionPolicy: "13000000-0000-4000-8000-000000000073",
   },
 } as const;
+
+/**
+ * Feature 013 T025 — M1 live proof helpers (privileged work runs in the fixture script process only).
+ * Disposable orders in the reserved 13000000-…-00000001xx range, owned by the Foundation buyer-only fixture;
+ * no global commerce configuration is created.
+ */
+function f013M1Json(flag: string): Record<string, unknown> {
+  const output = runFixtureScript([flag], { captureOutput: true });
+  const line = output.trim().split(/\r?\n/).find((candidate) => candidate.startsWith("{"));
+  if (!line) throw new Error(`${flag} produced no JSON result.`);
+  return JSON.parse(line) as Record<string, unknown>;
+}
+export const probeF013M1Schema = () => f013M1Json("--f013-m1-schema-probe");
+export const setupF013M1LiveOrders = () => f013M1Json("--f013-m1-live-setup");
+export const probeF013M1Transitions = () => f013M1Json("--f013-m1-live-probe");
+export const cleanupF013M1LiveOrders = () => f013M1Json("--f013-m1-live-cleanup");
+export const verifyF013M1ProofCleanup = () => f013M1Json("--f013-m1-live-verify");

@@ -1,0 +1,106 @@
+# Feature 013 M1 — supplementary execution check (NOT the MP-3 local Supabase shadow apply)
+# Engine: in-memory PGlite 0.5.8 (PostgreSQL compiled to WASM), 2026-09-25 (re-run for T023 with the full-catalog rollback-symmetry snapshot). No remote connection.
+# Fixture: supabase/trading_schema.sql + checkout_order/expire_order_hold (007) + admin_review_payment (008) + payment_accounts triggers and uq_payment_proof_file as in T006;
+#          stubs for auth.*, storage.*, is_compliance_operator(), is_finance_operator() (live-only helpers absent from repo SQL). Fingerprints below prove the fixture = T006 for every guarded object.
+#          Seed rows inserted with session_replication_role = replica (fixture ids only). Harness kept outside the repository (session scratchpad).
+
+PASS Supabase stand-ins
+PASS load supabase/trading_schema.sql
+PASS create checkout_order from 20260913100000_feature_007_db_blockers.sql
+PASS create expire_order_hold from 20260913100000_feature_007_db_blockers.sql
+PASS create admin_review_payment from 20260922120000_feature_008_stripe_trusted_funding.sql
+PASS payment_accounts triggers + uq_payment_proof_file as in production (T006 §8/§9)
+PASS fixture fingerprint public.validate_order_transition() = T006 — 8cb857495ac7bd3333f0b81236ca2ee2
+PASS fixture fingerprint public.admin_review_payment(uuid,boolean,text) = T006 — c0ef5f06b8ee47788825480cf56cfc03
+PASS fixture fingerprint public.checkout_order(uuid) = T006 — 75e07c357ea33a980fd695a271d8e708
+PASS fixture fingerprint public.expire_order_hold(uuid) = T006 — e5b8f4ee0c35948c6e582f2a9d3c0288
+PASS fixture inventory_reservations_status_check = T006 §9 text
+PASS fixture orders_status_check = T006 §9 text
+PASS fixture payment_reviews_decision_check = T006 §9 text
+PASS fixture payments_status_check = T006 §9 text
+PASS fixture payouts_status_check = T006 §9 text
+PASS fixture uq_active_inventory_reservation_order = T006 §9 text
+PASS seed profiles
+PASS seed organizations
+PASS seed coffee_offers
+PASS seed coffee_offers
+PASS seed coffee_offers
+PASS seed orders
+PASS seed orders
+PASS seed orders
+PASS seed orders
+PASS seed inventory_reservations
+PASS seed payments
+PASS seed payment_proofs
+PASS seed payouts
+PASS seed payouts
+PASS seed payment_accounts
+PASS APPLY M1
+PASS re-applying M1 is refused by its guard (no partial double apply) — feature_013_commerce_state_vocabulary preflight failed — nothing applied: validate_order_transition() differs from the T006 fingerprint; orders_status_check differs from T006; inventory_reservations_status_check differs from T006; payouts_status_check differs from T006; payment_reviews_decision_check differs from T006; uq_
+PASS postflight #1 status vocabularies equal data-model (orders_status_check, inventory_reservations_status_check, payouts_status_check, payment_reviews_decision_check, payments_status_check, proforma_invoices_status_check)
+PASS postflight #2 every M1 column exists (34)
+PASS postflight #3 orders.commerce_flow NOT NULL, default LEGACY, CHECK LEGACY|BANK_TRANSFER_V1
+PASS postflight #4 every order is LEGACY and none uses a new status (no behaviour change)
+PASS postflight #5 commerce_settings singleton present with the safe defaults (24 h, checkout OFF, proof ON, no pilots)
+PASS postflight #6 commerce_settings: RLS enabled + forced; anon nothing; authenticated SELECT only; staff read policy
+PASS postflight #7 commerce_request_log: RLS enabled + forced; no anon/authenticated privilege; no policy; created_at index
+PASS postflight #8 open-reservation index: unique (order_id) WHERE ACTIVE or REVIEW_HOLD; old ACTIVE-only index gone; expiry index present
+PASS postflight #9 at most one open reservation per order
+PASS postflight #10 payments: uq_confirmed_bank_reference unique partial index present
+PASS postflight #11 payment_proofs.submitted_at NOT NULL, default clock_timestamp(), never before created_at (backfill complete)
+PASS postflight #12 payment_proofs: one ON_TIME submission per payment (uq_payment_proof_on_time); uq_payment_proof_file kept
+PASS postflight #13 payouts: PAID requires paid_by/paid_at/payment_reference; every row satisfies it
+PASS postflight #14 payment_accounts: is_default_for_currency NOT NULL default false; uq_payment_account_default_currency present; no account flagged yet
+PASS postflight #15 payment_accounts (Feature 010 config table): triggers and policies unchanged (2 triggers, 1 policy)
+PASS postflight #16 coffee_offers.offer_code backfilled: NOT NULL, unique, LST-format for every offer
+PASS postflight #17 next_offer_code(): SECURITY DEFINER, pinned search_path, EXECUTE authenticated + service_role only; sequence not client-usable
+PASS postflight #18 validate_order_transition() v2: SECURITY DEFINER, pinned search_path, both graphs present, still bound to trg_order_transition
+PASS postflight #19 validate_order_transition(): EXECUTE unchanged (authenticated + service_role; not anon, not PUBLIC)
+PASS postflight #20 untouched functions keep their T006 fingerprints (admin_review_payment, checkout_order, expire_order_hold)
+PASS postflight #21 anon holds no privilege on the M1 finance tables
+PASS postflight #22 no Feature 013 object beyond M1 exists yet (M2a+ not applied)
+PASS postflight #999 ALL CHECKS PASSED
+PASS offer_code backfilled for all 3 legacy offers (DRAFT, PUBLISHED, ARCHIVED)
+PASS payment_proofs.submitted_at = created_at for the legacy proof
+PASS every existing order is LEGACY
+PASS LEGACY: DRAFT → CONFIRMED by a non-internal caller (unchanged legacy rule)
+PASS LEGACY: DRAFT → VOID (internal)
+PASS LEGACY: DRAFT → PROFORMA_ISSUED refused — invalid_order_transition
+PASS LEGACY: DISPUTED → CANCELLED refused by the new fence — invalid_order_transition
+PASS LEGACY: DISPUTED → PAYMENT_REJECTED refused by the new fence — invalid_order_transition
+PASS LEGACY: DISPUTED → COMPLETED still allowed (legacy has no DISPUTED rule)
+PASS LEGACY: terminal COMPLETED cannot change — terminal_order_cannot_change
+PASS LEGACY: any update of a HOLD row still runs assert_order_checkout_ready (DB-OPEN-15 preserved verbatim) — order_must_be_confirmed_before_checkout
+PASS commerce_flow cannot be changed by a client — order_commerce_flow_immutable
+PASS commerce_flow LEGACY → BANK_TRANSFER_V1 on a DRAFT by an internal transition (M4a conversion path)
+PASS commerce_flow cannot go back to LEGACY — order_commerce_flow_immutable
+PASS has_manual_adjustment is not client-writable — order_field_not_client_writable
+PASS cancel_reason is not client-writable — order_field_not_client_writable
+PASS V1: a non-internal status change is refused — order_status_can_only_change_through_workflow
+PASS V1: DRAFT → CONFIRMED (legacy-only state) refused — invalid_order_transition
+PASS V1: PROFORMA_ISSUED → HOLD without the reservation window refused — order_hold_window_required
+PASS V1: full normal path DRAFT → PROFORMA_ISSUED → HOLD → PAYMENT_UNDER_REVIEW → PAID → FULFILLMENT_IN_PROGRESS → PARTIALLY_DELIVERED → COMPLETED (no assert_order_checkout_ready)
+PASS V1: COMPLETED is terminal — terminal_order_cannot_change
+PASS V1: DRAFT → CANCELLED sets cancelled_at
+PASS V1: PAYMENT_UNDER_REVIEW → PAYMENT_REJECTED → anything is terminal — terminal_order_cannot_change
+PASS V1: PAID → VOID refused (post-payment uses manual adjustment) — invalid_order_transition
+PASS V1: DISPUTED has no exit (fails closed) — invalid_order_transition
+PASS one open reservation per order: a REVIEW_HOLD next to an ACTIVE one is refused — duplicate key value violates unique constraint "uq_open_inventory_reservation_order"
+PASS a RELEASED reservation next to the ACTIVE one is fine
+PASS payouts: PAID without payment_reference refused — new row for relation "payouts" violates check constraint "payouts_paid_fields_check"
+PASS payment_proofs: a second ON_TIME proof for the same payment refused — duplicate key value violates unique constraint "uq_payment_proof_on_time"
+PASS payments: two CONFIRMED payments with the same normalized bank reference refused — duplicate key value violates unique constraint "uq_confirmed_bank_reference"
+PASS payment_accounts: two active default USD accounts refused — duplicate key value violates unique constraint "uq_payment_account_default_currency"
+PASS a new offer gets the next LST code from its default (column defaults still apply with triggers off)
+PASS commerce_settings is a singleton — new row for relation "commerce_settings" violates check constraint "commerce_settings_singleton"
+PASS rollback refuses while a BANK_TRANSFER_V1 order exists — feature_013_commerce_state_vocabulary rollback refused — nothing changed: orders use M1 values; 
+PASS ROLLBACK M1
+PASS after rollback: validate_order_transition md5 = T006 8cb857495ac7bd3333f0b81236ca2ee2
+PASS after rollback: every CHECK and the ACTIVE-only index are byte-identical to the pre-M1 definitions
+PASS after rollback: no M1 column remains
+PASS after rollback: M1 tables/sequence/function gone
+PASS ROLLBACK SYMMETRY: full catalog (columns, constraints, indexes, policies, triggers, table ACL/RLS, every public function body/ACL, every relation) identical to pre-M1
+PASS after rollback: the M1 postflight no longer passes — column "commerce_flow" does not exist
+PASS RE-APPLY M1 after rollback
+PASS postflight after re-apply — ALL CHECKS PASSED
+ALL SUPPLEMENTARY CHECKS PASSED
