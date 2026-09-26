@@ -2416,6 +2416,21 @@ export const ar: DeepPartial<AppCopy> = {
           },
           payoutAccountingNotice: "سجل المستحقات هو قيد محاسبي من هيلز، وليس دليلًا على تحويل المبلغ فعليًا.",
           noPayout: "لا يوجد سجل مستحقات لهذا الطلب.",
+          sellerView: {
+            breadcrumb: "بنودك في هذا الطلب",
+            description: "أنت بائع في هذا الطلب. تظهر هنا بنودك ومبالغك ومستحقاتك فقط؛ أما دفعة المشتري وإجمالياته ومستنداته فهي خاصة بالمشتري.",
+            orderCodeLabel: "الطلب",
+            orderStatusLabel: "حالة الطلب",
+            linesHeading: "بنودك",
+            columns: {
+              product: "المنتج",
+              quantity: "الكمية",
+              gross: "إجماليك",
+              commission: "العمولة",
+              net: "صافيك",
+            },
+            amountsPending: "لم يُحتسب بعد",
+          },
         },
       },
       proforma: {

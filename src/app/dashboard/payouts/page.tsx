@@ -30,10 +30,10 @@ const PAGE_SIZE = 25;
  * only ever a MEMBER_SELLER line's seller), so this route reuses the SAME state instead of inventing
  * a new one.
  *
- * Every row links to `/dashboard/payments/{orderId}`, which is this exact same seller's OWN
- * authorized view of that order (T022's RLS-only authorization already admits a seller-of-record) —
- * this list adds NO new authorization surface, only a different, seller-scoped entry point into data
- * the order-detail page already renders.
+ * Every row links to `/dashboard/payments/{orderId}`. Since Feature 013 M3 (T063) that page shows a seller of the
+ * order only its seller-safe view (`SellerOrderDetail`: its own lines through `v_seller_order_lines` plus its own
+ * payout) — never the buyer's payment, totals or documents, which M3 removed from sellers. This list adds NO new
+ * authorization surface, only a seller-scoped entry point.
  */
 export default async function PayoutsPage({ searchParams }: { searchParams: Promise<{ page?: string }> }) {
   const identity = await getRequestIdentity();

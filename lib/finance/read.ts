@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import type { OrderFinancialsDTO, PaginatedPayouts, PaymentDTO, PayoutDTO, ProformaDTO, TaxInvoiceDTO } from "@/lib/finance/types";
+import type { OrderFinancialsDTO, PaginatedPayouts, PaymentDTO, PayoutDTO, ProformaDTO, SellerOrderViewDTO, TaxInvoiceDTO } from "@/lib/finance/types";
 import type { PaymentMethod, PaymentStatus, PayoutStatus, ProformaStatus } from "@/lib/finance/validation";
 
 /**
@@ -15,31 +15,28 @@ import type { PaymentMethod, PaymentStatus, PayoutStatus, ProformaStatus } from 
  * simply returns `null`/`[]`, never an error, never a distinguishable "exists but not yours" signal.
  *
  * ══════════════════════════════════════════════════════════════════════════════════════════════
- * THE LIVE RLS BOUNDARY THIS FILE MUST NEVER WEAKEN (read directly from `docs/database/
- * database-schema-report.json`'s `rls_policies`, 2026-09-13 preflight — never assumed)
+ * THE LIVE RLS BOUNDARY THIS FILE MUST NEVER WEAKEN — Feature 013 M3 (`20260925120000_feature_013_rls_realignment`,
+ * applied 2026-09-26; contracts/rls-storage.md §1/§2). B = buyer-org member, S = member of the row's own seller org,
+ * F = finance operator, A = auditor, PA = platform admin. A restrictive MFA gate applies to every table below.
  * ══════════════════════════════════════════════════════════════════════════════════════════════
  *
- * `payments` — `payments_view`: `is_platform_admin() OR can_view_order(order_id)` (buyer org, any
- * seller org on the order, or a platform admin); `payments_finance_read`: `is_finance_operator() OR
- * is_auditor()`. So: buyer/seller/admin/finance/auditor may read; cross-org and anonymous may not (no
- * `anon` grant exists on this table at all).
+ * `payments` — `payments_read`: B ∨ F ∨ PA. SELLERS AND AUDITORS CANNOT READ IT (auditors use
+ * `v_audit_payments`). `payment_proofs` (never read here): B ∨ F.
  *
- * `order_financials` — `financials_view`: `can_view_order(order_id)`; `financials_finance_read`:
- * `is_finance_operator() OR is_auditor()`. Same effective access as `payments`.
+ * `order_financials` — `order_financials_read`: B ∨ F ∨ A ∨ PA. Sellers cannot read the full-order economics.
  *
- * `proforma_invoices` / `proforma_invoice_items` — ONLY `can_view_order(order_id)`
- * (`proforma_view`/`proforma_items_view`). THERE IS NO independent finance- or auditor-role SELECT
- * policy on these two tables: a FINANCE- or AUDITOR-role account that is not ALSO a platform admin and
- * not a party to the order (buyer/seller org) genuinely cannot read a proforma today. This is the
- * CURRENT database's own decision, not an application-side restriction — do not work around it.
+ * `proforma_invoices` — `proforma_invoices_read`: B ∨ F ∨ PA. Sellers and auditors cannot read the header
+ * (buyer/destination snapshots, bank mask, buyer totals). `proforma_invoice_items`: B ∨ S(own lines) ∨ F ∨ PA.
  *
- * `tax_invoices` — `tax_invoice_view`: `can_view_order(order_id)`; `tax_invoice_finance`:
- * `is_finance_operator()` (ALL commands, not only SELECT). THERE IS NO auditor-specific policy here
- * either: a pure AUDITOR (not also ADMIN/SUPER_ADMIN/FINANCE) cannot read `tax_invoices`.
+ * `tax_invoices` — `tax_invoices_read`: B ∨ F ∨ PA (SELECT only; finance writes go through RPCs).
  *
- * `payouts` — `payouts_view`: `is_platform_admin() OR is_org_member(seller_organization_id)` (the
- * seller organization itself, or a platform admin); `payouts_finance`: `is_finance_operator()` (ALL
- * commands). Same auditor gap as `tax_invoices`: a pure AUDITOR cannot read `payouts`.
+ * `payouts` — `payouts_view` (unchanged): `is_platform_admin() OR is_org_member(seller_organization_id)`;
+ * `payouts_finance_read`: F (SELECT only). A payout row is always the caller's OWN seller record.
+ *
+ * SELLERS read an order ONLY through `getSellerOrderLines` below: the M3 projection `v_seller_order_lines`
+ * (security_invoker, own lines only — order code/status, own quantities, own economics from the frozen snapshot,
+ * own shipment and payout status). There is no seller path to a buyer total, payment, proof, bank data, destination,
+ * the proforma header or another seller's line, and none may be added here.
  *
  * NO `payment_events` READ: this file never selects `payment_events` at all — not even a safe
  * allowlist of non-payload columns. No Phase 1 consumer needs event metadata, so the safest and most
@@ -100,8 +97,8 @@ function mapPaymentRow(row: PaymentRow): PaymentDTO {
   };
 }
 
-/** `payments` — RLS-scoped (`payments_view`/`payments_finance_read`), one row per order (UNIQUE
- * `order_id`). `null` before checkout has ever run, or when the caller is not permitted to see it. */
+/** `payments` — RLS-scoped (M3 `payments_read`: buyer, finance, platform admin — never a seller or auditor), one row
+ * per order (UNIQUE `order_id`). `null` before checkout has ever run, or when the caller is not permitted to see it. */
 export async function getPayment({ orderId }: { orderId: string }): Promise<PaymentDTO | null> {
   const supabase = await createClient();
   const { data: row } = await supabase.from("payments").select(PAYMENT_SELECT).eq("order_id", orderId).maybeSingle();
@@ -147,17 +144,16 @@ function mapFinancialsRow(row: FinancialsRow): OrderFinancialsDTO {
   };
 }
 
-/** `order_financials` — RLS-scoped (`financials_view`/`financials_finance_read`), a snapshot written
- * ONCE by `checkout_order()` (Feature 007). `null` until checkout has run, or when not permitted. */
+/** `order_financials` — RLS-scoped (M3 `order_financials_read`: buyer, finance, auditor, platform admin — never a
+ * seller), a snapshot written ONCE by `checkout_order()` (Feature 007). `null` until checkout has run, or when not permitted. */
 export async function getOrderFinancials({ orderId }: { orderId: string }): Promise<OrderFinancialsDTO | null> {
   const supabase = await createClient();
   const { data: row } = await supabase.from("order_financials").select(ORDER_FINANCIALS_SELECT).eq("order_id", orderId).maybeSingle();
   return row ? mapFinancialsRow(row) : null;
 }
 
-/** `proforma_invoices` + its items — RLS-scoped (`proforma_view`/`proforma_items_view`, buyer/seller/
- * platform-admin ONLY — see this file's own header for the confirmed absence of a finance/auditor
- * policy on this table). `null` until checkout has run, or when not permitted. */
+/** `proforma_invoices` + its items — RLS-scoped (M3 `proforma_invoices_read`: buyer, finance, platform admin — never a
+ * seller or auditor). `null` until checkout has run, or when not permitted (a seller always gets `null`). */
 export async function getProforma({ orderId }: { orderId: string }): Promise<ProformaDTO | null> {
   const supabase = await createClient();
   const { data: row } = await supabase.from("proforma_invoices").select(PROFORMA_SELECT).eq("order_id", orderId).maybeSingle();
@@ -185,8 +181,8 @@ export async function getProforma({ orderId }: { orderId: string }): Promise<Pro
   };
 }
 
-/** `tax_invoices` — RLS-scoped (`tax_invoice_view`/`tax_invoice_finance`; see this file's own header
- * for the confirmed absence of an auditor policy). `null` until issued, or when not permitted. */
+/** `tax_invoices` — RLS-scoped (M3 `tax_invoices_read`: buyer, finance, platform admin). `null` until issued, or when
+ * not permitted. */
 export async function getTaxInvoice({ orderId }: { orderId: string }): Promise<TaxInvoiceDTO | null> {
   const supabase = await createClient();
   const { data: row } = await supabase.from("tax_invoices").select(TAX_INVOICE_SELECT).eq("order_id", orderId).maybeSingle();
@@ -228,7 +224,7 @@ function mapPayoutRow(row: PayoutRow): PayoutDTO {
 }
 
 /** `payouts` for one order (every seller line it produced) — RLS-scoped (`payouts_view`/
- * `payouts_finance`; see this file's own header for the confirmed absence of an auditor policy). */
+ * `payouts_finance_read`, SELECT only; a pure auditor reads none). */
 export async function getPayoutsForOrder({ orderId }: { orderId: string }): Promise<readonly PayoutDTO[]> {
   const supabase = await createClient();
   const { data: rows } = await supabase.from("payouts").select(PAYOUT_SELECT).eq("order_id", orderId).order("created_at", { ascending: true });
@@ -274,13 +270,61 @@ export async function getPayoutsForOrganization({
   return { rows: pageRows.map(mapPayoutRow), hasMore };
 }
 
+const SELLER_ORDER_LINE_SELECT =
+  "order_code, order_status, order_item_id, seller_organization_id, product_name_snapshot, lot_code_snapshot, quantity_kg, currency, own_gross_amount, own_commission_amount, own_seller_net_amount, own_group_shipment_status, own_payout_status";
+const MAX_SELLER_ORDER_LINES = 100;
+
+const nullableNumber = (value: number | string | null) => (value === null ? null : Number(value));
+
+/**
+ * Feature 013 T063 — the seller-safe view of one order: the caller's OWN lines only, through the M3 projection
+ * `v_seller_order_lines`. `organizationId` MUST be the caller's already-resolved acting organization.
+ *
+ * The order reference is read from `orders` (the row policy `can_view_order` still admits a seller of the order;
+ * M3's column grant never exposes the destination columns and none is selected here). The lines come ONLY from
+ * the view, filtered to the acting organization. Returns `null` when the caller has no own line on the order — the
+ * same answer for a nonexistent, a cross-organization or a buyer-only order, so existence never leaks.
+ */
+export async function getSellerOrderLines({ orderId, organizationId }: { orderId: string; organizationId: string }): Promise<SellerOrderViewDTO | null> {
+  const supabase = await createClient();
+  const { data: order } = await supabase.from("orders").select("id, order_code").eq("id", orderId).maybeSingle();
+  if (!order) return null;
+
+  const { data: rows } = await supabase
+    .from("v_seller_order_lines")
+    .select(SELLER_ORDER_LINE_SELECT)
+    .eq("order_code", order.order_code)
+    .eq("seller_organization_id", organizationId)
+    .order("order_item_id", { ascending: true })
+    .limit(MAX_SELLER_ORDER_LINES);
+  if (!rows || rows.length === 0) return null;
+
+  return {
+    orderId: order.id,
+    orderCode: order.order_code,
+    orderStatus: rows[0]!.order_status,
+    lines: rows.map((row) => ({
+      orderItemId: row.order_item_id,
+      productNameSnapshot: row.product_name_snapshot,
+      lotCodeSnapshot: row.lot_code_snapshot,
+      quantityKg: Number(row.quantity_kg),
+      currency: row.currency,
+      ownGrossAmount: nullableNumber(row.own_gross_amount),
+      ownCommissionAmount: nullableNumber(row.own_commission_amount),
+      ownSellerNetAmount: nullableNumber(row.own_seller_net_amount),
+      ownGroupShipmentStatus: row.own_group_shipment_status,
+      ownPayoutStatus: row.own_payout_status,
+    })),
+  };
+}
+
 const MAX_BATCH_SIZE = 100;
 
 /**
  * Feature 008 T022 — the `payments` rows for ONE ALREADY-FETCHED page of order ids (mirrors
  * `lib/orders/read.ts#getOrderFinancialsForOrders`'s exact bounded-batch shape: never an org-wide
  * scan, never a cross-order "review queue" — the caller must already have resolved and authorized
- * `orderIds` itself, e.g. via `getOrdersForOrganization`). RLS (`payments_view`) is the real boundary;
+ * `orderIds` itself, e.g. via `getOrdersForOrganization`). RLS (M3 `payments_read`) is the real boundary;
  * an id the caller was not authorized to see is simply absent from the returned map, same as a single
  * `getPayment` call. This is NOT the finance-operator review-queue read Feature 010's T013 still needs
  * (no proof reference, no cross-organization listing, no hold-status join) — that remains unbuilt.

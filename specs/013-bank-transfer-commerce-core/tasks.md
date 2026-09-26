@@ -1237,11 +1237,43 @@ here is database/security work; UI that depends on it comes later.
       - No non-fixture row was touched.
     - **T062 CLOSED with the documented deferral**: the M3 security proof is green in POST_M3 mode, and every Category A regression is green. The 3 Category B files move to T063's acceptance.
 
-- [ ] T063 Adapt existing member/admin reads to the realigned RLS — `lib/finance/read.ts`, `lib/listings/sales.ts`, `src/app/dashboard/sales/page.tsx`, `src/app/dashboard/payouts/page.tsx`, `src/app/dashboard/orders/[orderId]/page.tsx`
+- [X] T063 Adapt existing member/admin reads to the realigned RLS — `lib/finance/read.ts`, `lib/listings/sales.ts`, `src/app/dashboard/sales/page.tsx`, `src/app/dashboard/payouts/page.tsx`, `src/app/dashboard/orders/[orderId]/page.tsx`
   - Depends: T062
   - Accept: the seller views read their own rows (via `v_seller_order_lines` where needed); no page errors on the removed seller access; buyers are unaffected.
   - Tests: existing page tests updated; `tests/commerce/seller-views.test.tsx` renders the seller view without buyer totals, proof or bank data.
   - **Deferred from T062 (owner-approved 2026-09-26)**: the 3 Category B live files must pass here — `tests/listings/sales-page.test.tsx`, `tests/finance/t023-documents-payouts.test.tsx`, `tests/finance/t028-snapshot-immutability.test.ts`. They must not be weakened to pass; the application reads are adapted to the M3 boundaries.
+  - **Batch B (2026-09-26): COMPLETE.** No migration, policy, grant or view changed (live policy and function-ACL fingerprints identical to T062; no `supabase/` file touched); `bank_transfer_checkout_enabled` = false.
+    - **The regression**: `/dashboard/payments/[orderId]` called `getPayment` first; M3 removed sellers from `payments`, so a seller's payout link from `/dashboard/payouts` became `notFound`. The page also still tried to show the buyer's financials, proforma and invoice.
+    - **Seller read paths changed**:
+      - `lib/finance/read.ts` — new `getSellerOrderLines({ orderId, organizationId })`:
+        - reads `orders (id, order_code)`; `can_view_order` still admits the seller, and the M3 column grant excludes the destination;
+        - reads the lines ONLY from **`v_seller_order_lines`**, filtered to the acting org: own lines, own snapshot economics, own shipment/payout status;
+        - returns `null` when the caller has no own line (no existence leak).
+        - The file's security header and per-function notes were rewritten to the M3 matrix.
+      - `lib/finance/types.ts` — `SellerOrderLineDTO`/`SellerOrderViewDTO` (no buyer-total, payment, proof, bank, destination, header or other-seller field).
+      - `src/app/dashboard/payments/[orderId]/page.tsx`:
+        - no readable payment → `SellerOrderDetail` (own lines from `v_seller_order_lines` + own payouts via `payouts_view`);
+        - no own line → `notFound()`;
+        - the buyer/finance path is unchanged;
+        - the payout section is extracted into a shared `PayoutsSection`.
+      - `src/app/dashboard/payouts/page.tsx` (comment) — the link now lands on the seller-safe view.
+      - `lib/listings/sales.ts` (comment only; behaviour unchanged and already M3-safe) — own `order_items` lines via `order_items_read` S(own) + the orders reference columns. `v_seller_order_lines` is not used here because the list needs unit price and dates, which the projection lacks.
+      - `src/app/dashboard/sales/page.tsx` and `src/app/dashboard/orders/[orderId]/page.tsx`: reviewed, unchanged (the sales page reads through `lib/listings/sales.ts`; the order detail page is buyer-org-scoped via `ensureHoldFresh`, and buyers keep full access).
+      - Copy: `finance.payments.detail.sellerView` (EN + AR).
+    - **Tests updated to the approved M3 behaviour (security assertions strengthened, none weakened)**:
+      - `t023` test 1: the seller reads `null` payment/financials/proforma/tax invoice; its seller-view DTO keys are exactly the 10 safe fields; the buyer has no seller view.
+      - `t023` test 2: finance now reads the proforma (M3 closed the documented gap).
+      - `t023` test 4: the seller page renders its own lines + payout and NO payment badge, financial summary, proforma badge/code, documents or funding section.
+      - `t023` test 7: seller consistency over payout + own lines; proforma consistency read by the buyer.
+      - `t028`: the financials/proforma snapshot is read by FINANCE; new test 1b proves the seller reads neither.
+      - New `tests/commerce/seller-views.test.tsx` (7): seller render; buyer-owned reads never called and no buyer value rendered; `notFound` without an own line; buyer view unaffected; source audits.
+    - **Results**:
+      - Deferred Category B with `F008_LIVE_PROOF=1`, one file at a time: **`t023` 27/27**, **`t028` 9/9**, **`sales-page` 4/4**.
+      - Seller views 7/7.
+      - Buyer/page regressions (live, serial): `t022-payment-state` 32/32 (buyer payment page unaffected), `finance/read` 7/7, `admin/finance-delegation` 14/14, `finance/rls-policy` 14/14.
+      - Static: 40-file batch 504/504; `tests/commerce` static 329/329; `public-exposure` 9/9; `m2b-snapshots` 59/59; copy-dictionary suites 147/147.
+      - Typecheck, eslint and `git diff --check` clean.
+    - **Residue (expected)**: the T023/T028 live settlement chains leave their documented append-only residue on the Foundation fixture orgs (orders +2, payments +2; payouts cleaned to 0).
 
 - [ ] T064 Commerce vocabulary, labels and status badges (EN/AR) — `lib/commerce/{types,validation,labels,errors}.ts`, `lib/orders/validation.ts`, `lib/finance/{validation,types}.ts`, `components/orders/order-status-badge.tsx`, `components/finance/{payment,payout,proforma}-status-badge.tsx`, `lib/app/copy/{en,ar}.ts`
   - Depends: T025

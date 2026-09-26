@@ -2587,6 +2587,26 @@ export const en = {
           },
           payoutAccountingNotice: "A payout record is Hills' accounting entry, not proof that money has actually been transferred.",
           noPayout: "No payout record exists for this order.",
+          /**
+           * Feature 013 T063 — the seller-safe view of an order (a seller of the order who is not its buyer). Built only from
+           * the M3 projection `v_seller_order_lines`: the seller's OWN lines, economics and payout status — never the
+           * buyer's payment, totals, proforma, invoice, bank or destination data (M3 removed those reads for sellers).
+           */
+          sellerView: {
+            breadcrumb: "Your lines on this order",
+            description: "You are a seller on this order. Only your own lines, your own amounts and your payout are shown here; the buyer's payment, totals and documents are private to the buyer.",
+            orderCodeLabel: "Order",
+            orderStatusLabel: "Order status",
+            linesHeading: "Your lines",
+            columns: {
+              product: "Product",
+              quantity: "Quantity",
+              gross: "Your gross",
+              commission: "Commission",
+              net: "Your net",
+            },
+            amountsPending: "Not calculated",
+          },
         },
       },
       /** Feature 008 T023 — `proforma_invoices.status`'s own 3-value CHECK constraint (`proforma_invoices_status_check`), verbatim. */

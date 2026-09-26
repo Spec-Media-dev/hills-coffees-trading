@@ -14,7 +14,8 @@ import { appCopy } from "@/lib/app/copy";
 import { getRequestIdentity } from "@/lib/auth/dal";
 import { requestFunding } from "@/lib/finance/funding";
 import { stripePublishableKey } from "@/lib/finance/stripe/config";
-import { getOrderFinancials, getPayment, getPayoutsForOrder, getProforma, getTaxInvoice } from "@/lib/finance/read";
+import { getOrderFinancials, getPayment, getPayoutsForOrder, getProforma, getSellerOrderLines, getTaxInvoice } from "@/lib/finance/read";
+import type { PayoutDTO, SellerOrderViewDTO } from "@/lib/finance/types";
 
 export const metadata: Metadata = {
   title: "Payment",
@@ -29,16 +30,13 @@ export const metadata: Metadata = {
  * exists). No settlement/provider outcome is rendered — T017–T021 have not run, so no such outcome
  * can exist to display (this page never fabricates one).
  *
- * AUTHORIZATION — deliberately RLS-only, unlike `/dashboard/deliveries/[shipmentId]` (which narrows
- * to the buyer org for address/contact privacy reasons that do not apply here): `payments_view`/
- * `financials_view` (`can_view_order`) already admit BOTH the order's buyer organization AND any
- * seller organization with a line item on it — confirmed live in `lib/finance/read.ts`'s own header
- * and `tests/finance/rls-policy.test.ts`. `PaymentDTO`/`OrderFinancialsDTO` carry no buyer- or
- * seller-identifying field, so there is nothing to leak by trusting RLS as the sole boundary; adding
- * an extra buyer-only filter here would incorrectly refuse a genuine seller-of-record (SEC-002 would
- * then have no live coverage for the seller branch at all). A cross-org id and a nonexistent id
- * produce the IDENTICAL `null` from `getPayment` — both render `notFound()`, never a distinguishable
- * "exists but not yours" signal.
+ * AUTHORIZATION — RLS-only. Feature 013 M3 (T063): `payments_read`/`order_financials_read`/`proforma_invoices_read`/
+ * `tax_invoices_read` admit the order's BUYER (and finance/platform admins), NEVER a seller. So:
+ *   - a buyer (or finance) gets the full view below, whose payout section is simply empty for a buyer;
+ *   - a SELLER of the order gets `null` from `getPayment` and is shown `SellerOrderDetail` instead — its own lines
+ *     through the M3 projection `v_seller_order_lines` plus its own payout, and nothing the buyer owns;
+ *   - anyone else (nonexistent, cross-organization) gets the IDENTICAL `notFound()`, never a distinguishable
+ *     "exists but not yours" signal.
  *
  * SCOPE: the raw `orderId` is shown as the order reference (not `orders.order_code`, which Feature
  * 007's own read function is buyer-org-scoped only — fetching it here would silently exclude a
@@ -46,8 +44,8 @@ export const metadata: Metadata = {
  *
  * FEATURE 008 T023 (this run) — Documents (proforma + tax invoice) and Payout sections, added on the
  * SAME RLS-only authorization this page already established for T022. `getProforma`/`getTaxInvoice`
- * (`proforma_view`/`tax_invoice_view`, both `can_view_order`) admit the same buyer/seller/admin
- * audience as `payments_view`. `getPayoutsForOrder` (`payouts_view`:
+ * (M3: `proforma_invoices_read`/`tax_invoices_read`) admit the same buyer/finance/admin audience as
+ * `payments_read` — never a seller (see AUTHORIZATION above). `getPayoutsForOrder` (`payouts_view`:
  * `is_platform_admin() OR is_org_member(seller_organization_id)`) is NARROWER — a buyer with no
  * seller line on this order simply gets `[]` back (never an error, never a distinguishable "exists
  * but not yours" signal), so the payout section renders its own empty state for that caller rather
@@ -82,7 +80,16 @@ export default async function PaymentDetailPage({ params }: { params: Promise<{ 
   const { orderId } = await params;
   const payment = await getPayment({ orderId });
   if (!payment) {
-    notFound();
+    // Feature 013 T063 — M3 removed sellers from `payments` (and from `order_financials`, the proforma header and
+    // `tax_invoices`). A seller of this order therefore lands here and is shown ONLY its own lines through the
+    // seller-safe projection `v_seller_order_lines`, plus its own payout. Nothing the buyer owns is read. A caller
+    // with no own line gets the same `notFound()` as a nonexistent or cross-organization order (no existence leak).
+    const sellerView = await getSellerOrderLines({ orderId, organizationId: identity.organization.organizationId });
+    if (!sellerView) {
+      notFound();
+    }
+    const sellerPayouts = await getPayoutsForOrder({ orderId });
+    return <SellerOrderDetail view={sellerView} payouts={sellerPayouts} />;
   }
 
   const [financials, funding, proforma, taxInvoice, payouts] = await Promise.all([
@@ -312,6 +319,18 @@ export default async function PaymentDetailPage({ params }: { params: Promise<{ 
         </div>
       </section>
 
+      <PayoutsSection payouts={payouts} />
+    </div>
+  );
+}
+
+/**
+ * The caller's own payout records for one order (`payouts_view`: always the caller's OWN seller record, never another
+ * organization's). Shared by the buyer/finance view (where a buyer simply gets the empty state) and the seller view.
+ */
+function PayoutsSection({ payouts }: { payouts: readonly PayoutDTO[] }) {
+  const notYetAssigned = <AppBilingual pick={(c) => c.finance.payments.detail.notYetAssigned} />;
+  return (
       <section aria-labelledby="payouts-heading" className="flex flex-col gap-4 rounded-[var(--radius-xl)] border border-border bg-card p-6 sm:p-7">
         <h2 id="payouts-heading" className="text-base font-semibold text-foreground">
           <AppBilingual pick={(c) => c.finance.payments.detail.payoutsSectionHeading} />
@@ -356,6 +375,103 @@ export default async function PaymentDetailPage({ params }: { params: Promise<{ 
           </p>
         )}
       </section>
+  );
+}
+
+/**
+ * Feature 013 T063 — the seller-safe order view. Every value comes from `v_seller_order_lines` (the caller's own lines,
+ * own snapshot economics) or the caller's own payout rows. It renders NO payment, buyer total, order_financials,
+ * proforma header or items, tax invoice, funding, bank or destination data, and no other seller's line.
+ */
+function SellerOrderDetail({ view, payouts }: { view: SellerOrderViewDTO; payouts: readonly PayoutDTO[] }) {
+  const pending = <AppBilingual pick={(c) => c.finance.payments.detail.sellerView.amountsPending} />;
+  const money = (currency: string, value: number | null) => (value === null ? pending : formatMoney(currency, value));
+  return (
+    <div className="flex flex-col gap-8" data-slot="seller-order-view">
+      <PageHeader
+        title={<AppBilingual pick={(c) => c.finance.payments.detail.sellerView.breadcrumb} />}
+        trail={[
+          { label: <AppBilingual pick={(c) => c.overview} />, href: "/dashboard" },
+          { label: <AppBilingual pick={(c) => c.finance.payouts.list.title} />, href: "/dashboard/payouts" },
+          { label: <AppBilingual pick={(c) => c.finance.payments.detail.sellerView.breadcrumb} /> },
+        ]}
+      />
+
+      <section aria-labelledby="seller-lines-heading" className="flex flex-col gap-4 rounded-[var(--radius-xl)] border border-border bg-card p-6 sm:p-7">
+        <p className="max-w-[70ch] text-[length:var(--text-small)] text-muted-foreground">
+          <AppBilingual pick={(c) => c.finance.payments.detail.sellerView.description} />
+        </p>
+        <dl className="grid grid-cols-1 gap-3 text-[length:var(--text-small)] sm:grid-cols-2">
+          <div className="flex min-w-0 flex-col gap-0.5">
+            <dt className="text-muted-foreground">
+              <AppBilingual pick={(c) => c.finance.payments.detail.sellerView.orderCodeLabel} />
+            </dt>
+            <dd className="font-mono break-all text-foreground" dir="ltr">
+              {view.orderCode}
+            </dd>
+          </div>
+          <div className="flex min-w-0 flex-col gap-0.5">
+            <dt className="text-muted-foreground">
+              <AppBilingual pick={(c) => c.finance.payments.detail.sellerView.orderStatusLabel} />
+            </dt>
+            <dd className="text-foreground">
+              <AppBilingual pick={(c) => (c.orders.status as Record<string, string>)[view.orderStatus] ?? view.orderStatus} />
+            </dd>
+          </div>
+        </dl>
+        <h2 id="seller-lines-heading" className="text-base font-semibold text-foreground">
+          <AppBilingual pick={(c) => c.finance.payments.detail.sellerView.linesHeading} />
+        </h2>
+        <div className="overflow-x-auto" role="region" tabIndex={0} aria-label={appCopy.finance.payments.detail.sellerView.linesHeading}>
+          <table className="w-full min-w-[560px] text-[length:var(--text-small)]">
+            <thead>
+              <tr className="border-b border-border text-start text-muted-foreground">
+                <th scope="col" className="py-2 text-start font-medium">
+                  <AppBilingual pick={(c) => c.finance.payments.detail.sellerView.columns.product} />
+                </th>
+                <th scope="col" className="py-2 text-start font-medium">
+                  <AppBilingual pick={(c) => c.finance.payments.detail.sellerView.columns.quantity} />
+                </th>
+                <th scope="col" className="py-2 text-start font-medium">
+                  <AppBilingual pick={(c) => c.finance.payments.detail.sellerView.columns.gross} />
+                </th>
+                <th scope="col" className="py-2 text-start font-medium">
+                  <AppBilingual pick={(c) => c.finance.payments.detail.sellerView.columns.commission} />
+                </th>
+                <th scope="col" className="py-2 text-start font-medium">
+                  <AppBilingual pick={(c) => c.finance.payments.detail.sellerView.columns.net} />
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {view.lines.map((line) => (
+                <tr key={line.orderItemId} data-slot="seller-order-line" className="border-b border-border last:border-b-0">
+                  <td className="py-2 text-foreground">
+                    <span className="block">{line.productNameSnapshot}</span>
+                    <span className="block font-mono text-muted-foreground" dir="ltr">
+                      {line.lotCodeSnapshot}
+                    </span>
+                  </td>
+                  <td className="py-2 font-mono tabular-nums text-foreground" dir="ltr">
+                    {line.quantityKg} kg
+                  </td>
+                  <td className="py-2 font-mono tabular-nums text-foreground" dir="ltr">
+                    {money(line.currency, line.ownGrossAmount)}
+                  </td>
+                  <td className="py-2 font-mono tabular-nums text-foreground" dir="ltr">
+                    {money(line.currency, line.ownCommissionAmount)}
+                  </td>
+                  <td className="py-2 font-mono tabular-nums text-foreground" dir="ltr">
+                    {money(line.currency, line.ownSellerNetAmount)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <PayoutsSection payouts={payouts} />
     </div>
   );
 }

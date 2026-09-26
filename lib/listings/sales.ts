@@ -13,12 +13,14 @@ import { createClient } from "@/lib/supabase/server";
  * policy) does NOT affect this view at all: no join to `coffee_lots`/`coffee_offers` is needed or
  * performed here.
  *
- * `can_view_order()` (confirmed live) has a genuine SELLER branch — `EXISTS (order_items oi JOIN
- * coffee_offers co ON co.id = oi.offer_id JOIN organization_members om ON om.organization_id =
- * co.seller_organization_id WHERE oi.order_id = p_order_id AND om.user_id = auth.uid())` — so a
- * seller's own `order_items`/`orders` rows are genuinely RLS-readable, no service role, no bypass.
- * `seller_organization_id` is filtered explicitly here for CORRECTNESS with a multi-org caller
- * (mirroring every other function in this feature) — RLS is still the real security boundary.
+ * Feature 013 M3 (T063 — reviewed, unchanged in behaviour): `order_items_read` admits a seller ONLY to its OWN lines
+ * (`is_order_line_seller(seller_organization_id)`), never another seller's line on the same order; the `orders` row
+ * stays readable through `can_view_order` for the four reference columns selected below (M3's column grant never
+ * exposes the buyer destination columns, and none is selected). No buyer total, payment, proforma or bank field is
+ * read. `v_seller_order_lines` is not used here because this list needs the line's own unit price and dates, which
+ * that projection does not carry; the seller-safe per-order view (`lib/finance/read.ts#getSellerOrderLines`) uses it.
+ * `seller_organization_id` is filtered explicitly for CORRECTNESS with a multi-org caller — RLS is still the real
+ * security boundary.
  *
  * NO reduce()/tally across rows to fabricate a "total sold" figure beyond what is directly rendered
  * per row — the caller sums the ALREADY-authoritative `quantityKg`/`totalValue` fields for display,

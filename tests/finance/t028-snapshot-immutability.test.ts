@@ -94,11 +94,16 @@ describe.skipIf(!F008_LIVE)("T028 — historical payout/order_financials snapsho
     }
   }, 300_000);
 
+  // Feature 013 M3 (T063): the seller (orgB) reads its OWN payout only; the full-order `order_financials` and the
+  // proforma header are no longer seller-readable (B ∨ F ∨ A ∨ PA / B ∨ F ∨ PA), so the historical snapshot of those
+  // two is read by the FINANCE operator — a role that may read both — rather than by widening seller access.
+  const FINANCIALS_COLUMNS = "order_id, base_subtotal, shipping_amount, vat_amount, commission_amount, seller_net_amount, buyer_total_amount, total_quantity_kg, currency, commission_policy_id, commission_percentage_snapshot, calculated_at";
+  const PROFORMA_COLUMNS = "id, order_id, proforma_code, status, issued_at, valid_until";
   const snapshot = async () => {
     const [payoutRows, financials, proforma] = await Promise.all([
       sessions.orgB.from("payouts").select("id, order_id, seller_organization_id, amount, currency, status, paid_at, payment_reference, created_at").eq("order_id", resaleOrderId).order("id"),
-      sessions.orgB.from("order_financials").select("order_id, base_subtotal, shipping_amount, vat_amount, commission_amount, seller_net_amount, buyer_total_amount, total_quantity_kg, currency, commission_policy_id, commission_percentage_snapshot, calculated_at").eq("order_id", resaleOrderId).maybeSingle(),
-      sessions.orgB.from("proforma_invoices").select("id, order_id, proforma_code, status, issued_at, valid_until").eq("order_id", resaleOrderId).maybeSingle(),
+      sessions.finance.from("order_financials").select(FINANCIALS_COLUMNS).eq("order_id", resaleOrderId).maybeSingle(),
+      sessions.finance.from("proforma_invoices").select(PROFORMA_COLUMNS).eq("order_id", resaleOrderId).maybeSingle(),
     ]);
     return { payouts: payoutRows.data, financials: financials.data, proforma: proforma.data };
   };
@@ -110,6 +115,15 @@ describe.skipIf(!F008_LIVE)("T028 — historical payout/order_financials snapsho
     expect(before.financials).not.toBeNull();
     expect(before.financials!.commission_percentage_snapshot === null || Number(before.financials!.commission_percentage_snapshot) === 0).toBe(true);
     expect(before.proforma).not.toBeNull();
+  }, 60_000);
+
+  it("1b Feature 013 M3: the seller itself cannot read the full-order financials or the proforma header (it keeps its own payout)", async () => {
+    const [financials, proforma] = await Promise.all([
+      sessions.orgB.from("order_financials").select(FINANCIALS_COLUMNS).eq("order_id", resaleOrderId).maybeSingle(),
+      sessions.orgB.from("proforma_invoices").select(PROFORMA_COLUMNS).eq("order_id", resaleOrderId).maybeSingle(),
+    ]);
+    expect(financials.data).toBeNull();
+    expect(proforma.data).toBeNull();
   }, 60_000);
 
   it("2 unauthorized mutation is refused: neither a finance operator nor an ordinary member can create/mutate a commission policy", async () => {

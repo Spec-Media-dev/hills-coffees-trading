@@ -112,6 +112,33 @@ export type PayoutDTO = {
   createdAt: string;
 };
 
+/**
+ * Feature 013 T063 — one of the CALLER'S OWN lines on an order, read through the M3 seller-safe projection
+ * `v_seller_order_lines` (security_invoker; own lines only). It deliberately has no buyer total, payment, proof, bank,
+ * destination, proforma-header or other-seller field. The `own*` amounts come from the frozen
+ * `proforma_line_economics` snapshot (`null` for a LEGACY order, which has none).
+ */
+export type SellerOrderLineDTO = {
+  orderItemId: string;
+  productNameSnapshot: string | null;
+  lotCodeSnapshot: string | null;
+  quantityKg: number;
+  currency: string;
+  ownGrossAmount: number | null;
+  ownCommissionAmount: number | null;
+  ownSellerNetAmount: number | null;
+  ownGroupShipmentStatus: string | null;
+  ownPayoutStatus: string | null;
+};
+
+/** Feature 013 T063 — the seller-safe view of one order: its reference, status and the caller's own lines only. */
+export type SellerOrderViewDTO = {
+  orderId: string;
+  orderCode: string;
+  orderStatus: string;
+  lines: readonly SellerOrderLineDTO[];
+};
+
 /** Feature 008 T023 — the same bounded-page shape `lib/orders/read.ts#PaginatedOrders` and
  * `lib/listings/sales.ts` already use: one extra row is fetched to detect `hasMore`, never a full
  * unbounded scan of a seller organization's payout history. */

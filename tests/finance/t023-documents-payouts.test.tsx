@@ -139,9 +139,40 @@ describe.skipIf(!F008_LIVE)("T023 — documents and payout presentation over a r
       return getPayoutsForOrganization({ organizationId: ORG_A });
     });
     expect(buyerOrgWide.rows.some((row) => row.orderId === resaleOrderId)).toBe(false);
+
+    // Feature 013 M3 (T063): the seller-of-record is NOT a party to the buyer's money or documents. The seller reads
+    // none of the buyer's payment, full-order financials, proforma header or tax invoice — only its own lines through
+    // the seller-safe projection.
+    const sellerForbidden = await withLiveClient(sessions.orgB, async () => {
+      const { getPayment, getOrderFinancials, getProforma, getTaxInvoice, getSellerOrderLines } = await import("@/lib/finance/read");
+      return {
+        payment: await getPayment({ orderId: resaleOrderId }),
+        financials: await getOrderFinancials({ orderId: resaleOrderId }),
+        proforma: await getProforma({ orderId: resaleOrderId }),
+        taxInvoice: await getTaxInvoice({ orderId: resaleOrderId }),
+        own: await getSellerOrderLines({ orderId: resaleOrderId, organizationId: ORG_B }),
+      };
+    });
+    expect(sellerForbidden.payment).toBeNull();
+    expect(sellerForbidden.financials).toBeNull();
+    expect(sellerForbidden.proforma).toBeNull();
+    expect(sellerForbidden.taxInvoice).toBeNull();
+    expect(sellerForbidden.own).not.toBeNull();
+    expect(sellerForbidden.own!.lines.length).toBeGreaterThan(0);
+    // the seller-safe projection never carries a buyer total, payment, bank, destination or proforma-header field
+    for (const line of sellerForbidden.own!.lines) {
+      expect(Object.keys(line).sort()).toEqual(["currency", "lotCodeSnapshot", "orderItemId", "ownCommissionAmount", "ownGrossAmount", "ownGroupShipmentStatus",
+        "ownPayoutStatus", "ownSellerNetAmount", "productNameSnapshot", "quantityKg"]);
+    }
+    // ...and the BUYER has no seller view of its own purchase (it owns no line on it)
+    const buyerAsSeller = await withLiveClient(sessions.orgA, async () => {
+      const { getSellerOrderLines } = await import("@/lib/finance/read");
+      return getSellerOrderLines({ orderId: resaleOrderId, organizationId: ORG_A });
+    });
+    expect(buyerAsSeller).toBeNull();
   }, 120_000);
 
-  it("2 read layer: a real FINANCE operator sees the payout/payment (its own ALL-command policy) but NOT the proforma (the confirmed, pre-existing policy gap) — live-proves lib/finance/read.ts's own documented finding", async () => {
+  it("2 read layer: a real FINANCE operator sees the payout, the payment AND (since Feature 013 M3 closed the documented gap) the proforma", async () => {
     const financeReads = await withLiveClient(sessions.finance, async () => {
       const { getPayoutsForOrder, getPayment, getProforma } = await import("@/lib/finance/read");
       return { payouts: await getPayoutsForOrder({ orderId: resaleOrderId }), payment: await getPayment({ orderId: resaleOrderId }), proforma: await getProforma({ orderId: resaleOrderId }) };
@@ -150,8 +181,9 @@ describe.skipIf(!F008_LIVE)("T023 — documents and payout presentation over a r
     expect(financeReads.payouts[0]!.sellerOrganizationId).toBe(ORG_B);
     expect(financeReads.payment).not.toBeNull();
     expect(financeReads.payment!.status).toBe("CONFIRMED");
-    // The documented gap: proforma_invoices/_items have NO independent finance-role SELECT policy.
-    expect(financeReads.proforma).toBeNull();
+    // M3 `proforma_invoices_read` = buyer ∨ finance ∨ platform admin: finance now reads the proforma it reviews.
+    expect(financeReads.proforma).not.toBeNull();
+    expect(financeReads.proforma!.proformaCode).toMatch(/^PI-\d{8}-\d+$/);
   }, 120_000);
 
   it("3 anonymous sees nothing for either read", async () => {
@@ -165,19 +197,25 @@ describe.skipIf(!F008_LIVE)("T023 — documents and payout presentation over a r
     expect(reads.proforma).toBeNull();
   }, 60_000);
 
-  it("4 UI: the seller's own payment-detail page renders the real payout (amount/status/accounting notice) and the PAID proforma with its real items", async () => {
+  it("4 UI: the seller's view of the order (Feature 013 M3/T063) renders ONLY its own lines and its real payout — never the buyer's payment, totals, proforma or invoice", async () => {
     await renderDetailPage(sessions.orgB, resaleOrderId);
 
+    expect(document.querySelector('[data-slot="seller-order-view"]')).not.toBeNull();
+    expect(document.querySelectorAll('[data-slot="seller-order-line"]').length).toBeGreaterThan(0);
     const payoutBadge = document.querySelector('[data-slot="payout-status-badge"]');
     expect(payoutBadge).not.toBeNull();
     expect(["PENDING_PAYOUT", "PROCESSING", "PAID"]).toContain(payoutBadge?.getAttribute("data-status"));
     expect(document.body.textContent).toMatch(new RegExp(`USD\\s*${payoutAmount}`));
 
-    const proformaBadge = document.querySelector('[data-slot="proforma-status-badge"]');
-    expect(proformaBadge?.getAttribute("data-status")).toBe("PAID");
-    // The proforma item DESCRIPTION is the lot/product name (from checkout_order()'s own snapshot),
-    // never the resale listing's own title — the page renders exactly what the database stored.
-    expect(document.body.textContent).toMatch(/PI-\d{8}-\d+/); // the real proforma_code, verbatim
+    // Nothing the buyer owns reaches the seller: no payment status, no full-order financial summary (buyer total),
+    // no proforma (status, code or items), no tax invoice, no funding surface.
+    expect(document.querySelector('[data-slot="payment-status-badge"]')).toBeNull();
+    expect(document.querySelector('[data-slot="financial-summary"]')).toBeNull();
+    expect(document.querySelector('[data-slot="proforma-status-badge"]')).toBeNull();
+    expect(document.body.textContent).not.toMatch(/PI-\d{8}-\d+/);
+    expect(document.querySelector("#documents-heading")).toBeNull();
+    expect(document.querySelector("#funding-heading")).toBeNull();
+    expect(document.body.textContent).not.toMatch(/Buyer total|Tax invoice|Proforma invoice/i);
   }, 120_000);
 
   it("5 UI: the buyer's own view of the SAME order shows the proforma but an honest 'no payout' state — never a fabricated zero-amount payout row", async () => {
@@ -197,16 +235,20 @@ describe.skipIf(!F008_LIVE)("T023 — documents and payout presentation over a r
     expect(document.querySelector('[data-state-screen="forbidden"]')).not.toBeNull();
   }, 120_000);
 
-  it("7 snapshot consistency: the payout amount and proforma total are byte-identical across independent re-reads (no live recomputation drift)", async () => {
-    const first = await withLiveClient(sessions.orgB, async () => {
-      const { getPayoutsForOrder, getProforma } = await import("@/lib/finance/read");
-      return { payout: (await getPayoutsForOrder({ orderId: resaleOrderId }))[0]!, proforma: await getProforma({ orderId: resaleOrderId }) };
+  it("7 snapshot consistency: the payout amount, the seller's own lines and the proforma are byte-identical across independent re-reads (no live recomputation drift)", async () => {
+    // Feature 013 M3: the seller re-reads what it may see (its payout + own lines); the proforma is re-read by its
+    // buyer, the only member party that may read it.
+    const readSeller = () => withLiveClient(sessions.orgB, async () => {
+      const { getPayoutsForOrder, getSellerOrderLines } = await import("@/lib/finance/read");
+      return { payout: (await getPayoutsForOrder({ orderId: resaleOrderId }))[0]!, own: await getSellerOrderLines({ orderId: resaleOrderId, organizationId: ORG_B }) };
     });
-    const second = await withLiveClient(sessions.orgB, async () => {
-      const { getPayoutsForOrder, getProforma } = await import("@/lib/finance/read");
-      return { payout: (await getPayoutsForOrder({ orderId: resaleOrderId }))[0]!, proforma: await getProforma({ orderId: resaleOrderId }) };
-    });
+    const readBuyerProforma = () => withLiveClient(sessions.orgA, async () => (await import("@/lib/finance/read")).getProforma({ orderId: resaleOrderId }));
+    const first = { ...(await readSeller()), proforma: await readBuyerProforma() };
+    const second = { ...(await readSeller()), proforma: await readBuyerProforma() };
+    expect(first.own).not.toBeNull();
+    expect(first.proforma).not.toBeNull();
     expect(second.payout).toEqual(first.payout);
+    expect(second.own).toEqual(first.own);
     expect(second.proforma).toEqual(first.proforma);
   }, 60_000);
 
