@@ -1275,14 +1275,70 @@ here is database/security work; UI that depends on it comes later.
       - Typecheck, eslint and `git diff --check` clean.
     - **Residue (expected)**: the T023/T028 live settlement chains leave their documented append-only residue on the Foundation fixture orgs (orders +2, payments +2; payouts cleaned to 0).
 
-- [ ] T064 Commerce vocabulary, labels and status badges (EN/AR) — `lib/commerce/{types,validation,labels,errors}.ts`, `lib/orders/validation.ts`, `lib/finance/{validation,types}.ts`, `components/orders/order-status-badge.tsx`, `components/finance/{payment,payout,proforma}-status-badge.tsx`, `lib/app/copy/{en,ar}.ts`
+- [X] T064 Commerce vocabulary, labels and status badges (EN/AR) — `lib/commerce/{types,validation,labels,errors}.ts`, `lib/orders/validation.ts`, `lib/finance/{validation,types}.ts`, `components/orders/order-status-badge.tsx`, `components/finance/{payment,payout,proforma}-status-badge.tsx`, `lib/app/copy/{en,ar}.ts`
   - Depends: T025
   - Accept: typed allowlists equal the M1 CHECK sets; every status has EN and AR labels (LOC-002); raw values never render.
   - Tests: `tests/commerce/vocabulary.test.ts` (allowlist = CHECK), `tests/commerce/labels-parity.test.ts`.
+  - **Batch B (2026-09-26): COMPLETE** — implementation (external agent) + review + owner-directed fix run. No migration, RLS, grant or view changed; checkout stays disabled.
+    - **Vocabulary**: `lib/commerce/{types,validation}.ts` are canonical.
+      - All 25 named CHECK sets equal the LAST definition across the applied migrations, values and order. These are orders status/flow; proof status/kind; review decision; payout; proforma; seller type; tax invoice; shipment kind; reconciliation kind/status/resolution; adjustment kind; 5 promotion sets; outbox status/aggregate; reservation status/release reason.
+      - `payments_status_check`/`payments_payment_method_check` (unnamed baseline checks) equal the approved schema report.
+      - `lib/orders/validation.ts` and `lib/finance/validation.ts` re-export the canonical sets. The `LEGACY_*` sets are historical-only (compatibility tests); no badge or copy derives from them.
+    - **Labels (single source)**: `lib/app/copy/{en,ar}.ts` is the ONLY label/message source. It covers the extended `orders.status` (15), `finance.proforma.status` (7) and `finance.payouts.status` (5), plus the new `commerce.*` vocabularies and `commerce.errors`. `lib/commerce/labels.ts` is a literal-free, typed accessor (`COMMERCE_LABEL_SETS`: 25 vocabularies ↔ allowlist ↔ copy location). Seller type reuses `marketplace.card.sellerType`.
+    - **Badges**: order/payout/proforma badges cover the new statuses. Raw-value fallbacks were replaced by badges in `orders/[orderId]` (payment status) and in the T063 seller view (order status).
+    - **Review defects fixed**:
+      - D1: Arabic CANCELLED ≠ VOID (orders "تم الإلغاء" vs "ملغى"; proformas "أُلغيت" vs "ملغاة"; VOID unchanged; wording pending translator sign-off).
+      - D2: the parallel `labels.ts` dictionaries and the unused `copy.commerce` duplicates are removed; the drift found in review (AR payment CONFIRMED) cannot recur.
+      - D3: `lib/commerce/errors.ts` holds exactly the 30 contract codes of `contracts/database-rpc.md` (the quote errors + the 3 RPC Errors lines). Messages come from `commerce.errors`; codes match only as whole tokens, and invented aliases/unknown errors → safe generic.
+      - Cast: `SellerOrderViewDTO.orderStatus: OrderStatus`, parsed with `parseOrderStatus` in `getSellerOrderLines` (fail-closed → `null`); no JSX cast.
+    - **Tests**: `vocabulary` 93, `labels-parity` 59, `seller-views` 7, `orders/validation` 10, `finance/validation` 43, `orders/views` 27, plus the static badge/validation consumers (`delivery/foundation`, `delivery/pages`, `orders/audits`) 103 — **all green**.
+      - `labels-parity` catches duplicate labels per set in both languages, label literals in `labels.ts`/`errors.ts`, and contract-code mismatch (re-reads the contract).
+      - Mutation-proven: re-injecting D1 fails 2 tests, D3 fails 4, D2 fails 1.
+      - `npm run typecheck`, eslint `--max-warnings=0` on the changed files and `git diff --check` clean. No live suite run.
+    - **IDE "Problems"**: not from T064 (tsc/eslint report 0 for its files). The likely source is the 3 Deno edge functions in `supabase/functions/*` (excluded from `tsconfig`, no `deno.json`; Feature 008; retired by T199).
 
-- [ ] T065 **GATE — STOP/REVIEW BATCH B**
+- [X] T065 **GATE — STOP/REVIEW BATCH B**
   - Depends: T019–T064
   - Accept: 7 migrations applied with postflights recorded; the seller-leak fix is proven live (T062); the regression batches are green; the kill switch is off (checkout disabled). Recorded here.
+  - **Batch B (2026-09-26): GATE PASSED — GO. BATCH B IS CLOSED.** Closure review by the agent on the owner's instruction.
+    - **1. Migrations applied, in order**:
+      - M1 `20260925100000` (T024), M2a `20260925103000` (T030), M2b `20260925106000` (T036), M2c `20260925109000` (T042), M2d `20260925112000` (T048), M2e `20260925115000` (T054), M3 `20260925120000` (T061).
+      - T061 recorded `supabase migration list --linked` local = remote through `20260925120000` and a follow-up dry-run "Remote database is up to date"; no migration file has been added since (the local head is `20260925120000`).
+      - At this gate the CLI's database login was refused (`DbConfigLoginRoleStatusError` 403, intermittent, as at T046/T048), so the migration list/dry-run could not be re-run. Read-only verification used the service-role REST API instead (GET only): the kill switch is **false**; every M2a–M2e table and all 5 M3 views are present; **none of 31 Batch C+/M4+ RPC names exists**.
+    - **2. Postflights recorded, all true**:
+      - M1 23/23, M2a 17/17, M2b 24/24, M2c 20/20, M2d 18/18, M2e 14/14 (re-confirmed 14/14 after M3), M3 24/24.
+      - Point-in-time rows that read false by design after later migrations (R4): M2a #16, M2b #23, M2c #19, M2d #17.
+    - **3. Seller-leak fix proven live (T062)**, POST_M3 mode, 3 suites 12/12:
+      - seller isolation 43, role matrix 256 (incl. 14 §2 row-level checks), anon/C15 43;
+      - all 28 + 82 + 6 pinned PRE-M3 failures pass, plus the six T060 F1 amendments.
+      - No seller access to the buyer's payments, proofs, bank instructions/payment accounts, destination (table, columns, embedded, views, RPCs), `order_financials` or proforma header, and none to another seller's lines/economics/settlements.
+      - C15: anon EXECUTE removed (DB + REST); authenticated/service_role kept; helper bodies pinned.
+      - Category A regressions 54/54 files (597 passed, 0 failed); Category B deferred to T063 and passed there.
+    - **4. T063**: seller reads go through `v_seller_order_lines` (`getSellerOrderLines`, `SellerOrderDetail`). The 3 deferred live files pass (`t023` 27/27, `t028` 9/9, `sales-page` 4/4). Buyers are unaffected (`t022` 32/32 live). M3 is unchanged (policy/function-ACL fingerprints identical).
+    - **5. T064**: vocabularies = the DB CHECK sets (25 named + 2 baseline); EN/AR parity complete, with no duplicate labels per set; raw Feature 013 enum rendering removed; D1/D2/D3 and the cast fixed (see T064).
+    - **6. Regression state (recorded)**: T062 Category A 597/0; T063 static 504 + 329 + live page suites green; T064 targeted 239 + 103. Re-run at this gate (static only): 13 files, **516/516** — `historical-008-unchanged`, `migration-layout`, `tests/commerce/migrations`, `vocabulary`, `labels-parity`, `seller-views`. `npm run typecheck` and `git diff --check` clean.
+    - **7. Production safety**:
+      - `bank_transfer_checkout_enabled = false`;
+      - no Batch C / M4a object;
+      - no pending migration beyond `20260925120000` (T061 evidence + unchanged local head);
+      - `supabase/` and `specs/008-*` have no change versus HEAD (`historical-008-unchanged` green).
+    - **8. Repository state**: only the uncommitted T064 implementation/fix files and this `tasks.md` bookkeeping. No migration or historical file edited; no scratch/debug/temp file in the repo (all harness/scratch work lives in the session scratchpad).
+    - **Deferred follow-ups — later batches, NOT blocking closure**:
+      - **M4a**: the guard pins `checkout_order` `54810aad…`; any new `orders` column must extend the M3 column grant (T060 F3).
+      - **M4b**:
+        - generic audit of `orders.destination_snapshot` (M2b R2);
+        - review and allow-list the checkout/issuance functions that read destination columns (T056 RPC-route allow-list);
+        - every emitter calls `emit_notification_event` in-transaction with allow-listed params only; seller events carry no buyer totals (M2e F2).
+      - **M5 / activation**:
+        - close the remaining LEGACY finance write paths (M2c F1; `shipments_warehouse_manage` remains) and the fail-closed cleanup (M2c F3);
+        - quiet windows for later applies (M2c F5);
+        - refuse deleting FULFILLMENT shipments (M2c F2 → M5c);
+        - assert 0 `payment-proofs` objects for sellers once the bucket exists (T112).
+      - **M7**: the outbox worker/admin view run with owner privileges and respect the lifecycle/immutability rules (M2e F1).
+      - **M8**: cross-table promotion rules and the controlled promotion-code read path (M2d F2).
+      - **Out of M3 scope (T060 F7)**: `order_status_history`, `inventory_reservation_items`, `disputes`/`dispute_*` still use `can_view_order`.
+      - **Ops**: the M3 rollback is emergency-only (re-opens C2/C15; T060 F8). The Arabic CANCELLED wording needs translator sign-off (T064 D1). The IDE "Problems" from the Deno edge functions go with T199. The agent CLI's intermittent 403 on `db query`/`push` should be resolved, or the operator runs those steps.
+    - Batch C (T066+) not started. Nothing committed or pushed.
 
 ---
 

@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { FinancialSummary, formatMoney } from "@/components/orders/financial-summary";
 import { FundingUnavailableNotice } from "@/components/finance/funding-unavailable-notice";
 import { PageHeader } from "@/components/app/page-header";
+import { OrderStatusBadge } from "@/components/orders/order-status-badge";
 import { PaymentStatusBadge } from "@/components/finance/payment-status-badge";
 import { PayoutStatusBadge } from "@/components/finance/payout-status-badge";
 import { ProformaStatusBadge } from "@/components/finance/proforma-status-badge";
@@ -415,7 +416,7 @@ function SellerOrderDetail({ view, payouts }: { view: SellerOrderViewDTO; payout
               <AppBilingual pick={(c) => c.finance.payments.detail.sellerView.orderStatusLabel} />
             </dt>
             <dd className="text-foreground">
-              <AppBilingual pick={(c) => (c.orders.status as Record<string, string>)[view.orderStatus] ?? view.orderStatus} />
+              <OrderStatusBadge status={view.orderStatus} />
             </dd>
           </div>
         </dl>

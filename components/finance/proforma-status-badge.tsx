@@ -9,7 +9,11 @@ import type { ProformaStatus } from "@/lib/finance/validation";
  */
 const STATUS_TONE: Record<ProformaStatus, string> = {
   ISSUED: "bg-[var(--status-pending-surface)] text-[var(--status-pending)]",
+  CONFIRMED: "bg-[var(--status-paid-surface)] text-[var(--status-paid)]",
   PAID: "bg-[var(--status-paid-surface)] text-[var(--status-paid)]",
+  EXPIRED: "bg-[var(--status-cancelled-surface)] text-[var(--status-cancelled)]",
+  SUPERSEDED: "bg-[var(--status-cancelled-surface)] text-[var(--status-cancelled)]",
+  CANCELLED: "bg-[var(--status-cancelled-surface)] text-[var(--status-cancelled)]",
   VOID: "bg-[var(--status-cancelled-surface)] text-[var(--status-cancelled)]",
 };
 

@@ -2266,6 +2266,9 @@ export const en = {
         EXPIRED: "Expired",
         VOID: "Void",
         DISPUTED: "Disputed",
+        PROFORMA_ISSUED: "Proforma issued",
+        CANCELLED: "Cancelled",
+        PAYMENT_REJECTED: "Payment rejected",
       },
       list: {
         title: "Orders",
@@ -2609,17 +2612,21 @@ export const en = {
           },
         },
       },
-      /** Feature 008 T023 — `proforma_invoices.status`'s own 3-value CHECK constraint (`proforma_invoices_status_check`), verbatim. */
+      /** Feature 013 T064 — `proforma_invoices.status`'s 7-value CHECK constraint (`proforma_invoices_status_check`). */
       proforma: {
         status: {
           ISSUED: "Issued",
+          CONFIRMED: "Confirmed",
           PAID: "Paid",
+          EXPIRED: "Expired",
+          SUPERSEDED: "Superseded",
+          CANCELLED: "Cancelled",
           VOID: "Void",
         },
       },
       /**
-       * Feature 008 T023 — the seller's own payout records at `/dashboard/payouts`. `status` is the
-       * full 4-value `payouts.status` vocabulary (`payouts_status_check`), verbatim — no invented
+       * Feature 013 T064 — the seller's own payout records at `/dashboard/payouts`. `status` is the
+       * full 5-value `payouts.status` vocabulary (`payouts_status_check`), verbatim — no invented
        * provider-release label; see FR-017 and `payoutAccountingNotice` above for why "PAID" here is
        * a platform accounting state, not confirmation of an actual bank transfer.
        */
@@ -2629,6 +2636,7 @@ export const en = {
           PROCESSING: "Processing",
           PAID: "Paid",
           VOID: "Void",
+          ACCRUED: "Accrued",
         },
         nav: {
           payouts: "Payouts",
@@ -2982,6 +2990,169 @@ export const en = {
         "The Auditor role cannot read the platform audit log yet. This is a recorded database access limitation (DB-OPEN-06) — it does not mean that no activity took place.",
       notPermitted: "Your role does not include access to the platform audit log.",
       unavailable: "The audit log could not be read right now. Please try again.",
+    },
+
+    /** Feature 013 (T064) — Commerce vocabulary and error copy. */
+    commerce: {
+      paymentMethods: {
+        BANK_TRANSFER: "Bank transfer",
+        PROVIDER: "Online provider",
+      },
+      flows: {
+        LEGACY: "Legacy flow",
+        BANK_TRANSFER_V1: "Bank transfer",
+      },
+      reservations: {
+        status: {
+          ACTIVE: "Active",
+          CONSUMED: "Consumed",
+          RELEASED: "Released",
+          EXPIRED: "Expired",
+          REVIEW_HOLD: "Under review hold",
+        },
+        releaseReason: {
+          EXPIRED: "Reservation expired",
+          CANCELLED: "Order cancelled",
+          REJECTED: "Payment rejected",
+          ADMIN_VOID: "Admin voided",
+          EXCEPTION: "Processing exception",
+        },
+      },
+      paymentProofs: {
+        status: {
+          SUBMITTED: "Submitted",
+          ACCEPTED: "Accepted",
+          REJECTED: "Rejected",
+          IN_RECONCILIATION: "In reconciliation",
+        },
+        submissionKind: {
+          ON_TIME: "On time",
+          LATE_REPORT: "Late report",
+        },
+      },
+      paymentReviews: {
+        decision: {
+          CONFIRMED: "Confirmed",
+          REJECTED: "Rejected",
+          SENT_TO_RECONCILIATION: "Sent to reconciliation",
+        },
+      },
+      taxInvoices: {
+        status: {
+          ISSUED: "Issued",
+          VOID: "Void",
+        },
+      },
+      shipmentKinds: {
+        DELIVERY_REQUEST: "Delivery request",
+        FULFILLMENT: "Fulfilment",
+      },
+      reconciliation: {
+        kinds: {
+          LATE: "Late payment",
+          PARTIAL: "Partial payment",
+          WRONG_CURRENCY: "Wrong currency",
+          DUPLICATE: "Duplicate payment",
+          OTHER: "Other reason",
+        },
+        status: {
+          OPEN: "Open",
+          IN_REVIEW: "In review",
+          RESOLVED: "Resolved",
+          CLOSED_NO_ACTION: "Closed (no action)",
+        },
+        resolutionTypes: {
+          REFUNDED_EXTERNALLY: "Refunded externally",
+          APPLIED_TO_NEW_ORDER: "Applied to new order",
+          NO_FUNDS_RECEIVED: "No funds received",
+          OTHER: "Other resolution",
+        },
+      },
+      adjustments: {
+        kinds: {
+          REFUND_EXTERNAL: "External refund",
+          REVERSAL: "Reversal",
+          CORRECTION: "Correction",
+        },
+      },
+      promotions: {
+        status: {
+          DRAFT: "Draft",
+          SCHEDULED: "Scheduled",
+          ACTIVE: "Active",
+          PAUSED: "Paused",
+          ENDED: "Ended",
+          ARCHIVED: "Archived",
+        },
+        scope: {
+          PLATFORM: "Platform promotion",
+          SELLER: "Seller promotion",
+        },
+        fundingSource: {
+          HILLS: "Funded by Hills",
+          SELLER: "Funded by seller",
+        },
+        discountType: {
+          PERCENT: "Percentage discount",
+          AMOUNT_PER_KG: "Fixed amount per kg",
+        },
+        targetKind: {
+          OFFER: "Specific offer",
+          COFFEE: "Specific coffee",
+          ALL_SELLER_OFFERS: "All seller offers",
+          ALL_OFFERS: "All marketplace offers",
+        },
+      },
+      notifications: {
+        status: {
+          PENDING: "Pending",
+          PROCESSING: "Processing",
+          PROCESSED: "Processed",
+          FAILED: "Failed",
+        },
+        aggregateType: {
+          proforma: "Proforma",
+          order: "Order",
+          payment: "Payment",
+          case: "Case",
+          shipment: "Shipment",
+          payout: "Payout",
+          campaign: "Campaign",
+        },
+      },
+      errors: {
+        generic: "A commerce error occurred. Please try again.",
+        order_has_no_items: "Add at least one item before requesting a proforma.",
+        listing_is_not_available: "A listing in your order is no longer available. Review your order and try again.",
+        destination_required: "Choose a delivery destination to continue.",
+        tax_rule_missing: "Tax settings for this destination are not available yet. Please contact Hills.",
+        shipping_rule_missing: "Shipping to this destination is not available yet. Please contact Hills.",
+        commission_rule_missing: "This order cannot be priced yet. Please contact Hills.",
+        negative_economics: "This order cannot be priced. Please contact Hills.",
+        bank_account_missing: "Bank transfer details are not available yet. Please contact Hills.",
+        currency_not_supported: "This currency is not supported.",
+        checkout_disabled: "Bank transfer checkout is temporarily unavailable. Please try again later.",
+        order_not_found: "Order not found.",
+        order_not_editable: "This order can no longer be changed.",
+        proforma_still_valid: "Your current proforma is still valid. Use it, or wait until it expires.",
+        destination_not_found: "The delivery destination was not found.",
+        legacy_shipment_plan_present: "This order has an earlier shipment plan. Please contact Hills to continue.",
+        proforma_not_found: "Proforma invoice not found.",
+        proforma_expired: "This proforma invoice has expired. Request a new one.",
+        proforma_not_confirmable: "This proforma can no longer be confirmed.",
+        listing_inventory_changed: "Availability changed for a listing in your order. Request a new proforma.",
+        seller_inventory_changed: "A seller's available stock changed. Request a new proforma.",
+        seller_not_authorized: "A seller in your order can no longer sell. Request a new proforma.",
+        order_not_payable: "This order cannot accept a payment proof right now.",
+        reservation_expired: "Your reservation has expired.",
+        cross_organization_object_path: "This file does not belong to your order.",
+        storage_object_not_found: "The uploaded file was not found. Please upload it again.",
+        invalid_mime_type: "This file type is not accepted. Upload a PDF, JPEG or PNG file.",
+        object_too_large: "This file is too large.",
+        mime_type_mismatch: "The file content does not match its file type.",
+        proof_already_submitted: "A payment proof has already been submitted for this order.",
+        invalid_claimed_currency: "The transfer currency must match the proforma currency.",
+      },
     },
 
 } as const;

@@ -34,6 +34,9 @@ describe("T001 — status vocabularies match the live CHECK constraints exactly"
       "EXPIRED",
       "VOID",
       "DISPUTED",
+      "PROFORMA_ISSUED",
+      "CANCELLED",
+      "PAYMENT_REJECTED",
     ]);
   });
 
@@ -42,7 +45,15 @@ describe("T001 — status vocabularies match the live CHECK constraints exactly"
   });
 
   it("PROFORMA_STATUSES matches proforma_invoices_status_check", () => {
-    expect(PROFORMA_STATUSES).toEqual(["ISSUED", "PAID", "VOID"]);
+    expect(PROFORMA_STATUSES).toEqual([
+      "ISSUED",
+      "CONFIRMED",
+      "PAID",
+      "EXPIRED",
+      "SUPERSEDED",
+      "CANCELLED",
+      "VOID",
+    ]);
   });
 
   it("ORDER_SHIPMENT_STATUSES matches order_shipments_status_allowed", () => {

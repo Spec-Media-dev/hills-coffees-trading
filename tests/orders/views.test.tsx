@@ -113,9 +113,12 @@ const EXPECTED_EN_LABELS: Record<string, string> = {
   EXPIRED: "Expired",
   VOID: "Void",
   DISPUTED: "Disputed",
+  PROFORMA_ISSUED: "Proforma issued",
+  CANCELLED: "Cancelled",
+  PAYMENT_REJECTED: "Payment rejected",
 };
 
-describe("T015 — all twelve orders.status values render their exact approved labels (EN + AR present), 1:1, no alias", () => {
+describe("T015 — all fifteen orders.status values render their exact approved labels (EN + AR present), 1:1, no alias", () => {
   it.each(ORDER_STATUSES)("%s renders its own label with a data-status marker", async (status) => {
     vi.resetModules();
     const [{ OrderStatusBadge }, { LocaleProvider }] = await Promise.all([import("@/components/orders/order-status-badge"), import("@/components/locale/locale-provider")]);
@@ -130,10 +133,10 @@ describe("T015 — all twelve orders.status values render their exact approved l
     expect(badge!.querySelector('[lang="ar"]')!.textContent!.length).toBeGreaterThan(0);
   });
 
-  it("exactly 12 statuses exist in the vocabulary and every one has EN + AR copy", async () => {
+  it("exactly 15 statuses exist in the vocabulary and every one has EN + AR copy", async () => {
     const { en } = await import("@/lib/app/copy/en");
     const { ar } = await import("@/lib/app/copy/ar");
-    expect(ORDER_STATUSES).toHaveLength(12);
+    expect(ORDER_STATUSES).toHaveLength(15);
     for (const status of ORDER_STATUSES) {
       expect((en.orders.status as Record<string, string>)[status]).toBeTruthy();
       expect(((ar as { orders?: { status?: Record<string, string> } }).orders?.status ?? {})[status]).toBeTruthy();

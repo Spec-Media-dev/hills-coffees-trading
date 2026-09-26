@@ -12,6 +12,7 @@ import { HistoryTimeline, actorFor } from "@/components/audit/history-timeline";
 import { OrderDisputeLinkage } from "@/components/disputes/dispute-linkage";
 import { HoldCountdown } from "@/components/orders/hold-countdown";
 import { OrderStatusBadge } from "@/components/orders/order-status-badge";
+import { PaymentStatusBadge } from "@/components/finance/payment-status-badge";
 import { ShipmentPlanner } from "@/components/orders/shipment-planner";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -86,7 +87,6 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ or
   const canCheckout = order.status === "DRAFT" || order.status === "CONFIRMED";
   const isOnHold = order.status === "HOLD" && freshness.data.fresh;
   const isExpired = order.status === "EXPIRED";
-  const paymentLabels = appCopy.orders.payment.status as Record<string, string>;
 
   return (
     <div className="flex flex-col gap-8">
@@ -254,8 +254,8 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ or
                   <dt className="text-muted-foreground">
                     <AppBilingual pick={(c) => c.orders.payment.label} />
                   </dt>
-                  <dd className="text-foreground">
-                    {paymentLabels[payment.status] ?? payment.status}
+                  <dd className="flex flex-col gap-1 text-foreground">
+                    <PaymentStatusBadge status={payment.status} />
                     <span className="block text-muted-foreground">{appCopy.orders.payment.note}</span>
                   </dd>
                 </div>

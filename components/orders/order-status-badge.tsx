@@ -22,6 +22,9 @@ const STATUS_TONE: Record<OrderStatus, string> = {
   EXPIRED: "bg-[var(--status-cancelled-surface)] text-[var(--status-cancelled)]",
   VOID: "bg-[var(--status-cancelled-surface)] text-[var(--status-cancelled)]",
   DISPUTED: "bg-[var(--status-danger-surface)] text-[var(--status-danger)]",
+  PROFORMA_ISSUED: "bg-[var(--status-pending-surface)] text-[var(--status-pending)]",
+  CANCELLED: "bg-[var(--status-cancelled-surface)] text-[var(--status-cancelled)]",
+  PAYMENT_REJECTED: "bg-[var(--status-danger-surface)] text-[var(--status-danger)]",
 };
 
 export function OrderStatusBadge({ status }: { status: OrderStatus }) {

@@ -14,6 +14,7 @@ const STATUS_TONE: Record<PayoutStatus, string> = {
   PROCESSING: "bg-[var(--status-review-surface)] text-[var(--status-review)]",
   PAID: "bg-[var(--status-paid-surface)] text-[var(--status-paid)]",
   VOID: "bg-[var(--status-cancelled-surface)] text-[var(--status-cancelled)]",
+  ACCRUED: "bg-[var(--status-review-surface)] text-[var(--status-review)]",
 };
 
 export function PayoutStatusBadge({ status }: { status: PayoutStatus }) {

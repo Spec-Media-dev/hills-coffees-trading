@@ -18,56 +18,51 @@ import { z } from "zod";
  * ══════════════════════════════════════════════════════════════════════════════════════════════
  */
 
-/** `payments.payment_method`'s own CHECK constraint (`payments_payment_method_check`). */
-export const PAYMENT_METHODS = ["BANK_TRANSFER", "PROVIDER"] as const;
-export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
+import {
+  PAYMENT_METHODS,
+  type PaymentMethod,
+  PAYMENT_STATUSES,
+  type PaymentStatus,
+  PROFORMA_STATUSES,
+  type ProformaStatus,
+  PAYOUT_STATUSES,
+  type PayoutStatus,
+  LEGACY_PROFORMA_STATUSES,
+  type LegacyProformaStatus,
+  LEGACY_PAYOUT_STATUSES,
+  type LegacyPayoutStatus,
+  PaymentStatusSchema,
+  PaymentMethodSchema,
+  ProformaStatusSchema,
+  PayoutStatusSchema,
+  parsePaymentStatus,
+  parsePaymentMethod,
+  parseProformaStatus,
+  parsePayoutStatus,
+} from "@/lib/commerce/validation";
 
-/** `payments.status`'s own CHECK constraint (`payments_status_check`) — exactly seven values. */
-export const PAYMENT_STATUSES = ["PENDING", "PROOF_SUBMITTED", "UNDER_REVIEW", "CONFIRMED", "REJECTED", "EXPIRED", "VOID"] as const;
-export type PaymentStatus = (typeof PAYMENT_STATUSES)[number];
-
-/** `proforma_invoices.status`'s own CHECK constraint (`proforma_invoices_status_check`). */
-export const PROFORMA_STATUSES = ["ISSUED", "PAID", "VOID"] as const;
-export type ProformaStatus = (typeof PROFORMA_STATUSES)[number];
-
-/** `payouts.status`'s own CHECK constraint (`payouts_status_check`) — exactly four values. A payout
- * record/status is accounting state only; it is never evidence of actual provider money movement
- * (FR-017) — that distinction belongs to presentation copy, not this vocabulary. */
-export const PAYOUT_STATUSES = ["PENDING_PAYOUT", "PROCESSING", "PAID", "VOID"] as const;
-export type PayoutStatus = (typeof PAYOUT_STATUSES)[number];
-
-/** Rejects any string outside the live `payments_status_check` allowlist — including every
- * provider-fiction status this feature must never invent. */
-export const PaymentStatusSchema = z.enum(PAYMENT_STATUSES);
-export const PaymentMethodSchema = z.enum(PAYMENT_METHODS);
-export const ProformaStatusSchema = z.enum(PROFORMA_STATUSES);
-export const PayoutStatusSchema = z.enum(PAYOUT_STATUSES);
-
-/**
- * Parses a raw database column value against its live CHECK-constraint allowlist, never assuming the
- * value is well-formed just because it came from a `SELECT`. Returns `null` on anything unrecognized
- * rather than throwing — a read layer that encounters this should treat it as "unknown/unsafe to
- * display" (mapped to a controlled fallback by the caller), never crash a page.
- */
-export function parsePaymentStatus(value: unknown): PaymentStatus | null {
-  const result = PaymentStatusSchema.safeParse(value);
-  return result.success ? result.data : null;
-}
-
-export function parsePaymentMethod(value: unknown): PaymentMethod | null {
-  const result = PaymentMethodSchema.safeParse(value);
-  return result.success ? result.data : null;
-}
-
-export function parseProformaStatus(value: unknown): ProformaStatus | null {
-  const result = ProformaStatusSchema.safeParse(value);
-  return result.success ? result.data : null;
-}
-
-export function parsePayoutStatus(value: unknown): PayoutStatus | null {
-  const result = PayoutStatusSchema.safeParse(value);
-  return result.success ? result.data : null;
-}
+export {
+  PAYMENT_METHODS,
+  type PaymentMethod,
+  PAYMENT_STATUSES,
+  type PaymentStatus,
+  PROFORMA_STATUSES,
+  type ProformaStatus,
+  PAYOUT_STATUSES,
+  type PayoutStatus,
+  LEGACY_PROFORMA_STATUSES,
+  type LegacyProformaStatus,
+  LEGACY_PAYOUT_STATUSES,
+  type LegacyPayoutStatus,
+  PaymentStatusSchema,
+  PaymentMethodSchema,
+  ProformaStatusSchema,
+  PayoutStatusSchema,
+  parsePaymentStatus,
+  parsePaymentMethod,
+  parseProformaStatus,
+  parsePayoutStatus,
+};
 
 /**
  * ══════════════════════════════════════════════════════════════════════════════════════════════

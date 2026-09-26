@@ -31,11 +31,11 @@ describe("T001 — payment status/method vocabulary mirrors the live CHECK const
   });
 
   it("PROFORMA_STATUSES is exactly the live proforma_invoices_status_check allowlist", () => {
-    expect(PROFORMA_STATUSES).toEqual(["ISSUED", "PAID", "VOID"]);
+    expect(PROFORMA_STATUSES).toEqual(["ISSUED", "CONFIRMED", "PAID", "EXPIRED", "SUPERSEDED", "CANCELLED", "VOID"]);
   });
 
   it("PAYOUT_STATUSES is exactly the live payouts_status_check allowlist", () => {
-    expect(PAYOUT_STATUSES).toEqual(["PENDING_PAYOUT", "PROCESSING", "PAID", "VOID"]);
+    expect(PAYOUT_STATUSES).toEqual(["PENDING_PAYOUT", "PROCESSING", "PAID", "VOID", "ACCRUED"]);
   });
 
   it.each(PAYMENT_STATUSES)("accepts the current status %s", (status) => {

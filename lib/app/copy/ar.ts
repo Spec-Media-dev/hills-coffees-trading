@@ -2132,6 +2132,9 @@ export const ar: DeepPartial<AppCopy> = {
         EXPIRED: "منتهي الصلاحية",
         VOID: "ملغى",
         DISPUTED: "محل نزاع",
+        PROFORMA_ISSUED: "فاتورة أولية صادرة",
+        CANCELLED: "تم الإلغاء",
+        PAYMENT_REJECTED: "تم رفض الدفع",
       },
       list: {
         title: "الطلبات",
@@ -2436,7 +2439,11 @@ export const ar: DeepPartial<AppCopy> = {
       proforma: {
         status: {
           ISSUED: "صادرة",
+          CONFIRMED: "مؤكدة",
           PAID: "مدفوعة",
+          EXPIRED: "منتهية الصلاحية",
+          SUPERSEDED: "مستبدلة",
+          CANCELLED: "أُلغيت",
           VOID: "ملغاة",
         },
       },
@@ -2446,6 +2453,7 @@ export const ar: DeepPartial<AppCopy> = {
           PROCESSING: "قيد المعالجة",
           PAID: "مصروف",
           VOID: "ملغى",
+          ACCRUED: "مستحق متراكم",
         },
         nav: {
           payouts: "المستحقات",
@@ -2755,6 +2763,169 @@ export const ar: DeepPartial<AppCopy> = {
       auditorLimitation: "لا يمكن لدور المدقق قراءة سجل تدقيق المنصة بعد. هذا قيد وصول مسجَّل في قاعدة البيانات (DB-OPEN-06) — ولا يعني عدم وجود أي نشاط.",
       notPermitted: "لا يتضمن دورك الوصول إلى سجل تدقيق المنصة.",
       unavailable: "تعذّرت قراءة سجل التدقيق الآن. يُرجى المحاولة مرة أخرى.",
+    },
+
+    /** Feature 013 (T064) — Commerce vocabulary and error copy. */
+    commerce: {
+      paymentMethods: {
+        BANK_TRANSFER: "تحويل بنكي",
+        PROVIDER: "مزود دفع إلكتروني",
+      },
+      flows: {
+        LEGACY: "مسار تقليدي",
+        BANK_TRANSFER_V1: "تحويل بنكي",
+      },
+      reservations: {
+        status: {
+          ACTIVE: "نشط",
+          CONSUMED: "مستهلك",
+          RELEASED: "محرر",
+          EXPIRED: "منتهي الصلاحية",
+          REVIEW_HOLD: "قيد حجز المراجعة",
+        },
+        releaseReason: {
+          EXPIRED: "انتهاء مهلة الحجز",
+          CANCELLED: "إلغاء الطلب",
+          REJECTED: "رفض الدفع",
+          ADMIN_VOID: "إلغاء إداري",
+          EXCEPTION: "استثناء في المعالجة",
+        },
+      },
+      paymentProofs: {
+        status: {
+          SUBMITTED: "تم الإرسال",
+          ACCEPTED: "مقبول",
+          REJECTED: "مرفوض",
+          IN_RECONCILIATION: "قيد التسوية",
+        },
+        submissionKind: {
+          ON_TIME: "في الموعد المحدد",
+          LATE_REPORT: "إبلاغ متأخر",
+        },
+      },
+      paymentReviews: {
+        decision: {
+          CONFIRMED: "مؤكد",
+          REJECTED: "مرفوض",
+          SENT_TO_RECONCILIATION: "أُحيل للتسوية",
+        },
+      },
+      taxInvoices: {
+        status: {
+          ISSUED: "صادرة",
+          VOID: "ملغاة",
+        },
+      },
+      shipmentKinds: {
+        DELIVERY_REQUEST: "طلب تسليم",
+        FULFILLMENT: "تنفيذ الشحن",
+      },
+      reconciliation: {
+        kinds: {
+          LATE: "دفعة متأخرة",
+          PARTIAL: "دفعة جزئية",
+          WRONG_CURRENCY: "عملة غير صحيحة",
+          DUPLICATE: "دفعة مكررة",
+          OTHER: "سبب آخر",
+        },
+        status: {
+          OPEN: "مفتوحة",
+          IN_REVIEW: "قيد المراجعة",
+          RESOLVED: "تمت التسوية",
+          CLOSED_NO_ACTION: "مغلقة (دون إجراء)",
+        },
+        resolutionTypes: {
+          REFUNDED_EXTERNALLY: "تم استرداد المبلغ خارجيًا",
+          APPLIED_TO_NEW_ORDER: "تطبيق على طلب جديد",
+          NO_FUNDS_RECEIVED: "لم يتم استلام أي أموال",
+          OTHER: "تسوية أخرى",
+        },
+      },
+      adjustments: {
+        kinds: {
+          REFUND_EXTERNAL: "استرداد خارجي",
+          REVERSAL: "إلغاء قيد",
+          CORRECTION: "تصحيح محاسبي",
+        },
+      },
+      promotions: {
+        status: {
+          DRAFT: "مسودة",
+          SCHEDULED: "مجدول",
+          ACTIVE: "نشط",
+          PAUSED: "متوقف مؤقتًا",
+          ENDED: "منتهٍ",
+          ARCHIVED: "مؤرشف",
+        },
+        scope: {
+          PLATFORM: "عرض المنصة",
+          SELLER: "عرض البائع",
+        },
+        fundingSource: {
+          HILLS: "تمويل من هيلز",
+          SELLER: "تمويل من البائع",
+        },
+        discountType: {
+          PERCENT: "خصم بنسبة مئوية",
+          AMOUNT_PER_KG: "خصم مبلغ ثابت لكل كغ",
+        },
+        targetKind: {
+          OFFER: "عرض محدد",
+          COFFEE: "بن محدد",
+          ALL_SELLER_OFFERS: "جميع عروض البائع",
+          ALL_OFFERS: "جميع عروض السوق",
+        },
+      },
+      notifications: {
+        status: {
+          PENDING: "معلق",
+          PROCESSING: "قيد المعالجة",
+          PROCESSED: "تمت المعالجة",
+          FAILED: "فشل",
+        },
+        aggregateType: {
+          proforma: "فاتورة أولية",
+          order: "طلب",
+          payment: "دفعة",
+          case: "حالة تسوية",
+          shipment: "شحنة",
+          payout: "مستحقات",
+          campaign: "حملة",
+        },
+      },
+      errors: {
+        generic: "حدث خطأ في المعاملة التجارية. يرجى المحاولة مرة أخرى.",
+        order_has_no_items: "أضف بندًا واحدًا على الأقل قبل طلب فاتورة أولية.",
+        listing_is_not_available: "أحد العروض في طلبك لم يعد متاحًا. راجع طلبك وحاول مرة أخرى.",
+        destination_required: "اختر وجهة التسليم للمتابعة.",
+        tax_rule_missing: "إعدادات الضريبة لهذه الوجهة غير متاحة بعد. يرجى التواصل مع هيلز.",
+        shipping_rule_missing: "الشحن إلى هذه الوجهة غير متاح بعد. يرجى التواصل مع هيلز.",
+        commission_rule_missing: "لا يمكن تسعير هذا الطلب بعد. يرجى التواصل مع هيلز.",
+        negative_economics: "تعذّر تسعير هذا الطلب. يرجى التواصل مع هيلز.",
+        bank_account_missing: "بيانات التحويل البنكي غير متاحة بعد. يرجى التواصل مع هيلز.",
+        currency_not_supported: "هذه العملة غير مدعومة.",
+        checkout_disabled: "الدفع عبر التحويل البنكي غير متاح حاليًا. يرجى المحاولة لاحقًا.",
+        order_not_found: "الطلب غير موجود.",
+        order_not_editable: "لم يعد بالإمكان تعديل هذا الطلب.",
+        proforma_still_valid: "فاتورتك الأولية الحالية ما زالت سارية. استخدمها أو انتظر حتى انتهاء صلاحيتها.",
+        destination_not_found: "وجهة التسليم غير موجودة.",
+        legacy_shipment_plan_present: "لهذا الطلب خطة شحن سابقة. يرجى التواصل مع هيلز للمتابعة.",
+        proforma_not_found: "الفاتورة الأولية غير موجودة.",
+        proforma_expired: "انتهت صلاحية هذه الفاتورة الأولية. اطلب فاتورة جديدة.",
+        proforma_not_confirmable: "لم يعد بالإمكان تأكيد هذه الفاتورة الأولية.",
+        listing_inventory_changed: "تغيّر توفر أحد العروض في طلبك. اطلب فاتورة أولية جديدة.",
+        seller_inventory_changed: "تغيّر المخزون المتاح لدى أحد البائعين. اطلب فاتورة أولية جديدة.",
+        seller_not_authorized: "أحد البائعين في طلبك لم يعد مخوّلًا بالبيع. اطلب فاتورة أولية جديدة.",
+        order_not_payable: "لا يمكن لهذا الطلب قبول إثبات دفع حاليًا.",
+        reservation_expired: "انتهت مهلة حجزك.",
+        cross_organization_object_path: "هذا الملف لا يخص طلبك.",
+        storage_object_not_found: "لم يُعثر على الملف المرفوع. يرجى رفعه مرة أخرى.",
+        invalid_mime_type: "نوع الملف غير مقبول. ارفع ملف PDF أو JPEG أو PNG.",
+        object_too_large: "حجم الملف كبير جدًا.",
+        mime_type_mismatch: "محتوى الملف لا يطابق نوعه.",
+        proof_already_submitted: "تم إرسال إثبات دفع لهذا الطلب مسبقًا.",
+        invalid_claimed_currency: "يجب أن تطابق عملة التحويل عملة الفاتورة الأولية.",
+      },
     },
 
 };

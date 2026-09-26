@@ -1,3 +1,4 @@
+import type { OrderStatus } from "@/lib/commerce/types";
 import type { PaymentMethod, PaymentStatus, PayoutStatus, ProformaStatus } from "@/lib/finance/validation";
 
 /**
@@ -135,7 +136,8 @@ export type SellerOrderLineDTO = {
 export type SellerOrderViewDTO = {
   orderId: string;
   orderCode: string;
-  orderStatus: string;
+  /** Parsed through the canonical `parseOrderStatus` in the read layer — never an unvalidated string. */
+  orderStatus: OrderStatus;
   lines: readonly SellerOrderLineDTO[];
 };
 

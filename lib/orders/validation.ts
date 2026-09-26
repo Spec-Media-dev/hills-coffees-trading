@@ -14,30 +14,31 @@ import { z } from "zod";
  * ══════════════════════════════════════════════════════════════════════════════════════════════
  */
 
-/** `orders.status`'s own CHECK constraint (`orders_status_check`) — exactly twelve values, no invented alias. */
-export const ORDER_STATUSES = [
-  "DRAFT",
-  "CONFIRMED",
-  "HOLD",
-  "PAYMENT_PROOF_SUBMITTED",
-  "PAYMENT_UNDER_REVIEW",
-  "PAID",
-  "FULFILLMENT_IN_PROGRESS",
-  "PARTIALLY_DELIVERED",
-  "COMPLETED",
-  "EXPIRED",
-  "VOID",
-  "DISPUTED",
-] as const;
-export type OrderStatus = (typeof ORDER_STATUSES)[number];
+import {
+  ORDER_STATUSES,
+  type OrderStatus,
+  LEGACY_ORDER_STATUSES,
+  type LegacyOrderStatus,
+  PAYMENT_STATUSES,
+  type PaymentStatus,
+  PROFORMA_STATUSES,
+  type ProformaStatus,
+  LEGACY_PROFORMA_STATUSES,
+  type LegacyProformaStatus,
+} from "@/lib/commerce/validation";
 
-/** `payments.status`'s own CHECK constraint (`payments_status_check`). RUN A never creates a payment row — this is forward DTO surface only. */
-export const PAYMENT_STATUSES = ["PENDING", "PROOF_SUBMITTED", "UNDER_REVIEW", "CONFIRMED", "REJECTED", "EXPIRED", "VOID"] as const;
-export type PaymentStatus = (typeof PAYMENT_STATUSES)[number];
-
-/** `proforma_invoices.status`'s own CHECK constraint (`proforma_invoices_status_check`). */
-export const PROFORMA_STATUSES = ["ISSUED", "PAID", "VOID"] as const;
-export type ProformaStatus = (typeof PROFORMA_STATUSES)[number];
+export {
+  ORDER_STATUSES,
+  type OrderStatus,
+  LEGACY_ORDER_STATUSES,
+  type LegacyOrderStatus,
+  PAYMENT_STATUSES,
+  type PaymentStatus,
+  PROFORMA_STATUSES,
+  type ProformaStatus,
+  LEGACY_PROFORMA_STATUSES,
+  type LegacyProformaStatus,
+};
 
 /** `order_shipments.status`'s own CHECK constraint (`order_shipments_status_allowed`) — thirteen values. */
 export const ORDER_SHIPMENT_STATUSES = [

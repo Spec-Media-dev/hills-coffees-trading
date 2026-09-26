@@ -1,3 +1,4 @@
+import { parseOrderStatus } from "@/lib/commerce/validation";
 import { createClient } from "@/lib/supabase/server";
 import type { OrderFinancialsDTO, PaginatedPayouts, PaymentDTO, PayoutDTO, ProformaDTO, SellerOrderViewDTO, TaxInvoiceDTO } from "@/lib/finance/types";
 import type { PaymentMethod, PaymentStatus, PayoutStatus, ProformaStatus } from "@/lib/finance/validation";
@@ -298,11 +299,15 @@ export async function getSellerOrderLines({ orderId, organizationId }: { orderId
     .order("order_item_id", { ascending: true })
     .limit(MAX_SELLER_ORDER_LINES);
   if (!rows || rows.length === 0) return null;
+  // `orders.status` is CHECK-bound to the canonical vocabulary; a value outside it (a future migration the app does not
+  // know yet) fails closed to the same `null` as "no own line" rather than reaching a badge unvalidated.
+  const orderStatus = parseOrderStatus(rows[0]!.order_status);
+  if (orderStatus === null) return null;
 
   return {
     orderId: order.id,
     orderCode: order.order_code,
-    orderStatus: rows[0]!.order_status,
+    orderStatus,
     lines: rows.map((row) => ({
       orderItemId: row.order_item_id,
       productNameSnapshot: row.product_name_snapshot,
