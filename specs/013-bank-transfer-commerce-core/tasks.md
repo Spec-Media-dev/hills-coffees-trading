@@ -809,20 +809,122 @@ here is database/security work; UI that depends on it comes later.
     - Static: typecheck and eslint clean; `tests/commerce` without the flag → 217 passed, 32 skipped (the 4 gated live suites).
 
 ### M2d — pricing inputs (promotion data model, offer quantity price tiers)
-- [ ] T044 MP-1 Author M2d — `supabase/migrations/20260925112000_feature_013_pricing_inputs.sql`, rollback, postflight
+- [X] T044 MP-1 Author M2d — `supabase/migrations/20260925112000_feature_013_pricing_inputs.sql`, rollback, postflight
   - Depends: T043
   - Accept: data-model §3.8 tables + CHECKs (types, `PERCENT ≤ 100`, window, scope↔seller, generated `funding_source`); RLS per rls-storage §1 (tiers never anon; promotion codes hidden); tables only, no RPCs.
-- [ ] T045 MP-2 Static tests — `tests/commerce/migrations/m2d-pricing-inputs.test.ts`
+  - **Batch B (2026-09-26)**: AUTHORED, **NOT APPLIED**. Files:
+    - `supabase/migrations/20260925112000_feature_013_pricing_inputs.sql`;
+    - `supabase/rollback/20260925112000_feature_013_pricing_inputs.rollback.sql`;
+    - `supabase/maintenance/20260925_feature_013_pricing_inputs_postflight.sql` (17 checks + `ALL CHECKS PASSED` → **18 rows**).
+  - Content:
+    - `offer_price_tiers` (7 §3.8 columns; threshold > 0, price ≥ 0, USD; UNIQUE(offer_id, min_quantity_kg));
+    - `promotions`:
+      - 16 §3.8 columns; scope/discount_type/status sets; value > 0; PERCENT ≤ 100; starts_at < ends_at; SELLER ⇔ seller org;
+      - `funding_source` GENERATED ALWAYS from scope (FIN-011);
+      - code `[A-Z0-9-]{1,40}` with `lower(code)` unique among non-archived rows; `PRM-<7>` references; eligibility index;
+    - `promotion_targets` (§3.8 columns + surrogate id; 4 kinds; OFFER/COFFEE reference CHECK; `UNIQUE NULLS NOT DISTINCT`);
+    - a redacted promotion audit (allow-list; the code only as `code_present`/`code_changed`).
+  - **RLS (rls-storage §1)**:
+    - `offer_price_tiers_read` = production's `coffee_offers.member_read_published_offers` predicate ∨ own seller org ∨ PA;
+    - `promotions_read` = eligible (SCHEDULED/ACTIVE, in-window) PLATFORM for authorized members ∨ own SELLER org ∨ PA;
+    - `promotion_targets_read` = the promotion is readable;
+    - all policies are TO authenticated; anon has nothing; **`promotions.code` is granted to no client role** (column-level SELECT on every other column); no client or service_role write grant.
+  - Guard:
+    - pins M1 (`603d04c5…`) and M2b `prevent_snapshot_mutation` (`286e0209…`); requires M2a–M2c;
+    - requires `member_read_published_offers` to have exactly the recorded text (the tier policy mirrors it);
+    - no M2d object; kill switch off; RLS-bypassing role.
+- [X] T045 MP-2 Static tests — `tests/commerce/migrations/m2d-pricing-inputs.test.ts`
   - Depends: T044
-- [ ] T046 MP-3 Dry-run M2d
+  - **Batch B (2026-09-26)**: **33/33 pass**; conventions (now also covering M2d) **20/20**. Expected values are read from data-model §3.8, contracts/rls-storage.md and the approved schema report (`member_read_published_offers`).
+    - Covers: exact columns and CHECK sets; PERCENT ≤ 100; window; scope ↔ seller; generated funding; code format/uniqueness; derived eligibility; the RLS predicates; anon absence; code hiding; tables-only; redacted audit; guard; rollback exactness and refusal.
+    - 10 mutation cases prove the M2d rules bite.
+  - **Shared rule change**: `tests/commerce/migrations/sql-rules.ts` now accepts `grant select (<columns>) … to authenticated` (needed to hide `promotions.code`); every other privilege is still a violation. Two new conventions mutation cases prove column-level `update (…)` / `select (…), insert (…)` grants are still caught.
+- [X] T046 MP-3 Dry-run M2d
   - Depends: T045
-- [ ] T047 MP-4 **GATE** review M2d
+  - **Batch B (2026-09-26): COMPLETE.** OPERATOR evidence (authoritative): `npx supabase db push --linked --dry-run` connected to the linked remote database and listed exactly one pending migration, `20260925112000_feature_013_pricing_inputs.sql`; nothing was applied. (`supabase link --project-ref …` returns 403 for this CLI account, which lacks the project-management privilege, but the repo is already linked and `db push --linked --dry-run` works.) The agent-side notes follow.
+    - `npx supabase db push --linked --dry-run` (linked ref `mxejnutukgxyccnohglo`) was **refused** for the agent's CLI account: `DbConfigLoginRoleStatusError … 403` (the account's elevated access used at T042 is no longer granted). **OPERATOR** must run it; expected: exactly one pending migration, `20260925112000_feature_013_pricing_inputs.sql` (remote head `20260925109000`). The same 403 blocked a read-only production query, so the guard inputs were taken from the approved schema report, not re-read live.
+    - Local shadow apply (`supabase db reset`): **not available**; the Docker Desktop daemon is not running. Not attempted.
+    - Supplementary check (`migration-evidence/m2d-supplementary-pglite.log`): PGlite, the production-shaped M2c fixture + production's `member_read_published_offers` (text reproduced exactly; the guard's comparison passes). **97/97 passed**:
+      - guard negatives (member predicate drift, M2b drift, M2c missing, kill switch, existing object); apply; re-apply refused; postflight 18/18; M2c postflight: only its point-in-time row 19 false (R4); no pre-existing column/policy/function changed;
+      - CHECKs: tier threshold/price/currency/duplicate; PERCENT 100 accepted and 101 refused; AMOUNT_PER_KG not bound by 100; value 0, unknown type/scope/status, equal and inverted windows refused; SELLER without a seller and PLATFORM with one refused; `funding_source` not writable and re-derived on a scope change; code format/length; live-code uniqueness with archived reuse; PRM- refs; target reference/kind/duplicate rules;
+      - **RLS as the real roles**:
+        - anon: permission denied on all 3 tables;
+        - an authorized buyer reads only the published/visible listing's tier and only the eligible PLATFORM promotion (not draft/expired/future/another seller's);
+        - the seller org reads its own tiers (incl. its draft listing's) and its own SELLER promotion; PA reads all; a signed-in non-member reads no tier;
+        - `select code` and `select *` refused for buyer, owning seller and PA; non-code columns readable;
+        - targets follow their promotion;
+        - INSERT/UPDATE/DELETE refused for authenticated (even PA) on all 3 tables; service_role read-only;
+      - audit: promotion audit rows carry no code value, and a code change is recorded as `code_changed = true` without the value;
+      - rollback refused while rows exist; fresh DB: apply → rollback → catalogue **identical**; M2c postflight passes again; re-apply and postflight pass.
+    - Regression (static only; live-capable files excluded): **34 files: 844 passed, 0 failed**. Typecheck, eslint and `git diff --check` clean. No live suite run; production not modified.
+- [X] T047 MP-4 **GATE** review M2d
   - Depends: T046
-- [ ] T048 MP-5 **OPERATOR** apply M2d + postflight
+  - **VERDICT: GO / PASS** — reviewer: owner, 2026-09-26. Design decisions (a)–(h) accepted.
+  - Follow-up conditions:
+    - **F2 → M8 condition**: M8 must enforce the cross-table promotion rules (SELLER targets only own MEMBER_SELLER listings; ALL_OFFERS platform-only; AMOUNT_PER_KG below the lowest targeted price) and provide the controlled promotion-code read path (creating scope and PA only).
+    - **F3 → M3 condition**: M3 must add the required restrictive MFA gates on `offer_price_tiers`, `promotions` and `promotion_targets`.
+  - **Review package (agent, 2026-09-26)** — verified; verdict, reviewer and date to be recorded here by the human reviewer.
+    - **Fidelity**: columns and CHECK sets are read from data-model §3.8; the RLS follows rls-storage §1; the tier predicate equals the approved-report text of `member_read_published_offers`, and the guard refuses on drift. Tables only: the only functions are the `PRM-` generator and the redacted audit.
+    - **Rollback symmetry**: full catalogue identical after the rollback (PGlite C). The guard refuses while any tier/promotion/target exists or M2e+ is applied. The M2c rollback already refuses while M2d exists. Promotion audit rows remain (append-only).
+    - **History unchanged**: only 4 new files + 2 shared test files (`sql-rules.ts`, `conventions.test.ts`); every applied migration and the Feature 008 files are untouched.
+    - **Design decisions (beyond the literal data-model)**:
+      - (a) **Code hiding by column privilege**: `promotions.code` is granted to NO client role, including the creating seller and PA. rls-storage's "visible only to the creating scope and PA" is realized by the M8 RPCs (definer); until then no client reads codes. PostgREST clients must list columns (`select=*` is refused).
+      - (b) **RLS policies are added in M2d** (T044 Accept "RLS per rls-storage §1"; unlike M2b/M2c, all predicates are expressible with existing helpers). M3 adds the restrictive MFA gates.
+      - (c) **Tier predicate stated explicitly** (not delegated to `coffee_offers` RLS, which also admits compliance/auditors through `offers_compliance_read`).
+      - (d) **Eligibility in the read policy** uses `now()` (the §3.8 predicate says `clock_timestamp()`; they are equal at statement granularity). ENDED rows past `ends_at` are hidden.
+      - (e) **`promotion_targets` gains a surrogate `id`**; target uniqueness is `NULLS NOT DISTINCT` (PostgreSQL 15+; production is 17.6).
+      - (f) **Redacted audit** for promotions (§3.8 "audited"), code as booleans only. Tiers and targets are not audited (the M8 RPCs audit their writes).
+      - (g) **`service_role` SELECT only**, writes none (the snapshot/ledger precedent). T049 proves writes via the one-transaction method.
+      - (h) **Cross-table promotion rules** (SELLER targets own MEMBER_SELLER listings only, ALL_OFFERS platform-only, AMOUNT_PER_KG below the lowest price) are **not** in M2d: they are `validate_promotion_scope` + upsert RPCs in M8 as planned. No write path exists before M8.
+    - **Findings / conditions for the reviewer**:
+      - **F1 (T048 prerequisite)**: the linked dry-run must be run by the OPERATOR (agent CLI 403), and the guard's recorded `member_read_published_offers` text is re-checked at apply (a mismatch aborts with nothing applied).
+      - **F2 (M8 condition)**: `validate_promotion_scope` and the upsert RPCs must enforce the cross-table target rules and expose codes only to the creating scope/PA; before M8 no write or code-read path exists.
+      - **F3 (M3 condition)**: add the restrictive MFA gates on the 3 tables.
+      - **F4 (app)**: application reads of `promotions` must name columns (never `select=*`) and never request `code`.
+      - **F5 (operational)**: M2d only creates new, empty tables. No lock on existing tables beyond the FK targets (`coffee_offers`, `coffees`, `organizations`, `profiles`: SHARE ROW EXCLUSIVE while the FKs are added). A quiet window is still recommended.
+      - **F6 (no data loss)**: no backfill, no row rewritten; the rollback only runs while M2d holds no row.
+    - **Agent recommendation: GO**, conditional on acceptance of (a)–(h), F2/F3 recorded as M8/M3 conditions, the OPERATOR dry-run showing exactly one pending migration, and the backup + quiet window at T048.
+    - T048 expected postflight: **18 rows** (checks 1–17 + `999 | ALL CHECKS PASSED`), every `ok = true`.
+    - **Final agent review (2026-09-26, after the OPERATOR dry-run)**:
+      - F1's dry-run half is satisfied: exactly one pending migration.
+      - The M2d files are unchanged since T045.
+      - `tests/commerce/migrations` + `historical-008-unchanged` + `migration-layout` pass 287/287.
+      - No applied migration/rollback/postflight or `specs/008-*` file differs from HEAD.
+      - No blocker found. **Agent verdict: GO.** The owner's GO/NO-GO, with reviewer and date, is to be recorded here; T048 must not start before it.
+- [X] T048 MP-5 **OPERATOR** apply M2d + postflight
   - Depends: T047
-- [ ] T049 MP-6 Live proof — `tests/commerce/pricing-inputs.live.test.ts`
+  - **OPERATOR evidence (2026-09-26, authoritative)**:
+    - fresh backup completed (`schema.sql`, `data.sql`, `roles.sql`) with SHA-256 checksums recorded;
+    - M2d `20260925112000_feature_013_pricing_inputs.sql` applied to production;
+    - the postflight returned **18/18 `ok = true`**, ending `999 | ALL CHECKS PASSED | true`;
+    - the final linked dry-run reports `Remote database is up to date.`;
+    - `bank_transfer_checkout_enabled` remains off.
+    - (The agent's CLI account was refused (403) for dump/query/push at the time, so the operator ran every step.)
+- [X] T049 MP-6 Live proof — `tests/commerce/pricing-inputs.live.test.ts`
   - Depends: T048
   - Accept: anon reads 0 tier/promotion rows; a `funding_source` mismatch cannot be written; invalid values are rejected by CHECKs.
+  - **Batch B (2026-09-26): COMPLETE.** Owner-authorized; linked ref `mxejnutukgxyccnohglo` verified; only `F013_LIVE=1` set; no other live suite run.
+    - `F013_LIVE=1 npx vitest run tests/commerce/pricing-inputs.live.test.ts` → **3/3 passed**. The proof block reported **55/55 cases ok** (also 55/55 on one direct authoring run; a first authoring run was refused by the Feature 006 listing rule and fully rolled back).
+    - **Method (the T037/T043 one-transaction setup)**: `tests/commerce/t049-pricing-inputs-proof.ts` builds ONE `DO` block ending in `raise exception 'T049_RESULT:<base64 json>'`, so every fixture row, audit row, the temporary platform-admin grant and the temporary Hills-org membership roll back.
+      - Identities: the Foundation buyer-only user (authorized buyer) and buyer-and-seller user (seller org; made a temporary member of the Feature 005 Hills org and a temporary platform admin, each only inside its own savepoint).
+      - Listings: the published LST-0000002 and the unpublished LST-0000007.
+    - Proved live:
+      - **anon**: `permission denied` on all 3 tables inside the database, and the **real anonymous REST path** (publishable key, read-only GET) is refused with **0 rows** for `offer_price_tiers`, `promotions` and `promotion_targets`;
+      - **funding_source cannot be spoofed**: PLATFORM → HILLS and SELLER → SELLER; an explicit INSERT value is refused (`cannot insert a non-DEFAULT value … generated column`); an UPDATE is refused; a scope change re-derives it;
+      - **CHECKs**:
+        - refused: PERCENT 101, value 0 and negative, an unknown type/scope/status, equal and inverted windows, SELLER without a seller org, PLATFORM with one, lower-case and 41-character codes, a duplicate live code;
+        - accepted: PERCENT 100, AMOUNT_PER_KG 150, archived code reuse; PRM- refs generated;
+        - tiers: threshold 0, negative price, EUR and a duplicate threshold refused;
+        - targets: reference, duplicate ALL_OFFERS and unknown kind refused;
+      - **access**:
+        - an authorized buyer reads only the published listing's tier, only the eligible (ACTIVE, in-window) PLATFORM promotion, and only its targets;
+        - the seller org sees the eligible PLATFORM promotion + its own SELLER promotion and their targets; as a member of the listing's own org it also reads the unpublished listing's tier (without that membership, only the published one);
+        - a platform admin sees every promotion, tier and target;
+        - `select code` is refused for buyer, owning seller and admin, and `select *` is refused; the non-code columns stay readable;
+        - INSERT on all 3 tables refused for authenticated; UPDATE/DELETE refused even for an admin; `service_role` INSERT refused;
+      - **audit**: 6 promotion audit rows, none containing a code value; a code change is recorded as `code_changed = true` without the value.
+    - **Cleanup / state**: a read-only state query before and after (tiers, promotions, targets, promotion audit rows, the temporary admin/membership rows, offers + fingerprint, memberships, platform_admins, kill switch) is **identical**; the proof created 0 persistent rows (tiers/promotions/targets still 0). Only sequence values were consumed.
+    - Static: typecheck and eslint clean; `tests/commerce` without the flag → 252 passed, 35 skipped (the 5 gated live suites).
 
 ### M2e — notification outbox table
 - [ ] T050 MP-1 Author M2e — `supabase/migrations/20260925115000_feature_013_notification_outbox.sql`, rollback, postflight

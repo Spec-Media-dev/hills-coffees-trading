@@ -1,0 +1,112 @@
+# Feature 013 M2d — supplementary execution check (NOT the MP-3 local Supabase shadow apply)
+# Engine: in-memory PGlite 0.5.8 (PostgreSQL 18.3 compiled to WASM), 2026-09-26. No remote connection.
+# Fixture: the M2b/M2c production-shaped fixture (baseline + T006 functions + M1 + M2a + M2b + Feature 009/005 shipment shape) + M2c,
+#          plus production's coffee_offers.member_read_published_offers policy (text from docs/database/database-schema-report.json,
+#          reproduced exactly: the M2d guard's pg_policies comparison passes) and an is_authorized_member() stand-in (org member).
+# Databases: B = guard negatives, apply, postflight, CHECK probes, RLS as anon/authenticated (buyer, seller, admin, non-member),
+#            code hiding, write refusal, redacted audit, rollback refusal; C = fresh apply → rollback symmetry → re-apply.
+
+## B — guard, apply, postflight
+PASS guard passes on the post-M2c fixture (the offer policy text matches production's recorded predicate)
+PASS guard refuses a changed member_read_published_offers predicate — feature_013_pricing_inputs preflight failed — nothing applied: coffee_offers.member_read_published_offers differs from the recorded predicate (re-author the tier policy); 
+PASS guard refuses a drifted prevent_snapshot_mutation (M2b) — feature_013_pricing_inputs preflight failed — nothing applied: prevent_snapshot_mutation() differs from the M2b body; 
+PASS guard refuses when M2c is missing — feature_013_pricing_inputs preflight failed — nothing applied: M2a/M2b/M2c are not all applied; 
+PASS guard refuses when the kill switch is on — feature_013_pricing_inputs preflight failed — nothing applied: bank_transfer_checkout_enabled is true; 
+PASS guard refuses when an M2d object already exists — feature_013_pricing_inputs preflight failed — nothing applied: an M2d object already exists; 
+PASS APPLY M2d
+PASS re-applying M2d is refused by its guard — feature_013_pricing_inputs preflight failed — nothing applied: an M2d object already exists; 
+PASS postflight returns 18 rows — 18
+PASS postflight #1 offer_price_tiers: the §3.8 columns (7); UNIQUE(offer_id, min_quantity_kg); threshold > 0, price >= 0, USD
+PASS postflight #2 promotions: the §3.8 columns (16); funding_source GENERATED ALWAYS from scope (PLATFORM → HILLS, SELLER → SELLER)
+PASS postflight #3 promotions: scope {PLATFORM, SELLER}, discount_type {PERCENT, AMOUNT_PER_KG}, status (6 values), funding {HILLS, SELLER}
+PASS postflight #4 promotions: value > 0, PERCENT <= 100, starts_at < ends_at, SELLER iff seller_organization_id, code [A-Z0-9-]{1,40}
+PASS postflight #5 promotions: live code unique case-insensitively among non-archived rows; PRM- references; eligibility index
+PASS postflight #6 promotion_targets: 5 columns; kind {OFFER, COFFEE, ALL_SELLER_OFFERS, ALL_OFFERS}; reference and unique target CHECKs
+PASS postflight #7 RLS enabled + forced on the 3 tables; exactly one SELECT policy each, TO authenticated
+PASS postflight #8 anon holds nothing on the 3 tables (tiers and promotions never readable by anon); PUBLIC nothing
+PASS postflight #9 no client write path: authenticated/service_role hold no INSERT/UPDATE/DELETE/TRUNCATE (writes arrive with the M8 RPCs)
+PASS postflight #10 promotion codes hidden: no client role can SELECT promotions.code; the other columns are readable under RLS
+PASS postflight #11 tier read = the coffee_offers member_read_published_offers predicate ∨ own seller org ∨ platform admin
+PASS postflight #12 promotion read: eligible (SCHEDULED/ACTIVE, in-window) PLATFORM promotions for authorized members; own SELLER org; platform admin; targets follow
+PASS postflight #13 redacted promotion audit (allow-list, the code value never copied) + updated_at trigger
+PASS postflight #14 M2d functions: definer as designed, search_path pinned, no anon/PUBLIC EXECUTE; no promotion/tier RPC yet (tables only)
+PASS postflight #15 the 3 new tables are empty
+PASS postflight #16 M1–M2c untouched: validate_order_transition v2, prevent_snapshot_mutation (M2b), M2c tables present; coffee_offers member policy unchanged; checkout disabled
+PASS postflight #17 no Feature 013 object beyond M2d exists yet (M2e+ not applied)
+PASS postflight #999 ALL CHECKS PASSED
+PASS M2c postflight after M2d: only its point-in-time row 19 ('no M2d+', R4) reads false — 19,999
+PASS no pre-existing column, policy or function changed (M2d is purely additive)
+## B — CHECK constraints (as the table owner; there is no RPC yet)
+PASS fixture: the seller's second listing made DRAFT + invisible
+PASS a valid tier (100 kg → 4.50) is accepted
+PASS tier threshold 0 is refused — new row for relation "offer_price_tiers" violates check constraint "offer_price_tiers_min_quantity_check" | Failing row contains (5e045886-9d39-4cff-9602-33a5de1ed004, 00000000-0000-4000-8000-0000000000e1, 0.000, 4.50, USD, 00000000-0000-4000-8000-0000000000a5, 2026-09-26 05:22:48.953+02).
+PASS negative tier price is refused — new row for relation "offer_price_tiers" violates check constraint "offer_price_tiers_price_check" | Failing row contains (1963fcde-ffa6-4cb4-9c7b-bc5b33b8d0c8, 00000000-0000-4000-8000-0000000000e1, 100.000, -1.00, USD, 00000000-0000-4000-8000-0000000000a5, 2026-09-26 05:22:48.955+02).
+PASS non-USD tier is refused — new row for relation "offer_price_tiers" violates check constraint "offer_price_tiers_currency_check" | Failing row contains (f646e3c7-01a2-44c7-a8ef-478839cfb76a, 00000000-0000-4000-8000-0000000000e1, 100.000, 4.50, EUR, 00000000-0000-4000-8000-0000000000a5, 2026-09-26 05:22:48.957+02).
+PASS two tiers at the same threshold are refused — duplicate key value violates unique constraint "offer_price_tiers_offer_threshold_key" | Key (offer_id, min_quantity_kg)=(00000000-0000-4000-8000-0000000000e1, 100.000) already exists.
+PASS PERCENT 100 is accepted (the upper bound)
+PASS PERCENT 101 is refused (PERCENT <= 100) — new row for relation "promotions" violates check constraint "promotions_percent_check" | Failing row contains (fcdd0e3d-16f8-4904-834e-15e00746f575, PRM-0000002, PLATFORM, null, HILLS, null, PERCENT, 101.0000, null, 2026-09-25 05:22:48.968+02, 2026-09-27 05:22:48.968+02, ACTIVE, 00000000-0000-4000-8000-0000000000a3, null, 2026-09-26 05:22:48.968+02, 2026-09-26 05:22:48.968+02).
+PASS AMOUNT_PER_KG above 100 is not bound by the PERCENT rule
+PASS value 0 is refused — new row for relation "promotions" violates check constraint "promotions_value_check" | Failing row contains (69e0ceaa-1d61-40ad-9208-daba8c0094cd, PRM-0000004, PLATFORM, null, HILLS, null, PERCENT, 0.0000, null, 2026-09-25 05:22:48.971+02, 2026-09-27 05:22:48.971+02, ACTIVE, 00000000-0000-4000-8000-0000000000a3, null, 2026-09-26 05:22:48.971+02, 2026-09-26 05:22:48.971+02).
+PASS an unknown discount type is refused (v1 = PERCENT | AMOUNT_PER_KG) — new row for relation "promotions" violates check constraint "promotions_discount_type_check" | Failing row contains (39958bfc-8d91-4798-b70c-89344b0ef515, PRM-0000005, PLATFORM, null, HILLS, null, FIXED, 10.0000, null, 2026-09-25 05:22:48.972+02, 2026-09-27 05:22:48.972+02, ACTIVE, 00000000-0000-4000-8000-0000000000a3, null, 2026-09-26 05:22:48.972+02, 2026-09-26 05:22:48.972+02).
+PASS starts_at = ends_at is refused (window) — new row for relation "promotions" violates check constraint "promotions_window_check" | Failing row contains (390184f2-723b-4cbf-8d03-5fb52402211d, PRM-0000006, PLATFORM, null, HILLS, null, PERCENT, 10.0000, null, 2026-10-01 02:00:00+02, 2026-10-01 02:00:00+02, ACTIVE, 00000000-0000-4000-8000-0000000000a3, null, 2026-09-26 05:22:48.974+02, 2026-09-26 05:22:48.974+02).
+PASS starts_at after ends_at is refused (window) — new row for relation "promotions" violates check constraint "promotions_window_check" | Failing row contains (dd9ebf27-7307-4cc6-bb08-73cb3e129fa0, PRM-0000007, PLATFORM, null, HILLS, null, PERCENT, 10.0000, null, 2026-10-02 02:00:00+02, 2026-10-01 02:00:00+02, ACTIVE, 00000000-0000-4000-8000-0000000000a3, null, 2026-09-26 05:22:48.975+02, 2026-09-26 05:22:48.975+02).
+PASS a SELLER promotion without a seller organization is refused — new row for relation "promotions" violates check constraint "promotions_scope_seller_check" | Failing row contains (7f9c59d6-140f-48ae-a693-e10a668b9165, PRM-0000008, SELLER, null, SELLER, null, PERCENT, 10.0000, null, 2026-09-25 05:22:48.977+02, 2026-09-27 05:22:48.977+02, ACTIVE, 00000000-0000-4000-8000-0000000000a3, null, 2026-09-26 05:22:48.977+02, 2026-09-26 05:22:48.977+02).
+PASS a PLATFORM promotion with a seller organization is refused — new row for relation "promotions" violates check constraint "promotions_scope_seller_check" | Failing row contains (d890b8a5-1a09-442c-a663-72ed2473e6e5, PRM-0000009, PLATFORM, 00000000-0000-4000-8000-0000000000b3, HILLS, null, PERCENT, 10.0000, null, 2026-09-25 05:22:48.978+02, 2026-09-27 05:22:48.978+02, ACTIVE, 00000000-0000-4000-8000-0000000000a3, null, 2026-09-26 05:22:48.978+02, 2026-09-26 05:22:48.978+02).
+PASS an unknown scope is refused — new row for relation "promotions" violates check constraint "promotions_scope_check" | Failing row contains (7fff2214-1db5-48a1-8210-e6ac8d056dd5, PRM-0000010, GLOBAL, null, SELLER, null, PERCENT, 10.0000, null, 2026-09-25 05:22:48.986+02, 2026-09-27 05:22:48.986+02, ACTIVE, 00000000-0000-4000-8000-0000000000a3, null, 2026-09-26 05:22:48.986+02, 2026-09-26 05:22:48.986+02).
+PASS an unknown status is refused — new row for relation "promotions" violates check constraint "promotions_status_check" | Failing row contains (88639b0a-e7fb-43d5-8a1a-ed0ff523c900, PRM-0000011, PLATFORM, null, HILLS, null, PERCENT, 10.0000, null, 2026-09-25 05:22:48.988+02, 2026-09-27 05:22:48.988+02, LIVE, 00000000-0000-4000-8000-0000000000a3, null, 2026-09-26 05:22:48.988+02, 2026-09-26 05:22:48.988+02).
+PASS funding_source cannot be written (generated from scope) — cannot insert a non-DEFAULT value into column "funding_source" | Column "funding_source" is a generated column.
+PASS funding_source is HILLS for PLATFORM and SELLER for SELLER (FIN-011)
+PASS a lower-case / invalid code is refused ([A-Z0-9-]{1,40}) — new row for relation "promotions" violates check constraint "promotions_code_check" | Failing row contains (b584f8ca-7328-417d-bf40-16d59437b129, PRM-0000014, PLATFORM, null, HILLS, summer_10, PERCENT, 10.0000, null, 2026-09-25 05:22:49.008+02, 2026-09-27 05:22:49.008+02, ACTIVE, 00000000-0000-4000-8000-0000000000a3, null, 2026-09-26 05:22:49.008+02, 2026-09-26 05:22:49.008+02).
+PASS a 41-character code is refused — new row for relation "promotions" violates check constraint "promotions_code_check" | Failing row contains (99ba9d2a-0429-4967-aa01-e6f0f839db56, PRM-0000015, PLATFORM, null, HILLS, AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA, PERCENT, 10.0000, null, 2026-09-25 05:22:49.01+02, 2026-09-27 05:22:49.01+02, ACTIVE, 00000000-0000-4000-8000-0000000000a3, null, 2026-09-26 05:22:49.01+02, 2026-09-26 05:22:49.01+02).
+PASS a live code is unique among non-archived promotions — duplicate key value violates unique constraint "uq_promotions_code_live" | Key (lower(code))=(save-10) already exists.
+PASS an archived promotion's code can be reused
+PASS the PRM- reference is generated
+PASS an OFFER target with its offer is accepted
+PASS an OFFER target without an offer is refused — new row for relation "promotion_targets" violates check constraint "promotion_targets_reference_check" | Failing row contains (b932b463-576f-4ff0-b59e-2aaf9a10bd6e, 00000000-0000-4000-8000-00000000b0b1, OFFER, null, null).
+PASS a COFFEE target carrying an offer is refused — new row for relation "promotion_targets" violates check constraint "promotion_targets_reference_check" | Failing row contains (66f9dc09-726a-441c-b68c-ab511fb5a7c7, 00000000-0000-4000-8000-00000000b0b1, COFFEE, 00000000-0000-4000-8000-0000000000e1, null).
+PASS an ALL_OFFERS target carrying an offer is refused — new row for relation "promotion_targets" violates check constraint "promotion_targets_reference_check" | Failing row contains (3a744b92-babb-4e37-941e-f8c764869d62, 00000000-0000-4000-8000-00000000b0b1, ALL_OFFERS, 00000000-0000-4000-8000-0000000000e1, null).
+PASS a duplicate ALL_OFFERS target is refused (NULLS NOT DISTINCT) — duplicate key value violates unique constraint "promotion_targets_unique_key" | Key (promotion_id, target_kind, offer_id, coffee_id)=(00000000-0000-4000-8000-00000000b0b1, ALL_OFFERS, null, null) already exists.
+PASS an unknown target kind is refused — new row for relation "promotion_targets" violates check constraint "promotion_targets_kind_check" | Failing row contains (83d6e348-2981-4362-bd55-2e292c8f9c8a, 00000000-0000-4000-8000-00000000b0b1, CATEGORY, null, null).
+## B — RLS and grants as the real roles
+PASS fixture: tiers, promotions (eligible/draft/expired/future/seller) and targets committed
+PASS anon cannot read offer_price_tiers (no grant) — error: permission denied for table offer_price_tiers
+PASS anon cannot read promotions (no grant) — error: permission denied for table promotions
+PASS anon cannot read promotion_targets (no grant) — error: permission denied for table promotion_targets
+PASS an authorized buyer reads the tier of the published/visible listing only (not the draft listing's)
+PASS the listing's own seller organization reads its tiers, including the draft listing's
+PASS a platform admin reads every tier
+PASS a signed-in non-member (not an authorized member) reads no tier
+PASS an authorized buyer sees only the eligible (ACTIVE, in-window) PLATFORM promotion — not draft, expired, future or another seller's
+PASS a seller organization member also sees its own SELLER promotion
+PASS a platform admin sees every promotion
+PASS promotion codes are hidden from a buyer (column not granted) — error: permission denied for table promotions
+PASS promotion codes are hidden from the seller who owns the promotion (column not granted) — error: permission denied for table promotions
+PASS promotion codes are hidden from a platform admin (column not granted) — error: permission denied for table promotions
+PASS select * on promotions is refused for clients (the code column is not granted) — error: permission denied for table promotions
+PASS the non-code columns are readable under RLS (funding_source HILLS) — [{"id":"00000000-0000-4000-8000-00000000b0c1","promotion_code_ref":"PRM-0000027","funding_source":"HILLS","discount_type":"PERCENT","value":"5.0000"}]
+PASS a buyer reads only the targets of promotions it can see
+PASS a seller reads the targets of its own promotion too
+PASS authenticated INSERT into offer_price_tiers is refused (writes only via M8 RPCs) — error: permission denied for table offer_price_tiers
+PASS authenticated UPDATE on offer_price_tiers is refused, even for a platform admin — error: permission denied for table offer_price_tiers
+PASS authenticated DELETE on offer_price_tiers is refused — error: permission denied for table offer_price_tiers
+PASS authenticated INSERT into promotions is refused (writes only via M8 RPCs) — error: permission denied for table promotions
+PASS authenticated UPDATE on promotions is refused, even for a platform admin — error: permission denied for table promotions
+PASS authenticated DELETE on promotions is refused — error: permission denied for table promotions
+PASS authenticated INSERT into promotion_targets is refused (writes only via M8 RPCs) — error: permission denied for table promotion_targets
+PASS authenticated UPDATE on promotion_targets is refused, even for a platform admin — error: permission denied for table promotion_targets
+PASS authenticated DELETE on promotion_targets is refused — error: permission denied for table promotion_targets
+PASS service_role cannot write promotions (read-only) — permission denied for table promotions
+PASS service_role can read promotions (including the code, for server-side use)
+## B — redacted promotion audit (the code never reaches audit_logs)
+PASS promotion audit rows exist and contain no code value — 5 rows
+PASS a code change is audited as code_changed = true without the value — {"id":"00000000-0000-4000-8000-00000000b0c1","scope":"PLATFORM","value":5,"status":"ACTIVE","ends_at":"2026-09-27T05:22:49.037+02:00","starts_at":"2026-09-25T05:22:49.037+02:00","created_at":"2026-09-
+## B — rollback refused while pricing rows exist
+PASS rollback refuses (changing nothing) — feature_013_pricing_inputs rollback refused — nothing changed: a price tier, promotion or promotion target exists; 
+## C — rollback symmetry (fresh database)
+PASS C: APPLY M2d
+PASS C: ROLLBACK M2d
+PASS ROLLBACK SYMMETRY: every constraint, index, policy, trigger, public function (body md5, flags, ACL), relation (RLS, ACL) and referenced-table column identical to pre-M2d
+PASS C: M2c postflight passes again after the M2d rollback
+PASS C: RE-APPLY M2d after rollback
+PASS C: M2d postflight after re-apply
+ALL SUPPLEMENTARY CHECKS PASSED

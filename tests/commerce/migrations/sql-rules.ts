@@ -61,7 +61,8 @@ export function conventionViolations(file: string, raw: string): string[] {
     const [privileges, object, roles] = [m[1]!, m[2]!, m[3]!];
     if (/\banon\b/.test(roles)) problems.push(`grant to anon: ${m[0]}`);
     const isTable = !/^(function|sequence|schema|all\s+(functions|sequences))\b/.test(object);
-    if (isTable && /\bauthenticated\b/.test(roles) && !/^select$/.test(privileges.trim())) problems.push(`table write grant to authenticated: ${m[0]}`);
+    // SELECT, optionally on an explicit column list (M2d hides promotions.code this way), is the only table grant allowed.
+    if (isTable && /\bauthenticated\b/.test(roles) && !/^select(\s*\([a-z0-9_,\s]+\))?$/.test(privileges.trim())) problems.push(`table write grant to authenticated: ${m[0]}`);
   }
 
   // SECURITY DEFINER functions.
