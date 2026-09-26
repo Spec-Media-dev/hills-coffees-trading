@@ -1,0 +1,121 @@
+
+## B — pre-M3 production shape reproduces the T056 production baseline
+PASS fixture: the T056 two-seller order graph (same ids) loaded
+PASS PRE-M3 matrix in PGlite = the production T056 baseline (240 cases, 82 failing) — only here:  ; only in production: 
+
+## B — guard
+PASS guard passes on the production-shaped pre-M3 database
+PASS guard refuses a drifted replaced policy — feature_013_rls_realignment preflight failed — nothing applied: policy payments_view differs from the T006 baseline; 
+PASS guard refuses a missing replaced policy — feature_013_rls_realignment preflight failed — nothing applied: policy tax_invoice_finance differs from the T006 baseline; 
+PASS guard refuses a drifted can_view_order() — feature_013_rls_realignment preflight failed — nothing applied: can_view_order(uuid) differs from the T006 body; 
+PASS guard refuses a C15 body drift — feature_013_rls_realignment preflight failed — nothing applied: mfa_satisfied()/kyb_storage_object_authorized() body, flags or ACL differ from the T056 pin; 
+PASS guard refuses a C15 ACL drift (already revoked) — feature_013_rls_realignment preflight failed — nothing applied: mfa_satisfied()/kyb_storage_object_authorized() body, flags or ACL differ from the T056 pin; 
+PASS guard refuses an unknown orders column — feature_013_rls_realignment preflight failed — nothing applied: orders has columns M3 does not know (the R1 column grant would omit them); 
+PASS guard refuses an existing orders column ACL — feature_013_rls_realignment preflight failed — nothing applied: orders privileges differ from the T006 baseline; 
+PASS guard refuses an M2b table ACL drift — feature_013_rls_realignment preflight failed — nothing applied: an M2b/M2c table ACL differs from its applied state; 
+PASS guard refuses the kill switch — feature_013_rls_realignment preflight failed — nothing applied: bank_transfer_checkout_enabled is true; 
+PASS guard refuses an existing M3 object — feature_013_rls_realignment preflight failed — nothing applied: an M3 object already exists; 
+PASS guard refuses when M2e is missing — feature_013_rls_realignment preflight failed — nothing applied: M2a–M2e are not all applied; 
+
+## B — apply + postflight
+PASS APPLY M3
+PASS re-applying M3 is refused by its guard — feature_013_rls_realignment preflight failed — nothing applied: an M3 object already exists; policy payments_view differs from the T006 baseline; policy proforma_view differs from the T006 baseline; policy shipments_view differs from the T006 baseline; policy financials_view differs from the T006 baseline; policy payouts_finance differs from the T006 baseline; policy order_items_view differs from the T006 baseline; policy tax_invoice_view differs from the T006 baseline; policy payment_proofs_view differs from the T006 baseline; policy proforma_items_view differs from the T006 baseline; policy shipment_items_view differs from the T006 baseline; policy tax_invoice_finance differs from the T006 baseline; policy payments_finance_read differs from the T006 baseline; policy financials_finance_read differs from the T006 baseline; policy payment_reviews_finance differs from the T006 baseline; policy payment_proofs_finance_read differs from the T006 baseline; orders privileges differ from the T006 baseline; an M2b/M2c table ACL differs from its applied state; mfa_satisfied()/kyb_storage_object_authorized() body, flags or ACL differ from the T056 pin; 
+PASS postflight returns 23 checks + summary — 24
+PASS postflight #1 helpers: is_order_buyer_member / is_order_line_seller (definer, search_path pinned, authenticated+service_role, not anon); order_seller_org_ids internal (service_role only)
+PASS postflight #2 the 15 replaced T006 policies are gone
+PASS postflight #3 the 18 M3 read policies exist: PERMISSIVE SELECT TO authenticated; none on a finance/snapshot table references can_view_order
+PASS postflight #4 order_items: B ∨ S(own lines) ∨ F ∨ PA
+PASS postflight #5 order_financials: B ∨ F ∨ A ∨ PA (sellers removed); proforma_invoices: B ∨ F ∨ PA (sellers, auditors removed)
+PASS postflight #6 proforma_invoice_items: B (via own header) ∨ S(own lines) ∨ F ∨ PA
+PASS postflight #7 payments: B ∨ F ∨ PA (auditors via v_audit_payments); payment_proofs: B ∨ F (sellers, warehouse, auditors excluded)
+PASS postflight #8 finance direct writes removed (C6): payment_reviews, tax_invoices, payouts carry no client write policy; payouts_view unchanged
+PASS postflight #9 order_shipments: DELIVERY_REQUEST keeps (can_view_order ∨ W); FULFILLMENT = B ∨ S(fulfillment seller) ∨ W ∨ F; shipment_items follow their shipment
+PASS postflight #10 M2b/M2c tables: economics S∨F∨PA, groups B∨S∨F∨W∨PA, settlements S∨F∨PA, bank B∨F, cases/events F∨PA, adjustments F∨PA∨A
+PASS postflight #11 M2b/M2c tables: authenticated SELECT only (no write); anon nothing; service_role SELECT only; RLS forced
+PASS postflight #12 T029 R1: no client role can read orders.delivery_destination_id / destination_snapshot; every other orders column stays readable
+PASS postflight #13 orders row policy and can_view_order() unchanged (sellers keep status visibility of their orders)
+PASS postflight #14 §2 views: the 5 exist, security_invoker = true, SELECT for authenticated only (no anon/PUBLIC/service_role, no write)
+PASS postflight #15 view row functions: definer, search_path pinned, authenticated only, each re-checks its audience and MFA
+PASS postflight #16 redaction: v_audit_payments masks the bank reference (last 4); no view exposes a proof path, bank account/IBAN or finance note
+PASS postflight #17 v_seller_order_lines: own rows only (is_order_line_seller), no buyer totals, bank, proof or destination data
+PASS postflight #18 MFA: the 24 commerce tables carry a RESTRICTIVE SELECT mfa_gate TO authenticated USING mfa_satisfied(); no other table gained one
+PASS postflight #19 C15: anon and PUBLIC cannot EXECUTE mfa_satisfied() or kyb_storage_object_authorized(text, boolean); authenticated and service_role still can
+PASS postflight #20 C15: both helper bodies, SECURITY DEFINER and search_path unchanged (T006/T056 md5 pins)
+PASS postflight #21 untouched: Feature 010 config-table policies, orders write policies, delivery_destinations / commerce_settings / reservations / pricing read policies
+PASS postflight #22 anon: nothing on the M3 views, the M2b/M2c tables, or any orders destination column; notification_events still closed
+PASS postflight #23 M1–M2e untouched: validate_order_transition v2, prevent_snapshot_mutation (M2b), outbox present; checkout disabled
+PASS postflight #999 ALL CHECKS PASSED
+PASS M2e postflight still passes after M3 (M3 does not touch the outbox)
+PASS no pre-existing function body/flag/ACL changed except the two C15 ACLs
+PASS no constraint, trigger or index changed
+
+## B — POST-M3: the T056 matrix (the same cases T062 runs live)
+PASS every POST-M3 matrix case passes (T060 F1 amendments applied) (240 cases)
+PASS 82 of 82 pinned PRE-M3 matrix failures now pass
+
+## B — R1 routes for the order-linked sellers (direct, embedded, views, v_seller_order_lines)
+PASS SELLER_1: direct orders.destination_snapshot select is refused — ERR permission denied for table orders
+PASS SELLER_1: direct orders.delivery_destination_id select is refused
+PASS SELLER_1: select * on orders is refused (no implicit destination read)
+PASS SELLER_1: an embedded order_items→orders destination select is refused
+PASS SELLER_1: still reads its order's code/status (orders row policy unchanged)
+PASS SELLER_1: no §2 view returns destination data or a non-audience row — [{"n":0}]
+PASS SELLER_2: direct orders.destination_snapshot select is refused — ERR permission denied for table orders
+PASS SELLER_2: direct orders.delivery_destination_id select is refused
+PASS SELLER_2: select * on orders is refused (no implicit destination read)
+PASS SELLER_2: an embedded order_items→orders destination select is refused
+PASS SELLER_2: still reads its order's code/status (orders row policy unchanged)
+PASS SELLER_2: no §2 view returns destination data or a non-audience row — [{"n":0}]
+PASS v_seller_order_lines: SELLER_1 sees exactly its 2 lines with its own economics, shipment and payout status — [{"i":"13000000-0000-4000-8000-000000000341","net":"436.50","sh":"DRAFT","po":"ACCRUED"},{"i":"13000000-0000-4000-8000-000000000342","net":"194.00","sh":"DRAFT","po":"ACCRUED"}]
+PASS v_seller_order_lines: SELLER_2 sees exactly its 1 line — [{"i":"13000000-0000-4000-8000-000000000343"}]
+PASS v_seller_order_lines exposes no buyer total, bank, proof, destination or Hills-share column — order_code,order_status,order_item_id,seller_organization_id,product_name_snapshot,lot_code_snapshot,quantity_kg,currency,own_gross_amount,own_seller_funded_discount,own_commission_amount,own_seller_net_amount,own_group_shipment_status,own_payout_status
+
+## B — redacted views for their audiences
+PASS AUDITOR reads the payment through v_audit_payments — [{"payment_id":"13000000-0000-4000-8000-000000000731","bank_reference_masked":null}]
+PASS …but reads 0 rows of payments directly
+PASS AUDITOR reads the proforma through v_audit_proformas (no buyer/destination snapshot columns)
+PASS BUYER reads its own case status via v_buyer_reconciliation — [{"case_code":"REC-20260926-0000056","kind":"LATE","status":"OPEN"}]
+PASS v_buyer_reconciliation carries no finance notes, observed amounts or bank references — case_code,order_code,kind,status,resolution_type,opened_at,resolved_at
+PASS OTHER_BUYER reads 0 cases
+PASS FINANCE reads the order in v_finance_review_queue (buyer total, REVIEW_HOLD, 2 days, open case) — [{"order_code":"ORD-20260926-0000003","buyer_display_name":"T056 Buyer","buyer_total":"911.20","days_in_review":2,"reservation_status":"REVIEW_HOLD","has_open_reconciliation":true}]
+PASS v_audit_payments: DELETE refused (SELECT only)
+PASS v_audit_proformas: DELETE refused (SELECT only)
+PASS v_buyer_reconciliation: DELETE refused (SELECT only)
+PASS v_finance_review_queue: DELETE refused (SELECT only)
+PASS v_seller_order_lines: DELETE refused (SELECT only)
+
+## B — finance write policies are SELECT-only now (C6); existing client write paths unaffected
+PASS FINANCE can no longer write payouts directly — []
+PASS FINANCE can no longer write tax_invoices directly — []
+PASS FINANCE can no longer write payment_reviews directly — "ERR new row violates row-level security policy for table \"payment_reviews\""
+PASS BUYER: the existing DRAFT order insert (no returning) still works under the column grant
+PASS BUYER: an orders UPDATE filtered on id/buyer_organization_id still works
+
+## B — MFA gates
+PASS orders: an MFA-enrolled buyer at aal1 reads 0 rows, at aal2 reads its rows — [{"n":0}] / [{"n":1}]
+PASS order_items: an MFA-enrolled buyer at aal1 reads 0 rows, at aal2 reads its rows — [{"n":0}] / [{"n":3}]
+PASS payments: an MFA-enrolled buyer at aal1 reads 0 rows, at aal2 reads its rows — [{"n":0}] / [{"n":1}]
+PASS proforma_invoices: an MFA-enrolled buyer at aal1 reads 0 rows, at aal2 reads its rows — [{"n":0}] / [{"n":1}]
+PASS delivery_destinations: an MFA-enrolled buyer at aal1 reads 0 rows, at aal2 reads its rows — [{"n":0}] / [{"n":1}]
+PASS tax_invoices: an MFA-enrolled buyer at aal1 reads 0 rows, at aal2 reads its rows — [{"n":0}] / [{"n":1}]
+PASS v_finance_review_queue: MFA-enrolled finance at aal1 reads 0, at aal2 reads the queue
+PASS tables outside the M3 list keep their existing (unchanged) gating
+
+## B — C15 as the real roles
+PASS anon: EXECUTE on both helpers is refused — ERR permission denied for function mfa_satisfied / ERR permission denied for function kyb_storage_object_authorized
+PASS authenticated: still EXECUTEs both helpers — [{"v":true}] / [{"v":false}]
+PASS service_role: still EXECUTEs both helpers — [{"v":true}] / [{"v":false}]
+
+## B — rollback refused while something depends on M3
+PASS rollback refuses while another function uses an M3 helper — feature_013_rls_realignment rollback refused — nothing changed: another function references an M3 object; 
+
+## C — rollback symmetry (fresh database)
+PASS C: APPLY M3
+PASS C: ROLLBACK M3
+PASS ROLLBACK SYMMETRY: every constraint, index, policy (name, roles, cmd, USING, WITH CHECK), trigger, function (body, flags, ACL), relation (RLS, ACL, options) and column ACL identical to pre-M3
+PASS C: the M3 guard passes again after the rollback (baseline restored exactly)
+PASS C: a second rollback is refused — feature_013_rls_realignment rollback refused — nothing changed: M3 is not applied; 
+PASS C: RE-APPLY M3 after rollback
+PASS C: M3 postflight after re-apply
+
+ALL SUPPLEMENTARY CHECKS PASSED

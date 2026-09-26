@@ -1017,7 +1017,7 @@ here is database/security work; UI that depends on it comes later.
     - **Cleanup / state**: a read-only state query before and after (outbox 0 events, audit_logs count + max id, platform_admins, the seller's admin rows, memberships, orders, notifications, public function count, no `__t055*` function, emitter body + ACL fingerprint, outbox ACL, kill switch) is **identical**. The proof created 0 persistent rows; checkout remains disabled.
 
 ### M3 — RLS realignment: SECURITY-FIRST seller data-leak fix (C2)
-- [ ] T056 Write the seller-isolation and role-matrix live tests BEFORE the migration — `tests/commerce/rls-seller-isolation.live.test.ts`, `tests/commerce/rls-role-matrix.live.test.ts`, `tests/commerce/rls-anon-probe.live.test.ts`
+- [X] T056 Write the seller-isolation and role-matrix live tests BEFORE the migration — `tests/commerce/rls-seller-isolation.live.test.ts`, `tests/commerce/rls-role-matrix.live.test.ts`, `tests/commerce/rls-anon-probe.live.test.ts`
   - Depends: T055, T016
   - Accept: for a two-seller fixture order, a seller session must read **0 rows** of:
     - (a) the buyer's `payments`;
@@ -1035,29 +1035,213 @@ here is database/security work; UI that depends on it comes later.
 
     Plus the **DB-OPEN-C15 anonymous boundary** (`rls-anon-probe.live.test.ts`): `anon` gets a permission error executing `mfa_satisfied()` and `kyb_storage_object_authorized(text, boolean)`, while `authenticated` and `service_role` still execute both. This is recorded as failing before M3.
   - Tests: the suites themselves.
+  - **Batch B (2026-09-26): COMPLETE — PRE-M3 baseline recorded.** Owner-authorized. Linked ref verified. Only the three T056 suites were run (`F013_LIVE=1`), with no other live suite. No policy, grant, function or migration was changed, and M3 was not authored.
+    - Files: `tests/commerce/rls-seller-isolation.live.test.ts`, `rls-role-matrix.live.test.ts`, `rls-anon-probe.live.test.ts`, and the shared `t056-rls-proof.ts` (the one-transaction proof), `t056-live-runner.ts` (runner, state query, phase rule) and `t056-baseline.ts` (the pinned baseline).
+    - **Method (T037/T043/T049/T055 one-transaction setup)**: each fixture block ends in `raise exception 'T056_RESULT:<base64>'`. A read-only state query before and after each block is **identical**:
+      - counts: orders, items, orgs, memberships, platform_admins, positions, payments, payouts, proformas, destinations, cases, invoices, shipments, reservations, file assets, audit rows + max id, outbox;
+      - fingerprints: offers and positions, every public function ACL, every public policy;
+      - the kill switch.
+    - **Two-seller fixture** (all temporary, rolled back): a coherent BANK_TRANSFER_V1 order of the Foundation buyer-only org. `order_items` and every snapshot row agree on the seller:
+      - L1/L2 → **SELLER_1**, a temporary second seller org. It is Hills-internal-flagged because the listing trigger admits only a Hills-internal owner or a PAID purchase source, and production has no member-seller purchase source. RLS is decided by membership in both the current and the target design.
+      - L3 → **SELLER_2**, the Feature 005 Hills fixture org.
+      - The fixture also has the destination, payment, proof, review, two payouts, a reconciliation case + events, an adjustment, a Feature 013 invoice, two FULFILLMENT shipments and a reservation.
+      - Session identities: the Foundation buyer-only / multi-org / buyer-and-seller / no-organization / finance-admin / warehouse-admin / under-review users (temporary seller memberships and a temporary AUDITOR row). None has a verified MFA factor (checked).
+    - Result: **3 files, 11/11 passed** in the default `PRE_M3` phase (every pinned case still fails and every other case passes).
+      - seller isolation: **43 cases, 15 pass, 28 pinned**;
+      - role matrix: **242 cases, 161 pass, 81 pinned**;
+      - anon/C15: **17 in-database + 2 REST rpc + 24 REST table cases, 6 pinned**.
+    - **Seller exposures (C2, both SELLER_1 and SELLER_2)** through `can_view_order()`, whose seller branch is any member of any listing seller on the order:
+      - the buyer's `payments` and `payment_proofs`;
+      - `order_financials`;
+      - the `proforma_invoices` header;
+      - ALL `order_items` and `proforma_invoice_items`, including the other seller's lines;
+      - `tax_invoices`;
+      - both sellers' FULFILLMENT `order_shipments`;
+      - **`orders.delivery_destination_id`/`destination_snapshot`**, by a direct `orders` select and by an embedded `order_items→orders` select (R1 / T031 deferred assertion).
+    - **Already enforced for sellers**:
+      - 0 rows of the buyer's `delivery_destinations` (T031 deferred assertion);
+      - no public view and no client-callable RPC exposes the destination;
+      - only own `payouts`;
+      - 0 `payment_accounts`;
+      - 0 bank instructions, economics, settlements and groups (no grant yet);
+      - 0 `payment-proofs` objects (the bucket does not exist until T112, so re-assert then).
+    - **Other PRE-M3 failures in the matrix**:
+      - FINANCE cannot read `order_items`, `proforma_invoices`/items or FULFILLMENT shipments, nor any M2b/M2c table.
+      - AUDITOR reads `payments` and `payment_proofs` directly; the target is `v_audit_payments` only, with proofs excluded. AUDITOR cannot read `manual_financial_adjustments`.
+      - BUYER and WAREHOUSE cannot read `proforma_fulfillment_groups`; BUYER cannot read `proforma_bank_instructions`.
+      - Sellers cannot read their own economics, settlements and groups.
+      - All 5 §2 views are missing.
+    - **C15**: anon EXECUTEs `mfa_satisfied()` (→ false) and `kyb_storage_object_authorized(text, boolean)` (→ false) in the database, and via REST `rpc/` with the publishable key. `has_function_privilege('anon', …)` is true for both. authenticated and service_role execute both. PUBLIC holds nothing. Both are SECURITY DEFINER with `search_path=pg_catalog, public, auth`, body md5 `a78cfc6c…` / `8d4ac2b1…` (pinned). T057 preconditions hold: no anon-executable invoker function calls either helper, and every calling policy is `TO authenticated`.
+    - AC-014: the anon key reaches 0 rows of all 24 buyer/seller/finance tables.
+    - **T062 turns this green** by running the same three suites with `F013_RLS_PHASE=POST_M3`. Every case must then pass, including the 28 + 81 + 6 pinned cases listed in `t056-baseline.ts`.
 
-- [ ] T057 MP-1 Author M3 — `supabase/migrations/20260925120000_feature_013_rls_realignment.sql`, rollback, postflight
+- [X] T057 MP-1 Author M3 — `supabase/migrations/20260925120000_feature_013_rls_realignment.sql`, rollback, postflight
   - Depends: T056
   - Accept: helper functions (`is_order_buyer_member`, `is_order_line_seller`, `order_seller_org_ids`, …); every policy replacement in rls-storage §1; restrictive MFA gates; views §2 (`security_invoker`); `payment_reviews_finance`/`payouts_finance`/`tax_invoice_finance` reduced to SELECT; `can_view_order()` unchanged. The rollback recreates the exact previous policy text from the T006 capture.
   - **T029 condition R1 (owner-approved 2026-09-25)**: do NOT rely on row-level RLS alone to hide columns. Seller-facing order access must go through a safe projection/view (or an equivalent boundary) that excludes the buyer destination PII (`delivery_destination_id`, `destination_snapshot`), and any direct seller path to the full `orders` row must be removed where required. The T056 suites must prove it.
   - **DB-OPEN-C15 (owner-approved 2026-09-24)**: `revoke execute on function public.mfa_satisfied() from public, anon` and the same for `public.kyb_storage_object_authorized(text, boolean)`. EXECUTE for `authenticated` and `service_role` is kept, and the bodies, `SECURITY DEFINER` and `search_path` are unchanged. The rollback restores the §5 ACL. Before authoring, confirm that no `anon`-reachable `SECURITY INVOKER` function calls either helper; all calling policies are already `to authenticated`. The postflight asserts `has_function_privilege('anon', …, 'execute') = false` for both.
-- [ ] T058 MP-2 Static tests — `tests/commerce/migrations/m3-rls.test.ts`
+  - **Batch B (2026-09-26): AUTHORED, NOT APPLIED.** Files (md5 at T059):
+    - migration `20260925120000_feature_013_rls_realignment.sql` (`ba58fcd2c187a8069156500b192761b3`);
+    - rollback (`b7370c29669aaeea16c0e11ae7a5b31d`);
+    - postflight `20260925_feature_013_rls_realignment_postflight.sql` (`63a70f1563e52d848a4d56974a0e0bae`; 23 checks + `999`).
+  - **Helpers**: `is_order_buyer_member(uuid)` (B, unblocked) and `is_order_line_seller(uuid)` (S = member of the row's own seller org), both definer, pinned, authenticated + service_role; `order_seller_org_ids(uuid)` is internal (service_role only). `can_view_order()` is unchanged (guard + postflight pin md5 `eef50520…`).
+  - **Policies**: the 15 C2/C6 policies are replaced by 11 SELECT-only policies (TO authenticated), and 7 new policies cover the M2b/M2c tables, per rls-storage §1. The guard compares each dropped policy with the T006 §7 text, and the rollback recreates it verbatim.
+  - **R1**: `orders_view` is unchanged. The boundary is a column one: authenticated loses table-level SELECT on `orders` and gets column SELECT on the 22 other columns.
+  - **§2 views**: all 5 are `security_invoker`, SELECT to authenticated only.
+    - `v_seller_order_lines` reads the tables directly.
+    - The 4 audience views each read one definer row function. Each function re-checks its audience and `mfa_satisfied()`.
+  - **MFA gates**: 24 restrictive SELECT gates (the §1 buyer/seller/finance tables, incl. M2d F3).
+  - **C15**: `revoke execute … from public, anon` on both helpers; bodies, definer flag and search_path untouched.
+- [X] T058 MP-2 Static tests — `tests/commerce/migrations/m3-rls.test.ts`
   - Depends: T057
   - Accept: every replaced policy name/expression is pinned; no policy references `can_view_order` on the finance tables; no config-table policy is touched; the C15 `revoke … from public, anon` statements for `mfa_satisfied()` and `kyb_storage_object_authorized(text, boolean)` are pinned, and no statement revokes them from `authenticated` or `service_role`.
-- [ ] T059 MP-3 Dry-run M3
+  - **Batch B (2026-09-26)**: **40/40 pass** (11 mutation cases); conventions (auto-covers M3) **20/20**.
+    - Pins, read from the T006 §7 CSV, rls-storage §1 and the T056 C15 md5s:
+      - the guard's expected text for the 15 replaced policies equals the §7 CSV exactly;
+      - the rollback recreates each with the §7 roles, command, USING and WITH CHECK;
+      - every new USING text; the seller predicates are own-row only; no `can_view_order` on a finance table;
+      - the auditor, warehouse and bank-instruction scopes; C6 SELECT-only;
+      - the R1 column list;
+      - the 5 `security_invoker` views, and the audience + MFA check in each row function;
+      - redaction: masked bank reference; no proof path, IBAN or notes; no buyer totals for sellers;
+      - the 24 gates, derived from rls-storage §1;
+      - C15: the revoke, never from authenticated/service_role, the bodies untouched, and the rollback's exact ACL order;
+      - rollback exactness and the M4a-only guard names;
+      - no applied migration, rollback, postflight or spec history changed versus HEAD.
+- [X] T059 MP-3 Dry-run M3
   - Depends: T058
-- [ ] T060 MP-4 **GATE** dedicated security review of M3 (separate reviewer sign-off required)
+  - **Batch B (2026-09-26): COMPLETE.**
+    - `npx supabase db push --linked --dry-run` (ref `mxejnutukgxyccnohglo`): **exactly one pending migration, `20260925120000_feature_013_rls_realignment.sql`**; nothing applied.
+    - The M3 guard block alone was executed read-only on production → **passes** (every T006 policy text, `can_view_order` md5, orders columns/ACL, M2b/M2c ACLs, C15 bodies/ACL, kill switch).
+    - Local shadow apply: not available (no Docker shadow run); not attempted.
+    - Supplementary check (`migration-evidence/m3-supplementary-pglite.log`): PGlite reproduces **production's exact pre-M3 security shape**: the live definitions and ACLs of `can_view_order`, the role helpers and the two C15 helpers, and the live 29-policy set of the 14 affected tables. The commerce fixture uses the T056 ids. **97/97 passed**:
+      - **pre-M3 matrix in PGlite = the production T056 baseline, case for case** (240 cases, the same 81 failing);
+      - 11 guard negatives; apply; re-apply refused; postflight **23/23**; M2e postflight still passes; no pre-existing function/constraint/trigger/index changed except the two C15 ACLs;
+      - **post-M3 matrix**: every case passes, and **76 of the 81 pinned failures now pass**. The exceptions are the 5 ANON × §2-view cases and the currently-passing BUYER × R1 cell (both T056 expectation defects, T060 F1);
+      - R1 for both order-linked sellers, all refused: direct `orders` destination columns, `select *`, and an embedded `order_items→orders` select. Order code/status stay readable, and no view leaks the destination;
+      - `v_seller_order_lines`: SELLER_1 sees exactly its 2 lines with its own economics, shipment and payout status; SELLER_2 its 1 line; no buyer-total, bank, proof or destination column;
+      - audience views:
+        - AUDITOR reads payments through `v_audit_payments` but 0 rows directly;
+        - BUYER reads its case status through `v_buyer_reconciliation`, which carries no notes, amounts or references;
+        - FINANCE reads the review queue (total, REVIEW_HOLD, days, open case);
+        - DELETE on every view is refused;
+      - C6: finance can no longer write payouts, tax_invoices or payment_reviews directly; the buyer's existing DRAFT insert and orders UPDATE still work under the column grant;
+      - MFA: an enrolled buyer at aal1 reads 0 rows of 6 gated tables and at aal2 reads them; the finance queue is gated the same way;
+      - C15: anon EXECUTE refused, authenticated and service_role still execute;
+      - rollback refused while another function uses an M3 helper;
+      - fresh DB: apply → rollback → **full catalogue identical**: policies, function bodies and ACLs, relation ACLs and options, column ACLs. The guard passes again; a second rollback is refused; re-apply and postflight pass.
+      - **Two rollback defects found and fixed here**:
+        - (1) the "M4a+ applied" check named `submit_payment_proof`, a legacy production function, so the rollback would always have refused in production. It now uses M4a-only names.
+        - (2) re-granting anon appended it last in the ACL, which the M3 guard's exact ACL pin would then refuse. The rollback now restores the exact §5 order in one transaction.
+    - Regression (static only; live-capable files excluded): the 34-file batch + `m2e-outbox` + `m3-rls` — **36 files, 914 passed, 0 failed**. Typecheck, eslint and `git diff --check` clean. No live suite run; the T056 suites were not run in POST_M3 mode (that is T062).
+- [X] T060 MP-4 **GATE** dedicated security review of M3 (separate reviewer sign-off required)
   - Depends: T059
-- [ ] T061 MP-5 **OPERATOR** apply M3 + postflight
+  - **VERDICT: GO / PASS** — reviewer: owner, 2026-09-26.
+  - **F1 decision**: amend exactly six T056/T062 expectations to the approved M3 design; no buyer projection view is added and no other baseline assertion is weakened.
+    - (a) `orders.delivery_destination_id/destination_snapshot (R1) × BUYER`: a direct SELECT of each column must be **permission denied**. The buyer reads destination data through its own `delivery_destinations` and the frozen proforma `destination_snapshot`.
+    - (b) the five `v_* (fixture rows) × ANON` cells: **permission denied / no access**, not "0 rows without error".
+    - **Applied (2026-09-26, before T061)**:
+      - `tests/commerce/t056-rls-proof.ts` gains a `denied` rule used only by these six cells; cell (a) selects each column separately and both must be refused.
+      - `t056-baseline.ts` pins (a) as a PRE-M3 failure (82 matrix cases; the buyer can still read the columns before M3). The five ANON cells stay pinned (the views do not exist before M3).
+      - PGlite re-run (`m3-supplementary-pglite.log`, 97/97): the pre-M3 matrix equals the amended 82-case baseline; **after M3 every one of the 240 cases passes and all 82 pinned failures pass**, with no exceptions.
+  - **Accepted**:
+    - F2: the four function-backed views are an intentional exception, limited to the approved §2 columns/audiences with MFA.
+    - F3: the orders column-grant boundary; any future `orders` column must be explicitly reviewed and granted.
+    - F5: seller page regressions are handled in T063, not by weakening M3.
+  - **Recorded**:
+    - **F7 (out-of-scope follow-ups)**: `order_status_history`, `inventory_reservation_items` and `disputes`/`dispute_*` still use `can_view_order` (not §1 tables); the M2c F2 FULFILLMENT-shipment delete stays with M5c; the payment-proofs bucket assertion stays with T112.
+    - **F8**: the M3 rollback is **emergency-only** (it re-opens C2 and C15).
+    - **F9**: T061 requires a fresh backup and a quiet window.
+  - **Review package (agent, 2026-09-26)**:
+    - **Mapping of the 115 T056 PRE-M3 failures**:
+      - seller isolation, 28, all fixed:
+        - R1 direct/embedded ×4 → column boundary;
+        - order_items/proforma items ×4 → own-line policies;
+        - financials, header, payments, proofs, tax_invoices ×10 → seller branches removed;
+        - economics, groups, settlements ×6 → new policies + grants;
+        - FULFILLMENT shipments ×2 → `shipments_read`;
+        - `v_seller_order_lines` ×2 → view.
+      - role matrix, 81:
+        - 76 fixed: seller ×34, buyer ×7, finance ×16, warehouse ×6, auditor ×8, and the non-audience/audience view cells;
+        - 5 ANON × view cells are a T056 expectation defect (F1).
+      - anon/C15, 6, all fixed: 4 in-database cases by the revoke; 2 REST cases (same ACL; proven live at T062).
+    - **C15 before/after**:
+      - `mfa_satisfied()` and `kyb_storage_object_authorized(text, boolean)`: anon **X → none**; authenticated X → X; service_role X → X; PUBLIC none → none.
+      - ACL `{postgres=X,anon=X,authenticated=X,service_role=X}` → `{postgres=X,authenticated=X,service_role=X}`.
+      - Body md5 `a78cfc6c…` / `8d4ac2b1…`, `SECURITY DEFINER`, `search_path=pg_catalog, public, auth` unchanged (guard + postflight #20 + T058).
+    - **Findings / decisions for the reviewer**:
+      - **F1 (decision, blocks a green T062)**: two T056 expectations contradict the approved design and must be amended (only with reviewer approval) before T062:
+        - (a) `orders.delivery_destination_id/destination_snapshot (R1) × BUYER` expects `DEST`, but R1's column boundary applies to every client role. The buyer reads its frozen destination from `proforma_invoices.destination_snapshot` and `delivery_destinations` (both B).
+        - (b) the 5 `v_* (fixture rows) × ANON` cells require "0 rows, no error", but anon holds no grant on any view (rls-storage §4 "anon: nothing new"), so permission denied is correct; SC-005 concerns authenticated wrong-role reads.
+        - Alternatively, reject the column boundary in favour of a buyer projection view (not in the approved design).
+      - **F2 (design)**: 4 of the 5 views are `security_invoker` over a definer row function. Their audiences deliberately hold no base-table rows (auditors are removed from payments/proofs, buyers never read case notes, finance cannot read `orders`). Each function returns only its §2 columns and only to its audience with MFA. It can also be called directly by authenticated, with the same result.
+      - **F3 (app/ops)**: `select=*` on `orders` now fails for every client (no app code does it; all reads name columns). Any later migration adding an `orders` column must extend the column grant; the M3 guard pins the column set.
+      - **F4 (ops)**: MFA gates now cover 24 commerce tables; an MFA-enrolled user must reach aal2 to read them. Production today: **0 of 34 users** have a verified factor, so there is no immediate impact.
+      - **F5 (T063)**: sellers lose other sellers' lines, the proforma header, LEGACY proforma lines (`seller_organization_id` null), payments, proofs, financials and tax invoices of their orders. Seller pages must move to own rows / `v_seller_order_lines` (T063).
+      - **F6**: the finance FOR ALL policies are now SELECT-only (C6). No app module writes those tables directly; finance writes go through definer RPCs (`admin_review_payment`), which are unaffected.
+      - **F7 (out of scope, recorded)**: `order_status_history`, `inventory_reservation_items`, `disputes`/`dispute_*` still use `can_view_order` (not §1 tables). The M2c F2 FULFILLMENT-shipment delete stays with M5c. The payment-proofs bucket assertion stays with T112.
+      - **F8 (rollback)**: the rollback re-opens C2 and C15 — emergency use only. Its two defects were found and fixed at T059.
+      - **F9 (ops)**: M3 takes brief ACCESS EXCLUSIVE locks on ~26 tables (policy DDL). Take a fresh backup and use a quiet window at T061.
+    - **Agent recommendation: GO**, conditional on the reviewer's F1 decision (T056 amendments before T062), acceptance of F2/F3/F5, and backup + quiet window at T061.
+    - T061 expected postflight: **24 rows** (checks 1–23 + `999 | ALL CHECKS PASSED`), every `ok = true`. The M2e postflight still passes (no point-in-time row is affected).
+- [X] T061 MP-5 **OPERATOR** apply M3 + postflight
   - Depends: T060
-- [ ] T062 MP-6 Live proof M3 — T056 suites
+  - **2026-09-26 — applied by the agent on the owner's explicit instruction** (owner: GO at T060; "Proceed with T061 ONLY"). Linked ref `mxejnutukgxyccnohglo` verified.
+    - **Backup (CUTOVER-CHECKLIST §A)**: fresh logical backup, `supabase db dump --linked` (schema), `--data-only`, `--role-only`, 2026-09-26 **08:59:13–09:01:25 UTC**, stored outside the repo in `C:\Users\Dell\hills-coffee-backups\2026-09-26-pre-m3\`:
+      - `schema.sql` 520,988 B, sha256 `00702682…9241`;
+      - `data.sql` 61,432,232 B, sha256 `7b8f1bd0…584d`;
+      - `roles.sql` 370 B, sha256 `168a95a9…2308`;
+      - `SHA256SUMS` alongside.
+      - Content check: orders 2,037, proforma_invoices 10, payments 10, coffee_offers 9, audit_logs 52,473 (equal to live).
+      - The schema dump is pre-M3: it contains no M3 object and still holds `payments_view`.
+      - Expected `pg_dump` hint: a data-only restore needs `--disable-triggers`.
+    - **Quiet window**: read-only indicators at 09:01:37 UTC: 0 other active client sessions; last audit write 2026-09-25 19:26:26 UTC; 0 audit rows in the previous 30 minutes. No live suite, agent or session was writing.
+    - **Dry-run (immediately before apply, 09:01:45 UTC)**: exactly one pending migration, `20260925120000_feature_013_rls_realignment.sql`; file md5 `ba58fcd2…61b3` equals the T059/T060-reviewed version.
+    - **Apply**: `npx supabase db push --linked` at 09:01:54–09:02:06 UTC → `Applying migration 20260925120000_feature_013_rls_realignment.sql...` / `Finished supabase db push.`; no error or notice. `supabase migration list --linked`: local = remote through `20260925120000`. A follow-up dry-run reports `Remote database is up to date.`
+    - **Postflight** (`npx supabase db query --linked -f supabase/maintenance/20260925_feature_013_rls_realignment_postflight.sql`): **24 rows**, checks 1–23 all `ok = true`, last row `999 | ALL CHECKS PASSED | true`.
+    - **M2e compatibility**: the M2e postflight re-run after the apply still returns **14/14**, `999 | ALL CHECKS PASSED | true`.
+    - `bank_transfer_checkout_enabled` remains **false**; order, payment and audit counts unchanged by the apply.
+    - T062 (the T056 suites with `F013_RLS_PHASE=POST_M3`) has not been run.
+- [X] T062 MP-6 Live proof M3 — T056 suites
   - Depends: T061
   - Accept: every T056 assertion passes; existing `tests/finance`, `tests/orders`, `tests/listings`, `tests/dashboard`, `tests/disputes`, `tests/admin` batches green.
+  - **Batch B (2026-09-26): SECURITY PROOF COMPLETE AND GREEN; the live regression batches are pending owner authorization (see below).**
+    - Ran only `F013_LIVE=1 F013_RLS_PHASE=POST_M3 npx vitest run` on the three T056 suites (linked ref verified) → **3 files, 12/12 tests passed**:
+      - seller isolation: 43 cases;
+      - role matrix: **256 cases** (240 relation × role cells + 2 fixture checks + **14 new §2 row-level cases**);
+      - anon/C15: 17 in-database + 2 REST rpc + 24 REST table cases.
+      - **Every POST_M3 assertion passes**, including all 28 + 82 + 6 pinned PRE-M3 failures and the six T060 F1 amendments.
+    - Proven live:
+      - BUYER: a direct SELECT of `orders.delivery_destination_id` and of `orders.destination_snapshot` → permission denied (each separately).
+      - ANON: permission denied on all five §2 views.
+      - Both order-linked sellers read only their own lines, economics, groups, settlements, payouts and FULFILLMENT shipments. They read 0 of the buyer's payments, proofs, financials, header, bank instructions, destinations and payment accounts; the destination columns are refused directly and through the embedded select; no view or RPC route exists.
+      - FINANCE, WAREHOUSE and AUDITOR match the approved M3 matrix: auditors read payments/proofs only via `v_audit_payments`, and adjustments and financials directly.
+      - C15: anon EXECUTE refused in the database and via REST `rpc/`; authenticated and service_role execute both; the ACL is `{postgres, authenticated, service_role}`; bodies/definer/search_path equal the T056 md5 pins; AC-014 anon reads 0 rows of 24 tables.
+    - **§2 row-level assertions (added in T062; `T062_VIEW_ROW_CASES`, POST_M3 only)**, each in its own rolled-back sub-block:
+      - `v_audit_payments` × AUDITOR: 1 row, bank reference masked `****9876`, full reference absent, exactly the 11 §2 columns;
+      - `v_audit_proformas` × AUDITOR: 1 row, no buyer/destination/bank-account values, exactly the 14 §2 columns;
+      - `v_buyer_reconciliation` × BUYER: 1 row, no notes, amounts or bank references, exactly 7 columns; × OTHER_BUYER: 0 rows;
+      - `v_finance_review_queue` (order moved DRAFT→PROFORMA_ISSUED→HOLD→PAYMENT_UNDER_REVIEW inside the sub-block) × FINANCE: 1 row, buyer total 911.20, open case = true; × BUYER/SELLER_1/WAREHOUSE/AUDITOR: 0 rows;
+      - `v_seller_order_lines` × SELLER_1: exactly L1 (net 436.50) and L2 (net 194.00), payout ACCRUED, no buyer total or destination; × SELLER_2: exactly L3.
+    - **Cleanup / state**: each suite's read-only before/after state query was **identical**: counts, audit max id, offer/position fingerprints, every public function ACL, every public policy, and the kill switch. `bank_transfer_checkout_enabled` = false. Only sequence/transaction usage.
+    - **Required regressions**:
+      - Static files of `tests/finance`, `tests/orders`, `tests/listings`, `tests/dashboard`, `tests/disputes` and `tests/admin`: **40 files, 504 tests passed**. `tests/commerce/migrations`: 289/289. Typecheck, eslint and `git diff --check` clean.
+      - **Not run in the first pass — 57 live-capable files** in those six directories. They sign in fixture users and write/delete fixture rows in production; they awaited explicit owner authorization.
+    - **Owner decision (2026-09-26)**: run **Category A only (54 files)**. The 3 Category B files — `tests/listings/sales-page.test.tsx`, `tests/finance/t023-documents-payouts.test.tsx`, `tests/finance/t028-snapshot-immutability.test.ts` — are **explicitly deferred to T063 (reviewer-approved)**, because they depend on seller-facing application reads that M3 intentionally restricted and T063 adapts.
+    - **Category A result**: 54 files run **serially, one file per vitest process**, so the race/concurrency and `prepareChain`/`resetCheckoutFixtures` suites never overlapped another live suite; stop-on-first-failure. **54/54 files passed: 597 tests passed, 0 failed, 16 skipped**. The skips are `tests/listings/fills.test.ts` (9) and `tests/listings/transitions.test.ts` (7), whose Feature 006 LIVE blocks are gated by their own `F006_LIVE` flag, which was not set. **No unexpected M3 regression; no application code changed.**
+    - **Fixture state (before/after read-only snapshot + diff against the pre-M3 backup)**: only Foundation fixture churn by the existing approved fixture tooling.
+      - 18 orders removed, **all of the Foundation Test Buyer And Seller org** (8 EXPIRED Feature 007 checkout fixtures removed by `resetCheckoutFixtures`, which is scoped to the checkout fixture listing; 10 DRAFT fixtures), with their payments/proformas/reservations/items/shipments (payments/proformas/reservations 10 → 2, order_items −11, shipments −13).
+      - 18 new Foundation fixture orders created (LEGACY DRAFT/CONFIRMED, no payment or proforma), so the order count is unchanged (2,037).
+      - Audit rows +980.
+      - Unchanged: offers and positions fingerprints, every public policy and function ACL, and `bank_transfer_checkout_enabled` = false.
+      - No non-fixture row was touched.
+    - **T062 CLOSED with the documented deferral**: the M3 security proof is green in POST_M3 mode, and every Category A regression is green. The 3 Category B files move to T063's acceptance.
 
 - [ ] T063 Adapt existing member/admin reads to the realigned RLS — `lib/finance/read.ts`, `lib/listings/sales.ts`, `src/app/dashboard/sales/page.tsx`, `src/app/dashboard/payouts/page.tsx`, `src/app/dashboard/orders/[orderId]/page.tsx`
   - Depends: T062
   - Accept: the seller views read their own rows (via `v_seller_order_lines` where needed); no page errors on the removed seller access; buyers are unaffected.
   - Tests: existing page tests updated; `tests/commerce/seller-views.test.tsx` renders the seller view without buyer totals, proof or bank data.
+  - **Deferred from T062 (owner-approved 2026-09-26)**: the 3 Category B live files must pass here — `tests/listings/sales-page.test.tsx`, `tests/finance/t023-documents-payouts.test.tsx`, `tests/finance/t028-snapshot-immutability.test.ts`. They must not be weakened to pass; the application reads are adapted to the M3 boundaries.
 
 - [ ] T064 Commerce vocabulary, labels and status badges (EN/AR) — `lib/commerce/{types,validation,labels,errors}.ts`, `lib/orders/validation.ts`, `lib/finance/{validation,types}.ts`, `components/orders/order-status-badge.tsx`, `components/finance/{payment,payout,proforma}-status-badge.tsx`, `lib/app/copy/{en,ar}.ts`
   - Depends: T025
