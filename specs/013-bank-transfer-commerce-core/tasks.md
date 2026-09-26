@@ -927,20 +927,94 @@ here is database/security work; UI that depends on it comes later.
     - Static: typecheck and eslint clean; `tests/commerce` without the flag → 252 passed, 35 skipped (the 5 gated live suites).
 
 ### M2e — notification outbox table
-- [ ] T050 MP-1 Author M2e — `supabase/migrations/20260925115000_feature_013_notification_outbox.sql`, rollback, postflight
+- [X] T050 MP-1 Author M2e — `supabase/migrations/20260925115000_feature_013_notification_outbox.sql`, rollback, postflight
   - Depends: T049
   - Accept: data-model §6.1; internal `emit_notification_event` (no client EXECUTE); `UNIQUE(event_type, aggregate_id, dedupe_key)`; no client read.
-- [ ] T051 MP-2 Static tests — `tests/commerce/migrations/m2e-outbox.test.ts`
+  - **Batch B (2026-09-26): AUTHORED, NOT APPLIED.** Files (md5 at T052):
+    - migration `20260925115000_feature_013_notification_outbox.sql` (`b0960bf335ac00ca6294f11c3400d6e3`);
+    - rollback `supabase/rollback/20260925115000_feature_013_notification_outbox.rollback.sql` (`7f206f01f1d0245735c191e93549f7c5`);
+    - postflight `supabase/maintenance/20260925_feature_013_notification_outbox_postflight.sql` (`85e384d6ccf2ec2f9600ce27568699be`; 13 checks + `999`).
+  - Content:
+    - `notification_events`: the 16 §6.1 columns; `UNIQUE(event_type, aggregate_id, dedupe_key)`; index `(status, next_attempt_at)`; status CHECK = §6.1; event_type / template_key / aggregate_type CHECK-bound to the notification-provider §1 catalogue; `params` allow-listed (order/proforma/case/shipment code, status_key, deadline, amount, currency) and scalar-only; `audience` a JSON object (rules, not user lists); bounded `last_error`; claim-pair and lifecycle CHECKs; an immutability trigger (identity/content frozen; only the processing columns change).
+    - RLS enabled + forced, no policy, revoked from public, anon, authenticated **and service_role**, no grant: no client role can read or write.
+    - `emit_notification_event(...)`: `INSERT … ON CONFLICT (event_type, aggregate_id, dedupe_key) DO NOTHING`, returns the (existing) id; SECURITY INVOKER; EXECUTE revoked from public, anon, authenticated, service_role (owner only — the M4+ definer functions).
+    - No delivery/claim/fan-out function, provider, pg_cron, view, UI, data or change to an existing object.
+    - Guard: M1/M2b md5 pins; M2a–M2d present; no M2e object; kill switch off; RLS-bypassing role.
+    - Rollback: drops exactly the table and the 2 functions; refuses while any event exists, another function/view references the outbox, or M3+ is applied.
+- [X] T051 MP-2 Static tests — `tests/commerce/migrations/m2e-outbox.test.ts`
   - Depends: T050
-- [ ] T052 MP-3 Dry-run M2e
+  - **Batch B (2026-09-26)**: **30/30 pass**; conventions (auto-covers M2e) **20/20**. Expected values are read from data-model §6.1, notification-provider §1, database-rpc and rls-storage §1/§4. 11 mutation cases prove the M2e rules bite (client/service_role read grant, read policy, client EXECUTE, missing service_role revoke, SECURITY DEFINER emitter, no ON CONFLICT, no UNIQUE, bank key in the allow-list, consumer function, cron).
+  - **Existing test adjusted (disclosed for T053)**: `tests/admin/warehouse-operations.test.ts` (Feature 009 T020 vocabulary scan) failed on the catalogue literals `'finance.reconciliation_opened'` / `'reconciliation_opened'` (financial, notification-provider §1). For that one file only, exactly those two literals are removed (and asserted to be exactly those two) before the unchanged checks run; a reconciliation table/column added in M2e would still be caught.
+- [X] T052 MP-3 Dry-run M2e
   - Depends: T051
-- [ ] T053 MP-4 **GATE** review M2e
+  - **Batch B (2026-09-26): COMPLETE.**
+    - `npx supabase db push --linked --dry-run` (linked ref `mxejnutukgxyccnohglo`, run by the agent — CLI access works again): **exactly one pending migration, `20260925115000_feature_013_notification_outbox.sql`**; nothing applied.
+    - Read-only guard-condition query on production: M1 and M2b pins true; M2a–M2d present; no M2e object; checkout off; `postgres` bypasses RLS; 0 existing functions reference the outbox; PostgreSQL 17.6.
+    - Local shadow apply (`supabase db reset`): not available (Docker daemon not running); not attempted.
+    - Supplementary check (`migration-evidence/m2e-supplementary-pglite.log`): PGlite, the production-shaped M2c/M2d fixture **with Supabase's default privileges** (new tables/functions auto-granted to anon/authenticated/service_role), so the explicit revokes are what is tested. **106/106 passed**:
+      - guard negatives (M1/M2b drift, M2d missing, kill switch, existing object); apply; re-apply refused; postflight 13/13; M2d postflight: only its point-in-time row 17 false (R4); no pre-existing column/policy/function/relation/trigger/constraint/index changed;
+      - emitter: a duplicate emit returns the existing id and does not overwrite params; a new dedupe_key or event_type is a new event; null params stored as `{}`; out-of-catalogue event/template/aggregate refused; bank, proof-path and note params refused; nested objects/arrays refused; array audience refused; blank dedupe_key and null aggregate refused; every allow-listed key accepted;
+      - immutability: the processing columns change; the 8 identity/content columns are frozen; lifecycle/claim/attempts/status/last_error CHECKs bite;
+      - **as the real roles**: anon, buyer, seller, PA and service_role: SELECT/COUNT/INSERT/UPDATE/DELETE all `permission denied`; EXECUTE on the emitter `permission denied`; the emitter ACL and the table ACL name no API role;
+      - the intended path: an owner-run SECURITY DEFINER function called by an authenticated member emits (dedupe holds) and the event rolls back with its transaction;
+      - rollback refused while events exist and while another function calls the emitter; the M2d rollback refuses while M2e exists; fresh DB: apply → rollback → catalogue **identical**; M2d postflight passes again; M2e postflight fails; second rollback refused; re-apply and postflight pass.
+      - **Defect found and fixed here**: the scalar-only params CHECK used a lax JSONPath (`$.*`), which unwraps array values, so `{"order_code": ["a","b"]}` was accepted. It is now `strict $.*`; the static test pins it.
+    - Regression (static only; live-capable files excluded): the 34-file batch + `m2e-outbox.test.ts` — **35 files, 874 passed, 0 failed** (re-run of the 10 affected files after the fix: 335/335). Typecheck, eslint and `git diff --check` clean. No live suite run; production not modified.
+- [X] T053 MP-4 **GATE** review M2e
   - Depends: T052
-- [ ] T054 MP-5 **OPERATOR** apply M2e + postflight
+  - **VERDICT: GO / PASS** — reviewer: owner, 2026-09-26. Design decisions (a)–(f) accepted.
+  - Follow-up conditions:
+    - **F1 → M7 condition**: the outbox worker and the admin outbox view must run with the intended owner privileges and respect the lifecycle/immutability rules.
+    - **F2 → M4+ condition**: every emitting commerce function must call `emit_notification_event` inside its own (the same) transaction and use only the allowed params. Seller-facing events must not include buyer totals or sensitive finance data.
+    - **F3 (accepted)**: the Feature 009 test adjustment is accepted exactly as implemented, for the M2e file only. The exemption must not be broadened.
+  - **Review package (agent, 2026-09-26)**:
+    - **Fidelity**: the columns, status set, UNIQUE and queue index are read from data-model §6.1; the catalogue CHECKs from notification-provider §1; the emitter signature and ON CONFLICT semantics from database-rpc; "SELECT none / writes none / EXECUTE nobody" from rls-storage §1/§4.
+    - **Rollback symmetry**: full catalogue identical after the rollback (PGlite C). The guard refuses while any event exists, any function/view references the outbox, or M3+ is applied. The M2d rollback already refuses while M2e exists.
+    - **History unchanged**: 5 new files + 1 adjusted test (`warehouse-operations.test.ts`, see T051); every applied migration and the Feature 008 files are untouched.
+    - **Design decisions (beyond the literal data-model)**:
+      - (a) **`service_role` gets nothing** on the outbox (unlike the M2b–M2d ledger tables' SELECT): "no client role may read". The M7 worker (`process_notification_events`) and the admin outbox view/`admin_process_outbox_now` reach it only through owner-run functions.
+      - (b) **Emitter is SECURITY INVOKER with no EXECUTE for any API role**: only the owner (the M4+ definer commerce functions) can call it; a definer emitter would have been an extra privilege boundary to guard. The conventions' definer rules therefore do not apply to it.
+      - (c) **Catalogue CHECKs** on event_type / template_key / aggregate_type (notification-provider §1). A new event later needs a migration (deliberate: the catalogue is a contract).
+      - (d) **Params allow-list + strict scalar-only CHECK** enforces "never bank identifiers, proof paths, other parties' economics or free-text notes" at the database. The "amount only for the recipient's own view" rule stays with the emitting function (M4+) — the database cannot know the recipient.
+      - (e) **Immutability trigger + lifecycle CHECKs** (PROCESSED ⇔ processed_at; PROCESSING needs a claim; claim pair). Not in §6.1; they constrain the M7 worker's writes only.
+      - (f) **Emitter returns the event id** (the existing one on a duplicate); the contract states no return type.
+    - **Findings / conditions for the reviewer**:
+      - **F1 (M7 condition)**: `process_notification_events`, the claim/complete functions and the admin outbox view must run as the owner (definer) — no role holds a table privilege — and must honour the lifecycle CHECKs.
+      - **F2 (M4+ condition)**: every emitting commerce function must call the emitter inside its own transaction and build params only from the allow-list, putting `amount` only in the recipient's own-view events (seller events: order code only, no totals).
+      - **F3 (tests)**: the Feature 009 vocabulary-scan adjustment (T051) needs reviewer acceptance.
+      - **F4 (operational)**: creates one new empty table and two functions; no lock on any existing table (no FK). Backup + quiet window as for M2d.
+      - **F5 (no data loss)**: no backfill, no row rewritten; the rollback only runs while the outbox is empty.
+      - **F6 (R4)**: after the apply, the M2d postflight row 17 (`notification_events is null`) reads false by design.
+    - **Agent recommendation: GO**, conditional on acceptance of (a)–(f), F1/F2 recorded as M7/M4 conditions, F3 accepted, and the backup + quiet window at T054.
+    - T054 expected postflight: **14 rows** (checks 1–13 + `999 | ALL CHECKS PASSED`), every `ok = true`.
+- [X] T054 MP-5 **OPERATOR** apply M2e + postflight
   - Depends: T053
-- [ ] T055 MP-6 Live proof — `tests/commerce/outbox-table.live.test.ts`
+  - **2026-09-26 — applied by the agent on the owner's explicit instruction** (owner: GO at T053; "Proceed with T054 ONLY"). Linked ref `mxejnutukgxyccnohglo` verified.
+    - **Backup (CUTOVER-CHECKLIST §A)**: fresh logical backup, `supabase db dump --linked` (schema), `--data-only`, `--role-only`, 2026-09-26 **05:59:22–06:01:39 UTC**, stored outside the repo in `C:\Users\Dell\hills-coffee-backups\2026-09-26-pre-m2e\`:
+      - `schema.sql` 513,469 B, sha256 `becfd081…ea90`;
+      - `data.sql` 61,432,134 B, sha256 `bd89aeb8…a04d`;
+      - `roles.sql` 370 B, sha256 `168a95a9…2308`;
+      - `SHA256SUMS` alongside.
+      - Content check: orders 2,037, proforma_invoices 10, payments 10, coffee_offers 9, audit_logs 52,473 rows (equal to the live counts). Expected `pg_dump` hint: a data-only restore needs `--disable-triggers` (M2b FK cycle).
+    - **Quiet window**: read-only indicators at 06:01:52 UTC: 0 other active client sessions; last audit write 2026-09-25 19:26:26 UTC; 0 audit rows in the previous 30 minutes. No live suite, agent or session was writing.
+    - **Dry-run (immediately before apply, 06:02:18 UTC)**: exactly one pending migration, `20260925115000_feature_013_notification_outbox.sql`; the file md5 `b0960bf3…d6e3` equals the reviewed T052 version.
+    - **Apply**: `npx supabase db push --linked` at 06:02:25–06:02:31 UTC → `Applying migration 20260925115000_feature_013_notification_outbox.sql...` / `Finished supabase db push.`; no error or notice. `supabase migration list --linked`: local = remote through `20260925115000`. A follow-up dry-run reports `Remote database is up to date.`
+    - **Postflight** (`npx supabase db query --linked -f supabase/maintenance/20260925_feature_013_notification_outbox_postflight.sql`): **14 rows**, checks 1–13 all `ok = true`, and the last row was `999 | ALL CHECKS PASSED | true`.
+    - Expected point-in-time effect (R4): the M2d postflight row 17 ("no M2e+") now reads false; it is the only failing M2d row.
+    - `bank_transfer_checkout_enabled` remains **false**; order and audit counts unchanged by the apply.
+- [X] T055 MP-6 Live proof — `tests/commerce/outbox-table.live.test.ts`
   - Depends: T054
   - Accept: a duplicate event insert is a no-op; `authenticated` cannot read or execute.
+  - **Batch B (2026-09-26): COMPLETE.** Owner-authorized; linked ref `mxejnutukgxyccnohglo` verified; only `F013_LIVE=1 npx vitest run tests/commerce/outbox-table.live.test.ts` was run (no other live suite).
+    - Result: **3/3 passed**. The proof block reported **63/63 cases ok**; the error-only case "INTERNAL: the definer call raised" did not occur.
+    - **Method (the T037/T043/T049 one-transaction setup)**: `tests/commerce/t055-outbox-proof.ts` builds ONE `DO` block (session role `postgres` = the outbox owner) ending in `raise exception 'T055_RESULT:<base64 json>'`. Every event, the temporary definer function `__t055_commerce_step` and the temporary platform-admin grant roll back. Fixture aggregate ids are in the `13000000-…-0000000006xx` range.
+    - Proved live:
+      - **dedupe**: a second emit with the same (event_type, aggregate_id, dedupe_key) returns the same id; exactly one event; the stored params are not overwritten; the event is PENDING with 0 attempts; a new dedupe_key or event_type is a new event; a direct duplicate INSERT is refused by `notification_events_dedupe_key`;
+      - **designed internal path**: an authenticated buyer calling an owner-run SECURITY DEFINER commerce function emits; the repeated call is deduplicated (one event); that buyer still cannot SELECT the event;
+      - **no access for anon, buyer, seller, platform admin (temporary grant) or service_role**: SELECT, COUNT, INSERT, UPDATE and DELETE on `notification_events`, and a direct EXECUTE of `emit_notification_event`, are all `permission denied` (30 cases). The catalogue shows no table privilege and no EXECUTE for the three API roles; the emitter is SECURITY INVOKER; RLS forced, no policy;
+      - **params and sensitive data**: iban, proof path, free-text note, `seller_payout`, a nested object, an array value, non-object params, an array audience, out-of-catalogue event/template/aggregate, blank dedupe_key and null aggregate are all refused, even on the owner path; params/audience are immutable once queued; the lifecycle and `last_error` CHECKs bite; no refused value reached the outbox;
+      - **real anonymous REST path** (publishable key): GET `notification_events` refused with 0 rows; POST `rpc/emit_notification_event` refused (not by a CHECK). The probe used an out-of-catalogue event_type, so it could not have persisted a row even if it had been accepted.
+    - **Cleanup / state**: a read-only state query before and after (outbox 0 events, audit_logs count + max id, platform_admins, the seller's admin rows, memberships, orders, notifications, public function count, no `__t055*` function, emitter body + ACL fingerprint, outbox ACL, kill switch) is **identical**. The proof created 0 persistent rows; checkout remains disabled.
 
 ### M3 — RLS realignment: SECURITY-FIRST seller data-leak fix (C2)
 - [ ] T056 Write the seller-isolation and role-matrix live tests BEFORE the migration — `tests/commerce/rls-seller-isolation.live.test.ts`, `tests/commerce/rls-role-matrix.live.test.ts`, `tests/commerce/rls-anon-probe.live.test.ts`

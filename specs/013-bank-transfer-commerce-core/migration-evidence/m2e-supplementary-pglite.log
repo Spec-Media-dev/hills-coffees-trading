@@ -1,0 +1,120 @@
+
+## B — guard, apply, postflight
+PASS guard passes on the post-M2d fixture
+PASS guard refuses a drifted validate_order_transition (M1) — feature_013_notification_outbox preflight failed — nothing applied: validate_order_transition() differs from the M1 v2 body; 
+PASS guard refuses a drifted prevent_snapshot_mutation (M2b) — feature_013_notification_outbox preflight failed — nothing applied: prevent_snapshot_mutation() differs from the M2b body; 
+PASS guard refuses when M2d is missing — feature_013_notification_outbox preflight failed — nothing applied: M2a–M2d are not all applied; 
+PASS guard refuses when the kill switch is on — feature_013_notification_outbox preflight failed — nothing applied: bank_transfer_checkout_enabled is true; 
+PASS guard refuses when an M2e object already exists — feature_013_notification_outbox preflight failed — nothing applied: an M2e object already exists; 
+PASS APPLY M2e
+PASS re-applying M2e is refused by its guard — feature_013_notification_outbox preflight failed — nothing applied: an M2e object already exists; 
+PASS postflight returns 13 checks + summary — 14
+PASS postflight #1 notification_events: the §6.1 columns (16)
+PASS postflight #2 UNIQUE(event_type, aggregate_id, dedupe_key); queue index (status, next_attempt_at)
+PASS postflight #3 status {PENDING, PROCESSING, PROCESSED, FAILED} default PENDING; attempts >= 0 default 0
+PASS postflight #4 catalogue CHECKs: 17 event types, 18 template keys, 7 aggregate types
+PASS postflight #5 params allow-list + scalar-only CHECK; audience object; dedupe/claim/error length and lifecycle CHECKs
+PASS postflight #6 RLS enabled + forced; no policy
+PASS postflight #7 no client role can read or write the outbox: anon, authenticated, service_role and PUBLIC hold no privilege
+PASS postflight #8 emit_notification_event: exists, SECURITY INVOKER, search_path pinned, returns uuid
+PASS postflight #9 emit_notification_event: no EXECUTE for anon, authenticated, service_role or PUBLIC (internal only)
+PASS postflight #10 emit_notification_event: INSERT … ON CONFLICT (event_type, aggregate_id, dedupe_key) DO NOTHING
+PASS postflight #11 identity/content immutability trigger (protect_notification_event, BEFORE UPDATE, enabled)
+PASS postflight #12 the outbox is empty; nothing else calls the emitter yet; no delivery/claim function or cron job
+PASS postflight #13 M1–M2d untouched: validate_order_transition v2, prevent_snapshot_mutation (M2b), M2c/M2d tables present; checkout disabled
+PASS postflight #999 ALL CHECKS PASSED
+PASS M2d postflight after M2e: only its point-in-time row 17 ('no M2e+', R4) reads false — 17,999
+PASS no pre-existing column, policy, function, relation, trigger, constraint or index changed (M2e is purely additive)
+
+## B — emitter: insert, dedupe no-op, catalogue and params CHECKs (as the owner)
+PASS a duplicate emit (same event_type, aggregate_id, dedupe_key) is a no-op and returns the existing id — 9ef095fb-7152-4d21-8c84-1184e3cd6831 / 9ef095fb-7152-4d21-8c84-1184e3cd6831
+PASS exactly one PENDING row with attempts 0; the duplicate did not overwrite its params — [{"id":"9ef095fb-7152-4d21-8c84-1184e3cd6831","status":"PENDING","attempts":0,"params":{"deadline":"2026-10-01T00:00:00Z","order_code":"ORD-0000001"}}]
+PASS a different dedupe_key or event_type for the same aggregate is a new event
+PASS null params are stored as {}
+PASS an event_type outside the catalogue is refused — new row for relation "notification_events" violates check constraint "notification_events_event_type_check" | Failing row contains (36a15be0-b422-419f-8e75-b0853c069e5c, order.shipped, order, 00000000-0000-4000-8000-00000000e001, x1, {"rule": "buyer_org_members"}, awaiting_transfer, {"deadline": "2026-10-01T00:00:00Z", "order_code": "ORD-0000001"..., PENDING, 0, 2026-09-26 06:05:02.921+02, null, null, null, null, 2026-09-26 06:05:02.921+02).
+PASS a template_key outside the catalogue is refused — new row for relation "notification_events" violates check constraint "notification_events_template_key_check" | Failing row contains (0356301f-2888-408f-8ec8-2f9da0364d76, order.awaiting_transfer, order, 00000000-0000-4000-8000-00000000e001, x2, {"rule": "buyer_org_members"}, custom_html, {"deadline": "2026-10-01T00:00:00Z", "order_code": "ORD-0000001"..., PENDING, 0, 2026-09-26 06:05:02.928+02, null, null, null, null, 2026-09-26 06:05:02.928+02).
+PASS an aggregate_type outside the catalogue is refused — new row for relation "notification_events" violates check constraint "notification_events_aggregate_type_check" | Failing row contains (0d267b86-b5e4-4543-bf7b-6a183e9daf4c, order.awaiting_transfer, user, 00000000-0000-4000-8000-00000000e001, x3, {"rule": "buyer_org_members"}, awaiting_transfer, {"deadline": "2026-10-01T00:00:00Z", "order_code": "ORD-0000001"..., PENDING, 0, 2026-09-26 06:05:02.933+02, null, null, null, null, 2026-09-26 06:05:02.933+02).
+PASS a bank identifier param is refused (allow-list) — new row for relation "notification_events" violates check constraint "notification_events_params_check" | Failing row contains (5d6af0df-b901-465d-887e-6e09039f93f7, order.awaiting_transfer, order, 00000000-0000-4000-8000-00000000e001, x4, {"rule": "buyer_org_members"}, awaiting_transfer, {"iban": "AE070331234567890123456", "order_code": "ORD-1"}, PENDING, 0, 2026-09-26 06:05:02.937+02, null, null, null, null, 2026-09-26 06:05:02.937+02).
+PASS a proof path param is refused (allow-list) — new row for relation "notification_events" violates check constraint "notification_events_params_check" | Failing row contains (2bbb54db-8fdb-4c9c-b7f3-eaf121b2c4f2, order.awaiting_transfer, order, 00000000-0000-4000-8000-00000000e001, x5, {"rule": "buyer_org_members"}, awaiting_transfer, {"proof_path": "payment-proofs/x.pdf"}, PENDING, 0, 2026-09-26 06:05:02.94+02, null, null, null, null, 2026-09-26 06:05:02.94+02).
+PASS a free-text note param is refused (allow-list) — new row for relation "notification_events" violates check constraint "notification_events_params_check" | Failing row contains (71f179cb-de1c-4308-b67a-36a5e29b361b, order.awaiting_transfer, order, 00000000-0000-4000-8000-00000000e001, x6, {"rule": "buyer_org_members"}, awaiting_transfer, {"note": "call me"}, PENDING, 0, 2026-09-26 06:05:02.942+02, null, null, null, null, 2026-09-26 06:05:02.942+02).
+PASS a nested object under an allowed key is refused (scalars only) — new row for relation "notification_events" violates check constraint "notification_events_params_check" | Failing row contains (32d02766-4f16-42f1-a9b7-e1a5a7fa5da8, order.awaiting_transfer, order, 00000000-0000-4000-8000-00000000e001, x7, {"rule": "buyer_org_members"}, awaiting_transfer, {"amount": {"iban": "AE07"}}, PENDING, 0, 2026-09-26 06:05:02.944+02, null, null, null, null, 2026-09-26 06:05:02.944+02).
+PASS an array under an allowed key is refused (scalars only) — new row for relation "notification_events" violates check constraint "notification_events_params_check" | Failing row contains (0db4597d-d605-4368-9ee6-a5d1aada1cc0, order.awaiting_transfer, order, 00000000-0000-4000-8000-00000000e001, x8, {"rule": "buyer_org_members"}, awaiting_transfer, {"order_code": ["a", "b"]}, PENDING, 0, 2026-09-26 06:05:02.947+02, null, null, null, null, 2026-09-26 06:05:02.947+02).
+PASS params as an array is refused — new row for relation "notification_events" violates check constraint "notification_events_params_check" | Failing row contains (ea686613-5e79-4222-a72b-1c225f799884, order.awaiting_transfer, order, 00000000-0000-4000-8000-00000000e001, x9, {"rule": "buyer_org_members"}, awaiting_transfer, ["order_code"], PENDING, 0, 2026-09-26 06:05:02.95+02, null, null, null, null, 2026-09-26 06:05:02.95+02).
+PASS audience as a user list (array) is refused — new row for relation "notification_events" violates check constraint "notification_events_audience_check" | Failing row contains (7a936fb3-715f-4e2b-b3f0-15baa3a106ae, order.awaiting_transfer, order, 00000000-0000-4000-8000-00000000e001, x10, ["00000000-0000-4000-8000-000000000001"], awaiting_transfer, {"deadline": "2026-10-01T00:00:00Z", "order_code": "ORD-0000001"..., PENDING, 0, 2026-09-26 06:05:02.953+02, null, null, null, null, 2026-09-26 06:05:02.953+02).
+PASS an empty dedupe_key is refused — new row for relation "notification_events" violates check constraint "notification_events_dedupe_key_check" | Failing row contains (d4c017eb-5643-4131-a9f8-e982097419c8, order.awaiting_transfer, order, 00000000-0000-4000-8000-00000000e001,   , {"rule": "buyer_org_members"}, awaiting_transfer, {"deadline": "2026-10-01T00:00:00Z", "order_code": "ORD-0000001"..., PENDING, 0, 2026-09-26 06:05:02.957+02, null, null, null, null, 2026-09-26 06:05:02.957+02).
+PASS a null aggregate_id is refused — null value in column "aggregate_id" of relation "notification_events" violates not-null constraint | Failing row contains (5174097f-926e-47f1-b901-d77ef7215eac, order.expired, order, null, k, {}, order_expired, {}, PENDING, 0, 2026-09-26 06:05:02.962+02, null, null, null, null, 2026-09-26 06:05:02.962+02).
+PASS every allow-listed key is accepted
+
+## B — immutability and lifecycle (the M7 worker may change only the processing columns)
+PASS the processing columns can change (claim → PROCESSING)
+PASS PROCESSED with processed_at is accepted
+PASS FAILED with a sanitized error and backoff is accepted
+PASS event_type is frozen once queued — notification_event_immutable | an outbox event's identity and content are frozen once queued
+PASS aggregate_id is frozen once queued — notification_event_immutable | an outbox event's identity and content are frozen once queued
+PASS dedupe_key is frozen once queued — notification_event_immutable | an outbox event's identity and content are frozen once queued
+PASS audience is frozen once queued — notification_event_immutable | an outbox event's identity and content are frozen once queued
+PASS template_key is frozen once queued — notification_event_immutable | an outbox event's identity and content are frozen once queued
+PASS params is frozen once queued — notification_event_immutable | an outbox event's identity and content are frozen once queued
+PASS created_at is frozen once queued — notification_event_immutable | an outbox event's identity and content are frozen once queued
+PASS aggregate_type is frozen once queued — notification_event_immutable | an outbox event's identity and content are frozen once queued
+PASS PROCESSING without a claim is refused — new row for relation "notification_events" violates check constraint "notification_events_lifecycle_check" | Failing row contains (9ef095fb-7152-4d21-8c84-1184e3cd6831, order.awaiting_transfer, order, 00000000-0000-4000-8000-00000000e001, v1, {"rule": "buyer_org_members"}, awaiting_transfer, {"deadline": "2026-10-01T00:00:00Z", "order_code": "ORD-0000001"..., PROCESSING, 0, 2026-09-26 06:05:02.894+02, null, null, null, null, 2026-09-26 06:05:02.894+02).
+PASS PROCESSED without processed_at is refused — new row for relation "notification_events" violates check constraint "notification_events_lifecycle_check" | Failing row contains (9ef095fb-7152-4d21-8c84-1184e3cd6831, order.awaiting_transfer, order, 00000000-0000-4000-8000-00000000e001, v1, {"rule": "buyer_org_members"}, awaiting_transfer, {"deadline": "2026-10-01T00:00:00Z", "order_code": "ORD-0000001"..., PROCESSED, 0, 2026-09-26 06:05:02.894+02, null, null, null, null, 2026-09-26 06:05:02.894+02).
+PASS processed_at on a PENDING event is refused — new row for relation "notification_events" violates check constraint "notification_events_lifecycle_check" | Failing row contains (9ef095fb-7152-4d21-8c84-1184e3cd6831, order.awaiting_transfer, order, 00000000-0000-4000-8000-00000000e001, v1, {"rule": "buyer_org_members"}, awaiting_transfer, {"deadline": "2026-10-01T00:00:00Z", "order_code": "ORD-0000001"..., PENDING, 0, 2026-09-26 06:05:02.894+02, null, null, 2026-09-26 06:05:03.014+02, null, 2026-09-26 06:05:02.894+02).
+PASS a claim without claimed_by is refused — new row for relation "notification_events" violates check constraint "notification_events_claim_pair_check" | Failing row contains (9ef095fb-7152-4d21-8c84-1184e3cd6831, order.awaiting_transfer, order, 00000000-0000-4000-8000-00000000e001, v1, {"rule": "buyer_org_members"}, awaiting_transfer, {"deadline": "2026-10-01T00:00:00Z", "order_code": "ORD-0000001"..., PENDING, 0, 2026-09-26 06:05:02.894+02, 2026-09-26 06:05:03.017+02, null, null, null, 2026-09-26 06:05:02.894+02).
+PASS negative attempts are refused — new row for relation "notification_events" violates check constraint "notification_events_attempts_check" | Failing row contains (9ef095fb-7152-4d21-8c84-1184e3cd6831, order.awaiting_transfer, order, 00000000-0000-4000-8000-00000000e001, v1, {"rule": "buyer_org_members"}, awaiting_transfer, {"deadline": "2026-10-01T00:00:00Z", "order_code": "ORD-0000001"..., PENDING, -1, 2026-09-26 06:05:02.894+02, null, null, null, null, 2026-09-26 06:05:02.894+02).
+PASS an unknown status is refused — new row for relation "notification_events" violates check constraint "notification_events_status_check" | Failing row contains (9ef095fb-7152-4d21-8c84-1184e3cd6831, order.awaiting_transfer, order, 00000000-0000-4000-8000-00000000e001, v1, {"rule": "buyer_org_members"}, awaiting_transfer, {"deadline": "2026-10-01T00:00:00Z", "order_code": "ORD-0000001"..., SENT, 0, 2026-09-26 06:05:02.894+02, null, null, null, null, 2026-09-26 06:05:02.894+02).
+PASS an over-long last_error is refused (sanitized codes only) — new row for relation "notification_events" violates check constraint "notification_events_last_error_check" | Failing row contains (9ef095fb-7152-4d21-8c84-1184e3cd6831, order.awaiting_transfer, order, 00000000-0000-4000-8000-00000000e001, v1, {"rule": "buyer_org_members"}, awaiting_transfer, {"deadline": "2026-10-01T00:00:00Z", "order_code": "ORD-0000001"..., PENDING, 0, 2026-09-26 06:05:02.894+02, null, null, null, xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx..., 2026-09-26 06:05:02.894+02).
+
+## B — no client read, no client EXECUTE (real roles, Supabase default privileges in place)
+PASS anon cannot read the outbox — error: permission denied for table notification_events
+PASS anon cannot even count the outbox — error: permission denied for table notification_events
+PASS anon cannot insert into the outbox — error: permission denied for table notification_events
+PASS anon cannot update the outbox — error: permission denied for table notification_events
+PASS anon cannot delete from the outbox — error: permission denied for table notification_events
+PASS anon cannot EXECUTE emit_notification_event — error: permission denied for function emit_notification_event
+PASS an authorized buyer cannot read the outbox — error: permission denied for table notification_events
+PASS an authorized buyer cannot even count the outbox — error: permission denied for table notification_events
+PASS an authorized buyer cannot insert into the outbox — error: permission denied for table notification_events
+PASS an authorized buyer cannot update the outbox — error: permission denied for table notification_events
+PASS an authorized buyer cannot delete from the outbox — error: permission denied for table notification_events
+PASS an authorized buyer cannot EXECUTE emit_notification_event — error: permission denied for function emit_notification_event
+PASS a seller cannot read the outbox — error: permission denied for table notification_events
+PASS a seller cannot even count the outbox — error: permission denied for table notification_events
+PASS a seller cannot insert into the outbox — error: permission denied for table notification_events
+PASS a seller cannot update the outbox — error: permission denied for table notification_events
+PASS a seller cannot delete from the outbox — error: permission denied for table notification_events
+PASS a seller cannot EXECUTE emit_notification_event — error: permission denied for function emit_notification_event
+PASS a platform admin cannot read the outbox — error: permission denied for table notification_events
+PASS a platform admin cannot even count the outbox — error: permission denied for table notification_events
+PASS a platform admin cannot insert into the outbox — error: permission denied for table notification_events
+PASS a platform admin cannot update the outbox — error: permission denied for table notification_events
+PASS a platform admin cannot delete from the outbox — error: permission denied for table notification_events
+PASS a platform admin cannot EXECUTE emit_notification_event — error: permission denied for function emit_notification_event
+PASS service_role cannot read the outbox — error: permission denied for table notification_events
+PASS service_role cannot even count the outbox — error: permission denied for table notification_events
+PASS service_role cannot insert into the outbox — error: permission denied for table notification_events
+PASS service_role cannot update the outbox — error: permission denied for table notification_events
+PASS service_role cannot delete from the outbox — error: permission denied for table notification_events
+PASS service_role cannot EXECUTE emit_notification_event — error: permission denied for function emit_notification_event
+PASS the emitter is SECURITY INVOKER; its ACL grants EXECUTE to nobody but the owner — {postgres=X/postgres}
+PASS the outbox ACL names no API role — {postgres=arwdDxtm/postgres}
+PASS the intended path works: an owner-run SECURITY DEFINER commerce function called by an authenticated member emits (M4+ shape)
+PASS …and it rolled back with its transaction (outbox writes share the commerce transaction) — 0
+
+## B — rollback refused while events exist
+PASS rollback refuses (changing nothing) — feature_013_notification_outbox rollback refused — nothing changed: an outbox event exists; 
+PASS …and the events are still there
+PASS the M2d rollback refuses while M2e is applied — feature_013_pricing_inputs rollback refused — nothing changed: a later Feature 013 migration (M2e+) is still applied; 
+
+## C — rollback symmetry (fresh database)
+PASS C: APPLY M2e
+PASS C: rollback refuses while another function calls the emitter — feature_013_notification_outbox rollback refused — nothing changed: another function references the outbox; 
+PASS C: ROLLBACK M2e (empty outbox)
+PASS ROLLBACK SYMMETRY: every constraint, index, policy, trigger, public function (body md5, flags, ACL), relation (RLS, ACL) and column identical to pre-M2e
+PASS C: M2d postflight passes again after the M2e rollback
+PASS C: M2e postflight FAILS after the rollback (expected) — error: relation "public.notification_events" does not exist
+PASS C: a second rollback is refused (M2e not applied) — feature_013_notification_outbox rollback refused — nothing changed: M2e is not applied (notification_events or emit_notification_event missing); 
+PASS C: RE-APPLY M2e after rollback
+PASS C: M2e postflight after re-apply
+
+ALL SUPPLEMENTARY CHECKS PASSED

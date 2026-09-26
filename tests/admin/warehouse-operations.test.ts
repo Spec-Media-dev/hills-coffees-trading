@@ -321,8 +321,17 @@ describe("T019/T020 — no inventory mutation, no arithmetic on inventory truth,
     const FEATURE_013_FINANCE_RECORDS = "20260925109000_feature_013_finance_fulfillment_records.sql";
     const migrations = readdirSync(migrationsDir).filter((f) => f.endsWith(".sql") && !f.includes("rollback") && !f.includes("feature_005_db_open_19") && f !== FEATURE_013_FINANCE_RECORDS);
     expect(migrations.length).toBeGreaterThanOrEqual(7);
+    // Feature 013 M2e's outbox catalogue (contracts/notification-provider.md §1) names the FINANCIAL reconciliation event
+    // 'finance.reconciliation_opened' / template 'reconciliation_opened'. Only those two exact literals are removed, only
+    // for that file; every check below still runs on the rest of it.
+    const FEATURE_013_OUTBOX = "20260925115000_feature_013_notification_outbox.sql";
+    const outboxCatalogueLiterals = /'(finance\.reconciliation_opened|reconciliation_opened)'/g;
     for (const file of migrations) {
-      const sql = read(`supabase/migrations/${file}`).replace(/--[^\n]*/g, "");
+      let sql = read(`supabase/migrations/${file}`).replace(/--[^\n]*/g, "");
+      if (file === FEATURE_013_OUTBOX) {
+        expect(sql.match(outboxCatalogueLiterals)).toEqual(["'finance.reconciliation_opened'", "'reconciliation_opened'"]);
+        sql = sql.replace(outboxCatalogueLiterals, "''");
+      }
       expect(sql, file).not.toMatch(/create\s+table[^;]*\b(varian|reconcil|quarantin|discrepan|stock_count|adjustment)/i);
       expect(sql, file).not.toMatch(/add\s+column[^;]*\b(varian|reconcil|quarantin|discrepan|hold_status|quarantine)/i);
       expect(sql, file).not.toMatch(/'(QUARANTINE|QUARANTINED|VARIANCE|ON_HOLD)'/);
