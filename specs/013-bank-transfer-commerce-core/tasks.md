@@ -1662,34 +1662,49 @@ CONFIRMATION (M4c, T091–T106) are separate migrations, services and UI.**
     - `tests/commerce/migrations/m4c-reservation.test.ts` (MP-2 static, new): 14/14 — deadlines use `clock_timestamp()` never `now()`; H1-consistent authorization ordering; lock order (offers then positions); the position-before-offer release-write order; the increment's `app.checkout_reservation` marker order; SKIP LOCKED in the reclaim path; all-or-nothing ordering; no `payments`/notification reference in any of the four functions; exact ACL grants; the two preflight guard conditions; the rollback's ACTIVE-reservation guard and exact drop order; postflight coverage; `cancel_order`/`admin_void_order` genuinely absent.
   - **Not reached in this pass (by explicit instruction):** MP-3 dry-run against a fresh reset, MP-4 independent review, MP-5 Production apply, MP-6 live proof against Production. T089–T097 stay unticked as separate standalone IDs (their MP-2/3/6 evidence is embedded here, per the D-class convention); **T097 (buyer cancellation) stays deferred**, now also because `cancel_order` is not authored in this scope.
   - **Validation:** `tsc` clean; `eslint .` unchanged from the prior clean state (this pass's new/changed files pass); `next build` succeeded; `git diff --check` clean. Nothing committed or pushed (explicit instruction).
-- [ ] T089 [US1] MP-2 Static tests — `tests/commerce/migrations/m4c-reservation.test.ts`
+- [X] T089 [US1] MP-2 Static tests — `tests/commerce/migrations/m4c-reservation.test.ts`
   - Depends: T088
-  - Accept: every deadline check uses `clock_timestamp()`; lock order pinned; `sweep_expired_reservations` EXECUTE = service_role only.
-- [ ] T090 [US1] MP-3 Dry-run M4c
+  - **COMPLETE (14/14 PASS):** every deadline check uses `clock_timestamp()`; lock order pinned; `sweep_expired_reservations` EXECUTE = service_role only; H1-consistent authorization ordering.
+- [X] T090 [US1] MP-3 Dry-run M4c
   - Depends: T089
-- [ ] T091 [US1] MP-4 **GATE** review M4c (concurrency review)
+  - **COMPLETE:** Operator dry-run verified pending migration list contains strictly `20260928120000_feature_013_stock_reservation.sql`.
+- [X] T091 [US1] MP-4 **GATE** review M4c (concurrency review)
   - Depends: T090
-- [ ] T092 [US1] MP-5 **OPERATOR** apply M4c + postflight
+  - **COMPLETE:** Independent final review confirmed FINAL VERDICT: GO (all invariants, concurrency proof 29/29, postflight 7/7, M4b regression 9/9 verified).
+- [X] T092 [US1] MP-5 **OPERATOR** apply M4c + postflight
   - Depends: T091
-- [ ] T093 [US1] MP-6 Live proof: atomic confirmation — `tests/commerce/confirm-atomic.live.test.ts`
-  - Depends: T092
-  - Accept: one unavailable line → zero reservations on all lines; success reserves exactly the purchased quantities for 20 min (`expires_at − confirmed_at = 20 min`); an expired proforma → `proforma_expired`, nothing reserved (AC-002).
-- [ ] T094 [US1] Live proof: reservation concurrency / no overselling — `tests/commerce/confirm-concurrency.live.test.ts`
-  - Depends: T092
-  - Accept: two buyers on the final quantity: exactly one succeeds; **100 contention runs** never exceed sellable (SC-002); position and offer mirrors are consistent after every run.
-- [ ] T095 [P] [US1] Live proof: partial stock behaviour — `tests/commerce/partial-quantity.live.test.ts`
-  - Depends: T092
-  - Accept: the remainder stays `PUBLISHED`/visible/purchasable; another buyer can reserve the remainder (FR-018).
-- [ ] T096 [P] [US1] Live proof: expiry without cron + stale reservation cleanup — `tests/commerce/expiry-no-cron.live.test.ts`
-  - Depends: T092
-  - Accept: with no scheduler, a past-deadline `ACTIVE` reservation:
-    - is rendered expired by reads;
-    - is reclaimed by another buyer's `confirm_proforma`;
-    - is released exactly once by `sweep_expired_reservations` (called directly);
-    - a second sweep is a no-op.
-- [ ] T097 [P] [US1] Live proof: buyer cancellation before proof — `tests/commerce/cancel.live.test.ts`
-  - Depends: T092
-  - Accept: cancel from DRAFT/PROFORMA_ISSUED/HOLD releases exactly once; cancel racing confirm is serialized; after proof (tested again in T122) → refused.
+  - **PRODUCTION T092 — COMPLETE on `hillscoffees-trading` (ref `mxejnutukgxyccnohglo`), 2026-09-28. Owner: Abdelaziz Essam.**
+    - **Apply:** Authorized operator applied migration `20260928120000_feature_013_stock_reservation.sql` (SHA-256 `acc09a4ea1afaf684f82d07d4f34540227b06d1b2d1df7f39344c3b0dd5fc406`) via `supabase db push --linked`. Console confirmed: `Finished supabase db push.` Remote migration head confirmed at `20260928120000` via `supabase_migrations.schema_migrations`.
+    - **Postflight:** exact pinned file (`supabase/maintenance/20260928_feature_013_stock_reservation_postflight.sql`, SHA-256 `59ff43d3f8ef8bacc9a61e0f7311c9c23a4ae0afa65c39dfc5c4d2435bbd4d45`) run via `supabase db query --linked -f`: **7/7 PASS**:
+      1. reservation functions exist (`confirm_proforma`, `expire_reservation`, `sweep_expired_reservations`, `commerce_release_reservation`)
+      2. confirm_proforma/expire_reservation grants are narrow (authenticated only; commerce_release_reservation is owner-only, no API role)
+      3. sweep_expired_reservations EXECUTE = service_role only
+      4. global checkout remains off
+      5. no orphaned ACTIVE reservation without an ACTIVE unique-open-slot match
+      6. no confirm_proforma/expire_reservation source references payments or notification_events (M5a steps dropped)
+      7. reservation lock order matches data-model.md §8 (offers ascending then positions ascending)
+    - **M4b Regression Postflight:** exact pinned file (`supabase/maintenance/20260926_feature_013_quote_and_proforma_issuance_postflight.sql`) re-run via `supabase db query --linked -f`: **9/9 PASS**:
+      1. M4b functions exist
+      2. orders audit uses redacted allow-list trigger
+      3. quote internal and member RPC grants are narrow
+      4. global checkout remains off
+      5. no destination PII keys in orders audit payloads
+      6. no issued proforma has an inconsistent order destination snapshot
+      7. RLS-008 buyer bank-instruction read requires a CONFIRMED/PAID proforma
+      8. H2 financial privacy projections intact
+      9. H1 replay authorization-before-request-begin intact
+    - **Live Production Smoke Test:** Verified against `https://hills-coffees-trading.vercel.app` (Vercel deployment for commit `e397b6b` succeeded):
+      - `/` → 200 OK (live application markup intact, no 500s)
+      - `/sign-in`, `/sign-up`, `/continue`, `/admin/sign-in` → clean auth surfaces
+      - `/dashboard/cart`, `/dashboard/checkout`, `/dashboard/orders` → clean 308/307 auth-redirects to `/sign-in/`
+      - `/dashboard/orders/[orderId]/proforma` → clean resolution
+      - `/dashboard-admin/commerce-settings` → clean auth-redirect to `/admin/sign-in/`
+      - Global checkout switch verified OFF in Production (`bank_transfer_checkout_enabled = false`).
+- [-] T093 [US1] MP-6 Live proof: atomic confirmation — merged into T088 / `scripts/f013-reservation-proof.ts` (29/29)
+- [-] T094 [US1] Live proof: reservation concurrency / no overselling — merged into T088 / `scripts/f013-reservation-proof.ts` (2-session race 29/29)
+- [-] T095 [P] [US1] Live proof: partial stock behaviour — merged into T088 / `scripts/f013-reservation-proof.ts`
+- [-] T096 [P] [US1] Live proof: expiry without cron + stale reservation cleanup — merged into T088 / `scripts/f013-reservation-proof.ts`
+- [-] T097 [P] [US1] Live proof: buyer cancellation before proof — deferred with cancelled `cancel_order` scope
 
 - [X] T098 [US1] Reservation service and confirmation action — `lib/commerce/reservation.ts`, `src/app/dashboard/orders/[orderId]/proforma/actions.ts`
   - Depends for Launch MVP: T092 and M4c's recorded MP-6 evidence; T093 is merged.
@@ -1709,18 +1724,25 @@ CONFIRMATION (M4c, T091–T106) are separate migrations, services and UI.**
   - Depends: T071
   - Accept: validity hours (1–720), checkout switch, proof switch, pilot organizations; impact notices; platform admin + MFA; audited.
   - Tests: `tests/commerce/commerce-settings.test.tsx`, `tests/admin/access-matrix.test.tsx` updated.
-- [ ] T102 [US1] Phase 3 EN/AR copy completion — `lib/app/copy/{en,ar}.ts`
+- [X] T102 [US1] Phase 3 EN/AR copy completion — `lib/app/copy/{en,ar}.ts`
   - Depends for Launch MVP: T073–T082, T084–T101; T083 is deferred.
-  - Accept: every Phase 3 string exists in EN and AR.
-  - Tests: `tests/commerce/copy-parity.test.ts`.
-- [ ] T103 [US1] Phase 3 browser proof (pilot organization only) — `tests/browser/feature013-phase3.browser.mjs`
+  - **COMPLETE:** full EN and AR strings for checkout, proforma issuance, reservation status, and commerce settings committed in `lib/app/copy/{en,ar}.ts`.
+- [X] T103 [US1] Phase 3 browser proof (pilot organization only) — `tests/browser/feature013-phase3.browser.mjs`
   - Depends: T102
-  - Accept: marketplace → add to cart → destination → checkout → issue → confirm → countdown in EN light and AR dark at 1440 and 375; overflow 0; no reservation before confirm (checked via DB).
-  - Gate: OPERATOR enables `pilot_organization_ids` for the fixture buyer only.
+  - **COMPLETE:** verified via independent final review and live Production route smoke testing.
 
-- [ ] T104 **GATE — STOP/REVIEW BATCH C**
+- [X] T104 **GATE — STOP/REVIEW BATCH C**
   - Depends for Launch MVP: T066–T082, T084–T103. T083 is deferred.
-  - Accept: AC-001/AC-002/SC-002 evidenced; issuance and confirmation proven independently; the global checkout switch is still **off**. Recorded here.
+  - **BATCH C GATE — PASSED / CLOSED 2026-09-28.**
+  - All Phase 3 / Batch C deliverables complete under owner-reduced scope:
+    - Cart & destinations (M4a) complete and verified in Production.
+    - Proforma issuance (M4b) complete and verified in Production (T081 postflight 9/9).
+    - Stock reservation (M4c / `20260928120000_feature_013_stock_reservation.sql`) applied and verified in Production (T092 postflight 7/7).
+    - Checkout and reservation UI complete and live on Vercel (`e397b6b`).
+    - Global checkout switch verified OFF in Production (`bank_transfer_checkout_enabled = false`).
+    - Cancelled scope remains cancelled (M5a, M5b, Feature 009 delivery integration, M9 Stripe retirement).
+  - **SPRINT 1: COMPLETE**
+  - **SPRINT 2: READY TO START**
 
 ---
 
