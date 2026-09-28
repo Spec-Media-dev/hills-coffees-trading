@@ -1,6 +1,6 @@
 import { parseOrderStatus } from "@/lib/commerce/validation";
 import { createClient } from "@/lib/supabase/server";
-import type { OrderFinancialsDTO, PaginatedPayouts, PaymentDTO, PayoutDTO, ProformaDTO, SellerOrderViewDTO, TaxInvoiceDTO } from "@/lib/finance/types";
+import type { BuyerOrderFinancialsDTO, OrderFinancialsDTO, PaginatedPayouts, PaymentDTO, PayoutDTO, ProformaDTO, SellerOrderViewDTO, TaxInvoiceDTO } from "@/lib/finance/types";
 import type { PaymentMethod, PaymentStatus, PayoutStatus, ProformaStatus } from "@/lib/finance/validation";
 
 /**
@@ -24,7 +24,9 @@ import type { PaymentMethod, PaymentStatus, PayoutStatus, ProformaStatus } from 
  * `payments` — `payments_read`: B ∨ F ∨ PA. SELLERS AND AUDITORS CANNOT READ IT (auditors use
  * `v_audit_payments`). `payment_proofs` (never read here): B ∨ F.
  *
- * `order_financials` — `order_financials_read`: B ∨ F ∨ A ∨ PA. Sellers cannot read the full-order economics.
+ * H2 splits `order_financials`: buyers query `v_buyer_order_financials` (amounts due only), while finance,
+ * auditors and platform admins query `v_internal_order_financials` (full frozen settlement). Direct base-table
+ * access is revoked from authenticated, so a buyer cannot add internal fields to a PostgREST select.
  *
  * `proforma_invoices` — `proforma_invoices_read`: B ∨ F ∨ PA. Sellers and auditors cannot read the header
  * (buyer/destination snapshots, bank mask, buyer totals). `proforma_invoice_items`: B ∨ S(own lines) ∨ F ∨ PA.
@@ -55,7 +57,9 @@ import type { PaymentMethod, PaymentStatus, PayoutStatus, ProformaStatus } from 
 const PAYMENT_SELECT = "id, order_id, payment_method, provider, external_reference, amount, currency, status, confirmed_at, rejected_reason, correlation_id, created_at, updated_at";
 
 const ORDER_FINANCIALS_SELECT =
-  "order_id, base_subtotal, shipping_amount, vat_amount, commission_amount, seller_net_amount, buyer_total_amount, total_quantity_kg, currency, commission_policy_id, commission_percentage_snapshot, tax_rule_id, tax_percentage_snapshot, tax_base_snapshot, calculated_at";
+  "order_id, base_subtotal, shipping_amount, vat_amount, buyer_total_amount, total_quantity_kg, currency, calculated_at";
+const INTERNAL_ORDER_FINANCIALS_SELECT =
+  "order_id, base_subtotal, discount_amount, seller_funded_discount, hills_funded_discount, shipping_amount, vat_amount, buyer_total_amount, total_quantity_kg, commission_amount, seller_net_amount, hills_share_amount, currency, commission_policy_id, commission_percentage_snapshot, tax_rule_id, tax_percentage_snapshot, tax_base_snapshot, calculated_at";
 
 const PROFORMA_SELECT = "id, order_id, proforma_code, status, issued_at, valid_until, file_asset_id";
 const PROFORMA_ITEM_SELECT = "id, proforma_id, order_item_id, description, quantity_kg, unit_price, amount";
@@ -111,46 +115,61 @@ type FinancialsRow = {
   base_subtotal: number;
   shipping_amount: number;
   vat_amount: number;
-  commission_amount: number;
-  seller_net_amount: number;
   buyer_total_amount: number;
   total_quantity_kg: number;
   currency: string;
-  commission_policy_id: string | null;
-  commission_percentage_snapshot: number | null;
-  tax_rule_id: string | null;
-  tax_percentage_snapshot: number | null;
-  tax_base_snapshot: string | null;
   calculated_at: string;
 };
 
-/** Verbatim column-for-column mapping (T006) — `Number()` coerces PostgREST's numeric strings, nothing else changes. */
-function mapFinancialsRow(row: FinancialsRow): OrderFinancialsDTO {
+/** Buyer-safe verbatim mapping — no commission/seller/Hills settlement field enters this DTO. */
+function mapBuyerFinancialsRow(row: FinancialsRow): BuyerOrderFinancialsDTO {
   return {
     orderId: row.order_id,
     baseSubtotal: Number(row.base_subtotal),
     shippingAmount: Number(row.shipping_amount),
     vatAmount: Number(row.vat_amount),
-    commissionAmount: Number(row.commission_amount),
-    sellerNetAmount: Number(row.seller_net_amount),
     buyerTotalAmount: Number(row.buyer_total_amount),
     totalQuantityKg: Number(row.total_quantity_kg),
     currency: row.currency,
+    calculatedAt: row.calculated_at,
+  };
+}
+
+type InternalFinancialsRow = FinancialsRow & {
+  commission_amount: number;
+  seller_net_amount: number;
+  hills_share_amount: number;
+  commission_policy_id: string | null;
+  commission_percentage_snapshot: number | null;
+  tax_rule_id: string | null;
+  tax_percentage_snapshot: number | null;
+  tax_base_snapshot: string | null;
+};
+
+function mapInternalFinancialsRow(row: InternalFinancialsRow): OrderFinancialsDTO {
+  return {
+    ...mapBuyerFinancialsRow(row),
+    commissionAmount: Number(row.commission_amount),
+    sellerNetAmount: Number(row.seller_net_amount),
+    hillsShareAmount: Number(row.hills_share_amount),
     commissionPolicyId: row.commission_policy_id,
     commissionPercentageSnapshot: row.commission_percentage_snapshot === null ? null : Number(row.commission_percentage_snapshot),
     taxRuleId: row.tax_rule_id,
     taxPercentageSnapshot: row.tax_percentage_snapshot === null ? null : Number(row.tax_percentage_snapshot),
     taxBaseSnapshot: row.tax_base_snapshot,
-    calculatedAt: row.calculated_at,
   };
 }
 
-/** `order_financials` — RLS-scoped (M3 `order_financials_read`: buyer, finance, auditor, platform admin — never a
- * seller), a snapshot written ONCE by `checkout_order()` (Feature 007). `null` until checkout has run, or when not permitted. */
-export async function getOrderFinancials({ orderId }: { orderId: string }): Promise<OrderFinancialsDTO | null> {
+/**
+ * Returns full frozen settlement only to finance/admin/auditor; otherwise the buyer-safe projection.
+ * Sellers and unrelated callers receive null from both views. The table itself is intentionally never queried.
+ */
+export async function getOrderFinancials({ orderId }: { orderId: string }): Promise<BuyerOrderFinancialsDTO | OrderFinancialsDTO | null> {
   const supabase = await createClient();
-  const { data: row } = await supabase.from("order_financials").select(ORDER_FINANCIALS_SELECT).eq("order_id", orderId).maybeSingle();
-  return row ? mapFinancialsRow(row) : null;
+  const { data: internal } = await supabase.from("v_internal_order_financials").select(INTERNAL_ORDER_FINANCIALS_SELECT).eq("order_id", orderId).maybeSingle();
+  if (internal) return mapInternalFinancialsRow(internal as InternalFinancialsRow);
+  const { data: buyer } = await supabase.from("v_buyer_order_financials").select(ORDER_FINANCIALS_SELECT).eq("order_id", orderId).maybeSingle();
+  return buyer ? mapBuyerFinancialsRow(buyer as FinancialsRow) : null;
 }
 
 /** `proforma_invoices` + its items — RLS-scoped (M3 `proforma_invoices_read`: buyer, finance, platform admin — never a

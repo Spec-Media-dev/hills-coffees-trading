@@ -348,8 +348,8 @@ describe("T058 — rollback and history", () => {
   it("no applied migration, rollback, postflight or Feature 008 file differs from HEAD", () => {
     const changed = execFileSync("git", ["diff", "--name-only", "HEAD", "--", "supabase/migrations", "supabase/rollback", "supabase/maintenance", "specs/008-stripe-trusted-funding", "specs"], { encoding: "utf8" })
       .split(/\r?\n/).filter(Boolean).filter((f) => !f.endsWith("specs/013-bank-transfer-commerce-core/tasks.md"))
-      // the pre-apply M4a contract correction (T069 owner decisions A1–A4, A6) is the only other allowed spec change
-      .filter((f) => !f.endsWith("specs/013-bank-transfer-commerce-core/contracts/database-rpc.md"));
+      // The current, unapplied M4b change set may supersede M4a's replay ordering and its financial-read contract.
+      .filter((f) => !/^(?:supabase\/(?:migrations|rollback)\/20260926103000_feature_013_quote_and_proforma_issuance|supabase\/maintenance\/20260926_feature_013_quote_and_proforma_issuance_postflight|specs\/013-bank-transfer-commerce-core\/(?:contracts\/(?:database-rpc|rls-storage)\.md|tasks\.md))/.test(f));
     expect(changed).toEqual([]);
   });
 });

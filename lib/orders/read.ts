@@ -59,7 +59,7 @@ const ORDER_ITEM_SELECT =
   "id, order_id, offer_id, lot_id, seller_organization_id, quantity_kg, unit_price_per_kg, product_name_snapshot, origin_name_snapshot, variant_name_snapshot, lot_code_snapshot, seller_type_snapshot, currency, created_at";
 
 const ORDER_FINANCIALS_SELECT =
-  "order_id, base_subtotal, shipping_amount, vat_amount, commission_amount, seller_net_amount, buyer_total_amount, total_quantity_kg, currency, commission_policy_id, commission_percentage_snapshot, tax_rule_id, tax_percentage_snapshot, tax_base_snapshot, calculated_at";
+  "order_id, base_subtotal, shipping_amount, vat_amount, buyer_total_amount, total_quantity_kg, currency, calculated_at";
 
 const PROFORMA_SELECT = "id, order_id, proforma_code, status, issued_at, valid_until, file_asset_id";
 const PROFORMA_ITEM_SELECT = "id, proforma_id, order_item_id, description, quantity_kg, unit_price, amount";
@@ -179,12 +179,12 @@ export async function getOrderItems({ orderId }: { orderId: string }): Promise<r
 }
 
 /**
- * `order_financials` — a VERBATIM pass-through, never recomputed (FR-010). `null` for every RUN A
- * order (the row is written exactly once, by `checkout_order()`, Phase 4 — not called this run).
+ * Buyer-safe `v_buyer_order_financials` projection — never recomputed. The base table is deliberately
+ * inaccessible to buyers: it contains seller/Hills settlement data (H2).
  */
 export async function getOrderFinancials({ orderId }: { orderId: string }): Promise<OrderFinancialsDTO | null> {
   const supabase = await createClient();
-  const { data: row } = await supabase.from("order_financials").select(ORDER_FINANCIALS_SELECT).eq("order_id", orderId).maybeSingle();
+  const { data: row } = await supabase.from("v_buyer_order_financials").select(ORDER_FINANCIALS_SELECT).eq("order_id", orderId).maybeSingle();
   if (!row) return null;
   return mapFinancialsRow(row);
 }
@@ -194,16 +194,9 @@ type FinancialsRow = {
   base_subtotal: number;
   shipping_amount: number;
   vat_amount: number;
-  commission_amount: number;
-  seller_net_amount: number;
   buyer_total_amount: number;
   total_quantity_kg: number;
   currency: string;
-  commission_policy_id: string | null;
-  commission_percentage_snapshot: number | null;
-  tax_rule_id: string | null;
-  tax_percentage_snapshot: number | null;
-  tax_base_snapshot: string | null;
   calculated_at: string;
 };
 
@@ -214,24 +207,16 @@ function mapFinancialsRow(row: FinancialsRow): OrderFinancialsDTO {
     baseSubtotal: Number(row.base_subtotal),
     shippingAmount: Number(row.shipping_amount),
     vatAmount: Number(row.vat_amount),
-    commissionAmount: Number(row.commission_amount),
-    sellerNetAmount: Number(row.seller_net_amount),
     buyerTotalAmount: Number(row.buyer_total_amount),
     totalQuantityKg: Number(row.total_quantity_kg),
     currency: row.currency,
-    commissionPolicyId: row.commission_policy_id,
-    commissionPercentageSnapshot: row.commission_percentage_snapshot === null ? null : Number(row.commission_percentage_snapshot),
-    taxRuleId: row.tax_rule_id,
-    taxPercentageSnapshot: row.tax_percentage_snapshot === null ? null : Number(row.tax_percentage_snapshot),
-    taxBaseSnapshot: row.tax_base_snapshot,
     calculatedAt: row.calculated_at,
   };
 }
 
 /**
- * Feature 007 RUN C (T015) — the financial snapshots for ONE PAGE of orders (bounded by the ids the
- * caller already fetched, never an org-wide scan). Verbatim pass-through, keyed by order id; orders
- * without a snapshot (never checked out) are simply absent.
+ * Buyer-safe financial snapshots for ONE PAGE of already-authorized buyer orders. Internal settlement
+ * values remain unavailable through this projection.
  */
 export async function getOrderFinancialsForOrders({ orderIds }: { orderIds: readonly string[] }): Promise<Map<string, OrderFinancialsDTO>> {
   const result = new Map<string, OrderFinancialsDTO>();
@@ -239,7 +224,7 @@ export async function getOrderFinancialsForOrders({ orderIds }: { orderIds: read
   if (ids.length === 0) return result;
 
   const supabase = await createClient();
-  const { data: rows } = await supabase.from("order_financials").select(ORDER_FINANCIALS_SELECT).in("order_id", ids);
+  const { data: rows } = await supabase.from("v_buyer_order_financials").select(ORDER_FINANCIALS_SELECT).in("order_id", ids);
   for (const row of rows ?? []) result.set(row.order_id, mapFinancialsRow(row));
   return result;
 }

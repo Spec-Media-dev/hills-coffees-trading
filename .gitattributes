@@ -1,3 +1,6 @@
 tools/f013-local/sql/*.sql text eol=lf
 supabase/migrations/20260926100000_feature_013_cart_destination_rpcs.sql text eol=lf
 supabase/maintenance/20260926_feature_013_cart_destination_rpcs_postflight.sql text eol=lf
+supabase/migrations/20260926103000_feature_013_quote_and_proforma_issuance.sql text eol=lf
+supabase/rollback/20260926103000_feature_013_quote_and_proforma_issuance.rollback.sql text eol=lf
+supabase/maintenance/20260926_feature_013_quote_and_proforma_issuance_postflight.sql text eol=lf

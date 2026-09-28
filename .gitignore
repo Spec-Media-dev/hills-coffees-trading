@@ -32,7 +32,6 @@ yarn-error.log*
 
 # env files (.env.example is intentionally tracked as the documented template — see
 # specs/001-platform-foundation/research.md §14)
-.env
 .env*.local
 
 # supabase CLI link metadata (project ref / pooler URL written by `supabase link`; machine-local, never committed)
@@ -47,3 +46,4 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+config.bat

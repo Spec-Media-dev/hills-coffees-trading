@@ -102,7 +102,7 @@ describe.skipIf(!F008_LIVE)("T028 — historical payout/order_financials snapsho
   const snapshot = async () => {
     const [payoutRows, financials, proforma] = await Promise.all([
       sessions.orgB.from("payouts").select("id, order_id, seller_organization_id, amount, currency, status, paid_at, payment_reference, created_at").eq("order_id", resaleOrderId).order("id"),
-      sessions.finance.from("order_financials").select(FINANCIALS_COLUMNS).eq("order_id", resaleOrderId).maybeSingle(),
+      sessions.finance.from("v_internal_order_financials").select(FINANCIALS_COLUMNS).eq("order_id", resaleOrderId).maybeSingle(),
       sessions.finance.from("proforma_invoices").select(PROFORMA_COLUMNS).eq("order_id", resaleOrderId).maybeSingle(),
     ]);
     return { payouts: payoutRows.data, financials: financials.data, proforma: proforma.data };
@@ -119,7 +119,7 @@ describe.skipIf(!F008_LIVE)("T028 — historical payout/order_financials snapsho
 
   it("1b Feature 013 M3: the seller itself cannot read the full-order financials or the proforma header (it keeps its own payout)", async () => {
     const [financials, proforma] = await Promise.all([
-      sessions.orgB.from("order_financials").select(FINANCIALS_COLUMNS).eq("order_id", resaleOrderId).maybeSingle(),
+      sessions.orgB.from("v_internal_order_financials").select(FINANCIALS_COLUMNS).eq("order_id", resaleOrderId).maybeSingle(),
       sessions.orgB.from("proforma_invoices").select(PROFORMA_COLUMNS).eq("order_id", resaleOrderId).maybeSingle(),
     ]);
     expect(financials.data).toBeNull();

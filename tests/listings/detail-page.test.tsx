@@ -2,14 +2,13 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { LocaleProvider } from "@/components/locale/locale-provider";
 import { INVENTORY_FIXTURES, LISTING_FIXTURES, signInAsFixture } from "@/tests/auth/fixture-session";
 
 afterEach(cleanup);
 
 /**
- * Feature 006 RUN B (T010) — the marketplace listing detail page. No identity check of its own (the
- * guard lives at `../layout.tsx`).
+ * Feature 006 T010 with Feature 013 cart handoff. The layout guards listing reads; this page
+ * resolves the acting organization only to disable an own-listing add-to-cart control.
  */
 const serverClientState = vi.hoisted(() => ({ client: null as SupabaseClient | null }));
 
@@ -26,19 +25,22 @@ async function loadPage() {
 }
 
 describe("T010 — marketplace listing detail (live)", () => {
-  it("a real, authorized member sees the published fixture's full detail: quantities, price, no reservation write, no purchase action beyond the disabled placeholder", async () => {
+  it("a real, authorized member sees the published fixture's full detail and an unreserved add-to-cart control", async () => {
     const client = await signInAsFixture(INVENTORY_FIXTURES.orgB.email);
     serverClientState.client = client;
     const { default: MarketplaceListingDetailPage } = await loadPage();
     const element = await MarketplaceListingDetailPage({ params: Promise.resolve({ offerId: LISTING_FIXTURES.offerPublished }) });
+    // Same registry as the freshly loaded page (vi.resetModules()), so AddToCartForm sees the provided locale context.
+    const { LocaleProvider } = await import("@/components/locale/locale-provider");
     render(<LocaleProvider>{element}</LocaleProvider>);
 
     expect(screen.getAllByText("Feature 006 Fixture — Published Listing").length).toBeGreaterThan(0);
     expect(screen.getByText("USD 12.75")).toBeTruthy();
     // remaining = 100 - 15.5 - 24.5 = 60, from lib/listings/fills.ts, never recomputed here.
     expect(screen.getByText("60 kg")).toBeTruthy();
-    const purchaseButton = screen.getByRole("button", { name: /Purchasing isn.t available yet/i });
-    expect(purchaseButton.hasAttribute("disabled") || purchaseButton.getAttribute("aria-disabled") === "true").toBe(true);
+    const purchaseButton = screen.getByRole("button", { name: /Add to cart/i });
+    expect(purchaseButton.hasAttribute("disabled")).toBe(false);
+    expect(screen.getByText(/Cart quantities are not reserved/)).toBeTruthy();
   });
 
   it("a genuinely inaccessible/nonexistent offer id triggers notFound() rather than any leaking branch", async () => {
@@ -51,10 +53,13 @@ describe("T010 — marketplace listing detail (live)", () => {
 });
 
 describe("T010 — source-level proofs", () => {
-  it("performs no identity check of its own (guard lives at layout.tsx)", async () => {
+  it("uses identity to suppress own-organization cart controls (layout remains the read guard)", async () => {
     const { readFileSync } = await import("node:fs");
     const source = readFileSync("src/app/dashboard/coffee/[offerId]/page.tsx", "utf8");
+    // Identity is resolved in lib/commerce/cart.ts (display input only); the page itself never calls the DAL.
     expect(source).not.toMatch(/getRequestIdentity/);
+    expect(source).toMatch(/getBuyerOrganizationId/);
+    expect(source).toMatch(/buyerOrganizationId/);
     expect(source).toMatch(/notFound\(\)/);
   });
 
@@ -65,10 +70,10 @@ describe("T010 — source-level proofs", () => {
     expect(source).not.toMatch(/checkout_order|inventory_reservation/);
   });
 
-  it("the purchase control is a genuinely disabled button, never a dead link pretending checkout exists", async () => {
+  it("the purchase control is an add-to-cart form, never a direct checkout link", async () => {
     const { readFileSync } = await import("node:fs");
     const source = readFileSync("src/app/dashboard/coffee/[offerId]/page.tsx", "utf8");
-    expect(source).toMatch(/<Button[^>]*\sdisabled[^>]*>/);
+    expect(source).toMatch(/<AddToCartForm/);
     expect(source).not.toMatch(/href=.*checkout|href=.*\/orders\/new/);
   });
 });

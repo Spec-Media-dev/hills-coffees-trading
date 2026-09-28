@@ -44,18 +44,23 @@ export type PaymentDTO = {
   updatedAt: string;
 };
 
-/** `order_financials` — the immutable checkout snapshot (FR-002, FR-016, T006). A `null` result means
- * checkout has never run for this order; it is never treated as "zero" or backfilled. */
-export type OrderFinancialsDTO = {
+/** Buyer-safe immutable order snapshot. */
+export type BuyerOrderFinancialsDTO = {
   orderId: string;
   baseSubtotal: number;
   shippingAmount: number;
   vatAmount: number;
-  commissionAmount: number;
-  sellerNetAmount: number;
   buyerTotalAmount: number;
   totalQuantityKg: number;
   currency: string;
+  calculatedAt: string;
+};
+
+/** Finance/admin/auditor-only extension; never returned by the buyer projection. */
+export type OrderFinancialsDTO = BuyerOrderFinancialsDTO & {
+  commissionAmount: number;
+  sellerNetAmount: number;
+  hillsShareAmount: number;
   /** Snapshot-only (T006): identifies WHICH policy applied at checkout time. Never used to re-query
    * `commission_policies`/`commission_tiers` for a live percentage. */
   commissionPolicyId: string | null;
@@ -63,7 +68,6 @@ export type OrderFinancialsDTO = {
   taxRuleId: string | null;
   taxPercentageSnapshot: number | null;
   taxBaseSnapshot: string | null;
-  calculatedAt: string;
 };
 
 export type ProformaItemDTO = {

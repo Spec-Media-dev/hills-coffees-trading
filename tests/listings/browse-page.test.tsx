@@ -2,7 +2,6 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { LocaleProvider } from "@/components/locale/locale-provider";
 import { INVENTORY_FIXTURES, signInAsFixture } from "@/tests/auth/fixture-session";
 
 afterEach(cleanup);
@@ -26,6 +25,9 @@ async function renderPage(client: SupabaseClient, searchParams: { page?: string;
   vi.resetModules();
   const { default: MarketplacePage } = await import("@/src/app/dashboard/coffee/page");
   const element = await MarketplacePage({ searchParams: Promise.resolve(searchParams) });
+  // The page embeds the client AddToCartForm; after vi.resetModules() the provider must come from the same module
+  // registry as the page, or the context instance differs.
+  const { LocaleProvider } = await import("@/components/locale/locale-provider");
   render(<LocaleProvider>{element}</LocaleProvider>);
 }
 
@@ -64,10 +66,13 @@ describe("T009 — marketplace browse (live)", () => {
 });
 
 describe("T009 — source-level proofs", () => {
-  it("performs no identity check of its own (guard lives at layout.tsx)", async () => {
+  it("uses identity only to suppress own-organization cart controls (layout remains the read guard)", async () => {
     const { readFileSync } = await import("node:fs");
     const source = readFileSync("src/app/dashboard/coffee/page.tsx", "utf8");
+    // Identity is resolved in lib/commerce/cart.ts (display input only); the page itself never calls the DAL.
     expect(source).not.toMatch(/getRequestIdentity/);
+    expect(source).toMatch(/getBuyerOrganizationId/);
+    expect(source).toMatch(/buyerOrganizationId/);
   });
 
   it("declares no cache directive and no service-role usage", async () => {

@@ -126,22 +126,18 @@ export type OrderItemDTO = {
   createdAt: string;
 };
 
-/** `order_financials` — a snapshot written ONCE by `checkout_order()`; `null` until checkout has run (every RUN A order). */
+/**
+ * Buyer-safe order-financial snapshot. H2 deliberately excludes seller/Hills settlement values: a
+ * buyer needs the amount due, not commission, seller net or Hills share.
+ */
 export type OrderFinancialsDTO = {
   orderId: string;
   baseSubtotal: number;
   shippingAmount: number;
   vatAmount: number;
-  commissionAmount: number;
-  sellerNetAmount: number;
   buyerTotalAmount: number;
   totalQuantityKg: number;
   currency: string;
-  commissionPolicyId: string | null;
-  commissionPercentageSnapshot: number | null;
-  taxRuleId: string | null;
-  taxPercentageSnapshot: number | null;
-  taxBaseSnapshot: string | null;
   calculatedAt: string;
 };
 

@@ -245,7 +245,15 @@ describe("T019 — all seven KYB states + the implicit no-application state", ()
     const en = readFileSync("lib/app/copy/en.ts", "utf8");
     // The member-facing section is the top-level `kyb` key (4-space indent); Feature 010 later added
     // an `admin.compliance.statuses.kyb` map that must not be mistaken for it.
-    const kybSection = en.slice(en.indexOf("\n    kyb: {"));
+    // Bounded at the next top-level (4-space) key: the scan must cover the WHOLE kyb section and nothing after it
+    // (unrelated later copy — e.g. the Feature 013 admin error "between 1 and 720 hours" — is not KYB status copy).
+    const kybStart = en.indexOf("\n    kyb: {");
+    expect(kybStart).toBeGreaterThan(-1);
+    const afterKyb = en.slice(kybStart + 1);
+    const kybEnd = afterKyb.slice(1).search(/\n {4}[a-zA-Z]+: [{[]/) + 1;
+    const kybSection = kybEnd > 0 ? afterKyb.slice(0, kybEnd) : afterKyb;
+    expect(kybSection.split("\n").length).toBeGreaterThan(80);
+    expect(kybSection).toMatch(/^ {4}kyb: \{[\s\S]*\n {4}\},?\s*$/);
     expect(kybSection).not.toMatch(/\d+\s*(hours?|days?|business days?)/i);
     expect(kybSection).not.toMatch(/reviewer:\s*"(?!Hills Compliance)/);
   });

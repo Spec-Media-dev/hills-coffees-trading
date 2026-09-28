@@ -140,6 +140,7 @@ function childEnvironmentViolations(path: string, contents: string): string[] {
       "tests/orders/checkout.test.ts", "tests/orders/audits.test.ts", "tests/orders/error-mapping.test.ts",
       "tests/orders/expiry.test.ts", "tests/orders/no-title-transfer.test.ts",
       "tests/commerce/migrations/m3-rls.test.ts", "tests/commerce/migrations/m4a-cart-rpcs.test.ts",
+      "tests/commerce/migrations/m4b-issuance.test.ts",
       "tests/public/cache-identity-independence.test.ts", "tests/public/client-island-audit.test.ts",
     ]);
     const gitArg = call.arguments[1] && ts.isArrayLiteralExpression(call.arguments[1]) && call.arguments[1].elements[0] ? constantString(call.arguments[1].elements[0], stringConstants(ast)) : undefined;
