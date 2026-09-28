@@ -9,6 +9,8 @@ describe("T074 cart page", () => {
     expect(source).toContain("sellerOrganizationId");
     expect(source).toContain("warehouseId");
     expect(source).toContain("cartUi.notReserved");
+    expect(source).toContain('href="/dashboard/checkout"');
+    expect(source).not.toContain("checkoutPending");
     expect(source).not.toMatch(/estimatedUnitPrice\s*[+*]/);
     expect(source).not.toContain("inventory_reservations");
   });

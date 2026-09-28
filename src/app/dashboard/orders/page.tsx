@@ -10,6 +10,7 @@ import { OrderStatusBadge } from "@/components/orders/order-status-badge";
 import { Button } from "@/components/ui/button";
 import { appCopy } from "@/lib/app/copy";
 import { getRequestIdentity } from "@/lib/auth/dal";
+import { ensureReservationFresh } from "@/lib/commerce/reservation";
 import { ensureHoldFresh, selectStaleHolds } from "@/lib/orders/expiry";
 import { getOrderFinancialsForOrders, getOrdersForOrganization } from "@/lib/orders/read";
 import type { OrderFinancialsDTO, OrderSummary } from "@/lib/orders/validation";
@@ -23,6 +24,10 @@ export const metadata: Metadata = {
 const PAGE_SIZE = 25;
 
 type OrderListRow = { order: OrderSummary; financials: OrderFinancialsDTO | null };
+
+function isPastDeadline(iso: string): boolean {
+  return new Date(iso).getTime() <= Date.now();
+}
 
 /**
  * Feature 007 (T005 → T015) — the buyer's own orders list. Reads exclusively through
@@ -55,9 +60,13 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
 
   let { rows, hasMore } = await getOrdersForOrganization({ organizationId, page, pageSize: PAGE_SIZE });
 
-  const staleHolds = selectStaleHolds(rows);
-  if (staleHolds.length > 0) {
-    await Promise.all(staleHolds.map((stale) => ensureHoldFresh(stale.id)));
+  const staleLegacyHolds = selectStaleHolds(rows.filter((order) => order.commerceFlow === "LEGACY"));
+  const staleV1Holds = rows.filter((order) => order.commerceFlow === "BANK_TRANSFER_V1" && order.status === "HOLD" && order.holdExpiresAt && isPastDeadline(order.holdExpiresAt));
+  if (staleLegacyHolds.length > 0 || staleV1Holds.length > 0) {
+    await Promise.all([
+      ...staleLegacyHolds.map((stale) => ensureHoldFresh(stale.id)),
+      ...staleV1Holds.map((stale) => ensureReservationFresh(stale.id)),
+    ]);
     ({ rows, hasMore } = await getOrdersForOrganization({ organizationId, page, pageSize: PAGE_SIZE }));
   }
 
@@ -125,7 +134,8 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
       ),
       render: ({ order }) => (
         <Link
-          href={`/dashboard/orders/${order.id}`}
+          // Feature 013 T100: a V1 order's own timeline lives at `/proforma`, never the legacy detail page.
+          href={order.commerceFlow === "BANK_TRANSFER_V1" ? (order.status === "DRAFT" ? "/dashboard/cart" : `/dashboard/orders/${order.id}/proforma`) : `/dashboard/orders/${order.id}`}
           className="inline-flex min-h-11 min-w-11 items-center rounded-[var(--radius-sm)] px-1 text-[length:var(--text-small)] font-medium text-foreground underline underline-offset-4 hover:no-underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus-ring)]"
         >
           <AppBilingual pick={(c) => c.orders.list.viewDetails} />

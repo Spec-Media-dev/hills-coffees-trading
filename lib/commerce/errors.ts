@@ -90,13 +90,14 @@ const COMMERCE_ERROR_MESSAGE_KEYS = {
   inventory_quantity_not_available: "stock_unavailable",
   forbidden: "access_denied",
 } as const satisfies Partial<Record<CommerceErrorCode, keyof typeof en.commerce.errors>>;
-type CommerceErrorMessageKey = Exclude<CommerceErrorCode, keyof typeof COMMERCE_ERROR_MESSAGE_KEYS> | (typeof COMMERCE_ERROR_MESSAGE_KEYS)[keyof typeof COMMERCE_ERROR_MESSAGE_KEYS];
+export type CommerceErrorMessageKey = Exclude<CommerceErrorCode, keyof typeof COMMERCE_ERROR_MESSAGE_KEYS> | (typeof COMMERCE_ERROR_MESSAGE_KEYS)[keyof typeof COMMERCE_ERROR_MESSAGE_KEYS];
 
 /** Compile-time proof that the canonical English copy has a message for every sanitized contract code. */
 const ENGLISH_MESSAGES: Readonly<Record<CommerceErrorMessageKey | "generic", string>> = en.commerce.errors;
 
-function commerceErrorMessageKey(code: CommerceErrorCode | null): CommerceErrorMessageKey | "generic" {
-  if (code === null) return "generic";
+/** Exported for Server Components that render a commerce error bilingually via `AppBilingual` (never through `mapCommerceError`'s single-locale string, which assumes a known request locale a Server Component does not have). */
+export function commerceErrorMessageKey(code: CommerceErrorCode | "commerce_error" | null): CommerceErrorMessageKey | "generic" {
+  if (code === null || code === "commerce_error") return "generic";
   return COMMERCE_ERROR_MESSAGE_KEYS[code as keyof typeof COMMERCE_ERROR_MESSAGE_KEYS] ?? code;
 }
 

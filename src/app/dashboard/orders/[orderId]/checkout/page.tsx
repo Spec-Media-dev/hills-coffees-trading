@@ -48,6 +48,11 @@ export default async function CheckoutReviewPage({ params }: { params: Promise<{
   const order = await getOrderById({ organizationId: identity.organization.organizationId, orderId });
   if (!order) notFound();
 
+  // Feature 013 T100: this legacy checkout review page is `LEGACY`-flow only. A `BANK_TRANSFER_V1`
+  // order never reaches this route's flow (its own checkout is `/dashboard/checkout` + `/proforma`);
+  // no customer route may expose the legacy checkout/Stripe-adjacent surface to a V1 order.
+  if (order.commerceFlow === "BANK_TRANSFER_V1") redirect(order.status === "DRAFT" ? "/dashboard/checkout" : `/dashboard/orders/${orderId}/proforma`);
+
   if ((POST_CHECKOUT_STATUSES as readonly string[]).includes(order.status)) {
     redirect(`/dashboard/orders/${order.id}`);
   }

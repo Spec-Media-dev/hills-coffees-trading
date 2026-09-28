@@ -20,9 +20,11 @@ import { useLocale } from "@/components/locale/locale-provider";
  * This is a working component RUN B needs; it does NOT claim T017 (Phase 6), whose own acceptance
  * (monospaced order/proforma codes + a `financial-summary.tsx`) is a separate, later task.
  */
-export function HoldCountdown({ holdExpiresAt }: { holdExpiresAt: string }) {
+type CountdownLabels = { remainingLabel: string; expired: string; countdownSummary: string; countdownSummaryUnderMinute: string };
+
+export function HoldCountdown({ holdExpiresAt, labels }: { holdExpiresAt: string; labels?: CountdownLabels }) {
   const { tApp } = useLocale();
-  const copy = tApp.orders.hold;
+  const copy = labels ?? tApp.orders.hold;
   const [remainingMs, setRemainingMs] = useState<number | null>(null);
 
   useEffect(() => {

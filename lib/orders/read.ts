@@ -1,5 +1,6 @@
 import { readOrderStatusHistory } from "@/lib/audit/history";
 import { createClient } from "@/lib/supabase/server";
+import type { CommerceFlow } from "@/lib/commerce/types";
 import type {
   OrderFinancialsDTO,
   OrderItemDTO,
@@ -53,7 +54,7 @@ const DEFAULT_PAGE_SIZE = 25;
 const MAX_PAGE_SIZE = 100;
 
 const ORDER_SELECT =
-  "id, order_code, buyer_organization_id, status, currency, hold_started_at, hold_expires_at, confirmed_at, paid_at, completed_at, created_by, created_at, updated_at, correlation_id, idempotency_key";
+  "id, order_code, buyer_organization_id, commerce_flow, status, currency, hold_started_at, hold_expires_at, confirmed_at, paid_at, completed_at, created_by, created_at, updated_at, correlation_id, idempotency_key";
 
 const ORDER_ITEM_SELECT =
   "id, order_id, offer_id, lot_id, seller_organization_id, quantity_kg, unit_price_per_kg, product_name_snapshot, origin_name_snapshot, variant_name_snapshot, lot_code_snapshot, seller_type_snapshot, currency, created_at";
@@ -73,6 +74,7 @@ type OrderRow = {
   id: string;
   order_code: string;
   buyer_organization_id: string;
+  commerce_flow: string;
   status: string;
   currency: string;
   hold_started_at: string | null;
@@ -92,6 +94,7 @@ function mapOrderRow(row: OrderRow): OrderSummary {
     id: row.id,
     orderCode: row.order_code,
     buyerOrganizationId: row.buyer_organization_id,
+    commerceFlow: row.commerce_flow as CommerceFlow,
     status: row.status as OrderStatus,
     currency: row.currency,
     holdStartedAt: row.hold_started_at,

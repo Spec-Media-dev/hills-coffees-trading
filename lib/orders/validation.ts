@@ -75,6 +75,8 @@ export type OrderSummary = {
   id: string;
   orderCode: string;
   buyerOrganizationId: string;
+  /** Feature 013 T100 — `orders.commerce_flow` (`"LEGACY"` | `"BANK_TRANSFER_V1"`), read from `lib/commerce/types.ts`'s canonical CHECK-constraint-derived type. */
+  commerceFlow: import("@/lib/commerce/types").CommerceFlow;
   status: OrderStatus;
   currency: string;
   holdStartedAt: string | null;

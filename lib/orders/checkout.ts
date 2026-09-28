@@ -139,6 +139,11 @@ export async function executeCheckout(orderId: string): Promise<ActionFeedbackRe
   if (!order) {
     return { ok: false, code: ACTION_FEEDBACK.ORDER_NOT_FOUND };
   }
+  // Feature 013: the legacy checkout_order path must never be invoked for a V1 cart.
+  // validate_order_transition also forbids V1 DRAFT -> CONFIRMED; this is the app-layer fence.
+  if (order.commerceFlow === "BANK_TRANSFER_V1") {
+    return { ok: false, code: ACTION_FEEDBACK.ORDER_TRANSITION_REFUSED };
+  }
 
   const supabase = await createClient();
 

@@ -36,6 +36,18 @@ The in-scope lifecycle is:
 
 Out of scope are card payments, payment gateways, automated bank transfers, automated seller payouts, normal post-payment customer returns/refunds, public marketplace pricing, non-USD settlement in the first release, Firebase configuration, and destructive rewriting of historical Feature 008 artifacts.
 
+### Owner scope reduction (2026-09-28) — supersedes the 2026-09-28 Launch MVP scope authority above for everything past reservation
+
+**Owner decision, Abdelaziz Essam, 2026-09-28:** the current product scope now stops at the 20-minute quantity reservation. Everything downstream is **CANCELLED BY OWNER**, not deferred or reduced-and-kept: M5a bank-transfer instructions/private proof workflow, M5b finance settlement/confirm-payment/payout-liability workflow, Feature 009 delivery/fulfillment **integration as a Sprint-1 dependency** (the existing Feature 009 shipment module itself is untouched and remains in production use for LEGACY orders; only its wiring into this feature's M5b handoff is cancelled), and M9 Stripe runtime retirement. This is a product-scope decision, not a technical one: nothing about M5a–M9's original design was found unsound.
+
+The in-scope lifecycle for the current product is therefore:
+
+**Marketplace → Cart → Delivery Destination → Checkout → Proforma → Buyer Confirmation → 20-minute Quantity Reservation → (reservation expires; no further state is reachable in this product)**
+
+`confirm_proforma`/`expire_reservation`/`sweep_expired_reservations` are authored exactly as already documented in [contracts/database-rpc.md](./contracts/database-rpc.md) and [research.md R-9](./research.md), minus the two steps that existed only to feed the now-cancelled M5a/M5b workflow: no `payments` row is written by `confirm_proforma` (nothing reads it without M5a/M5b), and no `order.awaiting_transfer`/`order.expired` notification is emitted (no buyer-facing next action exists to notify about). `cancel_order` and `admin_void_order` are not authored: the 20-minute expiry already provides a complete, self-releasing lifecycle with no downstream state to protect against.
+
+This reduction does **not** touch: M1–M4b (already applied to Production and untouched by this decision), Feature 009 itself (the delivery/shipment module remains live for LEGACY orders, only its M5b integration is cancelled), or historical migrations/evidence. Nothing here silently erases the historical M5a/M5b/M9/delivery-integration design in the sections below or in [tasks.md](./tasks.md) — it is marked CANCELLED BY OWNER there, not deleted, in case a future scope amendment revives it.
+
 ## Clarifications
 
 ### Session 2026-09-24

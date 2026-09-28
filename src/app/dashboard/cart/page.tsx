@@ -41,10 +41,9 @@ export default async function CartPage() {
             <CartGroup key={key} orderId={cart.orderId!} lines={lines} sellerLabel={String(sellerNumber.get(lines[0].sellerOrganizationId))} warehouseName={lines[0].warehouseName} />
           ))}
           <div className="flex flex-col items-end gap-2">
-            <Button type="button" disabled aria-disabled="true">
+            <Button nativeButton={false} render={<Link href="/dashboard/checkout" />}>
               <AppBilingual pick={(c) => c.commerce.cartUi.checkout} />
             </Button>
-            <p className="text-[length:var(--text-small)] text-muted-foreground"><AppBilingual pick={(c) => c.commerce.cartUi.checkoutPending} /></p>
           </div>
         </>
       )}

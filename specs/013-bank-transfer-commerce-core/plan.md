@@ -46,6 +46,15 @@
 
 Unit 7 can be developed alongside earlier UI work where dependencies permit, but M9 and its negative proof must finish before Unit 8 closure. Historical MP-3/MP-5 text mentioning `--linked` is a future operator protocol, not authorization for this planning amendment or any agent to run it. The launch gate is *runtime unreachable*, not repository-wide physical absence of every retained Stripe source or SDK package.
 
+### Owner scope reduction (2026-09-28) — CANCELLED BY OWNER: Units 4, 5, 6 (as a Unit-3 dependency), 7
+
+Owner decision, Abdelaziz Essam, 2026-09-28 (see [spec.md](./spec.md#owner-scope-reduction-2026-09-28--supersedes-the-2026-09-28-launch-mvp-scope-authority-above-for-everything-past-reservation)): the current product now stops at reservation. **Unit 4 (M5a bank instructions/private proof), Unit 5 (M5b admin review/settlement), Unit 6 (Feature 009 delivery-integration as a Sprint-1 dependency — Feature 009 itself is untouched and remains live for LEGACY orders) and Unit 7 (M9 Stripe retirement) are CANCELLED BY OWNER**, not deferred-and-kept. Their table rows above are historical design, preserved for a future scope amendment, not active Launch MVP acceptance. Units 1–3 and Unit 8 continue, narrowed:
+
+- **Unit 3 (M4c)** is reduced to `confirm_proforma`/`expire_reservation`/`sweep_expired_reservations` exactly as already documented in [contracts/database-rpc.md](./contracts/database-rpc.md) and [research.md R-9](./research.md), minus the `payments`-row write and `order.awaiting_transfer`/`order.expired` notification steps that existed only to feed the now-cancelled Units 4/5. `cancel_order`/`admin_void_order` are not authored (the 20-minute expiry is a complete, self-releasing lifecycle with no cancelled-unit state to protect). Authored, LOCAL-validated (rollback-only and real-write functional proofs, including genuine two-session concurrency), **not applied to Production** in this pass — supabase/migrations/20260928120000_feature_013_stock_reservation.sql, its rollback and postflight.
+- **Unit 8 (integrated proof/activation)** now means the reservation lifecycle only — the Stripe-absence (T236), fulfillment-handoff (T155) and finance/legal/warehouse sign-off portions of T234/T235 that depended on the cancelled units no longer apply until a future scope amendment revives them.
+
+**Not cancelled, not touched:** M1–M4b (already applied to Production, untouched by this decision); Feature 009 itself; historical migrations, evidence and the design text describing Units 4–7 (preserved below and in [tasks.md](./tasks.md), marked CANCELLED BY OWNER, never deleted).
+
 ## Summary
 
 Feature 013 completes private member commerce for physical green coffee on ordinary bank transfer. The lifecycle runs:

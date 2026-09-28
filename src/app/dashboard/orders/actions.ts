@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 
 import { getRequestIdentity } from "@/lib/auth/dal";
 import type { RequestIdentity } from "@/lib/auth/types";
-import { addOrderItem, createDraftOrder, removeOrderItem, updateOrderItemQuantity } from "@/lib/orders/drafts";
+import { addOrderItem, removeOrderItem, updateOrderItemQuantity } from "@/lib/orders/drafts";
 import { AddOrderItemInput, RemoveOrderItemInput, UpdateOrderItemQuantityInput } from "@/lib/orders/validation";
 import { ACTION_FEEDBACK, type ActionFeedbackResult } from "@/lib/types/action-feedback";
 
@@ -38,12 +38,12 @@ async function requireBuyerCapableIdentity(): Promise<BuyerIdentity | null> {
 }
 
 /**
- * T004 (PS1 scenario 1) — creates a new `DRAFT` order for the caller's acting organization and
- * redirects to its detail page. No client input at all beyond the implicit submission itself —
- * `buyer_organization_id`/`created_by` are entirely server-derived
- * (see `lib/orders/drafts.ts#createDraftOrder`). On failure, returns the safe error normally — only
- * a genuine success calls `redirect()` (which Next.js implements as a thrown control-flow signal,
- * never reaching the `return` below).
+ * Feature 013 T100 (H1: every member insert is `BANK_TRANSFER_V1` now — a separate `LEGACY` draft is
+ * never the right "start an order" entry point). Opens the buyer's active cart instead of creating a
+ * new order row itself: `/dashboard/cart` (and, from there, `get_or_create_cart`/`add_cart_line`)
+ * already owns finding-or-creating the org's one open `BANK_TRANSFER_V1` DRAFT (M4a). This action
+ * creates nothing — it only re-verifies the buyer capability before redirecting, so an unauthorized
+ * click gets a clean failure toast instead of a silent navigation.
  */
 export async function createOrder(): Promise<ActionFeedbackResult> {
   const identity = await requireBuyerCapableIdentity();
@@ -51,11 +51,7 @@ export async function createOrder(): Promise<ActionFeedbackResult> {
     return { ok: false, code: ACTION_FEEDBACK.BUYER_NOT_CAPABLE };
   }
 
-  const result = await createDraftOrder({ organizationId: identity.organization.organizationId, userId: identity.userId });
-  if (!result.ok) return result;
-
-  revalidatePath("/dashboard/orders");
-  redirect(`/dashboard/orders/${result.data.id}`);
+  redirect("/dashboard/cart");
 }
 
 /**

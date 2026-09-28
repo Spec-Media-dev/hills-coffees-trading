@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 
 import { PageHeader } from "@/components/app/page-header";
 import { AppBilingual } from "@/components/locale/app-bilingual";
@@ -20,7 +20,7 @@ import { appCopy } from "@/lib/app/copy";
 import { getRequestIdentity } from "@/lib/auth/dal";
 import { listDisputesForOrder } from "@/lib/disputes/read";
 import { ensureHoldFresh } from "@/lib/orders/expiry";
-import { getOrderFinancials, getOrderItems, getOrderShipments, getOrderStatusHistory, getPaymentStatus, getProforma, getShipmentItems } from "@/lib/orders/read";
+import { getOrderById, getOrderFinancials, getOrderItems, getOrderShipments, getOrderStatusHistory, getPaymentStatus, getProforma, getShipmentItems } from "@/lib/orders/read";
 
 export const metadata: Metadata = {
   title: "Order",
@@ -30,9 +30,9 @@ export const metadata: Metadata = {
  * Feature 007 — the buyer's order detail (RUN A: draft editor + shipment planning; RUN B: HOLD
  * outcome; RUN C/T016: lazy expiry, expired state, financial/proforma/payment/history views).
  *
- * ORDER OF TRUTH (T016's own critical rule): `ensureHoldFresh(orderId)` runs FIRST — it is the sole
- * `expire_order_hold()` caller and processes a stale hold lazily — and only its RETURNED order (the
- * separate authorized re-read it performs) is rendered. Nothing below reads the order before that.
+ * ORDER OF TRUTH: an initial org-scoped read routes V1 orders away before any legacy expiry side effect.
+ * For LEGACY, `ensureHoldFresh(orderId)` then processes a stale hold lazily and its authorized
+ * re-read is the only order rendered below.
  *
  * DB-OPEN-13: items are add-only (no remove/edit control exists because none could succeed).
  * PRIVACY: a cross-org/nonexistent id yields the identical `ORDER_NOT_FOUND` → `notFound()`.
@@ -48,6 +48,11 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ or
 
   const { orderId } = await params;
 
+  // Route V1 before the legacy expiry helper: expire_order_hold cannot release a V1 inventory reservation.
+  const scopedOrder = await getOrderById({ organizationId: identity.organization.organizationId, orderId });
+  if (!scopedOrder) notFound();
+  if (scopedOrder.commerceFlow === "BANK_TRANSFER_V1") redirect(scopedOrder.status === "DRAFT" ? "/dashboard/cart" : `/dashboard/orders/${orderId}/proforma`);
+
   // T012/T016 — lazy expiry BEFORE final truth. Its own re-read is the order we render.
   const freshness = await ensureHoldFresh(orderId);
   if (!freshness.ok) {
@@ -56,7 +61,6 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ or
   }
   // `ensureHoldFresh` already read the order org-scoped for THIS identity's acting organization.
   const order = freshness.data.order;
-
   // `order_financials`/proforma/payment exist ONLY once `checkout_order()` has written them — all
   // verbatim pass-throughs (`null` before checkout), never computed here.
   const [items, shipments, financials, proforma, payment, history, disputes] = await Promise.all([

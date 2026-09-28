@@ -80,6 +80,10 @@ The header's `bank_account_masked` (bank name, account name, SWIFT, last four of
 for auditors") stays readable by the buyer on the issued proforma; it is not a payable instruction.
 
 ### `confirm_proforma(p_proforma_id uuid, p_request_id uuid) → jsonb`
+**Owner scope reduction (2026-09-28):** authored and LOCAL-validated exactly as documented below, **except** step 6
+(payment row) and step 8 (notification) are dropped — both existed only to feed the now-cancelled M5a/M5b workflow.
+Applied to `supabase/migrations/20260928120000_feature_013_stock_reservation.sql` (LOCAL only; not applied to
+Production in this pass). `cancel_order`/`admin_void_order` below are not authored in this reduced scope.
 EXECUTE authenticated.
 1. Locks order → proforma (`ISSUED`, `clock_timestamp() < valid_until`; otherwise `proforma_expired` and the proforma is marked `EXPIRED`).
 2. **Opportunistic reclaim**: releases any logically expired `ACTIVE` reservations that hold quantity on the offers in this proforma (each under its own order lock taken with `SKIP LOCKED`; a skipped one is left for the sweeper).
@@ -98,9 +102,9 @@ Errors: `proforma_not_found`, `proforma_expired`, `proforma_not_confirmable`, `l
 
 | Function | EXECUTE | Contract |
 |---|---|---|
-| `cancel_order(p_order_id uuid, p_reason text, p_request_id uuid) → jsonb` | authenticated | Buyer member. Allowed from `DRAFT`, `PROFORMA_ISSUED`, or `HOLD` with no proof row (otherwise `cancellation_not_allowed_after_proof`). Releases an `ACTIVE` reservation exactly once (`RELEASED`, reason `CANCELLED`). Proforma `CANCELLED`, payment `VOID`, order `CANCELLED`. Emits `order.cancelled`. |
-| `expire_reservation(p_order_id uuid) → boolean` | authenticated, service_role | Supersedes `expire_order_hold` for `BANK_TRANSFER_V1` orders. The caller must be a buyer member or platform admin (non-enumerating). No-op unless the reservation is `ACTIVE ∧ expires_at <= clock_timestamp()`; then releases it exactly once and sets reservation `EXPIRED`, payment `EXPIRED`, proforma `EXPIRED`, order `EXPIRED`. Emits `order.expired`. |
-| `sweep_expired_reservations(p_limit int default 100) → int` | service_role only (pg_cron job `f013_sweep_reservations`) | Iterates candidates by `expires_at`, locks each order with `SKIP LOCKED`, and applies the `expire_reservation` body. It also marks overdue `ISSUED` proformas `EXPIRED` and emits reminder events. Returns the count. Correctness never depends on it: every RPC re-evaluates deadlines from timestamps under lock. |
+| `cancel_order(p_order_id uuid, p_reason text, p_request_id uuid) → jsonb` | authenticated | **Not authored (2026-09-28 owner scope reduction): the 20-minute expiry is a complete, self-releasing lifecycle with no cancelled-unit (M5a/M5b) state to protect in the reduced scope.** Historical design, preserved below. Buyer member. Allowed from `DRAFT`, `PROFORMA_ISSUED`, or `HOLD` with no proof row (otherwise `cancellation_not_allowed_after_proof`). Releases an `ACTIVE` reservation exactly once (`RELEASED`, reason `CANCELLED`). Proforma `CANCELLED`, payment `VOID`, order `CANCELLED`. Emits `order.cancelled`. |
+| `expire_reservation(p_order_id uuid) → boolean` | authenticated, service_role | **Owner scope reduction (2026-09-28): authored without the payment step (no `payments` row exists) and without the `order.expired` notification.** Supersedes `expire_order_hold` for `BANK_TRANSFER_V1` orders. The caller must be a buyer member, platform admin, or `service_role` (non-enumerating for the first two). No-op unless the reservation is `ACTIVE ∧ expires_at <= clock_timestamp()`; then releases it exactly once and sets reservation `EXPIRED`, proforma `EXPIRED`, order `EXPIRED`. |
+| `sweep_expired_reservations(p_limit int default 100) → int` | service_role only | **Owner scope reduction (2026-09-28): authored; no reminder events (no downstream state to remind about); not wired to pg_cron in this pass (M7b is out of scope).** Iterates candidates by `expires_at`, locks each order with `SKIP LOCKED`, and applies the `expire_reservation`/`commerce_release_reservation` body. Returns the count released. Correctness never depends on it: every RPC re-evaluates deadlines from timestamps under lock. |
 
 ## Member — payment proof (M5)
 

@@ -55,6 +55,7 @@ export async function createDraftShipment({
   if (!order) {
     return { ok: false, code: ACTION_FEEDBACK.ORDER_NOT_FOUND };
   }
+  if (order.commerceFlow === "BANK_TRANSFER_V1") return { ok: false, code: ACTION_FEEDBACK.ORDER_NOT_EDITABLE };
 
   const supabase = await createClient();
   const { data: inserted, error } = await supabase
@@ -102,6 +103,7 @@ export async function addShipmentItem({
   if (!order) {
     return { ok: false, code: ACTION_FEEDBACK.ORDER_NOT_FOUND };
   }
+  if (order.commerceFlow === "BANK_TRANSFER_V1") return { ok: false, code: ACTION_FEEDBACK.ORDER_NOT_EDITABLE };
 
   const shipments = await getOrderShipments({ orderId });
   const shipment = shipments.find((row) => row.id === shipmentId);
@@ -146,6 +148,7 @@ export async function requestShipment({
   if (!order) {
     return { ok: false, code: ACTION_FEEDBACK.ORDER_NOT_FOUND };
   }
+  if (order.commerceFlow === "BANK_TRANSFER_V1") return { ok: false, code: ACTION_FEEDBACK.ORDER_NOT_EDITABLE };
 
   const supabase = await createClient();
   const { data: updated, error } = await supabase
@@ -187,6 +190,7 @@ export async function cancelDraftShipment({
   if (!order) {
     return { ok: false, code: ACTION_FEEDBACK.ORDER_NOT_FOUND };
   }
+  if (order.commerceFlow === "BANK_TRANSFER_V1") return { ok: false, code: ACTION_FEEDBACK.ORDER_NOT_EDITABLE };
 
   const supabase = await createClient();
   const { data: updated, error } = await supabase

@@ -382,7 +382,9 @@ describe("T067 — rollback symmetry and history", () => {
     const changed = execFileSync("git", ["diff", "--name-only", "HEAD", "--", "supabase/migrations", "supabase/rollback", "supabase/maintenance", "specs/008-stripe-trusted-funding", "specs"], { encoding: "utf8" })
       .split(/\r?\n/).filter(Boolean).filter((f) => !f.endsWith("specs/013-bank-transfer-commerce-core/tasks.md"))
       // The current, unapplied M4b change set may supersede M4a's replay ordering and its financial-read contract.
-      .filter((f) => !/^(?:supabase\/(?:migrations|rollback)\/20260926103000_feature_013_quote_and_proforma_issuance|supabase\/maintenance\/20260926_feature_013_quote_and_proforma_issuance_postflight|specs\/013-bank-transfer-commerce-core\/(?:contracts\/(?:database-rpc|rls-storage)\.md|tasks\.md))/.test(f));
+      .filter((f) => !/^(?:supabase\/(?:migrations|rollback)\/20260926103000_feature_013_quote_and_proforma_issuance|supabase\/maintenance\/20260926_feature_013_quote_and_proforma_issuance_postflight|specs\/013-bank-transfer-commerce-core\/(?:contracts\/(?:database-rpc|rls-storage)\.md|tasks\.md))/.test(f))
+      // The current, unapplied M4c-reduced (stock/inventory reservation only) change set — owner scope reduction, 2026-09-28.
+      .filter((f) => !/^(?:supabase\/(?:migrations|rollback)\/20260928120000_feature_013_stock_reservation|supabase\/maintenance\/20260928_feature_013_stock_reservation_postflight|specs\/013-bank-transfer-commerce-core\/(?:spec|plan)\.md)/.test(f));
     expect(changed).toEqual([]);
   });
 });

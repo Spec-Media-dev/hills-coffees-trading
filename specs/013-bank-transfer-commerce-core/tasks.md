@@ -12,7 +12,7 @@ description: "Implementation tasks for Feature 013 — Bank Transfer Commerce Co
 - [quickstart.md](./quickstart.md)
 - [contracts/](./contracts/)
 
-**Status (2026-09-28)**: T001–T071 complete, 71 / 236 historical tasks verified. M1, M2a–M2e, M3 and M4a are already present; T072 has not started. The prior planning rescope added T236, making 237 IDs total. The 166 unfinished IDs now comprise 29 launch-critical implementation IDs, 26 independent launch gate/dependency IDs, 74 deferred IDs, and 37 merged/superseded **standalone** IDs. Merged acceptance is still required inside its owning unit; no unchecked checkbox is falsely marked complete. Completed work/evidence and the reusable LOCAL fixture state are untouched.
+**Historical rescope baseline (2026-09-28; superseded by the owner reduction and Sprint 1 closure notes below):** T001–T071 were complete at that point. The A/B/C/D counts below describe the superseded, broader launch path, not today's active scope.
 
 ## Launch MVP task ledger — authoritative over historical batches below
 
@@ -37,7 +37,22 @@ The 2026-09-28 final scope in [spec.md](./spec.md) and [plan.md](./plan.md) cont
 
 **No execution authorization:** this rescope is SPEC → PLAN → TASKS only. Do not infer permission to implement T072, apply migrations, use `--linked`, run production commands, reset/reseed LOCAL, enable checkout, commit, or push.
 
+**OWNER SCOPE REDUCTION (2026-09-28) — CANCELLED BY OWNER, not deferred.** Owner: Abdelaziz Essam. Full record: [spec.md](./spec.md#owner-scope-reduction-2026-09-28--supersedes-the-2026-09-28-launch-mvp-scope-authority-above-for-everything-past-reservation), [plan.md](./plan.md#owner-scope-reduction-2026-09-28--cancelled-by-owner-units-4-5-6-as-a-unit-3-dependency-7). The current product scope now stops at the 20-minute reservation. **CANCELLED, not active Sprint-1 gates:**
+- **Unit 4 / M5a** (bank instructions, private proof) — every ID in T105–T116, T118–T119, T122, T124, T124a.
+- **Unit 5 / M5b** (admin review, settlement) — every ID in T117, T120–T121, T123, T126–T134.
+- **Unit 6 / Feature 009 delivery integration as a Sprint-1 dependency** — T143–T156, T223 (Feature 009 itself is untouched and remains live for LEGACY orders; only its wiring into this feature's M5b handoff is cancelled).
+- **Unit 7 / M9 Stripe retirement** — T198–T200, T203, T205–T211, T236.
+- **The A/B/C/D table and "Eight real units" text above are historical design for these IDs**, preserved for a possible future scope amendment, and are no longer active Launch MVP acceptance; do not treat any of them as an open Sprint-1 blocker.
+
+**Unit 3 / M4c is reduced to reservation-only** (T088, below): `confirm_proforma`/`expire_reservation`/`sweep_expired_reservations` exactly as already documented in [contracts/database-rpc.md](./contracts/database-rpc.md) and research.md R-9, minus the `payments`-row write and `order.awaiting_transfer`/`order.expired` notification steps that fed the now-cancelled Units 4/5. `cancel_order`/`admin_void_order` (T088's original scope) are **not authored**: the 20-minute expiry is a complete, self-releasing lifecycle (`PROFORMA_ISSUED → HOLD → EXPIRED`) with no cancelled-unit state to protect. T089–T097 (D-class, embedded in T088) reflect this reduced scope; **T097 (buyer cancellation) stays deferred**, now for the additional reason that `cancel_order` is not authored.
+
+**Not cancelled at the time of this reduction:** M1–M4b (already applied to Production — T080/T081 above — untouched); Feature 009 itself; Unit 1 (T072–T086, T098–T104, then still open); Unit 8's activation gate narrows to the reservation lifecycle only (T155/T223/T236/T234/T235's cancelled-unit-dependent portions no longer apply). Historical migrations and evidence are not removed. Later Sprint 1 implementation closure is recorded below.
+
+**State immediately after the reduction, before the later implementation closure below:** the reservation backend (T088, database only) was complete; Unit 1's buyer-facing UI remained open. This historical note no longer describes the current working tree.
+
 **Post-launch dependency integrity:** before T097, T125 or T141/T145 can execute historical buyer-cancellation, reconciliation/adjustment or payout-recording acceptance, amend the deferred plan with new forward-migration protocol tasks for any RPCs omitted from launch M4c/M5b/M5c. Do not retrofit an applied launch migration or treat those RPCs as already shipped. T203/T205 are conditional no-ops only if fresh operator inventory still shows zero deployed Stripe Edge Functions/credentials; record proof rather than checking them off today. M5c requires a future independent migration protocol, not a launch shortcut.
+
+**Sprint 1 implementation closure (2026-09-28; current):** T072 and reduced-scope T088 were already complete. T073–T076, T084–T086 and T098–T101 are now implemented and checked below. The cart reaches `/dashboard/checkout`; expired proformas can issue a fresh version from their own order with an active destination, without misusing the DRAFT-only `estimate_cart`; V1 order reads, expiry and direct legacy checkout/shipment actions are fenced from the LEGACY path. The reservation SQL acquires all offers and then all positions in global ID order and checks cumulative quantity on a shared position. LOCAL proof passed 29/29; reservation postflight passed 7/7; M4b postflight remained 9/9. The proof restores checkout, pilot IDs and the default USD account. **Production has not received the new reservation migration**: its formal operator cutover/postflight is a deployment gate, not an unbuilt product feature. Cancelled M5a/M5b/Feature 009 integration/M9 remain outside Sprint 1. Historical acceptance text below mentioning those units or a proof-submission control is superseded by the owner reduction.
 
 **Tests**: REQUIRED. The spec's acceptance criteria, SC-002/SC-006 contention runs, and Constitution "Engineering Standards → Testing" demand them.
 - Live database tests are gated by `F013_LIVE=1` and use only disposable `f013` fixtures.
@@ -1483,23 +1498,23 @@ CONFIRMATION (M4c, T091–T106) are separate migrations, services and UI.**
   - Accept: `addToCart`, `updateCartLine`, `removeCartLine` (Zod → identity → one RPC → typed feedback; request id generated server-side once per intent).
   - Tests: `tests/commerce/cart-actions.test.ts` (validation, error mapping, single-caller grep).
   - **Implemented 2026-09-28:** org-scoped RLS read, M4a add RPC with a server-generated UUID per add intent, and the existing edit/remove RPCs behind validation, acting-org authorization and org-scoped ownership prechecks. `tests/commerce/cart-actions.test.ts` 5/5 passed; focused typecheck, lint and build passed. The existing edit/remove RPC signatures do not accept a request id; none is fabricated as an RPC argument. No new live cart proof is claimed beyond completed T071.
-- [ ] T073 [US7] Add-to-cart on the listing detail and cards — `components/commerce/add-to-cart-form.tsx`, `src/app/dashboard/coffee/[offerId]/page.tsx`, `components/listings/listing-card.tsx`
+- [X] T073 [US7] Add-to-cart on the listing detail and cards — `components/commerce/add-to-cart-form.tsx`, `src/app/dashboard/coffee/[offerId]/page.tsx`, `components/listings/listing-card.tsx`
   - Depends: T072
   - Accept: quantity input, "not reserved — estimate" notice (UX-002), keyboard operable, disabled for own listing / ineligible; anon never reaches it (member route).
   - Tests: `tests/commerce/add-to-cart-form.test.tsx`.
-- [ ] T074 [US1] Cart page with seller × warehouse grouping — `src/app/dashboard/cart/page.tsx`, `components/commerce/{cart-group,cart-line}.tsx`
+- [X] T074 [US1] Cart page with seller × warehouse grouping — `src/app/dashboard/cart/page.tsx`, `components/commerce/{cart-group,cart-line}.tsx`
   - Depends: T072
   - Accept: groups by seller and warehouse; estimated prices labelled; edit/remove via the existing RPCs; empty and ineligible-line states; no reservation claim anywhere.
   - Tests: `tests/commerce/cart-page.test.tsx`.
-- [ ] T075 [P] [US1] Delivery destinations management — `lib/commerce/destinations.ts`, `src/app/dashboard/destinations/{page,actions}.ts(x)`, `components/commerce/destination-form.tsx`
+- [X] T075 [P] [US1] Delivery destinations management — `lib/commerce/destinations.ts`, `src/app/dashboard/destinations/{page,actions}.ts(x)`, `components/commerce/destination-form.tsx`
   - Depends: T071
   - Accept: create/edit/default/retire; phone/country validation; only the buyer org's destinations are listed.
   - Tests: `tests/commerce/destinations-actions.test.ts`, `tests/commerce/destination-form.test.tsx`.
-- [ ] T076 [US1] Member navigation entries — `lib/dashboard/registry.tsx`, `lib/app/copy/{en,ar}.ts`
+- [X] T076 [US1] Member navigation entries — `lib/dashboard/registry.tsx`, `lib/app/copy/{en,ar}.ts`
   - Depends: T074, T075
   - Accept: Cart and Destinations appear only for can-buy organizations.
   - Tests: `tests/dashboard/registry.test.tsx` updated.
-  - **Sprint 1 partial implementation 2026-09-28:** T073–T076 UI, destination actions, bilingual copy and focused tests are implemented locally; `tests/commerce`/registry/listing static subset passed 127/127. Checkout remains truthfully disabled in the cart because M4b is not authored or reviewed. Responsive visual checks, new UI live proof and full launch acceptance are not yet recorded, so these checkboxes stay open.
+  - **Historical Sprint 1 partial checkpoint (superseded by the implementation closure above):** T073–T076 UI, destination actions, bilingual copy and focused tests were implemented locally; `tests/commerce`/registry/listing static subset passed 127/127. At that checkpoint checkout was still disabled and these checkboxes remained open. M4b and the cart-to-checkout path were completed later; the checked task status and closure note above describe the current working tree.
 
 ### M4b — PROFORMA ISSUANCE (quote, estimate, issue; no reservation)
 - [ ] T077 [US1] MP-1 Author M4b — `supabase/migrations/20260926103000_feature_013_quote_and_proforma_issuance.sql`, rollback, postflight
@@ -1606,7 +1621,7 @@ CONFIRMATION (M4c, T091–T106) are separate migrations, services and UI.**
     - no negative amount anywhere;
     - funding source and raw/applied amounts frozen.
 
-- [ ] T084 [US1] Quote/estimate service and checkout page (checkout eligibility) — `lib/commerce/quote.ts`, `src/app/dashboard/checkout/page.tsx`, `components/commerce/{estimate-summary,destination-picker,money,commerce-status-badge}.tsx`
+- [X] T084 [US1] Quote/estimate service and checkout page (checkout eligibility) — `lib/commerce/quote.ts`, `src/app/dashboard/checkout/page.tsx`, `components/commerce/{estimate-summary,destination-picker,money,commerce-status-badge}.tsx`
   - Depends for Launch MVP: T081 and M4b's recorded MP-6 evidence, T075; T082 is merged into T077.
   - **Launch scope:** no promo-code control or funding label; show zero discount or omit the discount row without misrepresenting frozen totals. Explain non-UAE unsupported-destination refusal without displaying a final payable proforma or bank instructions.
   - Accept:
@@ -1616,11 +1631,11 @@ CONFIRMATION (M4c, T091–T106) are separate migrations, services and UI.**
     - money in LTR spans;
     - no TypeScript arithmetic on money.
   - Tests: `tests/commerce/checkout-page.test.tsx`, `tests/commerce/no-ts-money-math.test.ts` (static: no `*`/`+` on price fields in `lib/commerce`/`components/commerce`).
-- [ ] T085 [US1] Issue-proforma service and action — `lib/commerce/proforma.ts` (`issueProforma`), `src/app/dashboard/checkout/actions.ts`
+- [X] T085 [US1] Issue-proforma service and action — `lib/commerce/proforma.ts` (`issueProforma`), `src/app/dashboard/checkout/actions.ts`
   - Depends: T084
   - Accept: single caller of `issue_proforma`; redirects to the proforma page; error mapping.
   - Tests: `tests/commerce/issue-action.test.ts`.
-- [ ] T086 [US1] Proforma detail UI (versioned, frozen, deadline) and replacement — `src/app/dashboard/orders/[orderId]/proforma/page.tsx`, `components/commerce/proforma-document.tsx`, `lib/commerce/read.ts`
+- [X] T086 [US1] Proforma detail UI (versioned, frozen, deadline) and replacement — `src/app/dashboard/orders/[orderId]/proforma/page.tsx`, `components/commerce/proforma-document.tsx`, `lib/commerce/read.ts`
   - Depends: T085
   - Accept:
     - shows code, version, frozen lines (incl. applied discount + Hills/seller offer label), groups, VAT, total, destination, validity countdown (from `valid_until`);
@@ -1633,15 +1648,20 @@ CONFIRMATION (M4c, T091–T106) are separate migrations, services and UI.**
   - Accept: once past the deadline, v1 is marked `EXPIRED`; v2 is issued at current prices; v1 is unchanged; issuing while v1 is valid → `proforma_still_valid`; concurrent double issue → one wins; adding, updating or removing a cart line after issuance is refused (`order_items_can_only_change_in_draft`, FR-004).
 
 ### M4c — RESERVATION CONFIRMATION (confirm, cancel, expire, sweep)
-- [ ] T088 [US1] MP-1 Author M4c — `supabase/migrations/20260926106000_feature_013_reservation_confirmation.sql`, rollback, postflight
-  - Depends for Launch MVP: T086 and M4b's recorded unit proof; T087 is merged.
-  - **Launch scope:** confirmation, expiry, and safe admin void only. Buyer cancellation is post-launch T097. MP-2/3/6 evidence from merged T089/T090/T093 remains mandatory here; T091/T092 retain review/apply gates.
-  - Accept:
-    - `confirm_proforma`: order → proforma lock; deadline via `clock_timestamp()`; opportunistic reclaim with `SKIP LOCKED`; offers ↑, then positions ↑; all-or-nothing; 20-min `ACTIVE` reservation; payment `PENDING` `expected_amount`; proforma `CONFIRMED`; order `HOLD`; event.
-    - `cancel_order` (DRAFT/PROFORMA_ISSUED/HOLD-without-proof; exactly-once release).
-    - `expire_reservation`; `sweep_expired_reservations` (service_role; also expires overdue `ISSUED` proformas; reminders).
-    - `admin_void_order`.
-    - Lock order per data-model §8.
+- [X] T088 [US1] MP-1 Author M4c — reduced to stock/inventory reservation only (owner scope reduction, 2026-09-28)
+  - **REDUCED-SCOPE COMPLETE, LOCAL only, 2026-09-28.** File: `supabase/migrations/20260928120000_feature_013_stock_reservation.sql` (not the originally-planned `20260926106000` name/timestamp — authored fresh today, after M5a/M5b/Feature-009-integration/M9 were cancelled by the owner). Paired rollback `supabase/rollback/20260928120000_feature_013_stock_reservation.rollback.sql` and postflight `supabase/maintenance/20260928_feature_013_stock_reservation_postflight.sql`.
+  - **Depends for the reduced Sprint 1 scope:** T086 and M4b's recorded unit proof are now met. This migration remains LOCAL-validated only; its formal Production operator apply/postflight is a separate deployment gate.
+  - **Reduced scope (owner-approved 2026-09-28):** every locking, authorization and error-vocabulary detail is exactly the pre-existing documented contract (contracts/database-rpc.md, research.md R-9) — nothing invented. Dropped, because they exist only to feed the now-cancelled M5a/M5b: the `payments` row (no `payment PENDING expected_amount`) and the `order.awaiting_transfer`/`order.expired` notifications. Not authored, because the 20-minute expiry is already a complete, self-releasing lifecycle with no cancelled-unit state to protect: `cancel_order`, `admin_void_order`.
+    - `confirm_proforma(p_proforma_id uuid, p_request_id uuid)`: non-enumerating order→proforma resolve and lock; H1-consistent authorization (`commerce_assert_buyer_member`) before `commerce_request_begin`; `proforma_expired` if `valid_until <= clock_timestamp()` (the deadline is logically authoritative; the existing `issue_proforma` replacement path marks the old version `EXPIRED` transactionally); opportunistic reclaim of another order's logically-expired `ACTIVE` reservation on a needed offer, each under `SELECT ... FOR UPDATE SKIP LOCKED` on that order; locks offers ascending then positions ascending (data-model §8), with cumulative quantity checked for shared positions; every line re-checked live (`listing_inventory_changed`/`seller_inventory_changed`/`seller_not_authorized`) — first failure rolls back the whole transaction, nothing written (FR-017/AC-002); all-or-nothing insert of `inventory_reservations`/`inventory_reservation_items`; increments position then offer (`app.checkout_reservation` marker, matching `checkout_order()`); proforma → `CONFIRMED`, order → `HOLD` with `hold_expires_at` = the reservation's own `expires_at` (the trigger's pre-existing `order_hold_window_required` guard, already live since M4b, required exactly this).
+    - `commerce_release_reservation` (internal, no API grant): the shared release path used by all three below. Decrements **positions before offers** (the reverse of the increment order — releasing offers first would transiently make a listing's tradable remainder exceed its backing position's, tripping the existing `listing_exceeds_tradable_inventory` guard; found and fixed during LOCAL validation).
+    - `expire_reservation(p_order_id)`: buyer member, platform admin, **or `service_role`** (fixed during LOCAL validation — the original check depended on `auth.uid()`, which is null for service_role, silently blocking the sweeper). No-op (returns `false`) unless `ACTIVE ∧ expires_at <= clock_timestamp()`.
+    - `sweep_expired_reservations(p_limit)`: service_role only; candidates by `expires_at`, `FOR UPDATE SKIP LOCKED`, applies the shared release; returns the count.
+  - **LOCAL validation (real writes on the disposable `hills-f013-local` database; nothing applied to Production):**
+    - Postflight 7/7 (`scripts/f013-m4b-postflight.ts`-style, functions exist, ACLs narrow, checkout off, no orphaned reservation, no payments/notification reference, lock order matches §8).
+    - `scripts/f013-reservation-proof.ts` — 29/29, covering every owner-required invariant: sufficient stock reserves; insufficient stock rejected with nothing written; **genuine two-session concurrency** (two independent real sessions racing 15+15 kg against 20 kg available — exactly one succeeds, reserved quantity is exactly 15, never 30); idempotent replay (identical response, no double reservation); quantities reconcile exactly; unauthorized/nonexistent caller refused identically (non-enumerating `proforma_not_found`); the response exposes no commission/seller-net/Hills-share/bank data; no destination/bank PII in audit rows; **M4b's own postflight re-run and unaffected (9/9)**; expiry releases correctly including cross-order reclaim by another buyer's `confirm_proforma` (the stale holder's order/reservation/proforma all become `EXPIRED` as a side effect); `expire_reservation` direct call and idempotent no-op rerun; a backdated ACTIVE reservation is released by `sweep_expired_reservations`, a second sweep is a no-op, and it refuses anon/authenticated.
+    - `tests/commerce/migrations/m4c-reservation.test.ts` (MP-2 static, new): 14/14 — deadlines use `clock_timestamp()` never `now()`; H1-consistent authorization ordering; lock order (offers then positions); the position-before-offer release-write order; the increment's `app.checkout_reservation` marker order; SKIP LOCKED in the reclaim path; all-or-nothing ordering; no `payments`/notification reference in any of the four functions; exact ACL grants; the two preflight guard conditions; the rollback's ACTIVE-reservation guard and exact drop order; postflight coverage; `cancel_order`/`admin_void_order` genuinely absent.
+  - **Not reached in this pass (by explicit instruction):** MP-3 dry-run against a fresh reset, MP-4 independent review, MP-5 Production apply, MP-6 live proof against Production. T089–T097 stay unticked as separate standalone IDs (their MP-2/3/6 evidence is embedded here, per the D-class convention); **T097 (buyer cancellation) stays deferred**, now also because `cancel_order` is not authored in this scope.
+  - **Validation:** `tsc` clean; `eslint .` unchanged from the prior clean state (this pass's new/changed files pass); `next build` succeeded; `git diff --check` clean. Nothing committed or pushed (explicit instruction).
 - [ ] T089 [US1] MP-2 Static tests — `tests/commerce/migrations/m4c-reservation.test.ts`
   - Depends: T088
   - Accept: every deadline check uses `clock_timestamp()`; lock order pinned; `sweep_expired_reservations` EXECUTE = service_role only.
@@ -1671,21 +1691,21 @@ CONFIRMATION (M4c, T091–T106) are separate migrations, services and UI.**
   - Depends: T092
   - Accept: cancel from DRAFT/PROFORMA_ISSUED/HOLD releases exactly once; cancel racing confirm is serialized; after proof (tested again in T122) → refused.
 
-- [ ] T098 [US1] Reservation service and confirmation action — `lib/commerce/reservation.ts`, `src/app/dashboard/orders/[orderId]/proforma/actions.ts`
+- [X] T098 [US1] Reservation service and confirmation action — `lib/commerce/reservation.ts`, `src/app/dashboard/orders/[orderId]/proforma/actions.ts`
   - Depends for Launch MVP: T092 and M4c's recorded MP-6 evidence; T093 is merged.
   - **Launch scope:** explicit confirm and lazy expiry; customer cancellation action is deferred with T097.
   - Accept: `confirmProforma` (explicit confirm dialog submit), `cancelOrder`, `ensureReservationFresh` (lazy `expire_reservation` on read); single-caller discipline.
   - Tests: `tests/commerce/reservation-actions.test.ts`.
-- [ ] T099 [US1] Confirmation UI and 20-minute countdown — `components/commerce/{proforma-confirm-panel,reservation-countdown}.tsx` (reuse `components/orders/hold-countdown.tsx`), `src/app/dashboard/orders/[orderId]/proforma/page.tsx`
+- [X] T099 [US1] Confirmation UI and 20-minute countdown — `components/commerce/{proforma-confirm-panel,reservation-countdown}.tsx` (reuse `components/orders/hold-countdown.tsx`), `src/app/dashboard/orders/[orderId]/proforma/page.tsx`
   - Depends: T098
   - Accept: the confirm dialog explains the 20-min reservation; the countdown is derived from server `expires_at` (never client-extended), accessible live region, reduced motion; the expired state offers the late path (Phase 4) or a new cart.
   - Tests: `tests/commerce/confirm-panel.test.tsx`, `tests/commerce/countdown.test.tsx`.
-- [ ] T100 [US1] Flow-aware order list/detail/timeline + legacy route redirects — `lib/orders/read.ts`, `src/app/dashboard/orders/page.tsx`, `src/app/dashboard/orders/[orderId]/page.tsx`, `src/app/dashboard/orders/[orderId]/{checkout,shipment}/page.tsx`, `components/commerce/order-timeline.tsx`
+- [X] T100 [US1] Flow-aware order list/detail/timeline + legacy route redirects — `lib/orders/read.ts`, `src/app/dashboard/orders/page.tsx`, `src/app/dashboard/orders/[orderId]/checkout/page.tsx`, `components/commerce/order-timeline.tsx`
   - Depends: T099
   - **Launch scope:** preserve authorized legacy order viewing, but no legacy or V1 customer route may expose a Stripe funding call/collector; coordinate T199/T200 and prove at T236. Account/payment routes remain bank-transfer-only.
   - Accept: `BANK_TRANSFER_V1` orders show the new timeline (UX-001) and redirect away from the legacy checkout/shipment routes; `LEGACY` orders are unchanged; the legacy "start order" entry (`src/app/dashboard/orders/start-order-button.tsx`, `src/app/dashboard/orders/actions.ts`) now opens the active cart instead of creating a separate draft (H1).
   - Tests: `tests/orders/pages.test.tsx` updated; `tests/commerce/order-timeline.test.tsx`.
-- [ ] T101 [US6] Commerce settings admin page — `lib/admin/commerce-settings.ts`, `src/app/dashboard-admin/(system)/commerce-settings/{page,actions}.ts(x)`, `lib/admin/areas.ts`
+- [X] T101 [US6] Commerce settings admin page — `lib/admin/commerce-settings.ts`, `src/app/dashboard-admin/(system)/commerce-settings/{page,actions}.ts(x)`, `lib/admin/areas.ts`
   - Depends: T071
   - Accept: validity hours (1–720), checkout switch, proof switch, pilot organizations; impact notices; platform admin + MFA; audited.
   - Tests: `tests/commerce/commerce-settings.test.tsx`, `tests/admin/access-matrix.test.tsx` updated.
