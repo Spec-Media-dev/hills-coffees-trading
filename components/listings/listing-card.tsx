@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 
 import { ListingStatusBadge } from "@/components/listings/listing-status-badge";
+import { AddToCartForm } from "@/components/commerce/add-to-cart-form";
 import { AppBilingual } from "@/components/locale/app-bilingual";
 import { Icon } from "@/components/ui/icon";
 import { appCopy } from "@/lib/app/copy";
@@ -26,14 +27,15 @@ import type { BuyerBrowseListing, FillProjection } from "@/lib/listings/types";
  * `getPrimaryOfferImages`), never the catalogue coffee's media and never more than one image. With no
  * image it keeps a neutral placeholder in the SAME 4:3 box, so the grid never shifts.
  */
-export function ListingCard({ listing, projection, imageUrl = null }: { listing: BuyerBrowseListing; projection: FillProjection; imageUrl?: string | null }) {
+export function ListingCard({ listing, projection, imageUrl = null, buyerOrganizationId }: { listing: BuyerBrowseListing; projection: FillProjection; imageUrl?: string | null; buyerOrganizationId?: string }) {
   const eyebrow = [listing.coffeeName, listing.lot?.lotCode].filter(Boolean).join(" · ");
   const remainingKg = projection.ok ? projection.remainingQuantityKg : null;
 
   return (
+    <article className="flex h-full flex-col overflow-hidden rounded-[var(--radius-lg)] border border-border bg-card shadow-[var(--shadow-sm)]">
     <Link
       href={`/dashboard/coffee/${listing.id}`}
-      className="group flex h-full flex-col overflow-hidden rounded-[var(--radius-lg)] border border-border bg-card transition-[border-color,box-shadow,transform] duration-[var(--dur-fast)] hover:-translate-y-0.5 hover:border-[var(--border-strong)] hover:shadow-[var(--shadow-md)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus-ring)] motion-reduce:hover:translate-y-0"
+      className="group flex flex-1 flex-col transition-[border-color,box-shadow,transform] duration-[var(--dur-fast)] hover:-translate-y-0.5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus-ring)] motion-reduce:hover:translate-y-0"
     >
       <div className="relative aspect-[4/3] w-full overflow-hidden border-b border-border bg-muted" data-listing-card-media={imageUrl ? "image" : "placeholder"}>
         {imageUrl ? (
@@ -86,5 +88,9 @@ export function ListingCard({ listing, projection, imageUrl = null }: { listing:
       </div>
       </div>
     </Link>
+    <div className="border-t border-border p-5">
+      <AddToCartForm offerId={listing.id} disabledReason={!buyerOrganizationId ? "unavailable" : buyerOrganizationId === listing.sellerOrganizationId ? "own" : !projection.ok || projection.remainingQuantityKg <= 0 ? "unavailable" : undefined} />
+    </div>
+    </article>
   );
 }

@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 import { appCopy } from "@/lib/app/copy";
+import { getBuyerOrganizationId } from "@/lib/commerce/cart";
 import { projectFillState } from "@/lib/listings/fills";
 import { getBrowseListings } from "@/lib/listings/browse";
 import { getPrimaryOfferImages } from "@/lib/listings/media";
@@ -52,6 +53,7 @@ export default async function MarketplacePage({
     pageSize: PAGE_SIZE,
     titleSearch: titleSearch || undefined,
   });
+  const buyerOrganizationId = (await getBuyerOrganizationId()) ?? undefined;
   // "Primary outside": one signed image per card, batched once for the page (RLS-scoped).
   const primaryImages = await getPrimaryOfferImages(rows.map((listing) => listing.id));
 
@@ -99,6 +101,7 @@ export default async function MarketplacePage({
               <li key={listing.id}>
                 <ListingCard
                   listing={listing}
+                  buyerOrganizationId={buyerOrganizationId}
                   imageUrl={primaryImages.get(listing.id) ?? null}
                   projection={projectFillState({
                     quantityKg: listing.quantityKg,

@@ -105,14 +105,17 @@ describe("ListingCard — seller listing cards show only the primary listing ima
 
   it("with an image: exactly one <img>, the signed primary URL", async () => {
     const { ListingCard } = await import("@/components/listings/listing-card");
-    const { container } = render(<ListingCard listing={listing} projection={projection} imageUrl="https://x.supabase.co/storage/v1/object/sign/listing-media/offers/o/1.webp?token=t" />);
+    // The card embeds the client AddToCartForm (Feature 013 T073), which reads the locale context the app always provides.
+    const { LocaleProvider } = await import("@/components/locale/locale-provider");
+    const { container } = render(<LocaleProvider><ListingCard listing={listing} projection={projection} imageUrl="https://x.supabase.co/storage/v1/object/sign/listing-media/offers/o/1.webp?token=t" /></LocaleProvider>);
     expect(container.querySelectorAll("img")).toHaveLength(1);
     expect(container.querySelector("[data-listing-card-media]")?.getAttribute("data-listing-card-media")).toBe("image");
   });
 
   it("without an image: the neutral placeholder in the same box", async () => {
     const { ListingCard } = await import("@/components/listings/listing-card");
-    const { container } = render(<ListingCard listing={listing} projection={projection} />);
+    const { LocaleProvider } = await import("@/components/locale/locale-provider");
+    const { container } = render(<LocaleProvider><ListingCard listing={listing} projection={projection} /></LocaleProvider>);
     expect(container.querySelectorAll("img")).toHaveLength(0);
     expect(container.querySelector("[data-listing-card-media]")?.getAttribute("data-listing-card-media")).toBe("placeholder");
   });

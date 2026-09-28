@@ -321,11 +321,11 @@ describe("T042 / T044 / T045 — commission configuration LIVE (SUPER_ADMIN, 209
   }, LIVE_TIMEOUT_MS);
 
   it("T044 — every order_financials snapshot readable by FINANCE is byte-identical before and after the commission mutations above (nothing recalculates history)", async () => {
-    const { data: snapshots } = await finance.from("order_financials").select("order_id, commission_policy_id, commission_percentage_snapshot, commission_amount, seller_net_amount, buyer_total_amount, calculated_at").order("order_id");
+    const { data: snapshots } = await finance.from("v_internal_order_financials").select("order_id, commission_policy_id, commission_percentage_snapshot, commission_amount, seller_net_amount, buyer_total_amount, calculated_at").order("order_id");
     const before = JSON.stringify(snapshots ?? []);
     const touched = await withLiveClient(superAdmin, async () => (await import("@/lib/admin/commission")).updateCommissionPolicy({ policyId, name: `${POLICY_NAME} renamed`, effectiveFrom: FUTURE_FROM }));
     expect(touched.ok).toBe(true);
-    const { data: after } = await finance.from("order_financials").select("order_id, commission_policy_id, commission_percentage_snapshot, commission_amount, seller_net_amount, buyer_total_amount, calculated_at").order("order_id");
+    const { data: after } = await finance.from("v_internal_order_financials").select("order_id, commission_policy_id, commission_percentage_snapshot, commission_amount, seller_net_amount, buyer_total_amount, calculated_at").order("order_id");
     expect(JSON.stringify(after ?? [])).toBe(before);
   }, LIVE_TIMEOUT_MS);
 });

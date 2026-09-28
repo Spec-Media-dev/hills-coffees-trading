@@ -8,7 +8,6 @@ import {
   F013_FIXTURES,
   createAnonymousFixtureClient,
   inspectF013T071State,
-  prepareF013T071SnapshotOrder,
   requireF013T071LiveTarget,
   signInAsFixture,
   type F013T071State,
@@ -89,7 +88,9 @@ describe.skipIf(!T071)("T071 — M4a delivery destinations live proof (LOCAL hil
     expect(await read(buyerA, first)).toMatchObject({ organization_id: ORG_A, country_code: "AE", city: "Dubai", address_line_2: null,
       delivery_method: "Courier", is_default: true, retired_at: null, retired_by: null });
     expect(await activeDefaults(buyerA, ORG_A)).toEqual([first]);
-    expectCode(await upsert(buyerA, null, ORG_B, fields("first"), requestId), "request_id_conflict");
+    // H1 authorizes the requested organization before request-log lookup, so this caller cannot use a
+    // known request id to distinguish another organization's replay from a fresh request.
+    expectCode(await upsert(buyerA, null, ORG_B, fields("first"), requestId), "buyer_not_authorized");
   }, 120_000);
 
   it("keeps exactly one active default per organization when the default switches", async () => {
@@ -146,32 +147,13 @@ describe.skipIf(!T071)("T071 — M4a delivery destinations live proof (LOCAL hil
     expect(await read(buyerB, foreign)).toMatchObject({ organization_id: ORG_B, label: fields("foreign").label, retired_at: null });
   }, 120_000);
 
-  it("retire leaves a non-null historical snapshot unchanged even after the saved destination is edited", async () => {
+  it("edits then retires the saved destination without creating a historical order snapshot", async () => {
     const sourceBefore = await read(buyerA, first);
     expect(sourceBefore).toMatchObject({ id: first, city: "Abu Dhabi", address_line_2: "Unit 2", retired_at: null, is_default: true });
-    // M4b has not been applied: the approved LOCAL service-role fixture uses M2a's internal-transition guard to
-    // freeze the actual saved destination into a synthetic LEGACY order before either source mutation below.
-    const historical = prepareF013T071SnapshotOrder();
-    expect(historical.destinationId).toBe(first);
     const before = inspectF013T071State();
-    const historicalBefore = before.orders.find((order) => order.id === historical.orderId);
-    expect(historicalBefore).toMatchObject({ id: historical.orderId, delivery_destination_id: first, commerce_flow: "LEGACY", status: "DRAFT" });
-    const snapshotBefore = historicalBefore!.destination_snapshot;
-    expect(snapshotBefore).toStrictEqual({
-      label: sourceBefore!.label,
-      country_code: "AE",
-      city: "Abu Dhabi",
-      address_lines: ["F013 Synthetic Warehouse Road 1", "Unit 2"],
-      contact_name: "F013 Synthetic Contact",
-      contact_phone: "+97140000001",
-      delivery_method: "Courier",
-    });
-    expect(sourceBefore!.label).toMatch(/^T071 /);
-    expect(sourceBefore!.country_code).toBe("AE");
-    expect(sourceBefore!.address_line_1).toBe("F013 Synthetic Warehouse Road 1");
-    expect(sourceBefore!.contact_name).toBe("F013 Synthetic Contact");
-    expect(sourceBefore!.contact_phone).toBe("+97140000001");
-    expect(sourceBefore!.delivery_method).toBe("Courier");
+    // The pre-M4b helper manufactured a LEGACY order solely to test a historical snapshot.  Calling it now
+    // would recreate the row-94 audit-leak shape, so this applied-state proof exercises only the real RPC lifecycle.
+    expect(buyerAOrders(before).some((order) => order.delivery_destination_id === first)).toBe(false);
 
     const edited = await upsert(buyerA, first, ORG_A, fields("first", { city: "Sharjah", address_line_2: "Changed after snapshot", is_default: true }));
     expect(edited.error).toBeNull();
@@ -189,10 +171,6 @@ describe.skipIf(!T071)("T071 — M4a delivery destinations live proof (LOCAL hil
     expect(await activeDefaults(buyerA, ORG_A)).toEqual([]);
     expectCode(await upsert(buyerA, first, ORG_A, fields("first")), "destination_not_found");
     const after = inspectF013T071State();
-    const historicalAfter = after.orders.find((order) => order.id === historical.orderId);
-    expect(historicalAfter?.delivery_destination_id).toBe(first);
-    expect(historicalAfter?.destination_snapshot).toStrictEqual(snapshotBefore);
-    expect(JSON.stringify(historicalAfter?.destination_snapshot)).toBe(JSON.stringify(snapshotBefore));
     expect(buyerAOrders(after)).toEqual(buyerAOrders(before));
     expect(after.destinations.filter((destination) => destination.id === first)).toHaveLength(1);
   }, 120_000);

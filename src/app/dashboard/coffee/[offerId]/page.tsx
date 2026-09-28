@@ -2,14 +2,15 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { PageHeader } from "@/components/app/page-header";
+import { AddToCartForm } from "@/components/commerce/add-to-cart-form";
 import { AvailabilityBar } from "@/components/listings/availability-bar";
 import { ListingStatusBadge } from "@/components/listings/listing-status-badge";
 import { AppBilingual } from "@/components/locale/app-bilingual";
 import { MediaGallery } from "@/components/media/media-gallery";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { getBrowseListingById } from "@/lib/listings/browse";
+import { getBuyerOrganizationId } from "@/lib/commerce/cart";
 import { projectFillState } from "@/lib/listings/fills";
 import { getOfferMedia } from "@/lib/listings/media";
 
@@ -41,6 +42,7 @@ export default async function MarketplaceListingDetailPage({
 
   const listing = await getBrowseListingById(offerId);
   if (!listing) notFound();
+  const buyerOrganizationId = await getBuyerOrganizationId();
   // "Gallery inside": every image the member may see (same RLS audience as the listing itself), in
   // the seller's sort order, opening on the primary.
   const media = (await getOfferMedia(offerId)).filter((item) => item.signedUrl);
@@ -184,13 +186,8 @@ export default async function MarketplaceListingDetailPage({
                 <AppBilingual pick={(c) => c.marketplace.card.priceUnit} />
               </span>
             </span>
-            <Button type="button" disabled aria-disabled="true">
-              <AppBilingual pick={(c) => c.marketplace.detail.purchase.comingSoon} />
-            </Button>
+            <AddToCartForm offerId={listing.id} disabledReason={!buyerOrganizationId ? "unavailable" : buyerOrganizationId === listing.sellerOrganizationId ? "own" : !projection.ok || projection.remainingQuantityKg <= 0 ? "unavailable" : undefined} />
           </div>
-          <p className="text-[length:var(--text-small)] text-muted-foreground">
-            <AppBilingual pick={(c) => c.marketplace.detail.purchase.comingSoonDescription} />
-          </p>
         </section>
       </div>
     </div>

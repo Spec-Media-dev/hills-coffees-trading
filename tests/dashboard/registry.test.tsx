@@ -101,7 +101,7 @@ describe("T002 — static registry lists implemented modules only", () => {
 
     const orders = DASHBOARD_MODULES[3]!;
     const orderHrefs = (orders.navGroups ?? []).flatMap((g) => g.entries.map((e) => e.href));
-    expect(orderHrefs).toEqual(["/dashboard/orders"]);
+    expect(orderHrefs).toEqual(["/dashboard/orders", "/dashboard/cart", "/dashboard/destinations"]);
 
     const payments = DASHBOARD_MODULES[4]!;
     const paymentsHrefs = (payments.navGroups ?? []).flatMap((g) => g.entries.map((e) => e.href));
@@ -145,7 +145,9 @@ describe("T002 — static registry lists implemented modules only", () => {
     // header. This buyer-only org sees "/dashboard/payments" (entry-level `requiredCapability: "buy"`)
     // but NOT "/dashboard/payouts" (entry-level `requiredCapability: "sell"`, canSell: false here).
     expect(groups[2]!.items.map((i) => i.href).sort()).toEqual([
+      "/dashboard/cart",
       "/dashboard/deliveries",
+      "/dashboard/destinations",
       "/dashboard/disputes",
       "/dashboard/inventory",
       "/dashboard/orders",
@@ -162,6 +164,8 @@ describe("T002 — static registry lists implemented modules only", () => {
     const groups = buildDashboardNavGroups({ modules: DASHBOARD_MODULES, organization: noBuyOrg });
     expect(groups.map((g) => g.key)).toEqual(["overview", "account"]);
     expect(groups.flatMap((g) => g.items.map((i) => i.href))).not.toContain("/dashboard/orders");
+    expect(groups.flatMap((g) => g.items.map((i) => i.href))).not.toContain("/dashboard/cart");
+    expect(groups.flatMap((g) => g.items.map((i) => i.href))).not.toContain("/dashboard/destinations");
     expect(groups.flatMap((g) => g.items.map((i) => i.href))).not.toContain("/dashboard/deliveries");
   });
 

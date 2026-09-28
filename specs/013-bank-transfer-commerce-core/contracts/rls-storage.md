@@ -17,7 +17,7 @@ below that holds buyer, seller or finance data. An MFA-enrolled session that has
 |---|---|---|
 | `orders` | unchanged: `can_view_order(id)`. The header has no money; sellers keep status visibility for their own lines. | unchanged buyer DRAFT insert/update; status changes only via RPC/trigger |
 | `order_items` | B (all lines) ∨ S (**own lines only**, `seller_organization_id` membership) ∨ F ∨ PA | unchanged (buyer DRAFT insert; update/remove via existing RPCs) |
-| `order_financials` | B ∨ F ∨ A ∨ PA. **Sellers removed.** | none (RPC only) |
+| `order_financials` | Direct authenticated SELECT is revoked. Buyers use `v_buyer_order_financials` (payment totals only); F ∨ A ∨ PA use `v_internal_order_financials` (full frozen settlement). Sellers have neither projection. | none (RPC/view only) |
 | `proforma_invoices` | B ∨ F ∨ PA. Sellers and auditors removed; auditors use `v_audit_proformas`. | none |
 | `proforma_invoice_items` | B ∨ S (own lines) ∨ F ∨ PA | none |
 | `proforma_line_economics` | S (own lines) ∨ F ∨ PA. **Buyers excluded** (commission-neutral buyer view, UX-003). | none |
