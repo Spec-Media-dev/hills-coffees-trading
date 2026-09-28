@@ -30,6 +30,7 @@ describe("T001 — buyer DTO field boundary (compile-time)", () => {
   it("BuyerBrowseListing accepts every field a buyer is entitled to", () => {
     const buyerRow: BuyerBrowseListing = {
       id: "offer-1",
+      sellerOrganizationId: "seller-1",
       title: "Ethiopia Yirgacheffe",
       coffeeId: "coffee-1",
       coffeeName: "Ethiopia Yirgacheffe",
@@ -51,6 +52,7 @@ describe("T001 — buyer DTO field boundary (compile-time)", () => {
   it("BuyerBrowseListing rejects `sourcePurchaseOrderItemId` at compile time — seller-private provenance must never leak to a buyer DTO", () => {
     const buyerRow: BuyerBrowseListing = {
       id: "offer-1",
+      sellerOrganizationId: "seller-1",
       title: null,
       coffeeId: "coffee-1",
       coffeeName: null,
@@ -74,6 +76,7 @@ describe("T001 — buyer DTO field boundary (compile-time)", () => {
   it("BuyerBrowseListing rejects `rejectionReason`/`reviewedBy`/`reviewedAt`/`createdBy`/`deletedAt` at compile time", () => {
     const buyerRow: BuyerBrowseListing = {
       id: "offer-1",
+      sellerOrganizationId: "seller-1",
       title: null,
       coffeeId: "coffee-1",
       coffeeName: null,
@@ -97,6 +100,7 @@ describe("T001 — buyer DTO field boundary (compile-time)", () => {
   it("BuyerListingDetail (buyer detail view) carries the SAME field boundary, plus sensory/tag context only", () => {
     const detail: BuyerListingDetail = {
       id: "offer-1",
+      sellerOrganizationId: "seller-1",
       title: null,
       coffeeId: "coffee-1",
       coffeeName: null,

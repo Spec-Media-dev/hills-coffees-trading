@@ -110,9 +110,10 @@ describe("T064 — commerce error codes are exactly the contract vocabulary (D3)
   const errorLines = contract.split("\n").filter((line) => /^Errors:/.test(line));
   const CONTRACT_CODES = [...new Set([...raisesBlock, ...errorLines.join("\n")].join("").match(/`([a-z][a-z0-9]*(?:_[a-z0-9]+)*)`/g)!.map((c) => c.replace(/`/g, "")))];
 
-  it("the contract was read (Raises + 5 Errors lines, incl. the two M4a lines) and yields 42 codes", () => {
+  it("the contract was read (Raises + 5 Errors lines, incl. the two M4a lines) and yields 44 codes", () => {
     expect(errorLines).toHaveLength(5);
-    expect(CONTRACT_CODES).toHaveLength(42);
+    // M4b launch adds explicit non-AE and deferred-promotion refusal codes.
+    expect(CONTRACT_CODES).toHaveLength(44);
   });
 
   it("COMMERCE_ERROR_CODES equals the contract codes — no alias, no invented code, none missing", () => {

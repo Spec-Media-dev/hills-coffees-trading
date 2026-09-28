@@ -12,6 +12,7 @@ afterEach(cleanup);
 
 const baseListing: BuyerBrowseListing = {
   id: "offer-1",
+  sellerOrganizationId: "seller-1",
   title: "Feature 006 Fixture — Published Listing",
   coffeeId: "coffee-1",
   coffeeName: "Feature 006 Fixture Coffee",

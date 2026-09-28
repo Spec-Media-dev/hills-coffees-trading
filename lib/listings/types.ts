@@ -83,6 +83,8 @@ export type ListingWarehouseContext = {
  */
 export type BuyerBrowseListing = {
   id: string;
+  /** Public offer ownership, used only to suppress a buyer's own add-to-cart control. */
+  sellerOrganizationId: string;
   title: string | null;
   coffeeId: string;
   coffeeName: string | null;

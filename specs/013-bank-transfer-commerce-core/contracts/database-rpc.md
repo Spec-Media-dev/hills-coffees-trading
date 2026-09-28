@@ -6,9 +6,10 @@ Conventions for **every** function below unless stated:
 - Errors are raised as stable snake_case codes, mapped to localized copy in `lib/commerce/errors.ts` /
   `lib/finance/errors.ts`. No raw SQL text reaches a client (the existing Feature 007 `error-mapping` discipline).
 - Non-enumeration: a nonexistent id and an id owned by someone else raise the **same** code (`*_not_found`).
-- `p_request_id uuid` = the idempotency key (R-25). The function inserts the `commerce_request_log` row **first**; replaying
-  the key with the same actor, operation and scope (organization, destination, account or order id) returns the stored
-  result, any other reuse raises `request_id_conflict`, and a null key raises `request_id_required`.
+- `p_request_id uuid` = the idempotency key (R-25). **Owner decision H1:** current authorization always precedes a
+  request-log lookup, so recognition of a key never authorizes a caller or returns a stored response. After the
+  read-only authorization check, the log remains the first write; replaying a same-actor/same-operation/same-scope key
+  returns its stored result, other reuse raises `request_id_conflict`, and null raises `request_id_required`.
 - Every mutating function sets `app.correlation_id` and `app.transition_reason`. The buyer/seller checks
   `organization_can_buy/sell`, `is_blocked_user()` and `mfa_satisfied()` are re-evaluated inside the function (SEC-001).
 - Lock order is [data-model.md §8](../data-model.md#8-global-locking-order-every-feature-013-function-deadlock-free-by-construction).
@@ -21,7 +22,7 @@ Conventions for **every** function below unless stated:
 | `add_cart_line(p_org_id uuid, p_offer_id uuid, p_quantity_kg numeric, p_request_id uuid) → jsonb` | authenticated | Can-buy active member of `p_org_id` (explicit organization scope, T069 owner decision A3: a member of several buying organizations selects one; a non-member, non-can-buy or nonexistent organization raises the same `buyer_not_authorized`). Resolves that organization's cart (same per-organization advisory lock as `get_or_create_cart`). Inserts a line, or adds to an existing line's quantity (one line per offer). `validate_order_item_offer()` enforces eligibility (published, visible, not own listing, sellable ≥ qty) **without reserving** (FR-003). Returns `{order_id, line_id, quantity_kg}`. |
 | `update_order_item_quantity(uuid, numeric)` | authenticated | **Existing** (Feature 007), reused unchanged. DRAFT only. |
 | `remove_order_item(uuid)` | authenticated | **Existing**, reused unchanged. |
-| `estimate_cart(p_order_id uuid, p_destination_id uuid default null, p_promo_code text default null) → jsonb` | authenticated | STABLE. Buyer member only. Calls `compute_order_quote` and returns **buyer-facing** fields only (no commission/seller net), flagged `is_estimate: true`. When no destination is supplied, shipping/VAT on shipping are `null` with reason `destination_required`. |
+| `estimate_cart(p_order_id uuid, p_destination_id uuid default null, p_promo_code text default null) → jsonb` | authenticated | STABLE. Buyer member only (M4b: a non-member receives `order_not_found`, the same code as a missing or non-`DRAFT` order). Calls `compute_order_quote` and returns **buyer-facing** fields only (no commission/seller net), flagged `is_estimate: true`. When no destination is supplied, shipping/VAT on shipping are `null` with reason `destination_required`. |
 | `upsert_delivery_destination(p_id uuid, p_org_id uuid, p_fields jsonb, p_request_id uuid) → uuid` | authenticated | Can-buy member of `p_org_id`. Validates §2.3 fields. `p_id` null = create. |
 | `retire_delivery_destination(p_id uuid, p_request_id uuid)` | authenticated | Soft retire. Never affects orders (snapshots). |
 
@@ -40,18 +41,24 @@ Raises:
 - `order_has_no_items`
 - `listing_is_not_available` (per line)
 - `destination_required`
+- `destination_tax_unsupported` (Launch MVP: non-AE final issuance is refused until an approved rule is encoded)
 - `tax_rule_missing`
 - `shipping_rule_missing`
 - `commission_rule_missing` (no tier covers a member seller's own `Q_s`)
 - `negative_economics` (defence in depth; unreachable by construction)
 - `bank_account_missing`
 - `currency_not_supported`
+- `promotion_not_supported` (Launch MVP: promotion entry is not enabled)
 
 ### `issue_proforma(p_order_id uuid, p_destination_id uuid, p_promo_code text, p_request_id uuid) → jsonb`
 EXECUTE authenticated.
+0. Authorization before idempotency (review B3): lock the order; a missing order, a non-`BANK_TRANSFER_V1` order and an
+   order of an organization the caller is not an active member of all raise `order_not_found` (non-enumeration); then
+   `commerce_assert_buyer_member` (`buyer_not_authorized` / `mfa_step_up_required`). Only then the R-25 request log
+   (replay → the stored result; other reuse → `request_id_conflict`).
 1. Checks, all under the order lock:
-   - `commerce_settings.bank_transfer_checkout_enabled`;
-   - the caller is a buyer member, can-buy, MFA-satisfied;
+   - `commerce_settings.bank_transfer_checkout_enabled` (and the pilot list when non-empty);
+   - the caller is a buyer member, can-buy, MFA-satisfied (step 0);
    - the order is `BANK_TRANSFER_V1` in `DRAFT`, or `PROFORMA_ISSUED` whose open proforma's `valid_until <= clock_timestamp()` (replacement);
    - the destination belongs to the buyer org and is not retired;
    - no legacy buyer shipment plan exists.
@@ -61,8 +68,16 @@ EXECUTE authenticated.
 5. **No reservation, no offer/position change** (FR-015).
 6. Emits `proforma.issued`.
 
-Returns `{order_id, proforma_id, proforma_code, version, valid_until, buyer_total}`.
-Errors: the quote errors, plus `checkout_disabled`, `order_not_found`, `order_not_editable`, `proforma_still_valid`, `destination_not_found`, `legacy_shipment_plan_present`.
+Returns `{order_id, proforma_id, proforma_code, version, valid_until, buyer_total}` — no bank identifier, destination or
+seller economics.
+Errors: the quote errors, plus `checkout_disabled`, `order_not_found`, `order_not_editable`, `proforma_still_valid`, `destination_not_found`, `legacy_shipment_plan_present`, `buyer_not_authorized`, `mfa_step_up_required`, `request_id_required`, `request_id_conflict`.
+
+Bank-instruction visibility (RLS-008, review B2): M4b replaces `proforma_bank_instructions_read` so a buyer member reads
+the full snapshot only once its proforma is `CONFIRMED` or `PAID` (i.e. after `confirm_proforma`); finance
+(`is_finance_operator()`, which includes ADMIN) reads it in every state; the restrictive MFA gate still applies; anon
+has no privilege; `service_role` keeps the M2b read-only grant (maintenance only — never an app path, plan IX / SEC-009).
+The header's `bank_account_masked` (bank name, account name, SWIFT, last four of account/IBAN — data-model §3.1, "safe
+for auditors") stays readable by the buyer on the issued proforma; it is not a payable instruction.
 
 ### `confirm_proforma(p_proforma_id uuid, p_request_id uuid) → jsonb`
 EXECUTE authenticated.

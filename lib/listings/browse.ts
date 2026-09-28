@@ -44,7 +44,7 @@ const DEFAULT_PAGE_SIZE = 25;
 const MAX_PAGE_SIZE = 100;
 
 const BROWSE_SELECT =
-  "id, coffee_id, lot_id, seller_type, warehouse_id, title, quantity_kg, reserved_quantity_kg, filled_quantity_kg, price_per_kg, currency, status, created_at, updated_at";
+  "id, coffee_id, lot_id, seller_organization_id, seller_type, warehouse_id, title, quantity_kg, reserved_quantity_kg, filled_quantity_kg, price_per_kg, currency, status, created_at, updated_at";
 
 export async function getBrowseListings({
   page = 0,
@@ -131,6 +131,7 @@ export async function getBrowseListingById(offerId: string): Promise<BuyerListin
 
 type BrowseRow = {
   id: string;
+  seller_organization_id: string;
   coffee_id: string;
   lot_id: string;
   seller_type: string;
@@ -154,6 +155,7 @@ function mapBrowseRow(
 ): BuyerBrowseListing {
   return {
     id: row.id,
+    sellerOrganizationId: row.seller_organization_id,
     title: row.title,
     coffeeId: row.coffee_id,
     coffeeName: coffeeNameById.get(row.coffee_id) ?? null,

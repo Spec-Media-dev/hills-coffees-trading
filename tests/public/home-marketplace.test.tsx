@@ -46,6 +46,7 @@ const member = {
 
 const listing = (n: number): BuyerBrowseListing => ({
   id: `offer-${n}`,
+  sellerOrganizationId: "seller-1",
   title: `Secret lot ${n}`,
   coffeeId: "c-1",
   coffeeName: "Guji",
