@@ -1,3 +1,4 @@
+import { readProductionEnvLocal } from "../../scripts/f013-production-env.mjs";
 // UIF-046 (accessibility) + UIF-044/045 gap-fill closure proof, real browser (installed Chrome over
 // CDP). Complements the already-passing `uif-fg.browser.mjs` (Member/Admin overflow, RTL sidebar
 // edge, drawer open/close via programmatic click, denial matrix) and `ui-foundation.browser.mjs`
@@ -7,7 +8,7 @@
 // across representative Public + Member + Admin routes, and that every focused control shows a
 // visible focus outline.
 import { spawn } from "node:child_process";
-import { mkdtempSync, readFileSync } from "node:fs";
+import { mkdtempSync } from "node:fs";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -17,7 +18,7 @@ const chromePath = process.env.CHROME_PATH ?? "C:/Program Files/Google/Chrome/Ap
 const fixtures = { member: "buyer-only+foundation-test@example.com", admin: "warehouse-admin+foundation-test@example.com" };
 
 function loadEnv() {
-  for (const raw of readFileSync(".env.local", "utf8").split(/\r?\n/)) {
+  for (const raw of readProductionEnvLocal().split(/\r?\n/)) {
     const match = raw.match(/^([^#=]+)=(.*)$/);
     if (match && process.env[match[1]] === undefined) process.env[match[1]] = match[2].replace(/^['"]|['"]$/g, "");
   }

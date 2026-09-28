@@ -1,3 +1,4 @@
+import { readProductionEnvLocal, productionChildEnv } from "../../scripts/f013-production-env.mjs";
 // Feature 009 RUN D (Phase 7 final closure) — real Chrome addendum to `feature009-runc-phase6.browser.mjs`.
 // Same harness, same fixture discipline (real password-grant sessions, plain PostgREST writes under
 // the buyer/warehouse sessions' own RLS, never service-role). Adds the final-closure checks RUN C's
@@ -8,13 +9,12 @@
 // (5) quantities render WITH units and "Planned" vs "Delivered" stay distinct in EN and AR,
 // (6) zero console/page errors (React hydration mismatches log to console.error) and zero failed requests.
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 
 import { assert, goto, launchBrowser, viewport } from "./cdp-harness.mjs";
 
 function loadEnv() {
-  for (const raw of readFileSync(".env.local", "utf8").split(/\r?\n/)) {
+  for (const raw of readProductionEnvLocal().split(/\r?\n/)) {
     const match = raw.match(/^([A-Z_]+)=(.*)$/);
     if (match && process.env[match[1]] === undefined) process.env[match[1]] = match[2].replace(/^['"]|['"]$/g, "");
   }
@@ -31,7 +31,7 @@ const FIXTURES = {
 
 function runFixtureScript(args) {
   loadEnv();
-  execFileSync(process.execPath, ["node_modules/tsx/dist/cli.mjs", "scripts/seed-test-fixtures.ts", ...args], { cwd: process.cwd(), env: process.env, stdio: "ignore" });
+  execFileSync(process.execPath, ["node_modules/tsx/dist/cli.mjs", "scripts/seed-test-fixtures.ts", ...args], { cwd: process.cwd(), env: productionChildEnv(), stdio: "ignore" });
 }
 
 async function signIn(email) {

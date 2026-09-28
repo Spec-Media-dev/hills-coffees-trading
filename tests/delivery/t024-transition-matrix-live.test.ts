@@ -5,8 +5,9 @@ import { resolve } from "node:path";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
-import { FOUNDATION_FIXTURES, signInAsFixture } from "@/tests/auth/fixture-session";
+import { FOUNDATION_FIXTURES, createLegacyFixtureDraftOrder, signInAsFixture } from "@/tests/auth/fixture-session";
 import { ACTION_FEEDBACK } from "@/lib/types/action-feedback";
+import { productionChildEnv } from "@/scripts/f013-production-env.mjs";
 
 /**
  * Feature 009 RUN C closeout (T024) — the ONE gap `tests/delivery/transition-matrix.test.ts` reports:
@@ -49,7 +50,7 @@ function runFixtureScript(args: readonly string[]): string {
   return String(
     execFileSync(process.execPath, [resolve(process.cwd(), "node_modules", "tsx", "dist", "cli.mjs"), resolve(process.cwd(), "scripts", "seed-test-fixtures.ts"), ...args], {
       cwd: process.cwd(),
-      env: process.env,
+      env: productionChildEnv(),
       stdio: ["ignore", "pipe", "pipe"],
     })
   );
@@ -84,12 +85,14 @@ type Sessions = { buyer: SupabaseClient; buyerUserId: string; warehouse: Supabas
 
 /** Same reviewed T013/T017 sequence, stopping at a genuinely settled READY shipment (reserved at settlement). */
 async function buildSettledReadyShipment(s: Sessions, plannedKg: number, tag: string) {
-  const orderId = randomUUID();
+  // H1 (Feature 013 M4a): a member insert is BANK_TRANSFER_V1, so the LEGACY chain starts from the local-only
+  // service_role fixture draft; the item, confirm and every later step stay on the real authenticated sessions.
+  const legacyDraft = await createLegacyFixtureDraftOrder({ organizationId: BUYER_ORG, userId: s.buyerUserId });
+  if (!legacyDraft.ok) throw new Error(`LEGACY fixture draft (${tag}): ${legacyDraft.code}`);
+  const orderId = legacyDraft.data.id;
   const orderItemId = randomUUID();
   const shipmentId = randomUUID();
 
-  const { error: orderErr } = await s.buyer.from("orders").insert({ id: orderId, order_code: `T013-ORD-${tag}-${orderId.slice(0, 8)}`, buyer_organization_id: BUYER_ORG, status: "DRAFT", currency: "USD", created_by: s.buyerUserId });
-  if (orderErr) throw new Error(`order insert (${tag}): ${orderErr.message}`);
   const { error: itemErr } = await s.buyer.from("order_items").insert({
     id: orderItemId,
     order_id: orderId,

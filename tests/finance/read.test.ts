@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 
-import { CHECKOUT_FIXTURES, FOUNDATION_FIXTURES, INVENTORY_FIXTURES, createAnonymousFixtureClient, resetCheckoutFixtures, signInAsFixture } from "@/tests/auth/fixture-session";
+import { CHECKOUT_FIXTURES, FOUNDATION_FIXTURES, INVENTORY_FIXTURES, createAnonymousFixtureClient, resetCheckoutFixtures, signInAsFixture, createLegacyFixtureDraftOrder } from "@/tests/auth/fixture-session";
 
 /**
  * Feature 008 Phase 1 (T003/T006) — LIVE proofs of `lib/finance/read.ts` against the real test
@@ -45,13 +45,13 @@ async function markShipmentReadyAsWarehouse(shipmentId: string): Promise<void> {
 /** Builds and fully checks out a fresh order for the given org, through production write paths only. */
 async function buildCheckedOutOrder(client: SupabaseClient, organizationId: string, quantityKg: number): Promise<string> {
   return withLiveClient(client, async () => {
-    const { createDraftOrder, addOrderItem } = await import("@/lib/orders/drafts");
+    const { addOrderItem } = await import("@/lib/orders/drafts");
     const { createShipment, addShipmentItem, requestShipment } = await import("@/src/app/dashboard/orders/[orderId]/shipment/actions");
     const { getOrderShipments } = await import("@/lib/orders/read");
     const { executeCheckout } = await import("@/lib/orders/checkout");
     const userId = (await client.auth.getUser()).data.user!.id;
 
-    const order = await createDraftOrder({ organizationId, userId });
+    const order = await createLegacyFixtureDraftOrder({ organizationId, userId });
     if (!order.ok) throw new Error(`setup: ${order.code}`);
     const item = await addOrderItem({ organizationId, orderId: order.data.id, offerId: CHECKOUT_FIXTURES.offerCheckout, quantityKg });
     if (!item.ok) throw new Error(`setup: ${item.code}`);

@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { CHECKOUT_FIXTURES, INVENTORY_FIXTURES, PHASE89_FIXTURES, createAnonymousFixtureClient, inspectCheckoutMirrors, inspectCheckoutOrder, resetCheckoutFixtures, setSuspendedOrganizationStatus, signInAsFixture } from "@/tests/auth/fixture-session";
+import { CHECKOUT_FIXTURES, INVENTORY_FIXTURES, PHASE89_FIXTURES, createAnonymousFixtureClient, inspectCheckoutMirrors, inspectCheckoutOrder, resetCheckoutFixtures, setSuspendedOrganizationStatus, signInAsFixture, createLegacyFixtureDraftOrder } from "@/tests/auth/fixture-session";
 import { ACTION_FEEDBACK } from "@/lib/types/action-feedback";
 
 import { buildHoldOrder } from "./live-helpers";
@@ -45,10 +45,10 @@ function spyItemRpcs(client: SupabaseClient) {
 /** A DRAFT order with one item (and optionally a DRAFT shipment planning it), via the production paths. */
 async function buildDraft(client: SupabaseClient, organizationId: string, quantityKg: number, options: { planKg?: number } = {}) {
   return withLiveClient(client, async () => {
-    const { createDraftOrder, addOrderItem } = await import("@/lib/orders/drafts");
+    const { addOrderItem } = await import("@/lib/orders/drafts");
     const { createShipment, addShipmentItem } = await import("@/src/app/dashboard/orders/[orderId]/shipment/actions");
     const userId = (await client.auth.getUser()).data.user!.id;
-    const order = await createDraftOrder({ organizationId, userId });
+    const order = await createLegacyFixtureDraftOrder({ organizationId, userId });
     if (!order.ok) throw new Error(`setup: ${order.code}`);
     const item = await addOrderItem({ organizationId, orderId: order.data.id, offerId: CHECKOUT_FIXTURES.offerCheckout, quantityKg });
     if (!item.ok) throw new Error(`setup: ${item.code}`);

@@ -1,0 +1,26 @@
+project_id = "hills-f013-local"
+
+[api]
+port = 55421
+
+[db]
+port = 55422
+shadow_port = 55420
+major_version = 17
+
+[db.pooler]
+enabled = false
+
+[studio]
+port = 55423
+
+[inbucket]
+port = 55424
+smtp_port = 55425
+pop3_port = 55426
+
+[analytics]
+enabled = false
+
+[edge_runtime]
+enabled = false

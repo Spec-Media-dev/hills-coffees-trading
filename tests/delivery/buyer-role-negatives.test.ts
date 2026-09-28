@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { describe, expect, it, vi } from "vitest";
 
-import { INVENTORY_FIXTURES, LISTING_FIXTURES, signInAsFixture } from "@/tests/auth/fixture-session";
+import { INVENTORY_FIXTURES, LISTING_FIXTURES, signInAsFixture, createLegacyFixtureDraftOrder } from "@/tests/auth/fixture-session";
 
 /**
  * Feature 009 RUN C (T025) — a buyer attempting EVERY operational status directly, both through
@@ -28,10 +28,10 @@ async function withLiveClient<T>(client: SupabaseClient, run: () => Promise<T>):
 
 async function createDraftShipmentFixture(client: SupabaseClient, organizationId: string) {
   return withLiveClient(client, async () => {
-    const { createDraftOrder, addOrderItem } = await import("@/lib/orders/drafts");
+    const { addOrderItem } = await import("@/lib/orders/drafts");
     const { createDraftShipment } = await import("@/lib/delivery/buyer");
     const userId = (await client.auth.getUser()).data.user!.id;
-    const order = await createDraftOrder({ organizationId, userId });
+    const order = await createLegacyFixtureDraftOrder({ organizationId, userId });
     if (!order.ok) throw new Error(String(order.code));
     const item = await addOrderItem({ organizationId, orderId: order.data.id, offerId: LISTING_FIXTURES.offerPublished, quantityKg: 2 });
     if (!item.ok) throw new Error(String(item.code));

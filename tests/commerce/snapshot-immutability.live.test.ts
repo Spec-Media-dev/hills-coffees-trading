@@ -1,9 +1,5 @@
-import { execFileSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import path from "node:path";
-
 import { describe, expect, it } from "vitest";
+import { runF013ProofSqlFile, verifiedF013ProofRef } from "./f013-proof-cli";
 
 import { T037, T037_SECRETS, buildT037ProofSql } from "./t037-snapshot-proof";
 
@@ -18,27 +14,11 @@ import { T037, T037_SECRETS, buildT037ProofSql } from "./t037-snapshot-proof";
  */
 
 const LIVE = process.env.F013_LIVE === "1";
-const LINKED_REF = "mxejnutukgxyccnohglo";
 const IDS = Object.values(T037);
 
-function cli(args: string[]): string {
-  try {
-    return execFileSync("npx", ["supabase", ...args], { encoding: "utf8", shell: process.platform === "win32", stdio: ["ignore", "pipe", "pipe"], timeout: 180_000 });
-  } catch (error) {
-    const e = error as { stdout?: string; stderr?: string };
-    return `${e.stdout ?? ""}\n${e.stderr ?? ""}`;
-  }
-}
 /** Runs SQL from a temp file (a multi-line argument does not survive the Windows shell). */
 function runSqlFile(sql: string): string {
-  const dir = mkdtempSync(path.join(tmpdir(), "t037-"));
-  const file = path.join(dir, "query.sql");
-  try {
-    writeFileSync(file, sql);
-    return cli(["db", "query", "--linked", "-f", file]);
-  } finally {
-    rmSync(dir, { recursive: true, force: true });
-  }
+  return runF013ProofSqlFile(sql, "t037-");
 }
 function query<T = Record<string, unknown>>(sql: string): T[] {
   const out = runSqlFile(sql);
@@ -73,7 +53,7 @@ describe.skipIf(!LIVE)("T037 — M2b live proof (one rolled-back transaction; F0
   let raw = "";
 
   it("runs against the verified linked project and leaves production unchanged", () => {
-    expect(readFileSync("supabase/.temp/project-ref", "utf8").trim()).toBe(LINKED_REF);
+    expect(verifiedF013ProofRef()).toBeTruthy();
     before = query(STATE_SQL)[0]!;
     expect(before).toMatchObject({ t037_orders: 0, f013_proformas: 0, snapshot_rows: 0, f013_lines: 0, f013_financials: 0, order_pointers: 0, t037_audit_rows: 0, checkout_enabled: false });
 

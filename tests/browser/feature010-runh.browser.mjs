@@ -1,3 +1,4 @@
+import { readProductionEnvLocal, productionChildEnv } from "../../scripts/f013-production-env.mjs";
 // Feature 010 RUN H (Phase 11, T037) — console-WIDE real Chrome + axe pass over the CURRENT surfaces of
 // every group (overview/account, compliance, warehouse, catalogue, audit, system) plus the blocked
 // finance placeholders (disputes: live since T012) and the not-found / no-operational-role / anonymous states, across
@@ -20,7 +21,7 @@ import { resolve } from "node:path";
 import { assert, goto, launchBrowser, viewport } from "./cdp-harness.mjs";
 
 function loadEnv() {
-  for (const raw of readFileSync(".env.local", "utf8").split(/\r?\n/)) {
+  for (const raw of readProductionEnvLocal().split(/\r?\n/)) {
     const match = raw.match(/^([A-Z_]+)=(.*)$/);
     if (match && process.env[match[1]] === undefined) process.env[match[1]] = match[2].replace(/^['"]|['"]$/g, "");
   }
@@ -43,7 +44,7 @@ const FIXTURES = {
 };
 
 function seed(...args) {
-  return execFileSync(process.execPath, [resolve("node_modules/tsx/dist/cli.mjs"), resolve("scripts/seed-test-fixtures.ts"), ...args], { env: process.env, stdio: ["ignore", "pipe", "inherit"] }).toString();
+  return execFileSync(process.execPath, [resolve("node_modules/tsx/dist/cli.mjs"), resolve("scripts/seed-test-fixtures.ts"), ...args], { env: productionChildEnv(), stdio: ["ignore", "pipe", "inherit"] }).toString();
 }
 const seedJson = (flag) => JSON.parse(seed(flag).trim().split(/\r?\n/).find((line) => line.startsWith("{")) ?? "{}");
 async function signIn(email) {

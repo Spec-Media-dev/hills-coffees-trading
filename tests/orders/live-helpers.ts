@@ -2,7 +2,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { CHECKOUT_FIXTURES, FOUNDATION_FIXTURES, signInAsFixture } from "@/tests/auth/fixture-session";
+import { CHECKOUT_FIXTURES, FOUNDATION_FIXTURES, signInAsFixture, createLegacyFixtureDraftOrder } from "@/tests/auth/fixture-session";
 
 /**
  * Feature 007 RUN B/C — shared LIVE test helpers. Each file owns its own `vi.mock("@/lib/supabase/
@@ -12,19 +12,20 @@ import { CHECKOUT_FIXTURES, FOUNDATION_FIXTURES, signInAsFixture } from "@/tests
 export type WithLiveClient = <T>(client: SupabaseClient, run: () => Promise<T>) => Promise<T>;
 
 /**
- * Builds a DRAFT order with one item + a REQUESTED shipment plan through RUN A's own production paths.
+ * Builds a DRAFT order with one item + a REQUESTED shipment plan through RUN A's own production paths. The LEGACY
+ * DRAFT itself comes from the local-only service_role fixture path (Feature 013 H1: member inserts are V1).
  * `plannedKg` (RUN D, T025) plans a DIFFERENT quantity than ordered, to reach the database's own
  * `shipment_quantities_do_not_match_order` refusal; it defaults to the ordered quantity. `offerId` (Feature 006
  * live-chain proofs) defaults to Feature 007's dedicated checkout listing — every existing caller is unchanged.
  */
 export async function buildRequestedOrder(withLiveClient: WithLiveClient, client: SupabaseClient, organizationId: string, quantityKg: number, plannedKg: number = quantityKg, offerId: string = CHECKOUT_FIXTURES.offerCheckout): Promise<{ orderId: string; shipmentId: string }> {
   return withLiveClient(client, async () => {
-    const { createDraftOrder, addOrderItem } = await import("@/lib/orders/drafts");
+    const { addOrderItem } = await import("@/lib/orders/drafts");
     const { createShipment, addShipmentItem, requestShipment } = await import("@/src/app/dashboard/orders/[orderId]/shipment/actions");
     const { getOrderShipments } = await import("@/lib/orders/read");
     const userId = (await client.auth.getUser()).data.user!.id;
 
-    const order = await createDraftOrder({ organizationId, userId });
+    const order = await createLegacyFixtureDraftOrder({ organizationId, userId });
     if (!order.ok) throw new Error(`setup: ${order.code}`);
     const item = await addOrderItem({ organizationId, orderId: order.data.id, offerId, quantityKg });
     if (!item.ok) throw new Error(`setup: ${item.code}`);

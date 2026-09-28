@@ -51,10 +51,12 @@
  * production.
  */
 
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
-
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+
+import { assertF013ComplianceActor, assertF013G1, assertF013G2, assertF013G3, assertF013SourceIds, classifyF013Source, F013_SOURCE, type F013SourceRow, type F013SourceSnapshot } from "./f013-provenance";
+import { F013_LOCAL_API_URL, F013_LOCAL_PROJECT_ID, F013_LOCAL_WRITE_FLAGS, F013_READ_ONLY_FLAGS, F013_PRODUCTION_REF, F013TargetError, f013LocalNotificationEventCount, requireF013LocalTarget, resolveF013Mode, sanitizedF013Environment, type F013LocalTarget } from "./f013-local-target";
+import { runF013DockerPsqlStdin } from "./f013-docker-identity";
+import { readProductionEnvLocal } from "./f013-production-env.mjs";
 
 class SafeFixtureError extends Error {}
 
@@ -73,8 +75,9 @@ class SafeFixtureError extends Error {}
 function loadEnvLocal(): void {
   let contents: string;
   try {
-    contents = readFileSync(resolve(process.cwd(), ".env.local"), "utf8");
-  } catch {
+    contents = readProductionEnvLocal();
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
     return; // No file: fall back to whatever the ambient environment provides.
   }
 
@@ -103,7 +106,7 @@ function requireEnv(name: string): string {
   const value = process.env[name];
   if (value === undefined || value.trim() === "") {
     throw new Error(
-      `Missing required environment variable ${name}. Add it to .env.local — see .env.example.`
+      `Missing required environment variable ${name}. Configure the guarded production environment — see .env.example.`
     );
   }
   return value;
@@ -4149,12 +4152,8 @@ async function teardown(admin: SupabaseClient): Promise<void> {
 // they can never collide with application-generated rows. Every read/write below targets one of these exact ids or
 // emails — no wildcard, pattern or range filter.
 //
-// PRODUCTION SAFETY (Batch A preflight finding): the linked project is production and currently has NO shipping
-// rule, NO commission policy and NO payment account. The commerce configuration rows created here are therefore
-// GLOBAL. They are named "F013 FIXTURE — …", the bank account is fake and marked NOT FOR PAYMENT, and they are only
-// usable while `commerce_settings.bank_transfer_checkout_enabled` is false (pilot fixture organizations only).
-// Cleanup deactivates/archives them (they may be referenced by immutable snapshots, so they are never deleted), and
-// T235 (production activation) must verify they are inactive before the global switch is flipped.
+// The provenance path does not activate any global commerce configuration. The old F013 configuration ids remain
+// reserved, but are never populated by the preparation command; any previously active row is a hard G3 blocker.
 //
 // `--prepare-f013-fixtures` additionally requires F013_FIXTURES_APPROVED=1 (explicit human approval per run) and the
 // verified project ref. `--inspect-f013-fixtures` is read-only. `--cleanup-f013-fixtures` never hard-deletes a
@@ -4162,7 +4161,9 @@ async function teardown(admin: SupabaseClient): Promise<void> {
 // suspension path, deactivates/archives fixture configuration, and de-privileges the operator fixtures through the
 // existing exact-identity helper.
 
-const F013_PROJECT_REF = "mxejnutukgxyccnohglo";
+let activeF013ProjectRef: string | null = null;
+/** Set only after main() verified the nonce-bound local target; every F013 local write re-checks it. */
+let activeF013LocalTarget: F013LocalTarget | null = null;
 
 const F013_FIXTURE_IDS = {
   orgBuyerA: "13000000-0000-4000-8000-000000000001",
@@ -4212,16 +4213,301 @@ const F013_OPERATORS: readonly Fixture[] = [
   { label: "f013-admin", email: "admin+f013-test@example.com", fullName: "F013 Fixture — Platform Admin", organization: null, platformAdminRole: "ADMIN" },
 ];
 
+/**
+ * T071 listings. MEMBER_SELLER listings sit on the Hills SOURCE lots their seller genuinely bought (retained LEGACY
+ * provenance chain, scripts/f013-provenance.ts): their quantity equals the purchased quantity and their
+ * `source_purchase_order_item_id` is the exact purchase line. The old per-listing lots (lotS1W1/lotS2W2/lotS1W2) stay
+ * reserved only for the production G1 residue check; they are never created by this builder.
+ */
 const F013_LISTINGS = [
-  { offer: F013_FIXTURE_IDS.offerS1W1, lot: F013_FIXTURE_IDS.lotS1W1, position: F013_FIXTURE_IDS.positionS1W1, seller: F013_FIXTURE_IDS.orgSellerS1, sellerType: "MEMBER_SELLER", warehouse: F013_FIXTURE_IDS.warehouse1, lotCode: "F013-LOT-S1-W1", title: "F013 Fixture — S1 @ W1", quantityKg: 500, pricePerKg: 11.4 },
-  { offer: F013_FIXTURE_IDS.offerS2W2, lot: F013_FIXTURE_IDS.lotS2W2, position: F013_FIXTURE_IDS.positionS2W2, seller: F013_FIXTURE_IDS.orgSellerS2, sellerType: "MEMBER_SELLER", warehouse: F013_FIXTURE_IDS.warehouse2, lotCode: "F013-LOT-S2-W2", title: "F013 Fixture — S2 @ W2", quantityKg: 300, pricePerKg: 9.85 },
-  { offer: F013_FIXTURE_IDS.offerHillsW1, lot: F013_FIXTURE_IDS.lotHillsW1, position: F013_FIXTURE_IDS.positionHillsW1, seller: F013_FIXTURE_IDS.orgHills, sellerType: "HILLS", warehouse: F013_FIXTURE_IDS.warehouse1, lotCode: "F013-LOT-HILLS-W1", title: "F013 Fixture — Hills @ W1", quantityKg: 400, pricePerKg: 12.2 },
-  { offer: F013_FIXTURE_IDS.offerS1W2, lot: F013_FIXTURE_IDS.lotS1W2, position: F013_FIXTURE_IDS.positionS1W2, seller: F013_FIXTURE_IDS.orgSellerS1, sellerType: "MEMBER_SELLER", warehouse: F013_FIXTURE_IDS.warehouse2, lotCode: "F013-LOT-S1-W2", title: "F013 Fixture — S1 @ W2", quantityKg: 50, pricePerKg: 10.05 },
+  { offer: F013_FIXTURE_IDS.offerS1W1, lot: F013_SOURCE.hillsLots.w1, position: F013_FIXTURE_IDS.positionS1W1, seller: F013_FIXTURE_IDS.orgSellerS1, sellerType: "MEMBER_SELLER", warehouse: F013_FIXTURE_IDS.warehouse1, source: F013_SOURCE.items.s1w1, title: "F013 Fixture — S1 @ W1", quantityKg: 500, pricePerKg: 11.4 },
+  { offer: F013_FIXTURE_IDS.offerS2W2, lot: F013_SOURCE.hillsLots.w2, position: F013_FIXTURE_IDS.positionS2W2, seller: F013_FIXTURE_IDS.orgSellerS2, sellerType: "MEMBER_SELLER", warehouse: F013_FIXTURE_IDS.warehouse2, source: F013_SOURCE.items.s2w2, title: "F013 Fixture — S2 @ W2", quantityKg: 300, pricePerKg: 9.85 },
+  { offer: F013_FIXTURE_IDS.offerHillsW1, lot: F013_FIXTURE_IDS.lotHillsW1, position: F013_FIXTURE_IDS.positionHillsW1, seller: F013_FIXTURE_IDS.orgHills, sellerType: "HILLS", warehouse: F013_FIXTURE_IDS.warehouse1, source: null, title: "F013 Fixture — Hills @ W1", quantityKg: 400, pricePerKg: 12.2 },
+  { offer: F013_FIXTURE_IDS.offerS1W2, lot: F013_SOURCE.hillsLots.w2, position: F013_FIXTURE_IDS.positionS1W2, seller: F013_FIXTURE_IDS.orgSellerS1, sellerType: "MEMBER_SELLER", warehouse: F013_FIXTURE_IDS.warehouse2, source: F013_SOURCE.items.s1w2, title: "F013 Fixture — S1 @ W2", quantityKg: 50, pricePerKg: 10.05 },
+] as const;
+
+/** Hills-owned origin lots, positions and listings the LEGACY provenance chain buys from (exact 16xx ids). */
+const F013_HILLS_SOURCES = [
+  { key: "w1", lot: F013_SOURCE.hillsLots.w1, lotCode: "F013-LOT-HILLS-SRC-W1", position: F013_SOURCE.hillsPositions.w1, offer: F013_SOURCE.hillsOffers.w1, warehouse: F013_FIXTURE_IDS.warehouse1, quantityKg: 500, title: "F013 Fixture — Hills source @ W1" },
+  { key: "w2", lot: F013_SOURCE.hillsLots.w2, lotCode: "F013-LOT-HILLS-SRC-W2", position: F013_SOURCE.hillsPositions.w2, offer: F013_SOURCE.hillsOffers.w2, warehouse: F013_FIXTURE_IDS.warehouse2, quantityKg: 350, title: "F013 Fixture — Hills source @ W2" },
+] as const;
+const F013_HILLS_T071_LOT_CODE = "F013-LOT-HILLS-W1";
+
+/**
+ * T071 per-run LOCAL fixtures. Each live run takes the first unused slot 01–20 (hex) and gets exact ids built from
+ * fixed reserved ranges (no pattern or range filter is ever used to find them):
+ *   17xx concurrency buyer organization (member: Buyer A) · 18xx its KYB · 1axx plan-free LEGACY DRAFT (Buyer B) ·
+ *   1bxx LEGACY DRAFT with a DRAFT shipment plan · 1cxx LEGACY CONFIRMED · 1dxx the plan-free draft's line ·
+ *   1exx the planned draft's shipment · 1fxx a historical destination-snapshot order.
+ */
+const F013_T071_RUN_SLOTS = Array.from({ length: 32 }, (_, index) => (index + 1).toString(16).padStart(2, "0"));
+const f013T071RunId = (range: "17" | "18" | "1a" | "1b" | "1c" | "1d" | "1e" | "1f", slot: string) => `13000000-0000-4000-8000-00000000${range}${slot}`;
+const F013_T071_RUN_ORG_IDS = F013_T071_RUN_SLOTS.map((slot) => f013T071RunId("17", slot));
+const F013_SOURCE_PRICE_PER_KG = 5;
+
+/** The two retained LEGACY purchases (exact ids, codes and markers pinned by classifyF013Source). */
+const F013_SOURCE_ORDERS = [
+  {
+    key: "s1", memberKey: "sellerS1", order: F013_SOURCE.orders.s1, code: "F013-SRC-S1", marker: F013_SOURCE.markers.s1, buyer: F013_FIXTURE_IDS.orgSellerS1,
+    shipment: F013_SOURCE.shipments.s1, proofAsset: F013_SOURCE.proofAssets.s1,
+    lines: [
+      { item: F013_SOURCE.items.s1w1, offer: F013_SOURCE.hillsOffers.w1, quantityKg: 500, shipmentItem: F013_SOURCE.shipmentItems.s1w1 },
+      { item: F013_SOURCE.items.s1w2, offer: F013_SOURCE.hillsOffers.w2, quantityKg: 50, shipmentItem: F013_SOURCE.shipmentItems.s1w2 },
+    ],
+  },
+  {
+    key: "s2", memberKey: "sellerS2", order: F013_SOURCE.orders.s2, code: "F013-SRC-S2", marker: F013_SOURCE.markers.s2, buyer: F013_FIXTURE_IDS.orgSellerS2,
+    shipment: F013_SOURCE.shipments.s2, proofAsset: F013_SOURCE.proofAssets.s2,
+    lines: [
+      { item: F013_SOURCE.items.s2w2, offer: F013_SOURCE.hillsOffers.w2, quantityKg: 300, shipmentItem: F013_SOURCE.shipmentItems.s2w2 },
+    ],
+  },
 ] as const;
 
 function assertF013Project(): void {
-  const ref = new URL(requireEnv("NEXT_PUBLIC_SUPABASE_URL")).hostname.split(".")[0];
-  if (ref !== F013_PROJECT_REF) throw new SafeFixtureError(`F013 fixtures refuse to run against project ${ref}.`);
+  const url = requireEnv("NEXT_PUBLIC_SUPABASE_URL");
+  if (activeF013ProjectRef === F013_LOCAL_PROJECT_ID) {
+    if (url !== F013_LOCAL_API_URL) throw new SafeFixtureError("F013 local URL drifted after target verification.");
+    return;
+  }
+  const ref = new URL(url).hostname.split(".")[0];
+  if (ref !== F013_PRODUCTION_REF) throw new SafeFixtureError(`F013 fixtures refuse to inspect project ${ref}.`);
+}
+
+async function f013Count(admin: SupabaseClient, table: string, column: string, value: string): Promise<number> {
+  const { count, error } = await admin.from(table).select("*", { count: "exact", head: true }).eq(column, value);
+  if (error || count === null) throw new SafeFixtureError(`F013 read-only ${table} count failed.`);
+  return count;
+}
+
+/** G1 is checked before any preparation write. No correction is performed by this tooling revision. */
+async function inspectF013G1(admin: SupabaseClient): Promise<{ residueKg: number; dependentCounts: Record<string, number> }> {
+  const { data: position, error } = await admin.from("inventory_positions").select("*").eq("id", F013_FIXTURE_IDS.positionS1W1).maybeSingle();
+  if (error) throw new SafeFixtureError("G1: position read failed.");
+  const dependentCounts = {
+    ownershipEvents: await f013Count(admin, "inventory_ownership_events", "lot_id", F013_FIXTURE_IDS.lotS1W1),
+    allocations: await f013Count(admin, "storage_allocations", "lot_id", F013_FIXTURE_IDS.lotS1W1),
+    orderItems: await f013Count(admin, "order_items", "lot_id", F013_FIXTURE_IDS.lotS1W1),
+    varianceEvents: await f013Count(admin, "inventory_variance_events", "inventory_position_id", F013_FIXTURE_IDS.positionS1W1),
+    offers: await f013Count(admin, "coffee_offers", "lot_id", F013_FIXTURE_IDS.lotS1W1),
+    reservationItems: await f013Count(admin, "inventory_reservation_items", "offer_id", F013_FIXTURE_IDS.offerS1W1),
+    positionReservations: await f013Count(admin, "inventory_reservation_items", "inventory_position_id", F013_FIXTURE_IDS.positionS1W1),
+  };
+  // The canonical provenance position (S1's W1 position on the Hills SOURCE lot) is not the production residue: its
+  // stock is validated end-to-end by classifyF013Source. The residue lot must still have no dependent row at all.
+  const canonical = position?.lot_id === F013_SOURCE.hillsLots.w1;
+  try { assertF013G1(canonical ? null : position, dependentCounts); } catch (cause) { throw new SafeFixtureError(String(cause)); }
+  return { residueKg: canonical ? 0 : Number(position?.available_quantity_kg ?? 0), dependentCounts };
+}
+
+/** Conservative complete-count read: an outside active member blocks even if their KYB is not yet approved. */
+async function inspectF013G2(admin: SupabaseClient): Promise<number> {
+  const { data, count, error } = await admin.from("organization_members").select("organization_id, organizations!inner(status)", { count: "exact" }).eq("is_active", true).eq("organizations.status", "ACTIVE");
+  if (error || count === null || count !== data?.length) throw new SafeFixtureError("G2: authorized-member scan incomplete.");
+  const allowed = new Set<string>([F013_FIXTURE_IDS.orgBuyerA, F013_FIXTURE_IDS.orgBuyerB, F013_FIXTURE_IDS.orgSellerS1, F013_FIXTURE_IDS.orgSellerS2, F013_FIXTURE_IDS.orgHills, ...F013_T071_RUN_ORG_IDS, ...Object.values(ORGANIZATION_IDS), ...Object.values(PHASE89_ORGANIZATION_IDS)]);
+  const outsiders = (data ?? []).filter((row) => !allowed.has(row.organization_id));
+  try { assertF013G2(outsiders); } catch (cause) { throw new SafeFixtureError(String(cause)); }
+  return count;
+}
+
+async function inspectF013G3(admin: SupabaseClient): Promise<void> {
+  const one = async (table: string, id: string, columns: string) => {
+    const { data, error } = await admin.from(table).select(columns).eq("id", id).maybeSingle();
+    if (error) throw new SafeFixtureError(`G3: ${table} read failed.`);
+    return data as Record<string, unknown> | null;
+  };
+  const settings = await admin.from("commerce_settings").select("bank_transfer_checkout_enabled");
+  if (settings.error || settings.data?.length !== 1) throw new SafeFixtureError("G3: commerce settings read failed.");
+  const policy = await one("commission_policies", F013_FIXTURE_IDS.commissionPolicy, "status");
+  const shipping = await one("shipping_rules", F013_FIXTURE_IDS.shippingRule, "is_active");
+  const account = await one("payment_accounts", F013_FIXTURE_IDS.paymentAccount, "is_active, is_default_for_currency");
+  try { assertF013G3({ checkoutEnabled: settings.data[0]?.bank_transfer_checkout_enabled === true, commissionActive: policy?.status === "ACTIVE", shippingActive: shipping?.is_active === true, paymentAccountActive: account?.is_active === true, paymentAccountDefault: account?.is_default_for_currency === true }); } catch (cause) { throw new SafeFixtureError(String(cause)); }
+}
+
+async function inspectF013Provenance(admin: SupabaseClient): Promise<Record<string, unknown>> {
+  assertF013Project();
+  assertF013SourceIds();
+  const g1 = await inspectF013G1(admin);
+  await inspectF013G3(admin);
+  const authorizedFixtureMembers = await inspectF013G2(admin);
+  const orders = [];
+  for (const id of Object.values(F013_SOURCE.orders)) {
+    const { data, error } = await admin.from("orders").select("id, order_code, buyer_organization_id, commerce_flow, correlation_id, status").eq("id", id).maybeSingle();
+    if (error) throw new SafeFixtureError("F013 retained source order read failed.");
+    if (data) orders.push(data);
+  }
+  return { g1, authorizedFixtureMembers, orders, sourceIds: F013_SOURCE, note: "Read-only inventory; complete retained-chain validation requires privileged SQL access to the restricted notification outbox." };
+}
+
+async function validateF013Provenance(admin: SupabaseClient): Promise<Record<string, unknown>> {
+  assertF013Project();
+  assertF013SourceIds();
+  const read = async (table: string, column: string, ids: string[]): Promise<F013SourceRow[]> => {
+    if (ids.length === 0) return [];
+    const { data, error } = await admin.from(table).select("*").in(column, ids);
+    if (error) throw new SafeFixtureError(`F013 retained-chain validation cannot read ${table}; fail closed.`);
+    return (data ?? []) as F013SourceRow[];
+  };
+  const orderIds = Object.values(F013_SOURCE.orders);
+  const itemIds = Object.values(F013_SOURCE.items);
+  const orders = await read("orders", "id", orderIds);
+  const items = await read("order_items", "order_id", orderIds);
+  const payments = await read("payments", "order_id", orderIds);
+  const reviews = await read("payment_reviews", "payment_id", payments.map((row) => String(row.id)));
+  const proformas = await read("proforma_invoices", "order_id", orderIds);
+  const reservations = await read("inventory_reservations", "order_id", orderIds);
+  const reservationItems = await read("inventory_reservation_items", "reservation_id", reservations.map((row) => String(row.id)));
+  const ownershipEvents = await read("inventory_ownership_events", "order_item_id", itemIds);
+  const allocations = await read("storage_allocations", "order_item_id", itemIds);
+  const positions = await read("inventory_positions", "id", [F013_FIXTURE_IDS.positionS1W1, F013_FIXTURE_IDS.positionS1W2, F013_FIXTURE_IDS.positionS2W2]);
+  const hillsPositions = await read("inventory_positions", "id", Object.values(F013_SOURCE.hillsPositions));
+  const payouts = await read("payouts", "order_id", orderIds);
+  const taxInvoices = await read("tax_invoices", "order_id", orderIds);
+  let notifications: F013SourceRow[];
+  if (activeF013ProjectRef === F013_LOCAL_PROJECT_ID && activeF013LocalTarget) {
+    // Stronger than the per-aggregate read and the only path available: no outbox event may exist at all locally.
+    const count = f013LocalNotificationEventCount(activeF013LocalTarget);
+    notifications = Array.from({ length: count }, (_, index) => ({ id: `outbox-event-${index}` }));
+  } else {
+    const notificationAggregates = [...orderIds, ...payments.map((row) => String(row.id)), ...proformas.map((row) => String(row.id)), ...Object.values(F013_SOURCE.shipments)];
+    notifications = await read("notification_events", "aggregate_id", notificationAggregates);
+  }
+  const snapshot: F013SourceSnapshot = { orders, items, payments, reviews, proformas, reservations, reservationItems, ownershipEvents, allocations, positions, hillsPositions, payouts, taxInvoices, notifications };
+  const classification = classifyF013Source(snapshot);
+  if (classification.state === "DRIFTED") throw new SafeFixtureError(`F013 retained-chain DRIFTED: ${classification.problems.join("; ")}`);
+  return { classification, counts: Object.fromEntries(Object.entries(snapshot).map(([key, rows]) => [key, rows.length])) };
+}
+
+/**
+ * Every F013 provenance, publication and T071-run write is LOCAL-ONLY: main() must have verified the nonce-bound
+ * `hills-f013-local` target (loopback API/DB, pinned Docker identity) and the per-run fixture approval must be present.
+ * Production-default mode never reaches a write (main() refuses first); this is the in-function second check.
+ */
+function assertF013LocalWrite(): void {
+  assertF013Project();
+  if (activeF013ProjectRef !== F013_LOCAL_PROJECT_ID || !activeF013LocalTarget) {
+    throw new SafeFixtureError("F013 provenance, publication and T071 run fixtures are local-only.");
+  }
+  if (process.env.F013_FIXTURES_APPROVED !== "1") throw new SafeFixtureError("F013 local fixture writes require F013_FIXTURES_APPROVED=1.");
+}
+
+/** A real authenticated fixture session (never service_role) against the verified local API. */
+async function f013LocalSession(email: string): Promise<{ client: SupabaseClient; userId: string }> {
+  assertF013LocalWrite();
+  const client = createClient(requireEnv("NEXT_PUBLIC_SUPABASE_URL"), requireEnv("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY"), { auth: { autoRefreshToken: false, persistSession: false } });
+  const { data, error } = await client.auth.signInWithPassword({ email, password: requireEnv("TEST_FIXTURE_PASSWORD") });
+  if (error || !data.user) throw new SafeFixtureError(`F013 local session sign-in failed for ${email}.`);
+  return { client, userId: data.user.id };
+}
+
+/** Runs one fixture step and stops the whole run on the first refusal, naming the exact step. */
+async function f013Step<T extends { error: { message: string } | null; data?: unknown }>(label: string, operation: PromiseLike<T>, expectedRows?: number): Promise<T> {
+  const result = await operation;
+  if (result.error) throw new SafeFixtureError(`F013 step failed [${label}]: ${result.error.message}`);
+  if (expectedRows !== undefined && (!Array.isArray(result.data) || result.data.length !== expectedRows)) {
+    throw new SafeFixtureError(`F013 step failed [${label}]: expected ${expectedRows} row(s).`);
+  }
+  return result;
+}
+
+/**
+ * Publishes one listing through the real Feature 006 review graph (DRAFT → PENDING_REVIEW → APPROVED → PUBLISHED) with
+ * the compliance-capable platform-admin fixture session. `validate_offer_transition` re-checks seller authority,
+ * purchase provenance, custody and tradable quantity on every step; nothing is inserted as PUBLISHED.
+ */
+async function publishF013OfferLocally(admin: SupabaseClient, statusClient: SupabaseClient, offerId: string): Promise<string> {
+  assertF013LocalWrite();
+  const { data, error } = await admin.from("coffee_offers").select("status").eq("id", offerId).maybeSingle();
+  if (error || !data) throw new SafeFixtureError(`F013 listing ${offerId} is missing before publication.`);
+  if (data.status !== "DRAFT") return String(data.status);
+  for (const [from, to] of [["DRAFT", "PENDING_REVIEW"], ["PENDING_REVIEW", "APPROVED"], ["APPROVED", "PUBLISHED"]] as const) {
+    await f013Step(`listing ${offerId} ${from}->${to}`, statusClient.from("coffee_offers").update({ status: to }).eq("id", offerId).eq("status", from).select("id"), 1);
+  }
+  return "PUBLISHED";
+}
+
+/**
+ * T016 retained LEGACY provenance, LOCAL ONLY. S1 and S2 genuinely buy Hills source stock through the real Feature
+ * 007/008/009 primitives, so their later member listings satisfy `validate_offer_transition` without any bypass:
+ *   service_role inserts the LEGACY DRAFT (the approved fixture path; M4a keeps service_role inserts LEGACY) →
+ *   the member adds lines and confirms (RLS + validate_order_item_offer) → member shipment plan, member request →
+ *   warehouse READY → member `checkout_order` (reservation + proforma + payment) → platform-admin HOLD→
+ *   PAYMENT_PROOF_SUBMITTED (the documented pre-existing `submit_payment_proof` HOLD defect, graph-permitted, T013
+ *   precedent) → member `submit_payment_proof` with a metadata-only proof → finance `admin_review_payment` (PAID, SALE
+ *   ownership events, STORED custody, no payout because every line is HILLS) → warehouse cancels the plan (the buyer
+ *   keeps the stock in Hills custody). Checkout stays disabled; nothing touches M4b/M4c.
+ * A complete chain is reused; a partial or drifted chain is never continued automatically (fail closed).
+ */
+async function prepareF013Provenance(admin: SupabaseClient): Promise<Record<string, unknown>> {
+  assertF013Project();
+  if (process.env.F013_FIXTURES_APPROVED !== "1") throw new SafeFixtureError("F013 provenance preparation requires F013_FIXTURES_APPROVED=1.");
+  assertF013LocalWrite();
+  await inspectF013Provenance(admin);
+  const before = await validateF013Provenance(admin) as { classification: { state: string }; counts: Record<string, number> };
+  if (before.classification.state === "COMPLETE_VALID") return { provenance: "COMPLETE_VALID", created: false, counts: before.counts };
+  const untouched = ["orders", "items", "payments", "reviews", "proformas", "reservations", "reservationItems", "ownershipEvents", "allocations", "payouts", "taxInvoices", "notifications"]
+    .every((key) => before.counts[key] === 0);
+  if (!untouched) {
+    throw new SafeFixtureError(`F013 provenance chain is ${before.classification.state} with existing purchase rows; a partial LEGACY chain is never continued automatically. Review before any retry.`);
+  }
+
+  const operator = (label: string) => F013_OPERATORS.find((candidate) => candidate.label === label)!.email;
+  const warehouse = await f013LocalSession(operator("f013-warehouse"));
+  const platformAdmin = await f013LocalSession(operator("f013-admin"));
+  const finance = await f013LocalSession(operator("f013-finance"));
+
+  for (const spec of F013_SOURCE_ORDERS) {
+    const memberEmail = F013_MEMBERS.find((member) => member.key === spec.memberKey)!.email;
+    const member = await f013LocalSession(memberEmail);
+    await f013Step(`${spec.code} LEGACY draft (service_role fixture path)`, admin.from("orders").insert({
+      id: spec.order, order_code: spec.code, buyer_organization_id: spec.buyer, created_by: member.userId,
+      status: "DRAFT", commerce_flow: "LEGACY", correlation_id: spec.marker,
+    }));
+    for (const line of spec.lines) {
+      await f013Step(`${spec.code} member line ${line.item}`, member.client.from("order_items").insert({ id: line.item, order_id: spec.order, offer_id: line.offer, quantity_kg: line.quantityKg }));
+    }
+    await f013Step(`${spec.code} member DRAFT->CONFIRMED`, member.client.from("orders").update({ status: "CONFIRMED" }).eq("id", spec.order).eq("status", "DRAFT").select("id"), 1);
+    await f013Step(`${spec.code} member shipment plan`, member.client.from("order_shipments").insert({
+      id: spec.shipment, order_id: spec.order, status: "DRAFT", created_by: member.userId, delivery_method: "Courier",
+      country_code: "AE", city: "Dubai", address_line: "F013 LOCAL FIXTURE — storage only, no delivery",
+      contact_name: "F013 Local Fixture", contact_phone: "+971500000013",
+    }));
+    for (const line of spec.lines) {
+      await f013Step(`${spec.code} member plan line ${line.shipmentItem}`, member.client.from("shipment_items").insert({ id: line.shipmentItem, shipment_id: spec.shipment, order_item_id: line.item, planned_quantity_kg: line.quantityKg }));
+    }
+    await f013Step(`${spec.code} member shipment DRAFT->REQUESTED`, member.client.from("order_shipments").update({ status: "REQUESTED" }).eq("id", spec.shipment).eq("status", "DRAFT").select("id"), 1);
+    await f013Step(`${spec.code} warehouse shipment REQUESTED->READY`, warehouse.client.from("order_shipments").update({ status: "READY" }).eq("id", spec.shipment).eq("status", "REQUESTED").select("id"), 1);
+    await f013Step(`${spec.code} member checkout_order`, member.client.rpc("checkout_order", { p_order_id: spec.order }));
+    await f013Step(`${spec.code} platform-admin HOLD->PAYMENT_PROOF_SUBMITTED`, platformAdmin.client.from("orders").update({ status: "PAYMENT_PROOF_SUBMITTED" }).eq("id", spec.order).eq("status", "HOLD").select("id"), 1);
+    await f013Step(`${spec.code} metadata-only proof asset (service_role fixture path)`, admin.from("file_assets").insert({
+      id: spec.proofAsset, uploaded_by: member.userId, organization_id: spec.buyer, bucket_name: "f013-local-fixture-artifacts",
+      object_path: `provenance/${spec.code}.metadata`, original_name: "F013 LOCAL FIXTURE — no document", is_private: true,
+    }));
+    await f013Step(`${spec.code} member submit_payment_proof`, member.client.rpc("submit_payment_proof", { p_order_id: spec.order, p_file_asset_id: spec.proofAsset, p_reference: "F013 LOCAL FIXTURE — no transfer" }));
+    const payment = await f013Step(`${spec.code} payment read`, admin.from("payments").select("id").eq("order_id", spec.order).single());
+    await f013Step(`${spec.code} finance admin_review_payment`, finance.client.rpc("admin_review_payment", { p_payment_id: (payment.data as { id: string }).id, p_approved: true, p_reason: "F013 LOCAL fixture settlement — no funds" }));
+    await f013Step(`${spec.code} warehouse shipment READY->CANCELLED`, warehouse.client.from("order_shipments").update({ status: "CANCELLED" }).eq("id", spec.shipment).eq("status", "READY").select("id"), 1);
+  }
+
+  const after = await validateF013Provenance(admin) as { classification: { state: string; problems: string[] }; counts: Record<string, number> };
+  if (after.classification.state !== "COMPLETE_VALID") {
+    throw new SafeFixtureError(`F013 provenance chain did not complete: ${after.classification.state} ${after.classification.problems.join("; ")}`);
+  }
+  return { provenance: "COMPLETE_VALID", created: true, counts: after.counts };
+}
+
+/** Offer status writes use a real narrow operator session, never service_role. */
+async function f013OfferStatusClient(admin: SupabaseClient): Promise<SupabaseClient> {
+  const email = F013_OPERATORS[3]!.email;
+  const userId = await findAuthUserIdByEmail(admin, email);
+  if (!userId) throw new SafeFixtureError("F013 ADMIN fixture is absent; offer status change refused.");
+  const { data: privilege, error: privilegeError } = await admin.from("platform_admins").select("role, is_active").eq("user_id", userId).maybeSingle();
+  if (privilegeError || privilege?.is_active !== true) throw new SafeFixtureError("F013 ADMIN fixture lacks active privilege.");
+  try { assertF013ComplianceActor(privilege.role); } catch (cause) { throw new SafeFixtureError(String(cause)); }
+  const client = createClient(requireEnv("NEXT_PUBLIC_SUPABASE_URL"), requireEnv("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY"), { auth: { autoRefreshToken: false, persistSession: false } });
+  const { error } = await client.auth.signInWithPassword({ email, password: requireEnv("TEST_FIXTURE_PASSWORD") });
+  if (error) throw new SafeFixtureError("F013 ADMIN fixture sign-in failed.");
+  return client;
 }
 
 async function inspectF013Fixtures(admin: SupabaseClient): Promise<Record<string, unknown>> {
@@ -4246,6 +4532,10 @@ async function prepareF013Fixtures(admin: SupabaseClient, password: string): Pro
   if (process.env.F013_FIXTURES_APPROVED !== "1") {
     throw new SafeFixtureError("--prepare-f013-fixtures requires F013_FIXTURES_APPROVED=1 (explicit human approval for this run).");
   }
+  const g1 = await inspectF013G1(admin);
+  await inspectF013G3(admin);
+  await inspectF013G2(admin);
+  if (g1.residueKg !== 0) throw new SafeFixtureError("G1: known fabricated S1 W1 stock requires a separate, reviewed exact-id correction; preparation refused before writes.");
   const upsert = async (table: string, row: Record<string, unknown>, onConflict = "id"): Promise<void> => {
     const { error } = await admin.from(table).upsert(row, { onConflict });
     if (error) throw new SafeFixtureError(`${table} upsert failed (Feature 013 fixtures): ${error.message}`);
@@ -4272,45 +4562,68 @@ async function prepareF013Fixtures(admin: SupabaseClient, password: string): Pro
   // DRAFT keeps the synthetic coffee off the public catalogue.
   await upsert("coffees", { id: F013_FIXTURE_IDS.coffee, name: "F013 Fixture Coffee", slug: "f013-fixture-coffee", status: "DRAFT" });
 
-  for (const listing of F013_LISTINGS) {
-    await upsert("coffee_lots", { id: listing.lot, coffee_id: F013_FIXTURE_IDS.coffee, lot_code: listing.lotCode, total_quantity_kg: listing.quantityKg, status: "AVAILABLE", source_organization_id: F013_FIXTURE_IDS.orgHills });
-    await upsert("inventory_positions", { id: listing.position, lot_id: listing.lot, owner_organization_id: listing.seller, warehouse_id: listing.warehouse, available_quantity_kg: listing.quantityKg, reserved_quantity_kg: 0 });
-    await insertIfAbsent("coffee_offers", { id: listing.offer, coffee_id: F013_FIXTURE_IDS.coffee, lot_id: listing.lot, seller_organization_id: listing.seller, seller_type: listing.sellerType, warehouse_id: listing.warehouse, title: listing.title, quantity_kg: listing.quantityKg, reserved_quantity_kg: 0, filled_quantity_kg: 0, price_per_kg: listing.pricePerKg, currency: "USD", status: "PUBLISHED", is_visible: true, created_by: (await findAuthUserIdByEmail(admin, F013_MEMBERS[2]!.email))! });
-  }
-
-  // Commerce configuration (GLOBAL in this project — see the block header). Fake, clearly-labelled values only.
-  await insertIfAbsent("payment_accounts", { id: F013_FIXTURE_IDS.paymentAccount, account_name: "F013 FIXTURE — NOT FOR PAYMENT", bank_name: "F013 Fixture Bank (not a real account)", account_number: "0000000000000013", iban: "AE000000000000000000013", swift_code: "FIXTAEXX", currency: "USD", is_active: true, created_by: (await findAuthUserIdByEmail(admin, F013_OPERATORS[3]!.email)) ?? (await findAuthUserIdByEmail(admin, F013_MEMBERS[0]!.email))! });
-  const defaultFlagProbe = await admin.from("payment_accounts").select("is_default_for_currency").eq("id", F013_FIXTURE_IDS.paymentAccount).maybeSingle();
-  if (!defaultFlagProbe.error) {
-    // Column exists only after Feature 013 M1. Set it only when no other active USD default exists.
-    const { count } = await admin.from("payment_accounts").select("id", { count: "exact", head: true }).eq("currency", "USD").eq("is_active", true).eq("is_default_for_currency", true);
-    if (!count) await upsert("payment_accounts", { id: F013_FIXTURE_IDS.paymentAccount, is_default_for_currency: true });
-  }
-  await insertIfAbsent("shipping_rules", { id: F013_FIXTURE_IDS.shippingRule, country_code: "AE", delivery_method: "Courier", flat_fee: 25, currency: "USD", is_active: true });
-  await insertIfAbsent("commission_policies", { id: F013_FIXTURE_IDS.commissionPolicy, name: "F013 FIXTURE — commission policy", status: "ACTIVE", created_by: (await findAuthUserIdByEmail(admin, F013_MEMBERS[0]!.email))! });
-  await insertIfAbsent("commission_tiers", { id: F013_FIXTURE_IDS.commissionTierLow, policy_id: F013_FIXTURE_IDS.commissionPolicy, min_quantity_kg: 0, max_quantity_kg: 200, percentage: 8 });
-  await insertIfAbsent("commission_tiers", { id: F013_FIXTURE_IDS.commissionTierHigh, policy_id: F013_FIXTURE_IDS.commissionPolicy, min_quantity_kg: 200, max_quantity_kg: null, percentage: 5 });
-
   for (const operator of F013_OPERATORS) {
     await createDisposableOperatorFixture(admin, password, operator, `feature-013-${operator.label}`, { reuseIfActive: true });
   }
-  console.log(JSON.stringify(await inspectF013Fixtures(admin)));
+  const hillsListingCreator = (await findAuthUserIdByEmail(admin, F013_OPERATORS[3]!.email))!;
+
+  // Hills-owned origin stock the provenance chain buys from (Hills custody needs no purchase provenance).
+  for (const source of F013_HILLS_SOURCES) {
+    await upsert("coffee_lots", { id: source.lot, coffee_id: F013_FIXTURE_IDS.coffee, lot_code: source.lotCode, total_quantity_kg: source.quantityKg, status: "AVAILABLE", source_organization_id: F013_FIXTURE_IDS.orgHills });
+    await insertIfAbsent("inventory_positions", { id: source.position, lot_id: source.lot, owner_organization_id: F013_FIXTURE_IDS.orgHills, warehouse_id: source.warehouse, available_quantity_kg: source.quantityKg, reserved_quantity_kg: 0 });
+    await insertIfAbsent("coffee_offers", { id: source.offer, coffee_id: F013_FIXTURE_IDS.coffee, lot_id: source.lot, seller_organization_id: F013_FIXTURE_IDS.orgHills, seller_type: "HILLS", warehouse_id: source.warehouse, title: source.title, quantity_kg: source.quantityKg, reserved_quantity_kg: 0, filled_quantity_kg: 0, price_per_kg: F013_SOURCE_PRICE_PER_KG, currency: "USD", status: "DRAFT", is_visible: false, created_by: hillsListingCreator });
+  }
+  await upsert("coffee_lots", { id: F013_FIXTURE_IDS.lotHillsW1, coffee_id: F013_FIXTURE_IDS.coffee, lot_code: F013_HILLS_T071_LOT_CODE, total_quantity_kg: 400, status: "AVAILABLE", source_organization_id: F013_FIXTURE_IDS.orgHills });
+
+  for (const listing of F013_LISTINGS) {
+    if (listing.sellerType === "MEMBER_SELLER") {
+      await insertIfAbsent("inventory_positions", { id: listing.position, lot_id: listing.lot, owner_organization_id: listing.seller, warehouse_id: listing.warehouse, available_quantity_kg: 0, reserved_quantity_kg: 0 });
+      continue; // Member stock arrives only through the retained PAID purchase's settlement, never fabricated here.
+    }
+    await insertIfAbsent("inventory_positions", { id: listing.position, lot_id: listing.lot, owner_organization_id: listing.seller, warehouse_id: listing.warehouse, available_quantity_kg: listing.quantityKg, reserved_quantity_kg: 0 });
+    await insertIfAbsent("coffee_offers", { id: listing.offer, coffee_id: F013_FIXTURE_IDS.coffee, lot_id: listing.lot, seller_organization_id: listing.seller, seller_type: listing.sellerType, warehouse_id: listing.warehouse, title: listing.title, quantity_kg: listing.quantityKg, reserved_quantity_kg: 0, filled_quantity_kg: 0, price_per_kg: listing.pricePerKg, currency: "USD", status: "DRAFT", is_visible: false, created_by: hillsListingCreator });
+  }
+
+  if (activeF013ProjectRef !== F013_LOCAL_PROJECT_ID) {
+    // Unreachable today (main() refuses production-default writes); kept explicit so publication never leaves local.
+    console.log(JSON.stringify(await inspectF013Fixtures(admin)));
+    return;
+  }
+
+  // LOCAL ONLY: G2 above passed (no outside authorized member); publish through the real review graph, build the
+  // retained purchase provenance, then list the purchased stock.
+  const statusClient = await f013OfferStatusClient(admin);
+  for (const source of F013_HILLS_SOURCES) await publishF013OfferLocally(admin, statusClient, source.offer);
+  const provenance = await prepareF013Provenance(admin);
+  const published: Record<string, string> = {};
+  for (const listing of F013_LISTINGS) {
+    if (listing.sellerType === "MEMBER_SELLER") {
+      const memberKey = listing.seller === F013_FIXTURE_IDS.orgSellerS1 ? "sellerS1" : "sellerS2";
+      const creator = (await findAuthUserIdByEmail(admin, F013_MEMBERS.find((member) => member.key === memberKey)!.email))!;
+      await insertIfAbsent("coffee_offers", { id: listing.offer, coffee_id: F013_FIXTURE_IDS.coffee, lot_id: listing.lot, seller_organization_id: listing.seller, seller_type: listing.sellerType, warehouse_id: listing.warehouse, title: listing.title, quantity_kg: listing.quantityKg, reserved_quantity_kg: 0, filled_quantity_kg: 0, price_per_kg: listing.pricePerKg, currency: "USD", status: "DRAFT", is_visible: false, created_by: creator, source_purchase_order_item_id: listing.source });
+    }
+    published[listing.offer] = await publishF013OfferLocally(admin, statusClient, listing.offer);
+  }
+  console.log(JSON.stringify({ ...(await inspectF013Fixtures(admin)), provenance, published }));
 }
 
 async function cleanupF013Fixtures(admin: SupabaseClient): Promise<Record<string, unknown>> {
   assertF013Project();
   const result: Record<string, unknown> = {};
-  // Suspend fixture organizations: they can no longer buy or sell. Nothing is deleted.
+  // De-list first, while seller organizations are still active. Never bypass the status guard as service_role.
+  const { data: activeOffers, error: activeError } = await admin.from("coffee_offers").select("id").in("id", F013_LISTINGS.map((listing) => listing.offer)).in("status", ["PUBLISHED", "PARTIALLY_FILLED"]);
+  if (activeError) throw new SafeFixtureError("F013 active-offer read failed.");
+  const statusClient = (activeOffers?.length ?? 0) > 0 ? await f013OfferStatusClient(admin) : null;
+  for (const listing of F013_LISTINGS) {
+    if (!activeOffers?.some((row) => row.id === listing.offer)) continue;
+    const { error } = await statusClient!.from("coffee_offers").update({ status: "SUSPENDED", is_visible: false }).eq("id", listing.offer).in("status", ["PUBLISHED", "PARTIALLY_FILLED"]);
+    if (error) throw new SafeFixtureError("F013 fixture offer suspension failed.");
+  }
   for (const orgId of [F013_FIXTURE_IDS.orgBuyerA, F013_FIXTURE_IDS.orgBuyerB, F013_FIXTURE_IDS.orgSellerS1, F013_FIXTURE_IDS.orgSellerS2, F013_FIXTURE_IDS.orgHills]) {
     const { error } = await admin.from("organizations").update({ status: "SUSPENDED" }).eq("id", orgId);
     if (error) throw new SafeFixtureError("F013 fixture organization suspension failed.");
   }
   result.organizationsSuspended = 5;
-  // De-list fixture offers through the ordinary suspension status (no delete; reserved/filled ledgers retained).
-  for (const listing of F013_LISTINGS) {
-    const { error } = await admin.from("coffee_offers").update({ status: "SUSPENDED", is_visible: false }).eq("id", listing.offer).in("status", ["PUBLISHED", "PARTIALLY_FILLED"]);
-    if (error) throw new SafeFixtureError("F013 fixture offer suspension failed.");
-  }
   // Global commerce configuration: deactivate / archive, never delete (may be referenced by immutable snapshots).
   const { error: accountError } = await admin.from("payment_accounts").update({ is_active: false }).eq("id", F013_FIXTURE_IDS.paymentAccount);
   const { error: shippingError } = await admin.from("shipping_rules").update({ is_active: false }).eq("id", F013_FIXTURE_IDS.shippingRule);
@@ -4322,6 +4635,184 @@ async function cleanupF013Fixtures(admin: SupabaseClient): Promise<Record<string
   result.operators = operators;
   result.retained = "Orders, proformas, payments, proofs, invoices, payouts, ownership events and audit rows created by live proofs are retained (no hard delete).";
   return result;
+}
+
+async function reactivateF013FixtureEntities(admin: SupabaseClient): Promise<Record<string, unknown>> {
+  assertF013Project();
+  if (process.env.F013_FIXTURES_APPROVED !== "1") throw new SafeFixtureError("F013 reactivation requires F013_FIXTURES_APPROVED=1.");
+  const g1 = await inspectF013G1(admin);
+  if (g1.residueKg !== 0) throw new SafeFixtureError("G1: fabricated S1 W1 stock must be corrected before member reactivation.");
+  await inspectF013G2(admin);
+  await inspectF013G3(admin);
+  const { data: published, error: publishedError } = await admin.from("coffee_offers").select("id").in("id", F013_LISTINGS.map((listing) => listing.offer)).in("status", ["PUBLISHED", "PARTIALLY_FILLED"]);
+  if (publishedError || (published?.length ?? 0) !== 0) throw new SafeFixtureError("F013 reactivation refused while an offer is published; retained provenance must be validated first.");
+  // This command does not publish offers or change financial/history rows. The provenance chain is separately gated.
+  for (const orgId of [F013_FIXTURE_IDS.orgBuyerA, F013_FIXTURE_IDS.orgBuyerB, F013_FIXTURE_IDS.orgSellerS1, F013_FIXTURE_IDS.orgSellerS2, F013_FIXTURE_IDS.orgHills]) {
+    const { error } = await admin.from("organizations").update({ status: "ACTIVE" }).eq("id", orgId).eq("status", "SUSPENDED");
+    if (error) throw new SafeFixtureError("F013 exact-id organization reactivation failed.");
+  }
+  return { organizationsReactivated: 5, offersPublished: 0, globalConfigurationActivated: false };
+}
+
+/**
+ * T071 per-run LOCAL fixtures (service_role fixture path, exact ids, no delete). Creates a fresh buyer organization
+ * whose cart has never existed (genuine concurrent-creation proof) and the synthetic LEGACY rows the conversion proof
+ * needs. Rows are retained in the disposable local database; a later run takes the next slot.
+ */
+async function prepareF013T071Run(admin: SupabaseClient): Promise<Record<string, unknown>> {
+  assertF013LocalWrite();
+  const email = (key: F013Member["key"]) => F013_MEMBERS.find((member) => member.key === key)!.email;
+  const buyerA = await findAuthUserIdByEmail(admin, email("buyerA"));
+  const buyerB = await findAuthUserIdByEmail(admin, email("buyerB"));
+  if (!buyerA || !buyerB) throw new SafeFixtureError("T071 run fixtures need the prepared F013 buyers; run --prepare-f013-fixtures first.");
+  let slot: string | undefined;
+  for (const candidate of F013_T071_RUN_SLOTS) {
+    const { data, error } = await admin.from("organizations").select("id").eq("id", f013T071RunId("17", candidate)).maybeSingle();
+    if (error) throw new SafeFixtureError("T071 run slot read failed.");
+    if (!data) { slot = candidate; break; }
+  }
+  if (!slot) throw new SafeFixtureError("All 32 T071 local run slots are used; reset the disposable local database before another run.");
+  const id = (range: Parameters<typeof f013T071RunId>[0]) => f013T071RunId(range, slot!);
+  const code = (suffix: string) => `F013-T071-${slot}-${suffix}`;
+
+  await f013Step("T071 concurrency organization", admin.from("organizations").insert({ id: id("17"), legal_name: `F013 Local T071 Run ${slot} FZE`, display_name: `F013 Local T071 Run ${slot}`, account_type: "BUYER", status: "ACTIVE", is_hills_internal: false, can_buy: true, can_sell: false }));
+  await f013Step("T071 concurrency KYB", admin.from("kyb_applications").insert({ id: id("18"), organization_id: id("17"), submitted_by: buyerA, status: "APPROVED", submitted_at: new Date(0).toISOString(), decided_at: new Date(0).toISOString() }));
+  await f013Step("T071 concurrency membership", admin.from("organization_members").insert({ organization_id: id("17"), user_id: buyerA, member_role: "OWNER", is_active: true }));
+
+  // Narrow LEGACY fixture inserts through service_role (M4a H1 keeps them LEGACY; members can no longer create one).
+  const legacy = (orderId: string, suffix: string, status: "DRAFT" | "CONFIRMED") => admin.from("orders").insert({ id: orderId, order_code: code(suffix), buyer_organization_id: F013_FIXTURE_IDS.orgBuyerB, created_by: buyerB, status, commerce_flow: "LEGACY" });
+  await f013Step("T071 plan-free LEGACY DRAFT", legacy(id("1a"), "PLANFREE", "DRAFT"));
+  await f013Step("T071 plan-free LEGACY line", admin.from("order_items").insert({ id: id("1d"), order_id: id("1a"), offer_id: F013_FIXTURE_IDS.offerHillsW1, quantity_kg: 1 }));
+  await f013Step("T071 planned LEGACY DRAFT", legacy(id("1b"), "PLANNED", "DRAFT"));
+  await f013Step("T071 planned LEGACY shipment", admin.from("order_shipments").insert({ id: id("1e"), order_id: id("1b"), status: "DRAFT", created_by: buyerB, delivery_method: "Courier", country_code: "AE", city: "Dubai", address_line: "F013 LOCAL T071 FIXTURE — plan only", contact_name: "F013 Local Fixture", contact_phone: "+971500000013" }));
+  await f013Step("T071 confirmed LEGACY order", legacy(id("1c"), "CONFIRMED", "CONFIRMED"));
+  return {
+    slot, organizationId: id("17"),
+    legacy: { planFree: id("1a"), planFreeLine: id("1d"), planned: id("1b"), plannedShipment: id("1e"), confirmed: id("1c") },
+  };
+}
+
+/**
+ * M4b is not applied, so no product RPC freezes a destination yet. This LOCAL-only fixture inserts one historical
+ * LEGACY order through the reviewed M2a internal-transition guard, with the seven-field snapshot selected from the
+ * actual active M4a destination. The transaction runs as service_role, keeps every trigger/RLS setting intact, and
+ * rolls back if its exact source row is absent. A later run uses the next reserved 1fxx order id.
+ */
+async function prepareF013T071SnapshotOrder(admin: SupabaseClient): Promise<{ orderId: string; destinationId: string }> {
+  assertF013LocalWrite();
+  const buyerA = await findAuthUserIdByEmail(admin, F013_MEMBERS.find((member) => member.key === "buyerA")!.email);
+  if (!buyerA) throw new SafeFixtureError("T071 historical snapshot requires the prepared Buyer A fixture.");
+  const { data: source, error: sourceError } = await admin.from("delivery_destinations")
+    .select("id, organization_id, created_by")
+    .eq("organization_id", F013_FIXTURE_IDS.orgBuyerA).eq("created_by", buyerA)
+    .eq("is_default", true).is("retired_at", null).maybeSingle();
+  if (sourceError || !source) throw new SafeFixtureError("T071 historical snapshot requires one active Buyer A default destination.");
+  let slot: string | undefined;
+  for (const candidate of F013_T071_RUN_SLOTS) {
+    const { data, error } = await admin.from("orders").select("id").eq("id", f013T071RunId("1f", candidate)).maybeSingle();
+    if (error) throw new SafeFixtureError("T071 historical snapshot order slot read failed.");
+    if (!data) { slot = candidate; break; }
+  }
+  if (!slot) throw new SafeFixtureError("All 32 T071 historical snapshot slots are used.");
+  const orderId = f013T071RunId("1f", slot);
+  const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+  if (!uuid.test(source.id) || !uuid.test(buyerA) || !uuid.test(orderId)) throw new SafeFixtureError("T071 historical snapshot fixture ids are invalid.");
+
+  // Values interpolated below are UUID-validated or fixed reserved ids. The snapshot fields are SELECTed from the
+  // stored destination in the same transaction; no caller supplies address text or a prebuilt/fake snapshot.
+  const sql = `begin;
+set local role service_role;
+set local app.internal_transition = 'true';
+do $fixture$
+declare v_inserted integer;
+begin
+  insert into public.orders (id, order_code, buyer_organization_id, created_by, status, commerce_flow,
+                             delivery_destination_id, destination_snapshot)
+  select '${orderId}'::uuid, 'F013-T071-SNAPSHOT-${slot}', d.organization_id, d.created_by, 'DRAFT', 'LEGACY', d.id,
+         jsonb_build_object('label', d.label, 'country_code', btrim(d.country_code), 'city', d.city,
+                            'address_lines', to_jsonb(array_remove(array[d.address_line_1, d.address_line_2], null)),
+                            'contact_name', d.contact_name, 'contact_phone', d.contact_phone,
+                            'delivery_method', d.delivery_method)
+  from public.delivery_destinations d
+  where d.id = '${source.id}'::uuid and d.organization_id = '${F013_FIXTURE_IDS.orgBuyerA}'::uuid
+    and d.created_by = '${buyerA}'::uuid and d.is_default and d.retired_at is null;
+  get diagnostics v_inserted = row_count;
+  if v_inserted <> 1 then raise exception 'T071 historical destination source changed'; end if;
+end
+$fixture$;
+commit;
+`;
+  try { runF013DockerPsqlStdin(Buffer.from(sql, "utf8"), process.env.F013_DOCKER_PATH, sanitizedF013Environment()); }
+  catch { throw new SafeFixtureError("T071 historical snapshot fixture transaction failed."); }
+  const { data: order, error: orderError } = await admin.from("orders")
+    .select("id, status, commerce_flow, delivery_destination_id, destination_snapshot").eq("id", orderId).single();
+  if (orderError || order?.status !== "DRAFT" || order.commerce_flow !== "LEGACY" ||
+      order.delivery_destination_id !== source.id || !order.destination_snapshot) {
+    throw new SafeFixtureError("T071 historical snapshot order verification failed.");
+  }
+  return { orderId, destinationId: source.id };
+}
+
+/** Read-only LOCAL T071 evidence (service_role reads of exact fixture ids; never a filter by pattern or range). */
+async function inspectF013T071State(admin: SupabaseClient): Promise<Record<string, unknown>> {
+  assertF013Project();
+  if (activeF013ProjectRef !== F013_LOCAL_PROJECT_ID) throw new SafeFixtureError("T071 state inspection is local-only.");
+  const rows = async (label: string, query: PromiseLike<{ data: unknown; error: { message: string } | null }>): Promise<Record<string, unknown>[]> => {
+    const { data, error } = await query;
+    if (error) throw new SafeFixtureError(`T071 state read failed [${label}]: ${error.message}`);
+    return (data ?? []) as Record<string, unknown>[];
+  };
+  const users: Record<string, string | null> = {};
+  for (const identity of [...F013_MEMBERS.map((member) => member.email), ...F013_OPERATORS.map((operator) => operator.email)]) users[identity] = await findAuthUserIdByEmail(admin, identity);
+  const userIds = Object.values(users).filter((value): value is string => value !== null);
+  const organizationIds = [F013_FIXTURE_IDS.orgBuyerA, F013_FIXTURE_IDS.orgBuyerB, F013_FIXTURE_IDS.orgSellerS1, F013_FIXTURE_IDS.orgSellerS2, F013_FIXTURE_IDS.orgHills, ...F013_T071_RUN_ORG_IDS];
+  const offerIds = [...F013_LISTINGS.map((listing) => listing.offer), ...F013_HILLS_SOURCES.map((source) => source.offer)];
+  const positionIds = [...F013_LISTINGS.map((listing) => listing.position), ...F013_HILLS_SOURCES.map((source) => source.position)];
+  const orders = await rows("orders", admin.from("orders").select("id, order_code, buyer_organization_id, created_by, status, commerce_flow, has_manual_adjustment, cancelled_at, cancelled_by, cancel_reason, delivery_destination_id, destination_snapshot, created_at").in("buyer_organization_id", organizationIds).order("created_at"));
+  const orderIds = orders.map((order) => String(order.id));
+  type ReadResult = { data: unknown; error: { message: string } | null };
+  const inOrders = (ids: string[], read: (ids: string[]) => PromiseLike<ReadResult>, empty: ReadResult): PromiseLike<ReadResult> => (ids.length === 0 ? Promise.resolve(empty) : read(ids));
+  const empty: ReadResult = { data: [], error: null };
+  return {
+    target: { projectId: activeF013LocalTarget?.projectId, apiUrl: activeF013LocalTarget?.apiUrl },
+    users,
+    runOrganizations: await rows("run organizations", admin.from("organizations").select("id, status, can_buy").in("id", F013_T071_RUN_ORG_IDS)),
+    offers: await rows("offers", admin.from("coffee_offers").select("id, status, seller_organization_id, seller_type, warehouse_id, lot_id, quantity_kg, reserved_quantity_kg, filled_quantity_kg, source_purchase_order_item_id").in("id", offerIds)),
+    positions: await rows("positions", admin.from("inventory_positions").select("id, owner_organization_id, lot_id, warehouse_id, available_quantity_kg, reserved_quantity_kg").in("id", positionIds)),
+    orders,
+    items: await rows("order items", inOrders(orderIds, (ids) => admin.from("order_items").select("id, order_id, offer_id, lot_id, seller_organization_id, quantity_kg, unit_price_per_kg").in("order_id", ids), empty)),
+    shipments: await rows("shipments", inOrders(orderIds, (ids) => admin.from("order_shipments").select("id, order_id, status").in("order_id", ids), empty)),
+    reservations: await rows("reservations", inOrders(orderIds, (ids) => admin.from("inventory_reservations").select("id, order_id, status").in("order_id", ids), empty)),
+    requestLog: await rows("request log", admin.from("commerce_request_log").select("request_id, actor_user_id, operation, target_id, response, created_at").in("actor_user_id", userIds)),
+    conversionAudit: await rows("conversion audit", inOrders(orderIds, (ids) => admin.from("audit_logs").select("id, actor_user_id, entity_type, entity_id, action, old_data, new_data, correlation_id").eq("action", "CONVERT_LEGACY_DRAFT").in("entity_id", ids), empty)),
+    destinations: await rows("destinations", admin.from("delivery_destinations").select("id, organization_id, label, city, is_default, retired_at, retired_by, updated_at").in("organization_id", organizationIds)),
+    settings: await rows("settings", admin.from("commerce_settings").select("bank_transfer_checkout_enabled, pilot_organization_ids")),
+  };
+}
+
+/**
+ * Feature 013 T071 (H1) — the legacy Feature 007/008/009 live suites' LEGACY DRAFT setup, LOCAL ONLY. Since M4a every
+ * member-inserted order is BANK_TRANSFER_V1, so the legacy DRAFT → CONFIRMED → checkout_order chain those suites prove
+ * starts from a service_role LEGACY DRAFT (the approved fixture path) instead. Foundation buyer orgs plus the one
+ * exact Phase 8 suspended-state fixture are allowed: the latter exists solely to construct its order while ACTIVE,
+ * before the test proves suspended-member behavior. The creator must be an active member of that org. Items, plans
+ * and every later transition stay on the real member paths.
+ */
+const LEGACY_FIXTURE_DRAFT_ORGS: readonly string[] = [ORGANIZATION_IDS.buyerOnly, ORGANIZATION_IDS.buyerAndSeller];
+const LEGACY_SYNTHETIC_TEST_DRAFT_ORGS: readonly string[] = [PHASE89_ORGANIZATION_IDS.suspended];
+async function createLegacyFixtureDraft(admin: SupabaseClient, argument: string): Promise<{ id: string; orderCode: string; status: string; commerceFlow: string }> {
+  assertF013LocalWrite();
+  const [organizationId, userId, ...rest] = argument.split(":");
+  const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+  const approvedOrganization = LEGACY_FIXTURE_DRAFT_ORGS.includes(organizationId) || LEGACY_SYNTHETIC_TEST_DRAFT_ORGS.includes(organizationId);
+  if (rest.length > 0 || !organizationId || !userId || !uuid.test(userId) || !approvedOrganization) {
+    throw new SafeFixtureError("LEGACY fixture drafts are limited to approved exact local fixture organizations.");
+  }
+  const { data: membership, error: membershipError } = await admin.from("organization_members").select("user_id").eq("organization_id", organizationId).eq("user_id", userId).eq("is_active", true).maybeSingle();
+  if (membershipError || !membership) throw new SafeFixtureError("LEGACY fixture draft creator must be an active member of the organization.");
+  const { data, error } = await admin.from("orders").insert({ buyer_organization_id: organizationId, created_by: userId, status: "DRAFT", commerce_flow: "LEGACY" }).select("id, order_code, status, commerce_flow").single();
+  if (error || !data || data.commerce_flow !== "LEGACY" || data.status !== "DRAFT") throw new SafeFixtureError(`LEGACY fixture draft failed: ${error?.message ?? "unexpected row"}`);
+  return { id: String(data.id), orderCode: String(data.order_code), status: String(data.status), commerceFlow: String(data.commerce_flow) };
 }
 
 // ── Feature 013 T025 — M1 live proof (tests/commerce/schema-m1.live.test.ts) ─────────────────────────────────────
@@ -4598,7 +5089,34 @@ async function cleanupF013T031(admin: SupabaseClient): Promise<Record<string, un
 }
 
 async function main(): Promise<void> {
-  loadEnvLocal();
+  const mode = resolveF013Mode();
+  const f013Args = process.argv.slice(2).filter((argument) => argument.toLowerCase().includes("f013"));
+  if (f013Args.length > 1) throw new SafeFixtureError("Choose exactly one F013 operation.");
+  const f013Flag = f013Args[0];
+  if (f013Flag && !F013_READ_ONLY_FLAGS.has(f013Flag) && !F013_LOCAL_WRITE_FLAGS.has(f013Flag)) {
+    throw new SafeFixtureError("Unknown F013 operation refused before client creation.");
+  }
+  if (f013Flag && process.argv.slice(2).some((argument) => argument !== f013Flag)) {
+    throw new SafeFixtureError("F013 operations cannot be combined with other fixture operations.");
+  }
+  if (mode.kind === "local") {
+    // Mode is global: default seed, legacy flags and F013 flags all use the verified local stack.
+    const target = requireF013LocalTarget();
+    if ((!f013Flag || F013_LOCAL_WRITE_FLAGS.has(f013Flag)) && process.env.F013_FIXTURES_APPROVED !== "1") {
+      throw new SafeFixtureError("F013 fixture writes require F013_FIXTURES_APPROVED=1.");
+    }
+    activeF013ProjectRef = target.projectId;
+    activeF013LocalTarget = target;
+    process.env.NEXT_PUBLIC_SUPABASE_URL = target.apiUrl;
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = target.anonKey;
+    process.env.SUPABASE_SERVICE_ROLE_KEY = target.serviceRoleKey;
+    process.env.TEST_FIXTURE_PASSWORD = target.fixturePassword;
+  } else {
+    if (!f013Flag || !F013_READ_ONLY_FLAGS.has(f013Flag)) {
+      throw new SafeFixtureError("Fixture writes require verified F013 local mode; production-default permits F013 inspections only.");
+    }
+    loadEnvLocal();
+  }
 
   const isTeardown = process.argv.includes("--teardown");
   const capabilityArgumentPrefix = "--set-buyer-and-seller-can-sell=";
@@ -4638,6 +5156,13 @@ async function main(): Promise<void> {
   const seedPhantomReservationPrefix = "--seed-phantom-reservation=";
   const seedPhantomReservationArgument = process.argv.find((argument) => argument.startsWith(seedPhantomReservationPrefix));
   const admin = createAdminClient();
+
+  const legacyFixtureDraftPrefix = "--create-legacy-fixture-draft=";
+  const legacyFixtureDraftArgument = process.argv.find((argument) => argument.startsWith(legacyFixtureDraftPrefix));
+  if (legacyFixtureDraftArgument) {
+    console.log(JSON.stringify(await createLegacyFixtureDraft(admin, legacyFixtureDraftArgument.slice(legacyFixtureDraftPrefix.length))));
+    return;
+  }
 
   if (isInspectSuspendedOrganization) {
     console.log(JSON.stringify(await inspectSuspendedOrganization(admin)));
@@ -4730,12 +5255,44 @@ async function main(): Promise<void> {
     console.log(JSON.stringify(await inspectF013Fixtures(admin)));
     return;
   }
+  if (process.argv.includes("--inspect-f013-provenance")) {
+    console.log(JSON.stringify(await inspectF013Provenance(admin)));
+    return;
+  }
+  if (process.argv.includes("--validate-f013-provenance")) {
+    console.log(JSON.stringify(await validateF013Provenance(admin)));
+    return;
+  }
+  if (process.argv.includes("--prepare-f013-provenance")) {
+    console.log(JSON.stringify(await prepareF013Provenance(admin)));
+    return;
+  }
   if (process.argv.includes("--prepare-f013-fixtures")) {
     await prepareF013Fixtures(admin, requireEnv("TEST_FIXTURE_PASSWORD"));
     return;
   }
   if (process.argv.includes("--cleanup-f013-fixtures")) {
     console.log(JSON.stringify(await cleanupF013Fixtures(admin)));
+    return;
+  }
+  if (process.argv.includes("--deactivate-f013-fixture-entities")) {
+    console.log(JSON.stringify(await cleanupF013Fixtures(admin)));
+    return;
+  }
+  if (process.argv.includes("--reactivate-f013-fixture-entities")) {
+    console.log(JSON.stringify(await reactivateF013FixtureEntities(admin)));
+    return;
+  }
+  if (process.argv.includes("--prepare-f013-t071-run")) {
+    console.log(JSON.stringify(await prepareF013T071Run(admin)));
+    return;
+  }
+  if (process.argv.includes("--prepare-f013-t071-snapshot-order")) {
+    console.log(JSON.stringify(await prepareF013T071SnapshotOrder(admin)));
+    return;
+  }
+  if (process.argv.includes("--inspect-f013-t071-state")) {
+    console.log(JSON.stringify(await inspectF013T071State(admin)));
     return;
   }
   if (process.argv.includes("--f013-m1-schema-probe")) {
@@ -5057,7 +5614,7 @@ main().catch((error: unknown) => {
   // Only deliberately-authored safe messages may reach stderr. Unexpected SDK/database errors
   // are mapped generically so their raw payload, stack and request/session context stay private.
   const safeMessage =
-    error instanceof SafeFixtureError ||
+    error instanceof SafeFixtureError || error instanceof F013TargetError ||
     (error instanceof Error &&
       error.message.startsWith("Missing required environment variable "))
       ? error.message

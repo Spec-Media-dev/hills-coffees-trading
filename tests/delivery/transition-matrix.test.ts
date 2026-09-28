@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { describe, expect, it, vi } from "vitest";
 
-import { FOUNDATION_FIXTURES, INVENTORY_FIXTURES, LISTING_FIXTURES, signInAsFixture } from "@/tests/auth/fixture-session";
+import { FOUNDATION_FIXTURES, INVENTORY_FIXTURES, LISTING_FIXTURES, signInAsFixture, createLegacyFixtureDraftOrder } from "@/tests/auth/fixture-session";
 import { buildRequestedOrder, type WithLiveClient } from "@/tests/orders/live-helpers";
 import { ORDER_SHIPMENT_STATUSES } from "@/lib/orders/validation";
 
@@ -142,10 +142,10 @@ describe("T024 — live proof for every transition reachable without a settled o
   it("a buyer directly attempting FAILED as a raw update on a DRAFT shipment is refused by the trigger (warehouse_required_for_operational_shipment_status)", async () => {
     const client = await signInAsFixture(INVENTORY_FIXTURES.orgB.email);
     const { shipmentId } = await withLiveClient(client, async () => {
-      const { createDraftOrder, addOrderItem } = await import("@/lib/orders/drafts");
+      const { addOrderItem } = await import("@/lib/orders/drafts");
       const { createDraftShipment } = await import("@/lib/delivery/buyer");
       const userId = (await client.auth.getUser()).data.user!.id;
-      const order = await createDraftOrder({ organizationId: INVENTORY_FIXTURES.orgB.organizationId, userId });
+      const order = await createLegacyFixtureDraftOrder({ organizationId: INVENTORY_FIXTURES.orgB.organizationId, userId });
       if (!order.ok) throw new Error(String(order.code));
       const item = await addOrderItem({ organizationId: INVENTORY_FIXTURES.orgB.organizationId, orderId: order.data.id, offerId: LISTING_FIXTURES.offerPublished, quantityKg: 2 });
       if (!item.ok) throw new Error(String(item.code));

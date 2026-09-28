@@ -1,3 +1,4 @@
+import { readProductionEnvLocal } from "../../scripts/f013-production-env.mjs";
 // Feature 003 closure (T035/T036) — real Chrome browser proof, same CDP harness Feature 002's
 // Phase 12 already established (tests/browser/cdp-harness.mjs). No external browser-automation
 // dependency; this drives the machine's own installed Chrome headlessly against the ALREADY-RUNNING
@@ -7,7 +8,7 @@ import { assert, goto, launchBrowser, viewport } from "./cdp-harness.mjs";
 
 function loadEnv() {
   try {
-    const contents = readFileSync(".env.local", "utf8");
+    const contents = readProductionEnvLocal();
     for (const line of contents.split(/\r?\n/)) {
       const t = line.trim();
       if (!t || t.startsWith("#")) continue;
@@ -18,7 +19,9 @@ function loadEnv() {
       if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) v = v.slice(1, -1);
       if (!process.env[k]) process.env[k] = v;
     }
-  } catch {}
+  } catch (error) {
+    if (error?.code !== "ENOENT") throw error;
+  }
 }
 loadEnv();
 

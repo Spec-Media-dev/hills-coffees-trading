@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { CHECKOUT_FIXTURES, INVENTORY_FIXTURES, LISTING_FIXTURES, PHASE89_FIXTURES, resetCheckoutFixtures, setSuspendedOrganizationStatus, signInAsFixture } from "@/tests/auth/fixture-session";
+import { CHECKOUT_FIXTURES, INVENTORY_FIXTURES, LISTING_FIXTURES, PHASE89_FIXTURES, resetCheckoutFixtures, setSuspendedOrganizationStatus, signInAsFixture, createLegacyFixtureDraftOrder } from "@/tests/auth/fixture-session";
 import { ACTION_FEEDBACK, type ActionFeedbackCode } from "@/lib/types/action-feedback";
 
 import { raisesOf } from "./db-baseline";
@@ -98,10 +98,10 @@ async function expectLiveMapping(error: PostgrestLikeError, domain: "order" | "s
 /** A DRAFT order with one item and a DRAFT shipment, built through the production actions. */
 async function draftWithShipment(client: SupabaseClient, organizationId: string, quantityKg: number) {
   return withLiveClient(client, async () => {
-    const { createDraftOrder, addOrderItem } = await import("@/lib/orders/drafts");
+    const { addOrderItem } = await import("@/lib/orders/drafts");
     const { createShipment } = await import("@/src/app/dashboard/orders/[orderId]/shipment/actions");
     const userId = (await client.auth.getUser()).data.user!.id;
-    const order = await createDraftOrder({ organizationId, userId });
+    const order = await createLegacyFixtureDraftOrder({ organizationId, userId });
     if (!order.ok) throw new Error(`setup: ${order.code}`);
     const item = await addOrderItem({ organizationId, orderId: order.data.id, offerId: CHECKOUT_FIXTURES.offerCheckout, quantityKg });
     if (!item.ok) throw new Error(`setup: ${item.code}`);
@@ -179,8 +179,7 @@ describe("T025 — LIVE order-domain database exceptions map to their specific s
       await expectLiveMapping(notConfirmed.error, "order", "order_must_be_confirmed_before_checkout", ACTION_FEEDBACK.ORDER_TRANSITION_REFUSED);
 
       const empty = await withLiveClient(orgB, async () => {
-        const { createDraftOrder } = await import("@/lib/orders/drafts");
-        return createDraftOrder({ organizationId: INVENTORY_FIXTURES.orgB.organizationId, userId: (await orgB.auth.getUser()).data.user!.id });
+        return createLegacyFixtureDraftOrder({ organizationId: INVENTORY_FIXTURES.orgB.organizationId, userId: (await orgB.auth.getUser()).data.user!.id });
       });
       if (!empty.ok) throw new Error("setup");
       await confirmAsBuyer(orgB, empty.data.id);

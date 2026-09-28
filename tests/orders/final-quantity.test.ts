@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { CHECKOUT_FIXTURES, INVENTORY_FIXTURES, ageCheckoutHold, inspectCheckoutMirrors, inspectCheckoutOrder, probeDirectFullReservation, resetCheckoutFixtures, signInAsFixture, type CheckoutMirrorInspection } from "@/tests/auth/fixture-session";
+import { CHECKOUT_FIXTURES, INVENTORY_FIXTURES, ageCheckoutHold, inspectCheckoutMirrors, inspectCheckoutOrder, probeDirectFullReservation, resetCheckoutFixtures, signInAsFixture, type CheckoutMirrorInspection, createLegacyFixtureDraftOrder } from "@/tests/auth/fixture-session";
 import { ACTION_FEEDBACK } from "@/lib/types/action-feedback";
 
 import { buildReadyOrder, installRpcBarrier, liveClientScope } from "./live-helpers";
@@ -170,9 +170,9 @@ describe("DB-OPEN-16 — remaining = 10 kg (live)", () => {
       expectMirrors(inspectCheckoutMirrors(), FILLER_KG);
 
       const addEleven = await withLiveClient(orgB, async () => {
-        const { createDraftOrder, addOrderItem } = await import("@/lib/orders/drafts");
+        const { addOrderItem } = await import("@/lib/orders/drafts");
         const userId = (await orgB.auth.getUser()).data.user!.id;
-        const draft = await createDraftOrder({ organizationId: INVENTORY_FIXTURES.orgB.organizationId, userId });
+        const draft = await createLegacyFixtureDraftOrder({ organizationId: INVENTORY_FIXTURES.orgB.organizationId, userId });
         if (!draft.ok) throw new Error("setup");
         return addOrderItem({ organizationId: INVENTORY_FIXTURES.orgB.organizationId, orderId: draft.data.id, offerId: CHECKOUT_FIXTURES.offerCheckout, quantityKg: 11 });
       });

@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { describe, expect, it, vi } from "vitest";
 
-import { INVENTORY_FIXTURES, LISTING_FIXTURES, PHASE89_FIXTURES, setSuspendedOrganizationStatus, signInAsFixture } from "@/tests/auth/fixture-session";
+import { INVENTORY_FIXTURES, LISTING_FIXTURES, PHASE89_FIXTURES, setSuspendedOrganizationStatus, signInAsFixture, createLegacyFixtureDraftOrder } from "@/tests/auth/fixture-session";
 import { ACTION_FEEDBACK } from "@/lib/types/action-feedback";
 
 /**
@@ -199,7 +199,11 @@ describe("T004/PS1 — addItemToOrder Server Action (live)", () => {
 describe("T006 — edit-only-while-DRAFT (live)", () => {
   it("adding an item to a CONFIRMED order is refused with ORDER_NOT_EDITABLE — exercises the identical `status <> 'DRAFT'` trigger predicate HOLD would (checkout_order()/Phase 4 is out of RUN A scope, so HOLD itself cannot be constructed this run; DRAFT -> CONFIRMED is an ordinary, RLS-permitted buyer transition used here as TEST SETUP only, never a Feature 007 RUN A application action)", async () => {
     const client = await signInAsFixture(INVENTORY_FIXTURES.orgB.email);
-    const orderId = await createTestOrder(client, INVENTORY_FIXTURES.orgB.organizationId);
+    // H1 (Feature 013 M4a): member inserts are BANK_TRANSFER_V1, whose graph has no buyer DRAFT -> CONFIRMED; this
+    // LEGACY-flow setup therefore starts from the local-only service_role LEGACY fixture draft.
+    const legacyDraft = await createLegacyFixtureDraftOrder({ organizationId: INVENTORY_FIXTURES.orgB.organizationId, userId: (await client.auth.getUser()).data.user!.id });
+    if (!legacyDraft.ok) throw new Error(`test setup failed: ${legacyDraft.code}`);
+    const orderId = legacyDraft.data.id;
 
     const { error: confirmError } = await client.from("orders").update({ status: "CONFIRMED" }).eq("id", orderId);
     expect(confirmError).toBeNull();

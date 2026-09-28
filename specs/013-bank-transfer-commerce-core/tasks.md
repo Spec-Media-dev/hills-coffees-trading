@@ -12,7 +12,32 @@ description: "Implementation tasks for Feature 013 — Bank Transfer Commerce Co
 - [quickstart.md](./quickstart.md)
 - [contracts/](./contracts/)
 
-**Status**: NOT STARTED — 0 / 236 (234 original + T124a + T235 from the /speckit-analyze corrections of 2026-09-24). Planning artifacts only; nothing implemented, no migration created or applied.
+**Status (2026-09-28)**: T001–T071 complete, 71 / 236 historical tasks verified. M1, M2a–M2e, M3 and M4a are already present; T072 has not started. The prior planning rescope added T236, making 237 IDs total. The 166 unfinished IDs now comprise 29 launch-critical implementation IDs, 26 independent launch gate/dependency IDs, 74 deferred IDs, and 37 merged/superseded **standalone** IDs. Merged acceptance is still required inside its owning unit; no unchecked checkbox is falsely marked complete. Completed work/evidence and the reusable LOCAL fixture state are untouched.
+
+## Launch MVP task ledger — authoritative over historical batches below
+
+The 2026-09-28 final scope in [spec.md](./spec.md) and [plan.md](./plan.md) controls launch. **A** is implementation directly needed for the straight-through buyer order. **B** is an independently retained migration, concurrency/security, integrated proof, or operator gate. **C** is post-launch and does **not** block T235. **D** means only the *standalone task* is merged into named launch-unit acceptance or superseded; its underlying safety requirement is not deleted. IDs and completed checkboxes are never renumbered or erased. A range is inclusive; T124a is separate. Every unchecked ID occurs exactly once below.
+
+| Class | Exact unfinished IDs | Count | Launch meaning |
+|---|---|---:|---|
+| **A — LAUNCH-CRITICAL** | T072–T077, T084–T086, T088, T098–T101, T105–T107, T115–T117, T126–T129, T143–T144, T199–T200, T206 | **29** | The eight units' product/service work and five authoring migrations. |
+| **B — INDEPENDENT LAUNCH GATES/DEPENDENCIES** | T080–T081, T091–T092, T094, T096, T110–T111, T113, T120–T121, T123, T155, T198, T203, T205, T207–T211, T223, T228, T234–T236 | **26** | MP-4/5 reviews/applies plus selected live/security/concurrency proofs, Stripe inventory/operator actions, integrated proof and activation. |
+| **C — DEFERRED POST-LAUNCH** | T083, T097, T103, T125, T130–T132, T135–T141, T145–T154, T157–T197, T201–T202, T204, T212–T214, T219, T231–T232 | **74** | Advanced reconciliation/accounting/payout, M5c order aggregation, M6–M8, notifications/promotions, physical Stripe cleanup, non-launch reporting and fixture cleanup. |
+| **D — MERGED/SUPERSEDED STANDALONE** | T078–T079, T082, T087, T089–T090, T093, T095, T102, T104, T108–T109, T112, T114, T118–T119, T122, T124, T124a, T133–T134, T142, T156, T215–T218, T220–T222, T224–T227, T229–T230, T233 | **37** | Acceptance/evidence folded into A/B unit work below; historical task text remains, but these IDs are not separate gates. |
+
+**Eight real units and D ownership:** (1) Cart/account/checkout UI: T072–T076, T084–T086, T098–T101; T102 copy and T103 historical extra browser scope are not separate launch gates. (2) Quote/proforma/M4b: T077, T080–T081; T078–T079/T082/T087 static/live/review acceptance is embedded in T077 and its unit evidence. (3) Confirmation/reservation/M4c: T088, T091–T092/T094/T096; T089–T090/T093/T095 are embedded in T088; buyer cancellation T097 is deferred. (4) Bank instructions/private proof/M5a: T105–T107, T110–T111/T113, T115–T116; T108–T109/T112/T114 are embedded in T107 and unit proof. (5) Admin review/settlement/M5b: T117, T120–T121/T123, T126–T129; T118–T119/T122/T124/T124a/T133–T134 are embedded in T117/T129 and final gate T234, without losing MFA/audit/idempotency requirements. (6) Fulfillment/delivery: T143–T144 and T155/T223; T142's warehouse/RLS acceptance is embedded there. (7) Stripe retirement/M9: T198–T200, conditional T203/T205, T206–T211, T236. (8) Integrated proof/activation: T155/T223/T228/T234/T235; T156, T215–T218, T220–T222, T224–T227, T229–T230/T233 browser, localization, secret, regression, evidence and cleanup acceptance is embedded there. D checkboxes remain unchecked as historical standalone entries; only their mapped evidence is recorded at the owning unit/gate. T231 roadmap reconciliation and T232 fixture cleanup are post-launch.
+
+**Mixed-task launch acceptance overrides:** T077/T084/T086 use base listing price, zero promotion discount, UAE destinations' active `AE` VAT rule (currently 5%) and approved taxable basis; **non-UAE issuance refuses safely** until owner/finance/legal approve and encode a rule. No historical research R-7 all-destination default survives for launch. The M4b proof includes tax-to-the-cent for AE and no final proforma/payment/reservation for unsupported destinations. T100/T116 keep authorized legacy order viewing but no legacy customer may reach Stripe funding. T107/T115 keep private timely proof and safe late refusal/escalation. T117 keeps exact normal USD review, one-time title/invoice-record/`ACCRUED` liability/fulfillment shipment effects, MFA and audit; it also assumes M2c F2's formerly M5c-owned **FULFILLMENT shipment deletion denial**. Omit advanced reconciliation/adjustments/attachments/outbox. T126–T129 expose queue/detail/confirm/reject only. T143–T144 show warehouse and buyer **shipment** progress using Feature 009; the order may remain `PAID`. T155 proves actual paid→shipment handoff/progression and deletion denial, not M5c automatic `COMPLETED` or payout eligibility. T199–T200 remove callable Stripe server funding and all customer card UI/route branches; T236 proves **all** product routes and direct RPC paths are unreachable for both V1 and legacy customer sessions. Physical SDK/source deletion is deferred only if that proof passes. Any mixed task's launch acceptance needs evidence at its owning unit before T234; historical deferred acceptance stays open.
+
+**Migration protocol integrity:** M4b, M4c, M5a, M5b and M9 each retain MP-1 author, MP-2 static security, MP-3 dry-run, MP-4 independent human GO, MP-5 operator apply/postflight and MP-6 live proof **in order**. D classification of an MP-2/3/6 historical *standalone ID* folds its work and recorded result into the corresponding A author-unit acceptance; it does not waive that protocol step. B retains all five MP-4/MP-5 pairs (T080–T081, T091–T092, T110–T111, T120–T121, T209–T210) plus selected separate concurrency/security proofs. No migration is authored or applied by this amendment.
+
+**Launch dependency override:** historical “Batches A → I strictly in order” and broad `Depends`/`Accept` clauses below are full-feature history, not launch blockers when naming C/D tasks. T155 follows M5b T121/T123, T116/T129, T143–T144 and must include Feature 009 live progression; it does not wait for M5c T135–T140, T142, T154 or T157. T198 can start after T071/T007 without deferred T157/T197. T199 follows T198 and T200 follows T199. T203/T205 follow a refreshed T198 inventory and are **verified no-ops only if no deployed functions/secrets exist**; otherwise operator removes/disables them before T234. T206 follows T198 and provider-row safety verdict, not T201–T205 physical cleanup; T207–T211 follow sequentially. T236 follows T200/T211 and bank-transfer payment surfaces T100/T116/T129; it does not wait for T201/T202/T204/T212–T214. T223 follows T155/T236. T228 incorporates affected browser/locale/secret/regression evidence from D and the independent B proofs. T234 needs all A/B criteria and business blockers explicit, not C/D checkboxes. T235 follows T234 plus finance/tax/legal, real bank, warehouse, backup and hosted-runtime sign-offs. No deferred task is silently marked complete.
+
+**Smallest honest launch path:** completed T071 → Unit 1 alongside Unit 2 M4b (T077→T080→T081) → Unit 3 M4c (T088→T091→T092) → Unit 4 M5a (T107→T110→T111) → Unit 5 M5b (T117→T120→T121) → Unit 6 Feature 009 shipment/buyer delivery → Unit 7 Stripe T198→T199→T200 plus M9 T206→T207→T208→T209→T210→T211 and conditional hosted inventory actions → Unit 8 T155/T223/T236/T228/T234 → operator T235. Independent work may overlap only where shared-state/migration restrictions permit. Five launch migrations: **M4b, M4c, M5a, M5b, M9**. The non-UAE finance/legal decision gates non-UAE proforma issuance; a failed delivery or Stripe negative proof stops launch.
+
+**No execution authorization:** this rescope is SPEC → PLAN → TASKS only. Do not infer permission to implement T072, apply migrations, use `--linked`, run production commands, reset/reseed LOCAL, enable checkout, commit, or push.
+
+**Post-launch dependency integrity:** before T097, T125 or T141/T145 can execute historical buyer-cancellation, reconciliation/adjustment or payout-recording acceptance, amend the deferred plan with new forward-migration protocol tasks for any RPCs omitted from launch M4c/M5b/M5c. Do not retrofit an applied launch migration or treat those RPCs as already shipped. T203/T205 are conditional no-ops only if fresh operator inventory still shows zero deployed Stripe Edge Functions/credentials; record proof rather than checking them off today. M5c requires a future independent migration protocol, not a launch shortcut.
 
 **Tests**: REQUIRED. The spec's acceptance criteria, SC-002/SC-006 contention runs, and Constitution "Engineering Standards → Testing" demand them.
 - Live database tests are gated by `F013_LIVE=1` and use only disposable `f013` fixtures.
@@ -1348,28 +1373,109 @@ here is database/security work; UI that depends on it comes later.
 CONFIRMATION (M4c, T091–T106) are separate migrations, services and UI.**
 
 ### M4a — cart and destination RPCs
-- [ ] T066 [US1] MP-1 Author M4a — `supabase/migrations/20260926100000_feature_013_cart_destination_rpcs.sql`, rollback, postflight
+- [X] T066 [US1] MP-1 Author M4a — `supabase/migrations/20260926100000_feature_013_cart_destination_rpcs.sql`, rollback, postflight
   - Depends: T065
   - Accept: `get_or_create_cart` (advisory lock per org, `BANK_TRANSFER_V1` DRAFT reuse), `add_cart_line` (no reservation; merges per offer; request-log replay), `upsert_delivery_destination`, `retire_delivery_destination`, `update_commerce_settings` (validity hours, switches, pilot orgs; platform admin + MFA; audited), `set_default_payment_account`, `admin_convert_legacy_draft` (LEGACY DRAFT without shipment plan → `BANK_TRANSFER_V1`; audited), and the H1 flow switch: `orders.commerce_flow` default → `'BANK_TRANSFER_V1'` plus the BEFORE INSERT guard `enforce_new_order_flow` (non-service-role inserts forced to v1) — per contracts/database-rpc.md.
   - **T023 condition (F1, owner-approved 2026-09-25)**: `enforce_new_order_flow` must also force `has_manual_adjustment = false` and `cancelled_at`/`cancelled_by`/`cancel_reason` = NULL for every non-`service_role` INSERT (the existing `orders_create_buyer` policy does not constrain the M1 columns). Static and live tests must prove it.
-- [ ] T067 [US1] MP-2 Static tests — `tests/commerce/migrations/m4a-cart-rpcs.test.ts`
+  - **2026-09-26 — authored, NOT applied; revised the same day for the T069 owner decisions (A1–A6).** Current files (md5, LF):
+    - migration `8e39cf78…2db7` (582 lines);
+    - rollback `abb0aaae…3dfb`;
+    - postflight `414c68e6…ad5c` (12 checks + `999`).
+  - Objects:
+    - 7 RPCs, SECURITY DEFINER, `search_path` = `pg_catalog, public, auth`, EXECUTE **authenticated only** (revoked from PUBLIC, anon, service_role):
+      - `get_or_create_cart(p_org_id)`;
+      - `add_cart_line(p_org_id, p_offer_id, p_quantity_kg, p_request_id)` (A3);
+      - `upsert_delivery_destination`, `retire_delivery_destination`;
+      - `update_commerce_settings(…, p_pilot_organization_ids uuid[] default null)` (A1);
+      - `set_default_payment_account` (platform admin + MFA, A2);
+      - `admin_convert_legacy_draft`.
+    - 4 internal helpers, SECURITY INVOKER, pinned, no EXECUTE for any API role:
+      - `commerce_request_begin(request, operation, scope)`: the R-25 log row is inserted first (A6);
+      - `commerce_request_complete(request, response)`: runs as the last statement;
+      - `commerce_assert_buyer_member`;
+      - `commerce_resolve_cart` (advisory lock key 13).
+    - `enforce_new_order_flow()` (SECURITY INVOKER) + `trg_orders_enforce_new_order_flow` BEFORE INSERT FOR EACH ROW.
+    - `orders.commerce_flow` default → `'BANK_TRANSFER_V1'`.
+  - No policy, table, column, grant, data or setting change; no notification event; checkout stays OFF.
+  - Guard pins 12 function bodies (checkout_order = post-M2b `54810aad…`, verified from the M2b file). It also checks:
+    - the M1–M3 objects and the M3 column boundary;
+    - the commerce_flow default, UNIQUE(order_id, offer_id) and the trigger bindings;
+    - the `commerce_request_log` primary key;
+    - the kill switch;
+    - that no M4a/M4b name already exists.
+  - Contract amended before apply (owner-approved; `contracts/database-rpc.md`):
+    - R-25 convention (insert first; replay by same actor, operation and scope);
+    - `add_cart_line` signature;
+    - `update_commerce_settings` signature and the rollout invariant;
+    - `set_default_payment_account` authority;
+    - two M4a `Errors:` lines.
+  - `lib/commerce/errors.ts` + EN/AR `commerce.errors` aligned: 42 codes, 12 new.
+- [X] T067 [US1] MP-2 Static tests — `tests/commerce/migrations/m4a-cart-rpcs.test.ts`
   - Depends: T066
-- [ ] T068 [US1] MP-3 Dry-run M4a
+  - **2026-09-26 (after the T069 revisions): 61/61 pass**, including 40 mutation cases (each caught). Covers:
+    - conventions; guard pins (§5, M1/M2b files, approved database report); EXECUTE matrix; F1 exact body;
+    - cart lock and reuse; org-scoped add (no membership scan); R-25 insert-first, scope comparison and completion-last;
+    - destination non-enumeration; admin + MFA ordering (default account = platform admin); no bank data;
+    - legacy eligibility; no policy/grant/event/DML;
+    - contract alignment: signatures, and every raised code is documented in the M4a Errors lines;
+    - A1: no runtime path calls `update_commerce_settings` or writes the checkout flag; checkout false in the migration and postflight;
+    - rollback symmetry; history.
+  - `labels-parity` updated to parse single-word codes (`forbidden`): 5 Errors lines, 42 codes.
+  - The M3 and M4a history tests also allow the owner-approved `contracts/database-rpc.md` change.
+- [X] T068 [US1] MP-3 Dry-run M4a
   - Depends: T067
-- [ ] T069 [US1] MP-4 **GATE** review M4a
+  - **COMPLETE 2026-09-26 — operator dry-run of the FINAL file (md5 `8e39cf78…2db7`)**: `npx supabase db push --linked --dry-run` → linked project hillscoffees-trading / `mxejnutukgxyccnohglo`; exactly one pending migration, `20260926100000_feature_013_cart_destination_rpcs.sql`; dry-run completed successfully. (The CLI prints the file name, not its hash: re-verify md5 `8e39cf78…` immediately before the T070 apply.)
+  - **Operator evidence (first version, md5 `9ad2bd79…`)**: `npx supabase db push --linked --dry-run` → linked project hillscoffees-trading / `mxejnutukgxyccnohglo`; exactly one pending migration, `20260926100000_feature_013_cart_destination_rpcs.sql`; dry-run finished successfully.
+  - **After the T069 revisions (current md5 `8e39cf78…`):**
+    - Static tests:
+      - migrations + historical-008 + migration-layout + updated-at: **13 files, 450/450**;
+      - static commerce/orders batch (live-writing suites excluded): **12 files, 339/339**;
+      - migration-scanning admin/pricing static tests: **3 files, 46/46**.
+    - `npm run typecheck` clean; eslint on the changed files clean; `git diff --check` clean.
+    - PGlite `harness-m4a.mjs`: **122/122 PASS**. Proven:
+      - a multi-org member explicitly uses org A (existing cart) and org B (its own new cart), with no cross-org reuse;
+      - another org, a nonexistent org and a null org → identical `buyer_not_authorized`;
+      - the only advisory lock taken is the selected org's key-13 cart lock;
+      - replay is org-scoped (org A's request id for org B → `request_id_conflict`; the same org replays identically);
+      - R-25 order: the log INSERT precedes the order_items write (instrumented); the response is completed before commit; a failed request leaves no log row and the id is reusable; no committed placeholder;
+      - default account: platform ADMIN + aal2 succeeds; ADMIN at aal1 with a verified factor → `mfa_step_up_required`; member/FINANCE → `forbidden`; anon → permission denied;
+      - F1 sanitization, no reservation, rollback symmetry and re-apply (plus all earlier scenarios).
+    - The concurrent-duplicate wait (two sessions) is proven live in T071.
+    - Linked re-dry-run by the agent: CLI `DbConfigLoginRoleStatusError` **403**; migration not altered. **Operator:** `npx supabase db push --linked --dry-run` again, since the file changed after the first operator dry-run.
+- [X] T069 [US1] MP-4 **GATE** review M4a
   - Depends: T068
-- [ ] T070 [US1] MP-5 **OPERATOR** apply M4a + postflight
+  - **COMPLETE / GO — owner decision, 2026-09-26.** Independent Opus review returned **GO** with **zero blockers**; owner accepted A1–A6.
+    - A1 resolved: pilot ids kept. No `p_reason`, no extra validation. Rollout invariant recorded in the contract and proven statically (A1 tests) and by postflight check 10.
+    - A2 resolved: `is_platform_admin()` + `mfa_satisfied()`.
+    - A3 resolved: explicit `p_org_id` on `add_cart_line`; `buyer_organization_ambiguous` removed everywhere.
+    - A4 resolved: every raised code is documented; errors.ts and EN/AR are aligned; no alias.
+    - A5 accepted.
+    - A6 resolved: insert-first.
+    - Canonical MFA semantics: `mfa_satisfied()` is true for an account with no verified factor, so a platform admin who never enrolled MFA passes, as in every existing admin + MFA path.
+  - **N3** is a required M4b follow-up. **N5** is a pre-activation MFA-enrollment consideration.
+
+- [X] T070 [US1] MP-5 **OPERATOR** apply M4a + postflight
   - Depends: T069
-- [ ] T071 [US1] MP-6 Live proof — `tests/commerce/cart.live.test.ts`, `tests/commerce/destinations.live.test.ts`
+  - **COMPLETE 2026-09-26.**
+  - **Pre-M4a backup:** `C:\Users\Dell\hills-coffee-backups\2026-09-26-pre-m4a\`; completed successfully. The data-only dump's circular-FK warnings are restore notes, not a backup failure. `SHA256SUMS` recorded:
+    - `schema.sql` — 541130 bytes — `A51EC3853A6DAEECC845766CC843C209EECE5FC5CAF0C8B951FAC7AAC369FC21`;
+    - `data.sql` — 62908382 bytes — `55F2A04340EEF8674778008503127246F6339D662B0DB5710E07F8DDCAEF355B`;
+    - `roles.sql` — 370 bytes — `168A95A9C745AF5ED4679751F90419AC9DC434240A213B03E32A06D5664C2308`.
+  - **Quiet window (read-only):** 0 non-idle client sessions, 0 idle-in-transaction sessions, and 0 active non-read-only client sessions; 0 audit writes in the preceding 30 minutes; no local live fixture/test process. Latest audit write: `2026-09-26 11:11:19.682325+00`.
+  - **Reviewed migration:** MD5 `8E39CF78988524497C194F2718CC2DB7` immediately before apply.
+  - **Fresh dry-run:** `npx supabase db push --linked --dry-run` listed exactly `20260926100000_feature_013_cart_destination_rpcs.sql` and completed successfully.
+  - **Operator apply:** `npx supabase db push --linked`; operator confirmed the one prompted migration. Output: `Applying migration 20260926100000_feature_013_cart_destination_rpcs.sql...` then `Finished supabase db push.` No error.
+  - **Postflight:** `supabase/maintenance/20260926_feature_013_cart_destination_rpcs_postflight.sql` via `npx supabase db query --linked -f …` returned checks 1–12 = `true`; final row 999 = `ALL CHECKS PASSED` / `true`.
+  - **Remote state after apply:** migration head exactly `20260926100000`; no M4b+ migration applied or object exists. `commerce_settings` has 1 row and `bank_transfer_checkout_enabled = false`. M4a RPCs and their authenticated-only EXECUTE ACLs pass postflight checks 1–3. Order sanity: 2039 total, all 2039 `LEGACY`, 0 `BANK_TRANSFER_V1`; audit state unchanged (latest `2026-09-26 11:11:19.682325+00`, 0 writes in last 30 minutes).
+
+- [X] T071 [US1] MP-6 Live proof — `tests/commerce/cart.live.test.ts`, `tests/commerce/destinations.live.test.ts`
   - Depends: T070, T016 (fixtures prepared by OPERATOR/agent with approval)
-  - Accept:
-    - add/update/remove never changes `inventory_positions.reserved_quantity_kg` or `coffee_offers.reserved_quantity_kg` (AC-001);
-    - a replay with the same request id returns an identical result;
-    - concurrent cart creation yields one cart;
-    - a mixed-seller + mixed-warehouse cart holds lines from S1/S2/Hills across two warehouses;
-    - a cross-org destination id → `destination_not_found`;
-    - retiring a destination keeps prior snapshots;
-    - H1: a member insert (including one requesting `LEGACY`) is stored as `BANK_TRANSFER_V1`; `admin_convert_legacy_draft` converts a plan-free legacy draft exactly once and refuses other states (`legacy_draft_not_convertible`); legacy live suites (`tests/orders`, `tests/finance`, `tests/delivery`) are updated to insert `commerce_flow = 'LEGACY'` via service role and stay green.
+  - Accept: cart add/update/remove does not change offer or inventory-position reserved quantity; idempotent and two-session concurrent replay return the same stored response without duplicate effects or committed placeholders; concurrent cart creation yields one DRAFT cart; one selected buyer organization can hold S1/S2/Hills offers across two warehouses; multi-org carts remain isolated; destination create/update/default/retire and cross-org non-enumeration pass; prior snapshots survive retirement within M4a's scope; member inserts are forced to V1 with the T023 F1 fields sanitized; eligible plan-free LEGACY DRAFT converts once, while ineligible conversion fails; narrow legacy fixture inserts explicitly retain `LEGACY` via service role. Exact-id cleanup and production state checks pass.
+  - **BLOCKED 2026-09-26, before any T071 live test:** linked ref `mxejnutukgxyccnohglo`, remote head `20260926100000`, checkout disabled, M4b absent. `--inspect-f013-fixtures` showed the T016 fixture set absent. Owner-authorized `--prepare-f013-fixtures` created only the initial identities, organizations, warehouses, coffee, first lot and position, then stopped on the first S1 member offer with `member_listing_requires_purchase_source`. The T016 builder supplies no `source_purchase_order_item_id`; the pre-existing Feature 007 listing guard requires a purchase item for a PAID or later order whose buyer is S1 and whose lot matches. This is a fixture construction defect, not evidence of an M4a defect. No M4a RPC was exercised; both T071 live test files remain uncreated and test count is 0.
+  - `--cleanup-f013-fixtures` succeeded for the exact partial fixture set: all five F013 organizations are suspended; no F013 offer, buyer order, order item, destination, reservation or request-log row exists; first fixture position's reserved quantity is `0.000`. The intentionally retained T016 identity/organization/lot/position setup remains suspended/inactive for a safe retry. Checkout is still false and migration head remains `20260926100000`.
+  - **Next gate:** approve a provenance-correct T016 member-offer fixture design (or identify existing qualifying purchase items) before resuming T071. Do not weaken the production listing guard or fabricate a paid purchase history.
+  - **Owner decision for the F013 local-only safety layer (2026-09-26):** production-default intentionally refuses fixture writes and authenticated fixture sessions. Historical Features 003–012 live fixture suites must not be rerun against production through this tooling. A future local bootstrap needs separate review; no Docker startup, schema restore, nonce creation, or live test is authorized by this note.
+  - **COMPLETED 2026-09-28 (operator-provided LOCAL evidence, supersedes the earlier blocked status above):** direct T071 cart/destination live proof passed. Required legacy regression gates against the same retained LOCAL state passed: `tests/orders` **21/21 files, 279/279 tests**; `tests/finance` **9 files passed, 1 skipped; 154 tests passed, 18 skipped**; `tests/delivery` **19 files passed, 2 skipped; 210 tests passed, 6 skipped**. The reusable LOCAL fixture state was retained. The global `bank_transfer_checkout_enabled` remains false. No new reset/reseed or production proof is claimed by this completion record.
 
 ### Cart and destination application
 - [ ] T072 [US1] Cart service and Server Actions (single caller) — `lib/commerce/cart.ts`, `src/app/dashboard/cart/actions.ts`
@@ -1396,6 +1502,7 @@ CONFIRMATION (M4c, T091–T106) are separate migrations, services and UI.**
 ### M4b — PROFORMA ISSUANCE (quote, estimate, issue; no reservation)
 - [ ] T077 [US1] MP-1 Author M4b — `supabase/migrations/20260926103000_feature_013_quote_and_proforma_issuance.sql`, rollback, postflight
   - Depends: T071
+  - **Launch scope:** base `coffee_offers.price_per_kg` quote, no promotion or offer-tier selection, zero discount; UAE destination uses approved active `AE` VAT rule (currently 5%) and approved taxable basis. Non-UAE destination MUST refuse final proforma issuance before any payable snapshot/reservation/payment instruction until owner/finance/legal approve and encode an explicit rule; do not reuse historical research R-7's all-destination `AE` default. Preserve shipping/per-seller commission/freeze/fail-closed and destination-PII audit requirements. MP-2/3/6 evidence from merged T078/T079/T082 is required here in addition to independent T080/T081 gates. Promotion/tier clauses below are post-launch design.
   - Accept:
     - `compute_order_quote` implements research R-5 exactly:
       - promotion eligibility derived from `status IN ('SCHEDULED','ACTIVE') ∧ starts_at <= clock_timestamp() < ends_at` (no status job; analysis M1);
@@ -1439,7 +1546,8 @@ CONFIRMATION (M4c, T091–T106) are separate migrations, services and UI.**
     - funding source and raw/applied amounts frozen.
 
 - [ ] T084 [US1] Quote/estimate service and checkout page (checkout eligibility) — `lib/commerce/quote.ts`, `src/app/dashboard/checkout/page.tsx`, `components/commerce/{estimate-summary,destination-picker,money,commerce-status-badge}.tsx`
-  - Depends: T082, T075
+  - Depends for Launch MVP: T081 and M4b's recorded MP-6 evidence, T075; T082 is merged into T077.
+  - **Launch scope:** no promo-code control or funding label; show zero discount or omit the discount row without misrepresenting frozen totals. Explain non-UAE unsupported-destination refusal without displaying a final payable proforma or bank instructions.
   - Accept:
     - destination required (US1-AS2 blocks with a link); optional promo code;
     - full estimate: lines, discounts with funding label, group shipping, VAT, total;
@@ -1465,7 +1573,8 @@ CONFIRMATION (M4c, T091–T106) are separate migrations, services and UI.**
 
 ### M4c — RESERVATION CONFIRMATION (confirm, cancel, expire, sweep)
 - [ ] T088 [US1] MP-1 Author M4c — `supabase/migrations/20260926106000_feature_013_reservation_confirmation.sql`, rollback, postflight
-  - Depends: T087
+  - Depends for Launch MVP: T086 and M4b's recorded unit proof; T087 is merged.
+  - **Launch scope:** confirmation, expiry, and safe admin void only. Buyer cancellation is post-launch T097. MP-2/3/6 evidence from merged T089/T090/T093 remains mandatory here; T091/T092 retain review/apply gates.
   - Accept:
     - `confirm_proforma`: order → proforma lock; deadline via `clock_timestamp()`; opportunistic reclaim with `SKIP LOCKED`; offers ↑, then positions ↑; all-or-nothing; 20-min `ACTIVE` reservation; payment `PENDING` `expected_amount`; proforma `CONFIRMED`; order `HOLD`; event.
     - `cancel_order` (DRAFT/PROFORMA_ISSUED/HOLD-without-proof; exactly-once release).
@@ -1502,7 +1611,8 @@ CONFIRMATION (M4c, T091–T106) are separate migrations, services and UI.**
   - Accept: cancel from DRAFT/PROFORMA_ISSUED/HOLD releases exactly once; cancel racing confirm is serialized; after proof (tested again in T122) → refused.
 
 - [ ] T098 [US1] Reservation service and confirmation action — `lib/commerce/reservation.ts`, `src/app/dashboard/orders/[orderId]/proforma/actions.ts`
-  - Depends: T093
+  - Depends for Launch MVP: T092 and M4c's recorded MP-6 evidence; T093 is merged.
+  - **Launch scope:** explicit confirm and lazy expiry; customer cancellation action is deferred with T097.
   - Accept: `confirmProforma` (explicit confirm dialog submit), `cancelOrder`, `ensureReservationFresh` (lazy `expire_reservation` on read); single-caller discipline.
   - Tests: `tests/commerce/reservation-actions.test.ts`.
 - [ ] T099 [US1] Confirmation UI and 20-minute countdown — `components/commerce/{proforma-confirm-panel,reservation-countdown}.tsx` (reuse `components/orders/hold-countdown.tsx`), `src/app/dashboard/orders/[orderId]/proforma/page.tsx`
@@ -1511,6 +1621,7 @@ CONFIRMATION (M4c, T091–T106) are separate migrations, services and UI.**
   - Tests: `tests/commerce/confirm-panel.test.tsx`, `tests/commerce/countdown.test.tsx`.
 - [ ] T100 [US1] Flow-aware order list/detail/timeline + legacy route redirects — `lib/orders/read.ts`, `src/app/dashboard/orders/page.tsx`, `src/app/dashboard/orders/[orderId]/page.tsx`, `src/app/dashboard/orders/[orderId]/{checkout,shipment}/page.tsx`, `components/commerce/order-timeline.tsx`
   - Depends: T099
+  - **Launch scope:** preserve authorized legacy order viewing, but no legacy or V1 customer route may expose a Stripe funding call/collector; coordinate T199/T200 and prove at T236. Account/payment routes remain bank-transfer-only.
   - Accept: `BANK_TRANSFER_V1` orders show the new timeline (UX-001) and redirect away from the legacy checkout/shipment routes; `LEGACY` orders are unchanged; the legacy "start order" entry (`src/app/dashboard/orders/start-order-button.tsx`, `src/app/dashboard/orders/actions.ts`) now opens the active cart instead of creating a separate draft (H1).
   - Tests: `tests/orders/pages.test.tsx` updated; `tests/commerce/order-timeline.test.tsx`.
 - [ ] T101 [US6] Commerce settings admin page — `lib/admin/commerce-settings.ts`, `src/app/dashboard-admin/(system)/commerce-settings/{page,actions}.ts(x)`, `lib/admin/areas.ts`
@@ -1518,7 +1629,7 @@ CONFIRMATION (M4c, T091–T106) are separate migrations, services and UI.**
   - Accept: validity hours (1–720), checkout switch, proof switch, pilot organizations; impact notices; platform admin + MFA; audited.
   - Tests: `tests/commerce/commerce-settings.test.tsx`, `tests/admin/access-matrix.test.tsx` updated.
 - [ ] T102 [US1] Phase 3 EN/AR copy completion — `lib/app/copy/{en,ar}.ts`
-  - Depends: T073–T101
+  - Depends for Launch MVP: T073–T082, T084–T101; T083 is deferred.
   - Accept: every Phase 3 string exists in EN and AR.
   - Tests: `tests/commerce/copy-parity.test.ts`.
 - [ ] T103 [US1] Phase 3 browser proof (pilot organization only) — `tests/browser/feature013-phase3.browser.mjs`
@@ -1527,7 +1638,7 @@ CONFIRMATION (M4c, T091–T106) are separate migrations, services and UI.**
   - Gate: OPERATOR enables `pilot_organization_ids` for the fixture buyer only.
 
 - [ ] T104 **GATE — STOP/REVIEW BATCH C**
-  - Depends: T066–T103
+  - Depends for Launch MVP: T066–T082, T084–T103. T083 is deferred.
   - Accept: AC-001/AC-002/SC-002 evidenced; issuance and confirmation proven independently; the global checkout switch is still **off**. Recorded here.
 
 ---
@@ -1536,14 +1647,14 @@ CONFIRMATION (M4c, T091–T106) are separate migrations, services and UI.**
 
 ### Group A — BANK ACCOUNT CONFIG (US6, US2)  [Batch D]
 - [ ] T105 [US6] Default USD bank account admin — `lib/admin/payment-accounts.ts`, `src/app/dashboard-admin/(system)/payment-accounts/**`
-  - Depends: T104
+  - Depends for Launch MVP: T100 and Unit 3 evidence; T104 standalone gate is merged into T234.
   - Accept:
     - currency shown; IBAN/account masked in lists, full values only on detail for platform admins;
     - "Set as default for USD" via `set_default_payment_account`; active/inactive;
     - copy: changes affect only future proformas (FR-020).
   - Tests: `tests/admin/payment-accounts.test.tsx` updated (masking, default action, no hard delete).
 - [ ] T106 [P] [US2] Buyer-safe bank-instructions projection — `lib/commerce/read.ts` (`getBankInstructions`), `components/commerce/bank-instructions.tsx`
-  - Depends: T104
+  - Depends for Launch MVP: T100 and Unit 3 evidence; T104 standalone gate is merged.
   - Accept:
     - reads `proforma_bank_instructions` only for the buyer's own confirmed order (RLS);
     - shows the exact amount and payment reference; copy buttons; LTR identifiers;
@@ -1552,7 +1663,8 @@ CONFIRMATION (M4c, T091–T106) are separate migrations, services and UI.**
 
 ### M5a — PAYMENT PROOF storage and submission (US2)
 - [ ] T107 [US2] MP-1 Author M5a — `supabase/migrations/20260927100000_feature_013_payment_proof_storage.sql`, rollback, postflight
-  - Depends: T104
+  - Depends for Launch MVP: T100 and M4c's recorded proof; T104 is merged into Unit 3 acceptance.
+  - **Launch protocol:** MP-2/3/6 evidence from merged T108/T109/T112 is required here, with T110/T111 independent review/apply.
   - Accept:
     - private buckets `payment-proofs` (10 MB; pdf/jpeg/png) and `finance-documents` (20 MB; pdf);
     - storage helper + INSERT/SELECT policies (rls-storage §3); no UPDATE/DELETE;
@@ -1583,7 +1695,7 @@ CONFIRMATION (M4c, T091–T106) are separate migrations, services and UI.**
   - Accept: after timely proof, `sweep_expired_reservations` past the deadline leaves the hold intact (AC-003); a late report opens a `LATE` case and stock is untouched (AC-009).
 
 - [ ] T115 [US2] Proof service and actions (signed upload, submit, late report, view) — `lib/commerce/payment-proof.ts`, `src/app/dashboard/orders/[orderId]/payment/actions.ts`
-  - Depends: T112
+  - Depends for Launch MVP: T111 and M5a's recorded MP-6 evidence; T112 is merged into T107.
   - Accept: `createProofUpload` builds a server-side path + signed upload token; `submitProof` is the only caller of `submit_payment_proof`; `viewProof` mints a 60 s signed URL server-side after `authorize_payment_proof_access`; no path in the client payload.
   - Tests: `tests/commerce/proof-actions.test.ts` (static: no object path in returned DTOs; single caller).
 - [ ] T116 [US2] Payment page (bank instructions, countdown, proof form, states) — `src/app/dashboard/orders/[orderId]/payment/page.tsx`, `components/commerce/proof-upload-form.tsx`, `src/app/dashboard/payments/[orderId]/page.tsx` (redirect for v1 orders)
@@ -1598,7 +1710,8 @@ CONFIRMATION (M4c, T091–T106) are separate migrations, services and UI.**
 
 ### M5b — ADMIN FINANCE and PAYMENT CONFIRMATION (US3)
 - [ ] T117 [US3] MP-1 Author M5b — `supabase/migrations/20260927103000_feature_013_finance_review_settlement.sql`, rollback, postflight
-  - Depends: T112
+  - Depends for Launch MVP: T116 and M5a's recorded MP-6 evidence; T112 is merged.
+  - **Launch scope:** MFA-protected confirm/reject with independently observed external-transfer details, exact frozen USD amount/reference/timeliness checks, one-time settlement/title/invoice-record/`ACCRUED` liability and fulfillment shipment effects, safe mismatch refusal and audit. Prove each shipment is usable by existing Feature 009 transitions and cannot be deleted by warehouse management (M2c F2, reassigned from deferred M5c); do not alter historical applied migrations. MP-2/3/6 evidence from merged T118/T119/T122 is required here; T120/T121 are independent review/apply. Reconciliation case resolution, manual adjustments and final-invoice attachment/access RPCs in historical acceptance below are deferred; M2c tables remain. No automatic bank verification or seller payout is claimed.
   - Accept:
     - `finance_confirm_payment`: finance + MFA; lock order → proforma → reservation → payment → proof → offers → positions; exact amount = proforma `buyer_total`, USD, `submitted_at < expires_at`, unused normalized bank reference, else `confirmation_requires_reconciliation`.
     - Settlement effects exactly once: reservation `CONSUMED`; the title loop reused (ownership events, filled/`SOLD_OUT` only at zero); `reserve_ready_deliveries_for_settlement` (**fixes C1**); payouts `ACCRUED` from `proforma_seller_settlements.seller_net` for member sellers only; final invoice record (number, snapshot, no bank ids); FULFILLMENT shipments `DRAFT → REQUESTED` per seller × warehouse from the frozen destination/groups; payment `CONFIRMED`, proforma `PAID`, order `PAID`; events.
@@ -1622,6 +1735,7 @@ CONFIRMATION (M4c, T091–T106) are separate migrations, services and UI.**
   - Accept: concurrent confirm+reject → exactly one decision; double confirm → one set of effects (SC-006); a replay returns the stored result; after a rejection, `inventory_positions.reserved_quantity_kg` and `coffee_offers.reserved_quantity_kg` are restored by exactly the reserved amount, once (ST-008).
 - [ ] T124 [P] [US3] Live proof: settlement effects exactly once — `tests/commerce/settlement-effects.live.test.ts`
   - Depends: T121
+  - **Launch scope:** one invoice record, accrued liabilities, title and fulfillment groups exactly once; no promotion-funding or notification-delivery assertion.
   - Accept:
     - ownership events once per line; offer filled; `SOLD_OUT` only at zero sellable (AC-005);
     - one invoice; payouts `ACCRUED` for S1/S2 = frozen `seller_net` (a Hills-funded promotion does not change them); **no payout for Hills lines** (AC-011);
@@ -1634,6 +1748,7 @@ CONFIRMATION (M4c, T091–T106) are separate migrations, services and UI.**
 
 - [ ] T124a [US3] Live proof: audit trail (AUD-001/002/003/005/006) — `tests/commerce/audit-trail.live.test.ts`
   - Depends: T121
+  - **Launch scope:** audit proforma, buyer confirmation, proof/review decision, settings/bank changes and redaction. Reconciliation/adjustment and promotion audit scenarios remain deferred.
   - Accept: for a fixture lifecycle up to settlement:
     - every material status change (order, proforma, reservation, payment, proof, case) has old state, new state, actor, time, reason and correlation id (AUD-001);
     - proforma issuance and buyer confirmation are distinct audited events (AUD-002);
@@ -1644,15 +1759,18 @@ CONFIRMATION (M4c, T091–T106) are separate migrations, services and UI.**
     Completion/payout auditing (AUD-004) is asserted in T141; promotion auditing in T184.
   - Tests: the suite itself.
 - [ ] T126 [US3] Finance domain services — `lib/finance/{review,reconciliation,adjustments,invoices}.ts`, `lib/finance/{read,types,errors}.ts`
-  - Depends: T122
+  - Depends for Launch MVP: T121/T123 and M5b's recorded MP-6 evidence; T122 is merged into T117.
+  - **Launch scope:** `review`, `read`, types and errors only; reconciliation/adjustment/invoice-attachment wrappers remain deferred.
   - Accept: typed single-caller wrappers; `review.ts` replaces `settlement.ts` as the settlement caller (`settlement.ts` itself stays until Phase 7); error mapping with mismatch details.
   - Tests: `tests/finance/review.test.ts`, single-caller audit updated (`tests/finance/settlement*` expectations moved).
 - [ ] T127 [US3] Finance admin areas live — `lib/admin/areas.ts`
   - Depends: T126
+  - **Launch scope:** activate payment review only; keep advanced reconciliation, adjustments and invoice-document pages unavailable. The fiscal invoice **record** may appear in authorized review detail, not a new attachment/document UI.
   - Accept: `payments`, `invoices` → live; `reconciliation`, `adjustments` added; `payouts` stays blocked until T145.
   - Tests: `tests/admin/access-matrix.test.tsx`, `tests/admin/finance-delegation.test.tsx` updated.
 - [ ] T128 [US3] Payment review queue (search/filter/sort) — `src/app/dashboard-admin/(finance)/payments/page.tsx`, `components/finance/review-queue-table.tsx`
   - Depends: T127
+  - **Launch scope:** pending-review queue with order code, buyer/organization, amount/currency, proof time and status; advanced case filters are deferred.
   - Accept: `v_finance_review_queue`; search by order code/buyer/reference; filters for state/age/reconciliation; oldest first; keyboard-operable table (UX-007).
   - Tests: `tests/finance/review-queue.test.tsx`.
 - [ ] T129 [US3] Review detail with proof preview and decision forms — `src/app/dashboard-admin/(finance)/payments/[paymentId]/{page,actions}.ts(x)`, `components/finance/{review-detail,confirm-payment-form,reject-payment-form}.tsx`
@@ -1677,15 +1795,16 @@ CONFIRMATION (M4c, T091–T106) are separate migrations, services and UI.**
   - Accept: the invoice exists only after `PAID`; printable; distinct from the proforma (FR-029/030); the buyer sees their own only; the attached PDF comes via a server-minted URL.
   - Tests: `tests/finance/invoice-pages.test.tsx`.
 - [ ] T133 [US3] Phase 4 (Batch D) EN/AR copy — `lib/app/copy/{en,ar}.ts`
-  - Depends: T105–T132
+  - Depends for Launch MVP: T105–T124, T124a, T126–T129; T125/T130–T132 are deferred.
   - Tests: `tests/commerce/copy-parity.test.ts`.
 - [ ] T134 **GATE — STOP/REVIEW BATCH D**
-  - Depends: T105–T133, T124a
+  - Depends for Launch MVP: T105–T124, T124a, T126–T129, T133; deferred T125/T130–T132 do not block.
   - Accept: proof, finance and settlement proven live; seller/warehouse/auditor isolation re-run green (T056 suites); reviewer sign-off. Recorded here.
 
 ### M5c — ORDER COMPLETION and PAYOUTS (US4, US5)  [Batch E]
 - [ ] T135 [US4] MP-1 Author M5c — `supabase/migrations/20260927106000_feature_013_fulfillment_completion_payouts.sql`, rollback, postflight
   - Depends: T134
+  - **Launch scope:** fulfillment aggregation/completion and the transition from accrued liability to eligible-for-manual-payout accounting status only; omit `record_seller_payout` from this first migration. Its original acceptance below remains post-launch design under T141/T145. Eligibility is not evidence of transfer.
   - Accept:
     - `sync_order_fulfillment` (AFTER UPDATE OF status on FULFILLMENT shipments; order lock):
       - `FULFILLMENT_IN_PROGRESS` / `PARTIALLY_DELIVERED` / `COMPLETED` aggregation;
@@ -1704,20 +1823,23 @@ CONFIRMATION (M4c, T091–T106) are separate migrations, services and UI.**
   - Depends: T138
 - [ ] T140 [US4] MP-6 Live proof: shipment aggregation and completion — `tests/commerce/completion.live.test.ts`
   - Depends: T139
+  - **Launch scope:** prove paid shipment grouping, partial/complete/blocked state, one-time completion and accounting eligibility; do not assert payout transfer or payout-recording RPC.
   - Accept: a two-group order: partial delivery → `PARTIALLY_DELIVERED` without overstating; all delivered → `COMPLETED`; a cancelled group blocks completion; group shipments contain only their lines (AC-012, US4); an order whose groups were delivered before M5c was applied is `COMPLETED` by the one-time recompute, with payouts eligible exactly once.
 - [ ] T141 [US5] Live proof: payout eligibility and recording — `tests/commerce/payouts.live.test.ts`
   - Depends: T140
   - Accept: `record_seller_payout` before completion → `payout_not_eligible` (AC-011); after completion it works once with an immutable operator/time/reference; an amount mismatch is refused; Hills lines have no payout; title transfer, reservation consumption/release, shipment creation, completion, payout eligibility and payout recording each appear exactly once in the audit trail with actor and correlation (AUD-004).
 - [ ] T142 [US4] Live proof: warehouse sees fulfillment only — `tests/commerce/rls-warehouse.live.test.ts`
-  - Depends: T141
+  - Depends for Launch MVP: T140; payout recording T141 is deferred.
   - Accept: warehouse reads FULFILLMENT shipments/groups/destination snapshot; 0 rows of payments/proofs/bank/economics (RLS-006).
 
 - [ ] T143 [US4] Warehouse shipment views show fulfillment groups — `lib/delivery/read.ts`, `src/app/dashboard-admin/(warehouse)/shipments/**`
-  - Depends: T140
+  - Depends for Launch MVP: T121/T123 settlement proof and M5b-created fulfillment shipment; M5c T140 is deferred.
+  - **Launch scope:** use existing Feature 009 shipment progression for `PAID` orders; no order-level completion aggregation or payout-eligibility assertion.
   - Accept: group seller and warehouse, frozen destination; the existing Feature 009 actions are unchanged.
   - Tests: `tests/delivery/pages.test.tsx` updated.
 - [ ] T144 [US4] Buyer order timeline per-group progress — `components/commerce/order-timeline.tsx`, `src/app/dashboard/orders/[orderId]/page.tsx`
-  - Depends: T140
+  - Depends for Launch MVP: T143; M5c T140 is deferred.
+  - **Launch scope:** show actual per-shipment delivery progress while the order may remain `PAID`; do not label the order automatically `COMPLETED` or seller funds paid/eligible.
   - Accept: partial/complete/blocked states explained (UX-005).
   - Tests: `tests/commerce/order-timeline.test.tsx`.
 - [ ] T145 [US5] Payout service and admin payout pages — `lib/finance/payouts.ts`, `src/app/dashboard-admin/(finance)/payouts/{page,[payoutId]/page,actions}.tsx`, `components/finance/payout-record-form.tsx`, `lib/admin/areas.ts` (payouts live)
@@ -1753,11 +1875,12 @@ CONFIRMATION (M4c, T091–T106) are separate migrations, services and UI.**
   - Accept: removed or redirected; no import remains; historical specs untouched.
   - Tests: `tests/orders/*` updated to the retired state; build green.
 - [ ] T155 [US3] End-to-end bank-transfer lifecycle browser proof (pilot organizations only) — `tests/browser/feature013-lifecycle.browser.mjs`, `CUTOVER-CHECKLIST.md`
-  - Depends: T154
-  - Accept: cart → proforma → confirm → proof → finance confirm → fulfillment → completion → payout, recorded in the browser (EN and AR) for `pilot_organization_ids` only. The global `bank_transfer_checkout_enabled` stays **false**; global enablement is production activation (T235, analysis M2).
+  - Depends for Launch MVP: T116, T121/T123, T129, T143–T144; T134/T140/T142 and M6/T154 are not launch dependencies.
+  - **Launch scope:** cart → proforma (AE approved tax; unsupported non-AE refusal) → confirm → external manual-transfer simulation → proof → review → finance confirm/reject → `PAID` → M5b-created shipment handoff and actual Feature 009 warehouse progression visible to buyer. No automatic order `COMPLETED` or payout-eligibility claim. Verify all customer payment screens are bank-transfer-only; keep global switch off. If shipment progression fails, stop and revisit M5c dependency.
+  - Accept for Launch MVP: cart → proforma → confirm → proof → finance confirm → `PAID` → seller/warehouse fulfillment shipment progression, recorded in browser (EN and AR) for `pilot_organization_ids` only; no payout step. The global `bank_transfer_checkout_enabled` stays **false**; global enablement is production activation (T235, analysis M2). Historical completion/payout acceptance remains deferred.
   - Gate: finance sign-off of the pilot lifecycle.
 - [ ] T156 [US4] Phase 4 (Batch E) EN/AR copy — `lib/app/copy/{en,ar}.ts`
-  - Depends: T143–T155
+  - Depends for Launch MVP: T143–T144, T155; T145–T154 are deferred.
   - Tests: copy parity.
 - [ ] T157 **GATE — STOP/REVIEW BATCH E (CUTOVER GATE)**
   - Depends: T135–T156
@@ -1943,14 +2066,15 @@ CONFIRMATION (M4c, T091–T106) are separate migrations, services and UI.**
 **Precondition**: T157 (cutover gate) passed **and** zero non-terminal provider transactions (T007 re-checked).
 
 - [ ] T198 [US8] Re-inventory every Stripe runtime reference — `specs/013-bank-transfer-commerce-core/STRIPE-DECOMMISSION.md`
-  - Depends: T157, T197
-  - Accept: lists every runtime match (imports, deps, functions, env, UI, actions, tests) vs retained historical artifacts; CSS "stripe" pattern names excluded explicitly; re-runs the T007 provider check (OPERATOR).
+  - Depends for Launch MVP: T071/T007 evidence; deferred T157/T197 are not prerequisites.
+  - Accept for Launch MVP: map every reachable customer route, server action, hosted function and authenticated provider RPC plus dormant SDK/source against retained historical artifacts; refresh T007's provider-row/function/secret inventory with operator evidence (names only). A non-terminal provider payment or undisabled hosted endpoint blocks M9/closure until safely resolved; no destructive drain is assumed.
 - [ ] T199 [US8] Retire Stripe server actions and provider-specific finance code — `lib/finance/stripe/{adapter,config,webhook}.ts`, `lib/finance/funding.ts`, `lib/finance/settlement.ts`, Stripe branches in `lib/finance/errors.ts`, any Stripe Server Action under `src/app/dashboard/payments/**`
   - Depends: T198
-  - Accept: files removed; `review.ts` is the sole settlement caller; no import remains.
+  - Accept for Launch MVP: no callable product/server path creates a Stripe payment intent, invokes Stripe funding/transfer/webhook logic, or exposes a provider action to a customer. Remove reachable server wiring; dormant SDK/source cleanup is T201/T202/T204 post-launch. `review.ts` owns bank-transfer settlement.
   - Tests: typecheck/build green.
 - [ ] T200 [US8] Remove Stripe UI — `components/finance/{stripe-payment-collector,funding-unavailable-notice}.tsx`, the `src/app/dashboard/payments/[orderId]/page.tsx` legacy branch
   - Depends: T199
+  - Accept for Launch MVP: every customer product/account/payment route, including authorized LEGACY-order views, is bank-transfer-only or a safe non-payment state; no card collector, Stripe funding branch or callable client action remains. T236 covers forged/deep-link invocation.
   - Tests: `tests/finance/t022-payment-state.test.tsx` updated to the bank-transfer state.
 - [ ] T201 [US8] Remove the Stripe npm dependencies — `package.json`, `package-lock.json`
   - Depends: T200
@@ -1959,20 +2083,21 @@ CONFIRMATION (M4c, T091–T106) are separate migrations, services and UI.**
   - Depends: T201
   - Accept: the absence test fails on any `stripe` import/dependency, `STRIPE_` reference in `src|lib|components|supabase/functions|.env.example`, or `supabase/functions/stripe-*` directory.
 - [ ] T203 [US8] OPERATOR — Undeploy the Stripe Edge Functions — `supabase functions delete stripe-create-payment-intent stripe-webhook stripe-release-transfer`
-  - Depends: T202
-  - Accept: `supabase functions list` shows none; output recorded.
+  - Depends for Launch MVP: refreshed T198 inventory; T202 physical-source cleanup is deferred.
+  - Accept for Launch MVP: operator inventory proves no deployed Stripe Edge Function remains; remove/disable any found before T234, or record verified no-op if none. Do not fabricate deletion evidence.
   - Gate: OPERATOR.
 - [ ] T204 [US8] Remove the Stripe Edge Function sources — `supabase/functions/stripe-create-payment-intent/`, `supabase/functions/stripe-webhook/`, `supabase/functions/stripe-release-transfer/`
   - Depends: T203
   - Accept: directories removed (git history retains them as evidence).
 - [ ] T205 [US8] Remove the deployment secrets and env references — `.env.example`; OPERATOR hosting + Supabase function secrets
-  - Depends: T204
-  - Accept: no `STRIPE_*` in `.env.example`; OPERATOR confirms the secrets were deleted (names only recorded).
+  - Depends for Launch MVP: refreshed T198 inventory; T204 physical-source cleanup is deferred.
+  - Accept for Launch MVP: operator inventory proves no active Stripe hosting/Supabase credentials remain; remove/disable any found before T234, or record verified no-op if none. Dormant `.env.example` reference cleanup may follow launch only if it cannot enable a runtime path.
   - Gate: OPERATOR.
 
 ### M9 — revoke legacy provider DB functions (preserve rows)
 - [ ] T206 [US8] MP-1 Author M9 — `supabase/migrations/20260930100000_feature_013_stripe_runtime_restriction.sql`, rollback, postflight
-  - Depends: T205
+  - Depends for Launch MVP: T198 refreshed provider-row/function inventory and safety verdict; T201–T205 physical/hosted cleanup is not a prerequisite to authoring. MP-4/5/6 still gate launch.
+  - **Launch protocol:** T207–T211 run in order; no migration step is merged away. Direct authenticated access for BANK_TRANSFER_V1 and LEGACY customer sessions must be denied and proven.
   - Accept: revoke EXECUTE on `ingest_stripe_event`, `record_stripe_payment_intent`, `record_payment_transfer` from every role; `payment_events`/`payment_transfers` finance-SELECT only; **no row deleted, no column/table dropped**; retention comments; the guard aborts on a non-terminal `PROVIDER` payment.
 - [ ] T207 [US8] MP-2 Static tests — `tests/commerce/migrations/m9-stripe-restriction.test.ts`
   - Depends: T206
@@ -2006,46 +2131,50 @@ tablet, desktop). Each records overflow = 0, axe with no violations in changed r
 focus, contrast, and non-hover alternatives (RT-001–RT-005). They use `tests/browser/cdp-harness.mjs`.
 
 - [ ] T215 [P] Browser matrix — member purchase flow (marketplace, cart, destinations, checkout, proforma, countdown) — `tests/browser/feature013-matrix-purchase.browser.mjs`
-  - Depends: T214
+  - Depends for Launch MVP: T155, T236; full Stripe retirement T214 is deferred.
 - [ ] T216 [P] Browser matrix — payment page and proof upload (form errors, upload, expired, late report) — `tests/browser/feature013-matrix-payment.browser.mjs`
-  - Depends: T214
+  - Depends for Launch MVP: T155, T236; late/expired paths safely refuse and escalate without deferred case-resolution UI.
 - [ ] T217 [P] Browser matrix — admin finance (queue table, detail, confirm/reject forms, reconciliation, invoices, order finance) — `tests/browser/feature013-matrix-finance.browser.mjs`
-  - Depends: T214
+  - Depends for Launch MVP: T155, T236; pending queue, detail, confirm/reject and invoice-record visibility only.
 - [ ] T218 [P] Browser matrix — payouts (admin payouts, seller payouts/sales) and warehouse fulfillment views — `tests/browser/feature013-matrix-payouts.browser.mjs`
-  - Depends: T214
+  - Depends for Launch MVP: T155, T236; warehouse fulfillment/buyer delivery only. Payout-page matrix awaits T141/T145/T146.
 - [ ] T219 [P] Browser matrix — notifications (centre, preferences, campaigns, outbox) — `tests/browser/feature013-matrix-notifications.browser.mjs`
   - Depends: T214
 - [ ] T220 [P] Browser matrix — promotions (admin, seller) and tier editor; commerce settings; payment accounts — `tests/browser/feature013-matrix-admin-config.browser.mjs`
-  - Depends: T214
+  - Depends for Launch MVP: T155, T236; commerce settings and USD bank account only. Promotion/tier matrix awaits T179–T197.
 - [ ] T221 Fix defects found by T215–T220 — the affected component/page files
-  - Depends: T215–T220
+  - Depends for Launch MVP: T215–T218, T220; T219 is deferred.
   - Accept: every recorded defect fixed and re-verified in its matrix; no new horizontal overflow.
 - [ ] T222 Localization parity and raw-value audit — `tests/commerce/localization-parity.test.ts`
   - Depends: T221
   - Accept: EN/AR key parity for all Feature 013 copy; no raw state value renders; LTR identifiers (money, IBAN, codes) inside RTL (LOC-001–005); a static check shows no member-facing refund/return action or route exists (FR-043).
 - [ ] T223 Security negative suite — `tests/commerce/threat-model.live.test.ts`
-  - Depends: T214
+  - Depends for Launch MVP: T155, T236.
+  - **Launch scope:** include AE tax-rule integrity/non-AE fail-closed issuance, private proof and cross-org paths, shipment ownership, direct legacy/V1 provider-RPC denial and MFA-negative cases; merge relevant T142/T225/T226 security evidence here.
   - Accept: forged ids, cross-org access, stale states, replay/duplicate request ids, duplicate bank references, file-path manipulation, direct RPC invocation by wrong roles, MFA-pending sessions — all refused without existence leaks (SEC-010, SC-005).
 - [ ] T224 [P] Secret scan — `tests/commerce/secret-scan.test.ts` + a repository scan record
-  - Depends: T214
+  - Depends for Launch MVP: T155, T236.
   - Accept: no keys/secrets/bank identifiers in source, fixtures, logs, notification params or audit payload samples (SEC-006, AUD-006).
 - [ ] T225 RLS regression — re-run `tests/commerce/rls-*.live.test.ts`, `rls-warehouse`, `bank-snapshot`, `proof-storage`
   - Depends: T223
   - Accept: all green; results recorded.
 - [ ] T226 [P] Public leakage regression — `tests/public/*` + `tests/commerce/rls-anon-probe.live.test.ts` + HTML/RSC scan of public routes
-  - Depends: T214
+  - Depends for Launch MVP: T155, T236.
   - Accept: zero member price/listing/tier/promotion/bank/proof/payout data publicly (AC-014).
 - [ ] T227 Old-feature regression suites — batched `tests/{public,auth,dashboard,listings,orders,delivery,admin,disputes,inventory,pricing,audit,database,design,finance}`
   - Depends: T225, T226
+  - **Launch scope:** affected commerce, orders, finance, delivery, auth/admin, RLS/public and price/accounting suites in safe batches; T071's earlier green run is not post-M5c evidence.
   - Accept: Features 002/003/006/007/009/010/012 suites green (legacy-flow tests updated only where Feature 013 intentionally retired behaviour, each change listed).
 - [ ] T228 Final gates — `npm test` (batched), `npm run typecheck`, `npm run lint`, `npm run build`, `git diff --check`
-  - Depends: T222, T224, T227
+  - Depends for Launch MVP: T155, T223, T236 and merged browser/localization/secret/RLS/public/affected historical-regression evidence from T215–T227. D task checkboxes are not independent prerequisites.
+  - **Launch scope:** record focused post-change orders/finance/delivery and affected auth/public/admin regressions, EN/AR/RTL/theme/viewport/keyboard/accessibility checks, secret scan, typecheck/lint/build/diff; preserve historical T071 results without treating them as post-M5b proof.
   - Accept: all green; counts recorded.
 - [ ] T229 Real-browser QA sign-off of the complete lifecycle on production-like data (fixtures) — `CLOSURE-REPORT.md`
   - Depends: T228
   - Accept: SC-007 (< 3 min finance) and SC-008 (< 5 min buyer) usability timings recorded; the full lifecycle is replayed in EN/AR.
 - [ ] T230 Acceptance evidence matrix — `specs/013-bank-transfer-commerce-core/CLOSURE-REPORT.md`
   - Depends: T229
+  - **Launch scope:** map MVP clauses and safety AC/SC to evidence; mark deferred full-feature criteria explicitly open, not passed.
   - Accept: AC-001…AC-018 and SC-001…SC-012 each mapped to task and evidence; production activation gates (finance/tax/legal, real bank data, warehouse reconciliation, backup) listed as **open** until signed.
 - [ ] T231 Spec, task and roadmap reconciliation — `specs/013-bank-transfer-commerce-core/tasks.md`, `docs/architecture/IMPLEMENTATION-ROADMAP.md`, `docs/architecture/DATABASE-CAPABILITY-MAP.md`, `docs/database/commission-capability.md`
   - Depends: T230
@@ -2055,26 +2184,33 @@ focus, contrast, and non-hover alternatives (RT-001–RT-005). They use `tests/b
   - Accept: exact-identity cleanup; financial rows retained or quarantined per the no-hard-delete rules; result recorded.
   - Gate: OPERATOR approval for any production-project fixture removal.
 - [ ] T233 Temporary artifact cleanup and final diff inspection — repository
-  - Depends: T232
+  - Depends for Launch MVP: T231; T232 fixture cleanup is deferred and needs separate operator approval.
   - Accept: no scratch/debug files; no mojibake; `git status` lists only intended files; historical-file guard (T015) green.
+
+- [ ] T236 All-customer Stripe product/runtime/RPC unreachability proof — `tests/commerce/v1-payment-path-isolation.test.ts`, `tests/browser/feature013-lifecycle.browser.mjs`
+  - Depends for Launch MVP: T100, T116, T129, T200, T211 and fresh T203/T205 operator inventory; run before security/browser closure.
+  - Accept: BANK_TRANSFER_V1 **and LEGACY customer sessions** encounter no Stripe collector/card-payment UI and cannot call payment-intent, webhook, transfer or hosted Stripe actions from any account/product route or forged deep link. Direct authenticated invocation of `ingest_stripe_event`, `record_stripe_payment_intent` and `record_payment_transfer` is denied after M9; historical rows remain intact and authorized finance reads still work. Every reachable client/server route and RPC is covered, including wrong-org/stale states. If any route or RPC remains reachable, **NO-GO** until the path is closed and re-proven. This does not require physical SDK/source deletion.
+  - Tests: focused static route/action call-graph, pilot browser negative proof for both flows, live direct-RPC privilege negatives, and operator hosted-function/credential absence evidence.
+
 - [ ] T234 **GATE — STOP/REVIEW BATCH I (feature closure)**
-  - Depends: T215–T233
-  - Accept: the reviewer signs the closure report. Production activation remains a separate business decision (T235).
+  - Depends for Launch MVP: all A/B ledger IDs including T155, T198/T203/T205, T211, T223, T228 and T236; D acceptance is evidenced inside units, not separate checked gates. C tasks do not block.
+  - Accept: reviewer signs an eight-unit closure report with five MP-1…6 records, approved-AE/non-AE refusal evidence, Feature 009 shipment handoff, Stripe all-path/RPC/hosted negative proof, manual money-movement wording, browser/accessibility/localization/security/regression results and explicit deferred criteria. Production activation remains a separate T235 business decision.
 
 - [ ] T235 OPERATOR — Production activation (business-gated; outside the implementation batches) — `CUTOVER-CHECKLIST.md`, `ROLLOUT-FLAGS.md`
   - Depends: T234
   - Accept: recorded sign-offs for:
-    - finance/tax/legal: VAT basis, invoice legal content and issuer;
+    - finance/tax/legal: UAE VAT basis, invoice legal content and issuer; **non-UAE/export treatment remains a launch decision blocker** until the owner/finance/legal either approve and encode an explicit rule or explicitly approve UAE-only issuance with proven non-UAE safe refusal. Never silently apply `AE` outside the UAE;
     - real bank-account data verified;
-    - warehouse reconciliation;
-    - backup/restore readiness.
+    - warehouse reconciliation and paid-shipment progression;
+    - backup/restore readiness;
+    - no customer Stripe UI/server/RPC/hosted path and no active Stripe credentials.
 
     Then OPERATOR sets `bank_transfer_checkout_enabled = true` and clears `pilot_organization_ids`. The first real order is monitored end-to-end; the rollback lever (switch off) is documented (analysis M2, spec Assumptions).
   - Gate: business owner + finance + OPERATOR.
 
 ---
 
-## Dependencies and critical path
+## Historical full-feature dependencies and critical path (post-launch design; superseded for MVP by the ledger above)
 
 ```
 Phase 1 (T001–T018) → GATE A

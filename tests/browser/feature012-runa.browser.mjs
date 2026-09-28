@@ -1,3 +1,4 @@
+import { readProductionEnvLocal, productionChildEnv } from "../../scripts/f013-production-env.mjs";
 // Feature 012 RUN A (T006) — real Chrome + axe proof for the NEW member dispute surfaces ONLY:
 // /dashboard/disputes and /dashboard/disputes/[disputeId]. Same harness and fixture discipline as the
 // Feature 009/010 browser proofs (real password-grant sessions, PostgREST under each session's own RLS,
@@ -16,7 +17,7 @@ import { readFileSync } from "node:fs";
 import { assert, goto, launchBrowser, viewport } from "./cdp-harness.mjs";
 
 function loadEnv() {
-  for (const raw of readFileSync(".env.local", "utf8").split(/\r?\n/)) {
+  for (const raw of readProductionEnvLocal().split(/\r?\n/)) {
     const match = raw.match(/^([A-Z_]+)=(.*)$/);
     if (match && process.env[match[1]] === undefined) process.env[match[1]] = match[2].replace(/^['"]|['"]$/g, "");
   }
@@ -33,7 +34,7 @@ const FIXTURES = {
 
 function runFixtureScript(args) {
   loadEnv();
-  return execFileSync(process.execPath, ["node_modules/tsx/dist/cli.mjs", "scripts/seed-test-fixtures.ts", ...args], { cwd: process.cwd(), env: process.env, encoding: "utf8" });
+  return execFileSync(process.execPath, ["node_modules/tsx/dist/cli.mjs", "scripts/seed-test-fixtures.ts", ...args], { cwd: process.cwd(), env: productionChildEnv(), encoding: "utf8" });
 }
 
 async function signIn(email) {

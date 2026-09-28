@@ -20,10 +20,11 @@
  */
 import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { resolveF013Mode } from "./f013-local-target";
+import { productionChildEnv, readProductionEnvLocal } from "./f013-production-env.mjs";
 
 // ---------------------------------------------------------------------------
 // Environment + fixture-session plumbing (duplicated from tests/auth/fixture-session.ts's own
@@ -35,8 +36,9 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 function loadEnvLocal(): void {
   let contents: string;
   try {
-    contents = readFileSync(resolve(process.cwd(), ".env.local"), "utf8");
-  } catch {
+    contents = readProductionEnvLocal();
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
     return;
   }
   for (const rawLine of contents.split(/\r?\n/)) {
@@ -52,7 +54,6 @@ function loadEnvLocal(): void {
     if (process.env[key] === undefined) process.env[key] = value;
   }
 }
-loadEnvLocal();
 
 function requireEnv(name: string): string {
   const value = process.env[name];
@@ -77,7 +78,7 @@ function runFixtureScript(args: readonly string[]): string {
   return String(
     execFileSync(process.execPath, [resolve(process.cwd(), "node_modules", "tsx", "dist", "cli.mjs"), resolve(process.cwd(), "scripts", "seed-test-fixtures.ts"), ...args], {
       cwd: process.cwd(),
-      env: process.env,
+      env: productionChildEnv(),
       stdio: ["ignore", "pipe", "pipe"],
     })
   );
@@ -966,6 +967,8 @@ const SCENARIOS: Record<string, (s: Sessions) => Promise<void>> = {
 };
 
 async function main(): Promise<void> {
+  if (resolveF013Mode().kind === "local") throw new Error("T013 proof is production-only; refused in F013 local mode");
+  loadEnvLocal();
   const requested = process.argv.slice(2);
   // This must not be an implicit reset. Preparation refuses if another T013 run's business state is
   // present, so the reviewed exact-id cleanup is always an explicit, auditable prior action.

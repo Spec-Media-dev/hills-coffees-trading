@@ -1,8 +1,7 @@
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
-
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { resolveF013Mode } from "@/scripts/f013-local-target";
+import { loadProductionEnvLocal } from "@/scripts/f013-production-env.mjs";
 import { createAnonymousFixtureClient } from "@/tests/auth/fixture-session";
 
 /**
@@ -86,33 +85,10 @@ const PUBLIC_TEST_ENV = [
  * them instead.
  */
 export function loadPublicTestEnvironment(): void {
-  let contents: string;
-  try {
-    contents = readFileSync(resolve(process.cwd(), ".env.local"), "utf8");
-  } catch {
-    return;
+  if (resolveF013Mode().kind === "local") {
+    throw new Error("Public catalogue regression helper is not supported in F013 local mode.");
   }
-
-  const wanted = new Set<string>(PUBLIC_TEST_ENV);
-  for (const rawLine of contents.split(/\r?\n/)) {
-    const line = rawLine.trim();
-    if (line === "" || line.startsWith("#")) continue;
-
-    const separator = line.indexOf("=");
-    if (separator === -1) continue;
-
-    const name = line.slice(0, separator).trim();
-    if (!wanted.has(name) || process.env[name] !== undefined) continue;
-
-    let value = line.slice(separator + 1).trim();
-    if (
-      (value.startsWith('"') && value.endsWith('"')) ||
-      (value.startsWith("'") && value.endsWith("'"))
-    ) {
-      value = value.slice(1, -1);
-    }
-    process.env[name] = value;
-  }
+  loadProductionEnvLocal(PUBLIC_TEST_ENV);
 }
 
 /** An anonymous Supabase client — the same one Feature 001's auth tests use. */

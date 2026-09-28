@@ -1,3 +1,4 @@
+import { readProductionEnvLocal, productionChildEnv } from "../../scripts/f013-production-env.mjs";
 // Feature 010 RUN F (Phase 9) — real Chrome + axe proof over the SUPER_ADMIN system configuration:
 // platform admins (list + grant page), commission (semantics + in-force + a policy CREATED through the
 // UI with two bands → the 100–250 coverage gap warning + COMMISSION-OPEN-01), tax rules, shipping
@@ -16,7 +17,7 @@ import { resolve } from "node:path";
 import { assert, goto, launchBrowser, viewport } from "./cdp-harness.mjs";
 
 function loadEnv() {
-  for (const raw of readFileSync(".env.local", "utf8").split(/\r?\n/)) {
+  for (const raw of readProductionEnvLocal().split(/\r?\n/)) {
     const match = raw.match(/^([A-Z_]+)=(.*)$/);
     if (match && process.env[match[1]] === undefined) process.env[match[1]] = match[2].replace(/^['"]|['"]$/g, "");
   }
@@ -29,7 +30,7 @@ const axeSource = readFileSync("node_modules/axe-core/axe.min.js", "utf8");
 const FIXTURES = { superAdmin: "super-admin+t027-test@example.com", admin: "catalogue-admin+t021-test@example.com" };
 
 function seed(...args) {
-  return execFileSync(process.execPath, [resolve("node_modules/tsx/dist/cli.mjs"), resolve("scripts/seed-test-fixtures.ts"), ...args], { env: process.env, stdio: ["ignore", "pipe", "inherit"] }).toString();
+  return execFileSync(process.execPath, [resolve("node_modules/tsx/dist/cli.mjs"), resolve("scripts/seed-test-fixtures.ts"), ...args], { env: productionChildEnv(), stdio: ["ignore", "pipe", "inherit"] }).toString();
 }
 async function signIn(email) {
   const response = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/auth/v1/token?grant_type=password`, {

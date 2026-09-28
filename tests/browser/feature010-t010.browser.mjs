@@ -1,3 +1,4 @@
+import { readProductionEnvLocal, productionChildEnv } from "../../scripts/f013-production-env.mjs";
 // Feature 010 RUN J — T010 / DB-OPEN-22: real Chrome + axe over the Compliance organization status
 // surface, signed in as the disposable PURE COMPLIANCE operator (possible only since migration
 // `20260919130000_feature_010_db_open_22_compliance_organization_read.sql`). Matrix: EN/AR ×
@@ -20,7 +21,7 @@ import { resolve } from "node:path";
 import { assert, goto, launchBrowser, viewport } from "./cdp-harness.mjs";
 
 function loadEnv() {
-  for (const raw of readFileSync(".env.local", "utf8").split(/\r?\n/)) {
+  for (const raw of readProductionEnvLocal().split(/\r?\n/)) {
     const match = raw.match(/^([A-Z_]+)=(.*)$/);
     if (match && process.env[match[1]] === undefined) process.env[match[1]] = match[2].replace(/^['"]|['"]$/g, "");
   }
@@ -36,7 +37,7 @@ const SUSPEND_REASON = "Browser proof: trade licence expired.";
 const REINSTATE_REASON = "Browser proof: renewed licence verified.";
 
 function seed(...args) {
-  return execFileSync(process.execPath, [resolve("node_modules/tsx/dist/cli.mjs"), resolve("scripts/seed-test-fixtures.ts"), ...args], { env: process.env, stdio: ["ignore", "pipe", "inherit"] }).toString();
+  return execFileSync(process.execPath, [resolve("node_modules/tsx/dist/cli.mjs"), resolve("scripts/seed-test-fixtures.ts"), ...args], { env: productionChildEnv(), stdio: ["ignore", "pipe", "inherit"] }).toString();
 }
 const seedJson = (flag) => JSON.parse(seed(flag).trim().split(/\r?\n/).find((line) => line.startsWith("{")) ?? "{}");
 async function signIn(email) {

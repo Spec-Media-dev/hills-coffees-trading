@@ -1,3 +1,4 @@
+import { readProductionEnvLocal, productionChildEnv } from "../../scripts/f013-production-env.mjs";
 // Feature 010 RUN E (Phases 7–8) — real Chrome + axe proof over the Catalogue console (coffees list /
 // detail / new, origins, regions, taxonomy, warehouses + detail, media), the Audit area (listings,
 // custody, the DB-OPEN-06 log view) and the KYB reviewer detail (review-progress summary, document
@@ -19,7 +20,7 @@ import { resolve } from "node:path";
 import { assert, goto, launchBrowser, viewport } from "./cdp-harness.mjs";
 
 function loadEnv() {
-  for (const raw of readFileSync(".env.local", "utf8").split(/\r?\n/)) {
+  for (const raw of readProductionEnvLocal().split(/\r?\n/)) {
     const match = raw.match(/^([A-Z_]+)=(.*)$/);
     if (match && process.env[match[1]] === undefined) process.env[match[1]] = match[2].replace(/^['"]|['"]$/g, "");
   }
@@ -41,7 +42,7 @@ const FIXTURES = {
 };
 
 function seed(...args) {
-  return execFileSync(process.execPath, [resolve("node_modules/tsx/dist/cli.mjs"), resolve("scripts/seed-test-fixtures.ts"), ...args], { env: process.env, stdio: ["ignore", "pipe", "inherit"] }).toString();
+  return execFileSync(process.execPath, [resolve("node_modules/tsx/dist/cli.mjs"), resolve("scripts/seed-test-fixtures.ts"), ...args], { env: productionChildEnv(), stdio: ["ignore", "pipe", "inherit"] }).toString();
 }
 
 async function signIn(email) {

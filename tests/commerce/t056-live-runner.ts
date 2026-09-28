@@ -1,10 +1,8 @@
-import { execFileSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import path from "node:path";
+import { F013_LOCAL_PROJECT_ID, F013_PRODUCTION_REF, resolveF013Mode } from "@/scripts/f013-local-target";
+import { f013ProofEnv, runF013ProofSqlFile, verifiedF013ProofRef } from "./f013-proof-cli";
 
 /** Shared T056 live plumbing: runs SQL on the linked project from a temp file (multi-line args do not survive Windows). */
-export const LINKED_REF = "mxejnutukgxyccnohglo";
+export const LINKED_REF = resolveF013Mode().kind === "local" ? F013_LOCAL_PROJECT_ID : F013_PRODUCTION_REF;
 
 export type CaseResult = { case: string; relation: string; role: string; expected: string; got: string; ok: boolean };
 
@@ -14,23 +12,8 @@ export type CaseResult = { case: string; relation: string; role: string; expecte
  */
 export const RLS_PHASE: "PRE_M3" | "POST_M3" = process.env.F013_RLS_PHASE === "POST_M3" ? "POST_M3" : "PRE_M3";
 
-function cli(args: string[]): string {
-  try {
-    return execFileSync("npx", ["supabase", ...args], { encoding: "utf8", shell: process.platform === "win32", stdio: ["ignore", "pipe", "pipe"], timeout: 300_000 });
-  } catch (error) {
-    const e = error as { stdout?: string; stderr?: string };
-    return `${e.stdout ?? ""}\n${e.stderr ?? ""}`;
-  }
-}
 export function runSqlFile(sql: string): string {
-  const dir = mkdtempSync(path.join(tmpdir(), "t056-"));
-  const file = path.join(dir, "query.sql");
-  try {
-    writeFileSync(file, sql);
-    return cli(["db", "query", "--linked", "-f", file]);
-  } finally {
-    rmSync(dir, { recursive: true, force: true });
-  }
+  return runF013ProofSqlFile(sql, "t056-", 300_000);
 }
 export function query<T = Record<string, unknown>>(sql: string): T[] {
   const out = runSqlFile(sql);
@@ -44,11 +27,9 @@ export function decodeResult(raw: string, tag: string): CaseResult[] {
   return JSON.parse(Buffer.from(match[1]!, "base64").toString("utf8")) as CaseResult[];
 }
 export function env(name: string): string {
-  const line = readFileSync(".env.local", "utf8").split(/\r?\n/).find((l) => l.startsWith(`${name}=`));
-  if (!line) throw new Error(`${name} missing from .env.local`);
-  return line.slice(name.length + 1).replace(/^"|"$/g, "");
+  return f013ProofEnv(name);
 }
-export const linkedRef = () => readFileSync("supabase/.temp/project-ref", "utf8").trim();
+export const linkedRef = verifiedF013ProofRef;
 
 /** Read-only production state the proofs must leave exactly as found. */
 export const T056_STATE_SQL = `select

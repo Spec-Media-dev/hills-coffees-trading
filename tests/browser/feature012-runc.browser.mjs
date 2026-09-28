@@ -1,3 +1,4 @@
+import { readProductionEnvLocal } from "../../scripts/f013-production-env.mjs";
 // Feature 012 RUN C — real Chrome + axe proof for the surfaces RUN C actually changed:
 //   · order detail with history (Feature 007, T016)   — an Org B order that genuinely has history
 //   · ownership history (Feature 005, T016)            — Org A's ledger (correlation ids present)
@@ -18,7 +19,7 @@ import { readFileSync } from "node:fs";
 import { assert, goto, launchBrowser, viewport } from "./cdp-harness.mjs";
 
 function loadEnv() {
-  for (const raw of readFileSync(".env.local", "utf8").split(/\r?\n/)) {
+  for (const raw of readProductionEnvLocal().split(/\r?\n/)) {
     const match = raw.match(/^([A-Z_]+)=(.*)$/);
     if (match && process.env[match[1]] === undefined) process.env[match[1]] = match[2].replace(/^['"]|['"]$/g, "");
   }

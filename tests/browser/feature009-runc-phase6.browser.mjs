@@ -1,3 +1,4 @@
+import { readProductionEnvLocal, productionChildEnv } from "../../scripts/f013-production-env.mjs";
 // Feature 009 RUN C Phase 6 (T034) — real Chrome + axe proof over the buyer delivery list/detail
 // screens. Follows the established `feature007-phase9.browser.mjs` pattern: a real Supabase
 // password-grant sign-in, a real browser auth cookie, real DOM/CSS assertions via CDP. No mocked
@@ -10,7 +11,7 @@ import { randomUUID } from "node:crypto";
 import { assert, goto, launchBrowser, viewport } from "./cdp-harness.mjs";
 
 function loadEnv() {
-  for (const raw of readFileSync(".env.local", "utf8").split(/\r?\n/)) {
+  for (const raw of readProductionEnvLocal().split(/\r?\n/)) {
     const match = raw.match(/^([^#=]+)=(.*)$/);
     if (match && process.env[match[1]] === undefined) process.env[match[1]] = match[2].replace(/^['"]|['"]$/g, "");
   }
@@ -27,7 +28,7 @@ const FIXTURES = {
 
 function runFixtureScript(args) {
   loadEnv();
-  execFileSync(process.execPath, ["node_modules/tsx/dist/cli.mjs", "scripts/seed-test-fixtures.ts", ...args], { cwd: process.cwd(), env: process.env, stdio: "ignore" });
+  execFileSync(process.execPath, ["node_modules/tsx/dist/cli.mjs", "scripts/seed-test-fixtures.ts", ...args], { cwd: process.cwd(), env: productionChildEnv(), stdio: "ignore" });
 }
 
 async function signIn(email) {

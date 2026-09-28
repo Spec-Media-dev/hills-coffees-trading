@@ -1,9 +1,5 @@
-import { execFileSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import path from "node:path";
-
 import { describe, expect, it } from "vitest";
+import { f013ProofEnv, runF013ProofSqlFile, verifiedF013ProofRef } from "./f013-proof-cli";
 
 import { T055, T055_EXISTING, buildT055ProofSql } from "./t055-outbox-proof";
 
@@ -18,27 +14,11 @@ import { T055, T055_EXISTING, buildT055ProofSql } from "./t055-outbox-proof";
  */
 
 const LIVE = process.env.F013_LIVE === "1";
-const LINKED_REF = "mxejnutukgxyccnohglo";
 const EMIT = "public.emit_notification_event(text,text,uuid,text,jsonb,text,jsonb)";
 
-function cli(args: string[]): string {
-  try {
-    return execFileSync("npx", ["supabase", ...args], { encoding: "utf8", shell: process.platform === "win32", stdio: ["ignore", "pipe", "pipe"], timeout: 180_000 });
-  } catch (error) {
-    const e = error as { stdout?: string; stderr?: string };
-    return `${e.stdout ?? ""}\n${e.stderr ?? ""}`;
-  }
-}
 /** Runs SQL from a temp file (a multi-line argument does not survive the Windows shell). */
 function runSqlFile(sql: string): string {
-  const dir = mkdtempSync(path.join(tmpdir(), "t055-"));
-  const file = path.join(dir, "query.sql");
-  try {
-    writeFileSync(file, sql);
-    return cli(["db", "query", "--linked", "-f", file]);
-  } finally {
-    rmSync(dir, { recursive: true, force: true });
-  }
+  return runF013ProofSqlFile(sql, "t055-");
 }
 function query<T = Record<string, unknown>>(sql: string): T[] {
   const out = runSqlFile(sql);
@@ -47,9 +27,7 @@ function query<T = Record<string, unknown>>(sql: string): T[] {
   return json.rows;
 }
 function env(name: string): string {
-  const line = readFileSync(".env.local", "utf8").split(/\r?\n/).find((l) => l.startsWith(`${name}=`));
-  if (!line) throw new Error(`${name} missing from .env.local`);
-  return line.slice(name.length + 1).replace(/^"|"$/g, "");
+  return f013ProofEnv(name);
 }
 
 type CaseResult = { case: string; ok: boolean; got: string | null };
@@ -72,7 +50,7 @@ describe.skipIf(!LIVE)("T055 — M2e live proof (one rolled-back transaction + a
   let results: CaseResult[] = [];
 
   it("runs against the verified linked project and leaves production unchanged", () => {
-    expect(readFileSync("supabase/.temp/project-ref", "utf8").trim()).toBe(LINKED_REF);
+    expect(verifiedF013ProofRef()).toBeTruthy();
     const before = query(STATE_SQL)[0]!;
     expect(before).toMatchObject({ outbox_events: 0, seller_admin_rows: 0, temp_functions: 0, checkout_enabled: false });
     const raw = runSqlFile(buildT055ProofSql());

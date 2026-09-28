@@ -52,12 +52,51 @@ export const COMMERCE_ERROR_CODES = [
   "mime_type_mismatch",
   "proof_already_submitted",
   "invalid_claimed_currency",
+  // M4a cart and destination functions (listing_is_not_available and destination_not_found are shared above)
+  "buyer_not_authorized",
+  "mfa_step_up_required",
+  "request_id_required",
+  "request_id_conflict",
+  "cannot_buy_own_listing",
+  "requested_quantity_not_available",
+  "inventory_quantity_not_available",
+  "destination_invalid",
+  // M4a admin functions (mfa_step_up_required, request_id_*, order_not_found are shared above)
+  "forbidden",
+  "invalid_validity_hours",
+  "payment_account_not_found",
+  "legacy_draft_not_convertible",
 ] as const;
 
 export type CommerceErrorCode = (typeof COMMERCE_ERROR_CODES)[number];
 
-/** Compile-time proof that the canonical English copy has a message for every contract code. */
-const ENGLISH_MESSAGES: Readonly<Record<CommerceErrorCode | "generic", string>> = en.commerce.errors;
+/**
+ * Canonical copy never repeats legacy order-database exception vocabulary. Keep Feature 013 contract codes at the
+ * boundary and map the exact overlapping codes to neutral copy keys only after sanitization.
+ */
+const COMMERCE_ERROR_MESSAGE_KEYS = {
+  order_has_no_items: "empty_order",
+  listing_is_not_available: "listing_unavailable",
+  order_not_found: "order_unavailable",
+  listing_inventory_changed: "listing_availability_changed",
+  seller_inventory_changed: "seller_availability_changed",
+  seller_not_authorized: "seller_unavailable",
+  reservation_expired: "hold_expired",
+  buyer_not_authorized: "purchase_not_permitted",
+  cannot_buy_own_listing: "own_listing_purchase_blocked",
+  requested_quantity_not_available: "quantity_unavailable",
+  inventory_quantity_not_available: "stock_unavailable",
+  forbidden: "access_denied",
+} as const satisfies Partial<Record<CommerceErrorCode, keyof typeof en.commerce.errors>>;
+type CommerceErrorMessageKey = Exclude<CommerceErrorCode, keyof typeof COMMERCE_ERROR_MESSAGE_KEYS> | (typeof COMMERCE_ERROR_MESSAGE_KEYS)[keyof typeof COMMERCE_ERROR_MESSAGE_KEYS];
+
+/** Compile-time proof that the canonical English copy has a message for every sanitized contract code. */
+const ENGLISH_MESSAGES: Readonly<Record<CommerceErrorMessageKey | "generic", string>> = en.commerce.errors;
+
+function commerceErrorMessageKey(code: CommerceErrorCode | null): CommerceErrorMessageKey | "generic" {
+  if (code === null) return "generic";
+  return COMMERCE_ERROR_MESSAGE_KEYS[code as keyof typeof COMMERCE_ERROR_MESSAGE_KEYS] ?? code;
+}
 
 /** A contract code only when it appears as a whole snake_case token (never as part of a longer identifier). */
 function extractErrorCode(raw: unknown): CommerceErrorCode | null {
@@ -83,9 +122,9 @@ export type SafeCommerceError = {
  */
 export function mapCommerceError(rawError: unknown, locale: SupportedLocale = "en"): SafeCommerceError {
   const code = extractErrorCode(rawError);
-  const key = code ?? "generic";
+  const key = commerceErrorMessageKey(code);
   const englishMessage = ENGLISH_MESSAGES[key];
-  const arabicMessages = ar.commerce?.errors as Partial<Record<CommerceErrorCode | "generic", string>> | undefined;
+  const arabicMessages = ar.commerce?.errors as Partial<Record<CommerceErrorMessageKey | "generic", string>> | undefined;
   const message = locale === "ar" ? arabicMessages?.[key] ?? englishMessage : englishMessage;
   return { code: code ?? "commerce_error", message, safe: true };
 }

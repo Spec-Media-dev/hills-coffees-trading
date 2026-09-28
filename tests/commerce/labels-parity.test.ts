@@ -27,6 +27,21 @@ import {
 const SETS = Object.keys(COMMERCE_LABEL_SETS) as CommerceLabelSet[];
 const sorted = (values: readonly string[]) => [...values].sort();
 const stripComments = (source: string) => source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+const COMMERCE_ERROR_COPY_KEY_BY_CODE: Partial<Record<(typeof COMMERCE_ERROR_CODES)[number], string>> = {
+  order_has_no_items: "empty_order",
+  listing_is_not_available: "listing_unavailable",
+  order_not_found: "order_unavailable",
+  listing_inventory_changed: "listing_availability_changed",
+  seller_inventory_changed: "seller_availability_changed",
+  seller_not_authorized: "seller_unavailable",
+  reservation_expired: "hold_expired",
+  buyer_not_authorized: "purchase_not_permitted",
+  cannot_buy_own_listing: "own_listing_purchase_blocked",
+  requested_quantity_not_available: "quantity_unavailable",
+  inventory_quantity_not_available: "stock_unavailable",
+  forbidden: "access_denied",
+};
+const COMMERCE_ERROR_COPY_KEYS = COMMERCE_ERROR_CODES.map((code) => COMMERCE_ERROR_COPY_KEY_BY_CODE[code] ?? code);
 
 describe("T064 — every commerce vocabulary has EN and AR labels in the canonical copy, exactly its allowlist", () => {
   it.each(SETS)("%s: the EN and AR copy dictionaries hold exactly the allowlist values, all non-empty", (set) => {
@@ -93,11 +108,11 @@ describe("T064 — commerce error codes are exactly the contract vocabulary (D3)
   const contract = readFileSync("specs/013-bank-transfer-commerce-core/contracts/database-rpc.md", "utf8").replace(/\r/g, "");
   const raisesBlock = contract.slice(contract.indexOf("Raises:"), contract.indexOf("###", contract.indexOf("Raises:")));
   const errorLines = contract.split("\n").filter((line) => /^Errors:/.test(line));
-  const CONTRACT_CODES = [...new Set([...raisesBlock, ...errorLines.join("\n")].join("").match(/`([a-z][a-z0-9]*(?:_[a-z0-9]+)+)`/g)!.map((c) => c.replace(/`/g, "")))];
+  const CONTRACT_CODES = [...new Set([...raisesBlock, ...errorLines.join("\n")].join("").match(/`([a-z][a-z0-9]*(?:_[a-z0-9]+)*)`/g)!.map((c) => c.replace(/`/g, "")))];
 
-  it("the contract was read (Raises + 3 Errors lines) and yields 30 codes", () => {
-    expect(errorLines).toHaveLength(3);
-    expect(CONTRACT_CODES).toHaveLength(30);
+  it("the contract was read (Raises + 5 Errors lines, incl. the two M4a lines) and yields 42 codes", () => {
+    expect(errorLines).toHaveLength(5);
+    expect(CONTRACT_CODES).toHaveLength(42);
   });
 
   it("COMMERCE_ERROR_CODES equals the contract codes — no alias, no invented code, none missing", () => {
@@ -110,9 +125,9 @@ describe("T064 — commerce error codes are exactly the contract vocabulary (D3)
 
   it("the canonical copy has an EN and AR message for every contract code (plus generic), and no message leaks a code", () => {
     const arErrors = (ar.commerce?.errors ?? {}) as Record<string, string>;
-    expect(sorted(Object.keys(en.commerce.errors))).toEqual(sorted([...COMMERCE_ERROR_CODES, "generic"]));
-    expect(sorted(Object.keys(arErrors))).toEqual(sorted([...COMMERCE_ERROR_CODES, "generic"]));
-    for (const key of [...COMMERCE_ERROR_CODES, "generic"] as const) {
+    expect(sorted(Object.keys(en.commerce.errors))).toEqual(sorted([...COMMERCE_ERROR_COPY_KEYS, "generic"]));
+    expect(sorted(Object.keys(arErrors))).toEqual(sorted([...COMMERCE_ERROR_COPY_KEYS, "generic"]));
+    for (const key of [...COMMERCE_ERROR_COPY_KEYS, "generic"]) {
       const english = (en.commerce.errors as Record<string, string>)[key]!;
       expect(english.trim(), key).toBeTruthy();
       expect(arErrors[key]?.trim(), `${key} (ar)`).toBeTruthy();
@@ -127,8 +142,12 @@ describe("T064 — commerce error codes are exactly the contract vocabulary (D3)
     expect(mapCommerceError("checkout_disabled", "ar").message).toBe((ar.commerce?.errors as Record<string, string>).checkout_disabled);
     const expired = mapCommerceError({ message: "reservation_expired", details: "reservation 1b2c… expired at 10:20", code: "P0001" }, "en");
     expect(expired.code).toBe("reservation_expired");
-    expect(expired.message).toBe(en.commerce.errors.reservation_expired);
+    expect(expired.message).toBe(en.commerce.errors.hold_expired);
     expect(expired.message).not.toContain("1b2c");
+    const denied = mapCommerceError("forbidden", "en");
+    expect(denied).toEqual({ code: "forbidden", message: en.commerce.errors.access_denied, safe: true });
+    const unavailable = mapCommerceError("buyer_not_authorized", "en");
+    expect(unavailable).toEqual({ code: "buyer_not_authorized", message: en.commerce.errors.purchase_not_permitted, safe: true });
   });
 
   it("invented aliases and unknown errors map to the safe generic message without leaking raw SQL", () => {

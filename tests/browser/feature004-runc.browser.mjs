@@ -1,3 +1,4 @@
+import { readProductionEnvLocal } from "../../scripts/f013-production-env.mjs";
 // Feature 004 RUN C — real Chrome browser proof for T023 (accessibility/keyboard/drawer) and T025
 // (no-JS content availability), on the same CDP harness (tests/browser/cdp-harness.mjs). Run against
 // an ISOLATED production server, never the developer's own dev server.
@@ -6,7 +7,7 @@ import { assert, goto, launchBrowser, viewport } from "./cdp-harness.mjs";
 
 function loadEnv() {
   try {
-    const contents = readFileSync(".env.local", "utf8");
+    const contents = readProductionEnvLocal();
     for (const line of contents.split(/\r?\n/)) {
       const t = line.trim();
       if (!t || t.startsWith("#")) continue;
@@ -17,7 +18,9 @@ function loadEnv() {
       if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) v = v.slice(1, -1);
       if (!process.env[k]) process.env[k] = v;
     }
-  } catch {}
+  } catch (error) {
+    if (error?.code !== "ENOENT") throw error;
+  }
 }
 loadEnv();
 

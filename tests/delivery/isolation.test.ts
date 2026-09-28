@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { describe, expect, it, vi } from "vitest";
 
-import { INVENTORY_FIXTURES, LISTING_FIXTURES, signInAsFixture } from "@/tests/auth/fixture-session";
+import { INVENTORY_FIXTURES, LISTING_FIXTURES, signInAsFixture, createLegacyFixtureDraftOrder } from "@/tests/auth/fixture-session";
 
 /**
  * Feature 009 RUN C (T030) — cross-organization invisibility, live. Complements the existing live
@@ -29,10 +29,10 @@ describe("T030 — cross-organization shipment invisibility (live)", () => {
   it("a shipment belonging to another organization is invisible via getShipmentById (RLS, not an error)", async () => {
     const orgBClient = await signInAsFixture(INVENTORY_FIXTURES.orgB.email);
     const shipmentId = await withLiveClient(orgBClient, async () => {
-      const { createDraftOrder, addOrderItem } = await import("@/lib/orders/drafts");
+      const { addOrderItem } = await import("@/lib/orders/drafts");
       const { createDraftShipment } = await import("@/lib/delivery/buyer");
       const userId = (await orgBClient.auth.getUser()).data.user!.id;
-      const order = await createDraftOrder({ organizationId: INVENTORY_FIXTURES.orgB.organizationId, userId });
+      const order = await createLegacyFixtureDraftOrder({ organizationId: INVENTORY_FIXTURES.orgB.organizationId, userId });
       if (!order.ok) throw new Error(String(order.code));
       const item = await addOrderItem({ organizationId: INVENTORY_FIXTURES.orgB.organizationId, orderId: order.data.id, offerId: LISTING_FIXTURES.offerPublished, quantityKg: 2 });
       if (!item.ok) throw new Error(String(item.code));

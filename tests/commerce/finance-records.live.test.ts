@@ -1,9 +1,5 @@
-import { execFileSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import path from "node:path";
-
 import { describe, expect, it } from "vitest";
+import { runF013ProofSqlFile, verifiedF013ProofRef } from "./f013-proof-cli";
 
 import { T037 } from "./t037-snapshot-proof";
 import { T043, buildT043ProofSql } from "./t043-finance-records-proof";
@@ -18,27 +14,11 @@ import { T043, buildT043ProofSql } from "./t043-finance-records-proof";
  */
 
 const LIVE = process.env.F013_LIVE === "1";
-const LINKED_REF = "mxejnutukgxyccnohglo";
 const IDS = [...Object.values(T037), ...Object.values(T043)].map((id) => `'${id}'`).join(", ");
 
-function cli(args: string[]): string {
-  try {
-    return execFileSync("npx", ["supabase", ...args], { encoding: "utf8", shell: process.platform === "win32", stdio: ["ignore", "pipe", "pipe"], timeout: 180_000 });
-  } catch (error) {
-    const e = error as { stdout?: string; stderr?: string };
-    return `${e.stdout ?? ""}\n${e.stderr ?? ""}`;
-  }
-}
 /** Runs SQL from a temp file (a multi-line argument does not survive the Windows shell). */
 function runSqlFile(sql: string): string {
-  const dir = mkdtempSync(path.join(tmpdir(), "t043-"));
-  const file = path.join(dir, "query.sql");
-  try {
-    writeFileSync(file, sql);
-    return cli(["db", "query", "--linked", "-f", file]);
-  } finally {
-    rmSync(dir, { recursive: true, force: true });
-  }
+  return runF013ProofSqlFile(sql, "t043-");
 }
 function query<T = Record<string, unknown>>(sql: string): T[] {
   const out = runSqlFile(sql);
@@ -77,7 +57,7 @@ describe.skipIf(!LIVE)("T043 — M2c live proof (one rolled-back transaction; F0
   let results: CaseResult[] = [];
 
   it("runs against the verified linked project and leaves production unchanged", () => {
-    expect(readFileSync("supabase/.temp/project-ref", "utf8").trim()).toBe(LINKED_REF);
+    expect(verifiedF013ProofRef()).toBeTruthy();
     before = query(T043_STATE_SQL)[0]!;
     expect(before).toMatchObject({ proof_orders: 0, reconciliation_cases: 0, reconciliation_case_events: 0, manual_financial_adjustments: 0, f013_invoices: 0,
                                    fulfillment_shipments: 0, proof_payments: 0, proof_payouts: 0, proof_proofs: 0, proof_files: 0, f013_proformas: 0, snapshot_rows: 0,

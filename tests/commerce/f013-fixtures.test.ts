@@ -3,6 +3,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 import { F013_FIXTURES } from "@/tests/auth/fixture-session";
+import { assertF013ComplianceActor, assertF013G1, assertF013G2, assertF013G3, assertF013SourceIds, classifyF013Source, F013_G1_DEPENDENCIES, F013_SOURCE, type F013SourceSnapshot } from "@/scripts/f013-provenance";
 
 /**
  * Feature 013 T016 — the Feature 013 fixture tooling targets exact identities only.
@@ -159,7 +160,14 @@ describe("T016 — Feature 013 fixtures are exact-identity only", () => {
     const probe = functionText(block, "async function probeF013M1Transitions(");
     expect(setup).toContain("correlation_id: F013_M1_PROOF_MARKER,");
     expect(probe).toContain("correlation_id: F013_M1_PROOF_MARKER });");
-    expect((block.match(/admin\.from\("orders"\)\.insert\(/g) ?? []).length).toBe(2);
+    // the two M1 proof inserts, plus the three LOCAL-only service_role LEGACY fixture paths (T071)
+    expect((block.match(/admin\.from\("orders"\)\.insert\(/g) ?? []).length).toBe(5);
+    const localWriters = ["async function prepareF013Provenance(", "async function prepareF013T071Run(", "async function createLegacyFixtureDraft("].map((header) => functionText(block, header));
+    for (const fn of localWriters) {
+      expect((fn.match(/admin\.from\("orders"\)\.insert\(/g) ?? []).length).toBeGreaterThan(0);
+      expect(fn.indexOf("assertF013LocalWrite();")).toBeGreaterThan(-1);
+      expect(fn.indexOf("assertF013LocalWrite();")).toBeLessThan(fn.indexOf(".insert("));
+    }
   });
 
   it.each([
@@ -175,23 +183,35 @@ describe("T016 — Feature 013 fixtures are exact-identity only", () => {
   });
 
   it.each([
-    ["a dependent table dropped from the list", (s: string) => s.replace('"payouts", ', "")],
+    ["a dependent table dropped from the list", (s: string) => s.replace(/(const F013_M1_ORDER_DEPENDENTS = \[[\s\S]*?)"payouts", /, "$1")],
     ["a non-reserved proof id", (s: string) => s.replace('"13000000-0000-4000-8000-000000000101"', '"f0000000-0000-4000-8000-000000000101"')],
     ["a different marker", (s: string) => s.replace('F013_M1_PROOF_MARKER = "13000000-0000-4000-8000-0000000001ff"', 'F013_M1_PROOF_MARKER = "13000000-0000-4000-8000-0000000001fe"')],
   ])("the exception check rejects a source change: %s", (_label, mutate) => {
     expect(exceptionViolations(exceptionFn, mutate(block)).length).toBeGreaterThan(0);
   });
 
-  it("prepare is gated by an explicit per-run approval and the verified project ref", () => {
+  it("prepare retains its per-run approval and delegates target refusal to the shared guard", () => {
     expect(prepare.indexOf("assertF013Project()")).toBeGreaterThan(-1);
     expect(prepare.indexOf('F013_FIXTURES_APPROVED !== "1"')).toBeGreaterThan(prepare.indexOf("assertF013Project()"));
     expect(prepare.indexOf('F013_FIXTURES_APPROVED !== "1"')).toBeLessThan(prepare.indexOf("await upsert("));
-    expect(block).toContain('const F013_PROJECT_REF = "mxejnutukgxyccnohglo"');
+    expect(script).toContain('from "./f013-local-target"');
+    expect(block).not.toContain('const F013_PROJECT_REF = "mxejnutukgxyccnohglo"');
+    const main = script.slice(script.indexOf("async function main(): Promise<void> {"));
+    expect(main.indexOf("const mode = resolveF013Mode()")).toBeGreaterThan(-1);
+    expect(main.indexOf("const target = requireF013LocalTarget()")).toBeLessThan(main.indexOf("loadEnvLocal()"));
+    expect(main.indexOf("const target = requireF013LocalTarget()")).toBeLessThan(main.indexOf("const admin = createAdminClient()"));
+    expect(main).toContain("F013_LOCAL_WRITE_FLAGS.has(f013Flag)");
+    expect(main).toContain('F013_FIXTURES_APPROVED !== "1"');
   });
 
-  it("fake bank data is clearly labelled and never a plausible real account", () => {
-    expect(block).toContain('account_name: "F013 FIXTURE — NOT FOR PAYMENT"');
-    expect(block).toMatch(/iban: "AE0{10,}13"/);
+  it("preparation never activates global F013 configuration or fabricates member stock", () => {
+    expect(prepare).not.toMatch(/insertIfAbsent\("(payment_accounts|shipping_rules|commission_policies|commission_tiers)"/);
+    expect(prepare).toContain('if (listing.sellerType === "MEMBER_SELLER")');
+    expect(prepare).toContain("available_quantity_kg: 0, reserved_quantity_kg: 0");
+    expect(prepare).toContain("await inspectF013G1(admin)");
+    expect(prepare).toContain("await inspectF013G3(admin)");
+    expect(prepare).toContain("await inspectF013G2(admin)");
+    expect(prepare).not.toContain('status: "PUBLISHED"');
   });
 
   it("tests/auth/fixture-session.ts mirrors the script's identities and ids exactly", () => {
@@ -206,5 +226,175 @@ describe("T016 — Feature 013 fixtures are exact-identity only", () => {
     for (const id of [...Object.values(F013_FIXTURES.offers), ...Object.values(F013_FIXTURES.warehouses), ...Object.values(F013_FIXTURES.config), F013_FIXTURES.hillsOrganizationId]) {
       expect(block).toContain(`"${id}"`);
     }
+  });
+});
+
+const emptySnapshot = (): F013SourceSnapshot => ({
+  orders: [], items: [], payments: [], reviews: [], proformas: [], reservations: [], reservationItems: [],
+  ownershipEvents: [], allocations: [], positions: [], hillsPositions: [], payouts: [], taxInvoices: [], notifications: [],
+});
+
+function completeSnapshot(): F013SourceSnapshot {
+  const rows = emptySnapshot();
+  const s1 = "13000000-0000-4000-8000-000000000003";
+  const s2 = "13000000-0000-4000-8000-000000000004";
+  const hills = "13000000-0000-4000-8000-000000000005";
+  const w1 = "13000000-0000-4000-8000-000000000021";
+  const w2 = "13000000-0000-4000-8000-000000000022";
+  const specs = [
+    { id: F013_SOURCE.items.s1w1, order: F013_SOURCE.orders.s1, offer: F013_SOURCE.hillsOffers.w1, lot: F013_SOURCE.hillsLots.w1, buyer: s1, warehouse: w1, position: "13000000-0000-4000-8000-000000000051", qty: 500, reservation: "res1" },
+    { id: F013_SOURCE.items.s1w2, order: F013_SOURCE.orders.s1, offer: F013_SOURCE.hillsOffers.w2, lot: F013_SOURCE.hillsLots.w2, buyer: s1, warehouse: w2, position: "13000000-0000-4000-8000-000000000054", qty: 50, reservation: "res1" },
+    { id: F013_SOURCE.items.s2w2, order: F013_SOURCE.orders.s2, offer: F013_SOURCE.hillsOffers.w2, lot: F013_SOURCE.hillsLots.w2, buyer: s2, warehouse: w2, position: "13000000-0000-4000-8000-000000000052", qty: 300, reservation: "res2" },
+  ];
+  rows.orders = [
+    { id: F013_SOURCE.orders.s1, order_code: "F013-SRC-S1", correlation_id: F013_SOURCE.markers.s1, commerce_flow: "LEGACY", buyer_organization_id: s1, status: "PAID" },
+    { id: F013_SOURCE.orders.s2, order_code: "F013-SRC-S2", correlation_id: F013_SOURCE.markers.s2, commerce_flow: "LEGACY", buyer_organization_id: s2, status: "PAID" },
+  ];
+  rows.payments = [{ id: "pay1", order_id: F013_SOURCE.orders.s1, status: "CONFIRMED" }, { id: "pay2", order_id: F013_SOURCE.orders.s2, status: "CONFIRMED" }];
+  rows.reviews = [{ id: "review1", payment_id: "pay1", decision: "CONFIRMED" }, { id: "review2", payment_id: "pay2", decision: "CONFIRMED" }];
+  rows.proformas = [{ id: "pi1", order_id: F013_SOURCE.orders.s1, status: "PAID" }, { id: "pi2", order_id: F013_SOURCE.orders.s2, status: "PAID" }];
+  rows.reservations = [{ id: "res1", order_id: F013_SOURCE.orders.s1, status: "CONSUMED" }, { id: "res2", order_id: F013_SOURCE.orders.s2, status: "CONSUMED" }];
+  for (const spec of specs) {
+    rows.items.push({ id: spec.id, order_id: spec.order, offer_id: spec.offer, lot_id: spec.lot, seller_organization_id: hills, seller_type_snapshot: "HILLS", quantity_kg: spec.qty });
+    rows.reservationItems.push({ id: spec.id, reservation_id: spec.reservation, offer_id: spec.offer, quantity_kg: spec.qty });
+    rows.ownershipEvents.push({ id: `event-${spec.id}`, order_item_id: spec.id, event_type: "SALE", from_organization_id: hills, to_organization_id: spec.buyer, lot_id: spec.lot, quantity_kg: spec.qty });
+    rows.allocations.push({ id: `allocation-${spec.id}`, order_item_id: spec.id, status: "STORED", owner_organization_id: spec.buyer, lot_id: spec.lot, warehouse_id: spec.warehouse, quantity_kg: spec.qty });
+    rows.positions.push({ id: spec.position, owner_organization_id: spec.buyer, lot_id: spec.lot, warehouse_id: spec.warehouse, available_quantity_kg: spec.qty, reserved_quantity_kg: 0 });
+  }
+  rows.hillsPositions = [
+    { id: F013_SOURCE.hillsPositions.w1, owner_organization_id: hills, lot_id: F013_SOURCE.hillsLots.w1, available_quantity_kg: 0, reserved_quantity_kg: 0 },
+    { id: F013_SOURCE.hillsPositions.w2, owner_organization_id: hills, lot_id: F013_SOURCE.hillsLots.w2, available_quantity_kg: 0, reserved_quantity_kg: 0 },
+  ];
+  return rows;
+}
+
+describe("T016 retained LEGACY provenance — guard mutations", () => {
+  it("pins every source id to unique reserved 16xx UUIDs", () => {
+    expect(() => assertF013SourceIds()).not.toThrow();
+    const ids = Object.values(F013_SOURCE).flatMap((group) => Object.values(group));
+    expect(ids).toHaveLength(new Set(ids).size);
+    expect(ids.every((id) => /^13000000-0000-4000-8000-0000000016[0-9a-f]{2}$/.test(id))).toBe(true);
+  });
+
+  const cleanPosition = { id: "13000000-0000-4000-8000-000000000051", owner_organization_id: "13000000-0000-4000-8000-000000000003", lot_id: "13000000-0000-4000-8000-000000000041", warehouse_id: "13000000-0000-4000-8000-000000000021", available_quantity_kg: 500, reserved_quantity_kg: 0 };
+  const noDependencies = Object.fromEntries(F013_G1_DEPENDENCIES.map((key) => [key, 0]));
+  it("G1 admits only the exact isolated known residue", () => {
+    expect(() => assertF013G1(cleanPosition, noDependencies)).not.toThrow();
+    expect(() => assertF013G1(cleanPosition, {})).toThrow(/incomplete/);
+  });
+  it.each(["offers", "ownershipEvents", "allocations", "orderItems", "reservationItems", "varianceEvents", "positionReservations"])("G1 refuses a %s dependent", (key) => {
+    expect(() => assertF013G1(cleanPosition, { ...noDependencies, [key]: 1 })).toThrow(/G1/);
+  });
+  it("G1 refuses unrelated ids, owner, lot, warehouse, reserved stock and arbitrary positive stock", () => {
+    for (const mutation of [
+      { id: F013_SOURCE.hillsPositions.w1 }, { owner_organization_id: "other" }, { lot_id: "other" },
+      { warehouse_id: "other" }, { reserved_quantity_kg: 1 }, { available_quantity_kg: 499 },
+    ]) expect(() => assertF013G1({ ...cleanPosition, ...mutation }, noDependencies)).toThrow(/G1/);
+  });
+  it("G2 refuses any outside authorized member", () => {
+    expect(() => assertF013G2([])).not.toThrow();
+    expect(() => assertF013G2([{ id: "outside" }])).toThrow(/G2/);
+  });
+  it.each(["checkoutEnabled", "commissionActive", "shippingActive", "paymentAccountActive", "paymentAccountDefault"] as const)("G3 refuses %s", (key) => {
+    const safe = { checkoutEnabled: false, commissionActive: false, shippingActive: false, paymentAccountActive: false, paymentAccountDefault: false };
+    expect(() => assertF013G3(safe)).not.toThrow();
+    expect(() => assertF013G3({ ...safe, [key]: true })).toThrow(/G3/);
+  });
+  it("cannot use a non-compliance session to suspend or republish", () => {
+    expect(() => assertF013ComplianceActor("COMPLIANCE")).not.toThrow();
+    expect(() => assertF013ComplianceActor("ADMIN")).not.toThrow();
+    expect(() => assertF013ComplianceActor("service_role")).toThrow(/compliance/);
+  });
+  it("absent is distinct from drift, and drift never becomes resumable", () => {
+    expect(classifyF013Source(emptySnapshot()).state).toBe("ABSENT");
+    const unexpected = emptySnapshot();
+    unexpected.orders.push({ id: F013_SOURCE.orders.s1, commerce_flow: "BANK_TRANSFER_V1" });
+    expect(classifyF013Source(unexpected).state).toBe("DRIFTED");
+    const payout = emptySnapshot();
+    payout.payouts.push({ id: "payout" });
+    expect(classifyF013Source(payout).state).toBe("DRIFTED");
+  });
+  it("classifies all four rerun states and refuses a zero-payout mutation", () => {
+    expect(classifyF013Source(emptySnapshot()).state).toBe("ABSENT");
+    const partial = completeSnapshot();
+    partial.orders[0]!.status = "HOLD";
+    expect(classifyF013Source(partial).state).toBe("IN_PROGRESS_RESUMABLE");
+    const complete = completeSnapshot();
+    expect(classifyF013Source(complete).state).toBe("COMPLETE_VALID");
+    complete.payouts.push({ id: "unexpected-payout", order_id: F013_SOURCE.orders.s1 });
+    expect(classifyF013Source(complete).state).toBe("DRIFTED");
+  });
+  it("drifts if source buyer, Hills seller, stock or financial evidence mutates", () => {
+    const mutate = [
+      (s: F013SourceSnapshot) => { s.orders[0]!.buyer_organization_id = "other"; },
+      (s: F013SourceSnapshot) => { s.items[0]!.seller_organization_id = "13000000-0000-4000-8000-000000000004"; },
+      (s: F013SourceSnapshot) => { s.hillsPositions[0]!.available_quantity_kg = 1; },
+      (s: F013SourceSnapshot) => { s.taxInvoices.push({ id: "unexpected-invoice" }); },
+      (s: F013SourceSnapshot) => { s.notifications.push({ id: "unexpected-event" }); },
+    ];
+    for (const change of mutate) { const snapshot = completeSnapshot(); change(snapshot); expect(classifyF013Source(snapshot).state).toBe("DRIFTED"); }
+  });
+  it("retained financial history has no hard-delete path", () => {
+    const source = readFileSync("scripts/f013-provenance.ts", "utf8");
+    expect(source).not.toMatch(/\.delete\(|\bdelete\s+from\b/i);
+    expect(block.match(/\.delete\(/g)).toHaveLength(2); // unchanged exact-id historical exceptions
+  });
+  it("the local provenance writer is local-only, reuses only a complete chain and never continues a partial one", () => {
+    const fn = functionText(block, "async function prepareF013Provenance(");
+    const firstWrite = fn.indexOf(".insert(");
+    expect(fn.indexOf("assertF013LocalWrite();")).toBeGreaterThan(-1);
+    expect(fn.indexOf("assertF013LocalWrite();")).toBeLessThan(firstWrite);
+    expect(fn.indexOf("await validateF013Provenance(admin)")).toBeLessThan(firstWrite);
+    expect(fn).toContain('if (before.classification.state === "COMPLETE_VALID") return');
+    expect(fn).toContain("a partial LEGACY chain is never continued automatically");
+    expect(fn).toContain('if (after.classification.state !== "COMPLETE_VALID")');
+    // real primitives only: member RLS writes, the real checkout/proof/review RPCs, graph transitions guarded by status
+    for (const rpc of ['rpc("checkout_order"', 'rpc("submit_payment_proof"', 'rpc("admin_review_payment"']) expect(fn).toContain(rpc);
+    expect(fn).not.toMatch(/\.delete\(|\.upsert\(|status: "PUBLISHED"|status: "PAID"|is_hills_internal|session_replication_role|disable trigger/i);
+    expect(fn).not.toMatch(/admin\.from\("(orders|order_shipments|coffee_offers|payments|inventory_positions)"\)\.update\(/);
+    const guard = functionText(block, "function assertF013LocalWrite(");
+    expect(guard).toContain("activeF013ProjectRef !== F013_LOCAL_PROJECT_ID || !activeF013LocalTarget");
+    expect(guard).toContain('process.env.F013_FIXTURES_APPROVED !== "1"');
+  });
+  it("listings are published only through the review graph by a real operator session, never inserted as PUBLISHED", () => {
+    const fn = functionText(block, "async function publishF013OfferLocally(");
+    expect(fn.indexOf("assertF013LocalWrite();")).toBeGreaterThan(-1);
+    expect(fn).toContain('[["DRAFT", "PENDING_REVIEW"], ["PENDING_REVIEW", "APPROVED"], ["APPROVED", "PUBLISHED"]]');
+    expect(fn).toContain('statusClient.from("coffee_offers").update({ status: to }).eq("id", offerId).eq("status", from).select("id"), 1)');
+    expect(fn).not.toContain('admin.from("coffee_offers").update(');
+  });
+  it("the legacy-suite LEGACY draft path is local-only, exact-org, member-checked and writes one LEGACY DRAFT", () => {
+    const fn = functionText(block, "async function createLegacyFixtureDraft(");
+    expect(block).toContain("const LEGACY_FIXTURE_DRAFT_ORGS: readonly string[] = [ORGANIZATION_IDS.buyerOnly, ORGANIZATION_IDS.buyerAndSeller];");
+    expect(block).toContain("const LEGACY_SYNTHETIC_TEST_DRAFT_ORGS: readonly string[] = [PHASE89_ORGANIZATION_IDS.suspended];");
+    expect(fn.indexOf("assertF013LocalWrite();")).toBeLessThan(fn.indexOf("const approvedOrganization ="));
+    expect(fn).toContain("LEGACY_FIXTURE_DRAFT_ORGS.includes(organizationId) || LEGACY_SYNTHETIC_TEST_DRAFT_ORGS.includes(organizationId)");
+    expect(fn.indexOf('.eq("is_active", true)')).toBeLessThan(fn.indexOf(".insert("));
+    expect(fn).toContain('.insert({ buyer_organization_id: organizationId, created_by: userId, status: "DRAFT", commerce_flow: "LEGACY" })');
+    expect((fn.match(/\.insert\(/g) ?? []).length).toBe(1);
+    expect(fn).not.toMatch(/\.update\(|\.upsert\(|\.delete\(/);
+  });
+  it("the T071 run writer is local-only and the T071 state inspector is read-only", () => {
+    const run = functionText(block, "async function prepareF013T071Run(");
+    expect(run.indexOf("assertF013LocalWrite();")).toBeGreaterThan(-1);
+    expect(run.indexOf("assertF013LocalWrite();")).toBeLessThan(run.indexOf(".insert("));
+    expect(run).not.toMatch(/\.delete\(|\.upsert\(|bank_transfer_checkout_enabled/);
+    const inspect = functionText(block, "async function inspectF013T071State(");
+    expect(inspect).not.toMatch(/\.insert\(|\.update\(|\.upsert\(|\.delete\(|\.rpc\(/);
+  });
+  it("the historical destination snapshot fixture is local-only, approval-gated and uses the real M2a guard", () => {
+    const fn = functionText(block, "async function prepareF013T071SnapshotOrder(");
+    expect(script).toContain('"--prepare-f013-t071-snapshot-order"');
+    expect(fn.indexOf("assertF013LocalWrite();")).toBeGreaterThan(-1);
+    expect(fn.indexOf("assertF013LocalWrite();")).toBeLessThan(fn.indexOf("runF013DockerPsqlStdin("));
+    expect(fn).toContain("set local role service_role;");
+    expect(fn).toContain("set local app.internal_transition = 'true';");
+    expect(fn).toContain("from public.delivery_destinations d");
+    expect(fn).toContain("d.is_default and d.retired_at is null");
+    expect(fn).toContain("get diagnostics v_inserted = row_count;");
+    for (const field of ["label", "country_code", "city", "address_lines", "contact_name", "contact_phone", "delivery_method"]) {
+      expect(fn).toContain(`'${field}'`);
+    }
+    expect(fn).not.toMatch(/disable trigger|disable row level security|session_replication_role|\.delete\(|\.upsert\(/i);
   });
 });

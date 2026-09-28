@@ -4,7 +4,7 @@ import { join, sep } from "node:path";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { describe, expect, it, vi } from "vitest";
 
-import { FOUNDATION_FIXTURES, INVENTORY_FIXTURES, LISTING_FIXTURES, signInAsFixture } from "@/tests/auth/fixture-session";
+import { FOUNDATION_FIXTURES, INVENTORY_FIXTURES, LISTING_FIXTURES, signInAsFixture, createLegacyFixtureDraftOrder } from "@/tests/auth/fixture-session";
 import { buildRequestedOrder, type WithLiveClient } from "@/tests/orders/live-helpers";
 import { ACTION_FEEDBACK } from "@/lib/types/action-feedback";
 
@@ -23,9 +23,9 @@ import { ACTION_FEEDBACK } from "@/lib/types/action-feedback";
 
 async function createTestOrderWithItem(withLiveClientArg: WithLiveClient, client: SupabaseClient, organizationId: string): Promise<{ orderId: string; orderItemId: string }> {
   return withLiveClientArg(client, async () => {
-    const { createDraftOrder, addOrderItem } = await import("@/lib/orders/drafts");
+    const { addOrderItem } = await import("@/lib/orders/drafts");
     const userId = (await client.auth.getUser()).data.user!.id;
-    const order = await createDraftOrder({ organizationId, userId });
+    const order = await createLegacyFixtureDraftOrder({ organizationId, userId });
     if (!order.ok) throw new Error(`test setup failed: ${order.code}`);
     const item = await addOrderItem({ organizationId, orderId: order.data.id, offerId: LISTING_FIXTURES.offerPublished, quantityKg: 2 });
     if (!item.ok) throw new Error(`test setup failed: ${item.code}`);

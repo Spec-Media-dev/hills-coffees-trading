@@ -6,7 +6,9 @@ Conventions for **every** function below unless stated:
 - Errors are raised as stable snake_case codes, mapped to localized copy in `lib/commerce/errors.ts` /
   `lib/finance/errors.ts`. No raw SQL text reaches a client (the existing Feature 007 `error-mapping` discipline).
 - Non-enumeration: a nonexistent id and an id owned by someone else raise the **same** code (`*_not_found`).
-- `p_request_id uuid` = the idempotency key (R-25). Replaying it with the same actor/operation returns the stored result.
+- `p_request_id uuid` = the idempotency key (R-25). The function inserts the `commerce_request_log` row **first**; replaying
+  the key with the same actor, operation and scope (organization, destination, account or order id) returns the stored
+  result, any other reuse raises `request_id_conflict`, and a null key raises `request_id_required`.
 - Every mutating function sets `app.correlation_id` and `app.transition_reason`. The buyer/seller checks
   `organization_can_buy/sell`, `is_blocked_user()` and `mfa_satisfied()` are re-evaluated inside the function (SEC-001).
 - Lock order is [data-model.md §8](../data-model.md#8-global-locking-order-every-feature-013-function-deadlock-free-by-construction).
@@ -16,12 +18,14 @@ Conventions for **every** function below unless stated:
 | Function | EXECUTE | Contract |
 |---|---|---|
 | `get_or_create_cart(p_org_id uuid) → uuid` | authenticated | Can-buy active member. Advisory lock per org. Returns the latest `BANK_TRANSFER_V1` `DRAFT` order, else creates one. |
-| `add_cart_line(p_offer_id uuid, p_quantity_kg numeric, p_request_id uuid) → jsonb` | authenticated | Resolves the caller's cart. Inserts a line, or adds to an existing line's quantity (one line per offer). `validate_order_item_offer()` enforces eligibility (published, visible, not own listing, sellable ≥ qty) **without reserving** (FR-003). Returns `{order_id, line_id, quantity_kg}`. |
+| `add_cart_line(p_org_id uuid, p_offer_id uuid, p_quantity_kg numeric, p_request_id uuid) → jsonb` | authenticated | Can-buy active member of `p_org_id` (explicit organization scope, T069 owner decision A3: a member of several buying organizations selects one; a non-member, non-can-buy or nonexistent organization raises the same `buyer_not_authorized`). Resolves that organization's cart (same per-organization advisory lock as `get_or_create_cart`). Inserts a line, or adds to an existing line's quantity (one line per offer). `validate_order_item_offer()` enforces eligibility (published, visible, not own listing, sellable ≥ qty) **without reserving** (FR-003). Returns `{order_id, line_id, quantity_kg}`. |
 | `update_order_item_quantity(uuid, numeric)` | authenticated | **Existing** (Feature 007), reused unchanged. DRAFT only. |
 | `remove_order_item(uuid)` | authenticated | **Existing**, reused unchanged. |
 | `estimate_cart(p_order_id uuid, p_destination_id uuid default null, p_promo_code text default null) → jsonb` | authenticated | STABLE. Buyer member only. Calls `compute_order_quote` and returns **buyer-facing** fields only (no commission/seller net), flagged `is_estimate: true`. When no destination is supplied, shipping/VAT on shipping are `null` with reason `destination_required`. |
 | `upsert_delivery_destination(p_id uuid, p_org_id uuid, p_fields jsonb, p_request_id uuid) → uuid` | authenticated | Can-buy member of `p_org_id`. Validates §2.3 fields. `p_id` null = create. |
 | `retire_delivery_destination(p_id uuid, p_request_id uuid)` | authenticated | Soft retire. Never affects orders (snapshots). |
+
+Errors: `buyer_not_authorized`, `mfa_step_up_required`, `request_id_required`, `request_id_conflict`, `listing_is_not_available`, `cannot_buy_own_listing`, `requested_quantity_not_available`, `inventory_quantity_not_available`, `destination_invalid`, `destination_not_found` (M4a cart and destination functions; `destination_invalid` = a §2.3 field rule failed).
 
 ## Member — proforma, reservation, cancellation (M4)
 
@@ -121,13 +125,15 @@ Errors: `order_not_found`, `order_not_payable`, `reservation_expired`, `cross_or
 
 | Function | Contract |
 |---|---|
-| `update_commerce_settings(p_validity_hours int, p_checkout_enabled bool, p_proof_enabled bool, p_request_id uuid)` | Audited. Never alters issued proformas. |
-| `set_default_payment_account(p_account_id uuid, p_request_id uuid)` | Makes the active USD account the default (unique index). The Feature 010 payment-accounts UI calls it. |
+| `update_commerce_settings(p_validity_hours int, p_checkout_enabled bool, p_proof_enabled bool, p_request_id uuid, p_pilot_organization_ids uuid[] default null)` | Audited. Never alters issued proformas. NULL = unchanged. `p_pilot_organization_ids` manages the pilot list (ROLLOUT-FLAGS; T069 owner decision A1). Rollout invariant: `bank_transfer_checkout_enabled` is set true only by the operator at T235; nothing in Batches C–I and no automatic/runtime path sets it; pilot organizations are the only activation before T235. |
+| `set_default_payment_account(p_account_id uuid, p_request_id uuid)` | Platform admin + MFA (T069 owner decision A2). Makes the active USD account the default (unique index). No `payment_accounts` grant changes; returns identifiers only. The Feature 010 payment-accounts UI calls it. |
 | `admin_void_order(p_order_id uuid, p_reason text, p_request_id uuid)` | Non-terminal and not yet `PAID`. Releases an open reservation exactly once. |
 | `admin_convert_legacy_draft(p_order_id uuid, p_request_id uuid)` (M4a) | `LEGACY` + `DRAFT` + no non-`CANCELLED` shipment → `commerce_flow = 'BANK_TRANSFER_V1'` (the only permitted flow change); audited; lines untouched. Any other state → `legacy_draft_not_convertible`. Used by the cutover drain (R-21, analysis H1). |
 | `upsert_platform_promotion(p_id uuid, p_fields jsonb, p_targets jsonb, p_request_id uuid) → uuid` | Platform admin. Always Hills-funded (`funding_source` derived from scope). Rejects `value ≤ 0`, `PERCENT > 100`, invalid window (`promotion_config_invalid`). The response includes a notice that member-seller lines are capped at Hills' line commission. |
 | `set_promotion_status(p_id uuid, p_status text, p_request_id uuid)` | Owner scope or platform admin. Status is intent only. Eligibility is derived at quote time from `status IN ('SCHEDULED','ACTIVE')` and the `starts_at`/`ends_at` window (analysis M1); no job flips statuses. |
 | `upsert_campaign(...)` / `schedule_campaign(p_id, p_at)` / `cancel_campaign(p_id)` | Platform admin. Bilingual content required. |
+
+Errors: `forbidden`, `mfa_step_up_required`, `request_id_required`, `request_id_conflict`, `invalid_validity_hours`, `payment_account_not_found`, `order_not_found`, `legacy_draft_not_convertible` (M4a admin functions: settings, default payment account, legacy-draft conversion).
 
 ## Seller (M8) — can-sell active member of the owning organization + MFA
 

@@ -1,3 +1,4 @@
+import { productionChildEnv, readProductionEnvLocal } from "../../scripts/f013-production-env.mjs";
 // Feature 010 T049 / Feature 011 T013 — real Chrome proof, against a RUNNING PRODUCTION SERVER (`next start`), that an
 // administrative price change revalidates the `reference-prices` tag and the public surface updates at once.
 //
@@ -22,7 +23,7 @@ import { resolve } from "node:path";
 import { assert, goto, launchBrowser, viewport } from "./cdp-harness.mjs";
 
 function loadEnv() {
-  for (const raw of readFileSync(".env.local", "utf8").split(/\r?\n/)) {
+  for (const raw of readProductionEnvLocal().split(/\r?\n/)) {
     const match = raw.match(/^([A-Z_]+)=(.*)$/);
     if (match && process.env[match[1]] === undefined) process.env[match[1]] = match[2].replace(/^['"]|['"]$/g, "");
   }
@@ -40,7 +41,7 @@ const V3 = { raw: "203.3333", stored: "203.333300", observedAt: "2026-09-17T10:0
 const TTL_SECONDS = 300;
 
 function seed(args, env = {}) {
-  return execFileSync(process.execPath, [resolve("node_modules/tsx/dist/cli.mjs"), resolve("scripts/seed-test-fixtures.ts"), ...args], { env: { ...process.env, ...env }, stdio: ["ignore", "pipe", "inherit"] }).toString();
+  return execFileSync(process.execPath, [resolve("node_modules/tsx/dist/cli.mjs"), resolve("scripts/seed-test-fixtures.ts"), ...args], { env: productionChildEnv(undefined, env), stdio: ["ignore", "pipe", "inherit"] }).toString();
 }
 async function signIn(email) {
   const response = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/auth/v1/token?grant_type=password`, {

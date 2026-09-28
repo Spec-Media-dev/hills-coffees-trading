@@ -1,9 +1,10 @@
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { randomUUID } from "node:crypto";
 
 import { createClient, type Session, type SupabaseClient } from "@supabase/supabase-js";
+import { f013LocalChildEnv, requireF013LocalTarget, resolveF013Mode, type F013LocalTarget } from "@/scripts/f013-local-target";
+import { readProductionEnvLocal } from "@/scripts/f013-production-env.mjs";
 
 const REQUIRED_TEST_ENV = [
   "NEXT_PUBLIC_SUPABASE_URL",
@@ -278,11 +279,20 @@ export type CheckoutMirrorInspection = {
   activeReservationCountForOffer: number;
 };
 
+let localTarget: F013LocalTarget | null = null;
+
 function loadTestEnvironment(): void {
+  const mode = resolveF013Mode();
+  if (mode.kind === "local") {
+    localTarget ??= requireF013LocalTarget();
+    return;
+  }
+  if (process.env.F013_T071_LIVE !== undefined) throw new Error("T071 live proof requires F013 local mode.");
   let contents: string;
   try {
-    contents = readFileSync(resolve(process.cwd(), ".env.local"), "utf8");
-  } catch {
+    contents = readProductionEnvLocal();
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
     return;
   }
 
@@ -310,7 +320,11 @@ function loadTestEnvironment(): void {
 
 function requireTestEnvironment(name: RequiredTestEnv): string {
   loadTestEnvironment();
-  const value = process.env[name];
+  const value = localTarget ? ({
+    NEXT_PUBLIC_SUPABASE_URL: localTarget.apiUrl,
+    NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: localTarget.anonKey,
+    TEST_FIXTURE_PASSWORD: localTarget.fixturePassword,
+  } as const)[name] : process.env[name];
   if (!value) {
     throw new Error(`Missing ${name}; see .env.example and run npm run test:seed.`);
   }
@@ -318,6 +332,7 @@ function requireTestEnvironment(name: RequiredTestEnv): string {
 }
 
 function newSessionClient(): SupabaseClient {
+  if (resolveF013Mode().kind !== "local") throw new Error("Fixture sessions require verified F013 local mode.");
   return createClient(
     requireTestEnvironment("NEXT_PUBLIC_SUPABASE_URL"),
     requireTestEnvironment("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY"),
@@ -424,6 +439,18 @@ export async function signInAsFixture(
 
   if (error) throw new Error(`Unable to restore documented fixture ${email} session.`);
 
+  return client;
+}
+
+/**
+ * Feature 013 T071: a GENUINELY independent authenticated session — its own real password grant (never the per-process
+ * cached grant `signInAsFixture` shares), its own client and therefore its own HTTP/PostgREST connection. Used for the
+ * two-session concurrency proofs. Local mode only (enforced by `newSessionClient`).
+ */
+export async function signInAsFixtureIndependentSession(email: string): Promise<SupabaseClient> {
+  const client = newSessionClient();
+  const { data, error } = await client.auth.signInWithPassword({ email, password: requireTestEnvironment("TEST_FIXTURE_PASSWORD") });
+  if (error || !data.session) throw new Error(`Unable to open an independent session for documented fixture ${email}.`);
   return client;
 }
 
@@ -774,7 +801,9 @@ export function inspectDeliveryPositionByLotOwner(lotId: string, organizationId:
 }
 
 function runFixtureScript(args: readonly string[], options: { captureOutput?: boolean } = {}): string {
+  if (resolveF013Mode().kind !== "local") throw new Error("Fixture child commands require verified F013 local mode.");
   loadTestEnvironment();
+  const childEnv = f013LocalChildEnv(localTarget!);
   const output = execFileSync(
     process.execPath,
     [
@@ -784,8 +813,10 @@ function runFixtureScript(args: readonly string[], options: { captureOutput?: bo
     ],
     {
       cwd: process.cwd(),
-      env: process.env,
-      stdio: options.captureOutput ? ["ignore", "pipe", "ignore"] : "ignore",
+      env: childEnv,
+      // stderr carries only the script's own safe messages; capturing it makes a failed fixture step name itself.
+      stdio: options.captureOutput ? ["ignore", "pipe", "pipe"] : "ignore",
+      maxBuffer: 64 * 1024 * 1024,
     }
   );
   return options.captureOutput ? String(output) : "";
@@ -797,6 +828,16 @@ function runFixtureScript(args: readonly string[], options: { captureOutput?: bo
  * live suites are gated by F013_LIVE=1. Exact identities only.
  */
 export const F013_LIVE = process.env.F013_LIVE === "1";
+/** Future T071 live suites must call this before opening a session or invoking a child. */
+export function requireF013T071LiveTarget(): F013LocalTarget {
+  if (resolveF013Mode().kind !== "local") throw new Error("T071 live proof requires verified F013 local mode.");
+  if (process.env.F013_T071_LIVE !== "1" || process.env.F013_LIVE !== "1") {
+    throw new Error("T071 live proof requires F013_T071_LIVE=1 and F013_LIVE=1.");
+  }
+  loadTestEnvironment();
+  if (!localTarget) throw new Error("T071 local target is missing.");
+  return localTarget;
+}
 export const F013_FIXTURES = {
   members: {
     buyerA: { email: "buyer-a+f013-test@example.com", organizationId: "13000000-0000-4000-8000-000000000001" },
@@ -812,6 +853,12 @@ export const F013_FIXTURES = {
     admin: { email: "admin+f013-test@example.com", role: "ADMIN" },
   },
   warehouses: { w1: "13000000-0000-4000-8000-000000000021", w2: "13000000-0000-4000-8000-000000000022" },
+  positions: {
+    s1w1: "13000000-0000-4000-8000-000000000051",
+    s2w2: "13000000-0000-4000-8000-000000000052",
+    hillsW1: "13000000-0000-4000-8000-000000000053",
+    s1w2: "13000000-0000-4000-8000-000000000054",
+  },
   offers: {
     s1w1: "13000000-0000-4000-8000-000000000061",
     s2w2: "13000000-0000-4000-8000-000000000062",
@@ -837,11 +884,53 @@ function f013M1Json(flag: string): Record<string, unknown> {
   if (!line) throw new Error(`${flag} produced no JSON result.`);
   return JSON.parse(line) as Record<string, unknown>;
 }
+/**
+ * Feature 013 T071 (H1) — the legacy suites' LEGACY DRAFT, created on the LOCAL-only service_role fixture path
+ * (`--create-legacy-fixture-draft`). Member inserts are BANK_TRANSFER_V1 since M4a, so a suite that proves the legacy
+ * DRAFT → CONFIRMED → checkout_order chain starts here; every later step stays on the real member/product paths.
+ * The result mirrors `createDraftOrder`'s shape so each setup call site swaps one call.
+ */
+export async function createLegacyFixtureDraftOrder({ organizationId, userId }: { organizationId: string; userId: string }): Promise<{ ok: true; data: { id: string; orderCode: string; status: "DRAFT" } } | { ok: false; code: string }> {
+  const created = f013M1Json(`--create-legacy-fixture-draft=${organizationId}:${userId}`);
+  if (created.commerceFlow !== "LEGACY" || created.status !== "DRAFT" || typeof created.id !== "string") throw new Error("LEGACY fixture draft returned an unexpected row.");
+  return { ok: true, data: { id: created.id, orderCode: String(created.orderCode), status: "DRAFT" } };
+}
 export const probeF013M1Schema = () => f013M1Json("--f013-m1-schema-probe");
 export const setupF013M1LiveOrders = () => f013M1Json("--f013-m1-live-setup");
 export const probeF013M1Transitions = () => f013M1Json("--f013-m1-live-probe");
 export const cleanupF013M1LiveOrders = () => f013M1Json("--f013-m1-live-cleanup");
 export const verifyF013M1ProofCleanup = () => f013M1Json("--f013-m1-live-verify");
+/**
+ * Feature 013 T071 — LOCAL live-proof fixtures (privileged work runs only in the fixture script child process, against
+ * the nonce-verified local target). `prepareF013T071Run` creates one exact-id run slot (fresh concurrency buyer org +
+ * synthetic LEGACY rows); `inspectF013T071State` is the read-only evidence read.
+ */
+export type F013T071Run = {
+  slot: string;
+  organizationId: string;
+  legacy: { planFree: string; planFreeLine: string; planned: string; plannedShipment: string; confirmed: string };
+};
+export type F013T071Row = Record<string, unknown>;
+export type F013T071State = {
+  target: { projectId?: string; apiUrl?: string };
+  users: Record<string, string | null>;
+  runOrganizations: F013T071Row[];
+  offers: F013T071Row[];
+  positions: F013T071Row[];
+  orders: F013T071Row[];
+  items: F013T071Row[];
+  shipments: F013T071Row[];
+  reservations: F013T071Row[];
+  requestLog: F013T071Row[];
+  conversionAudit: F013T071Row[];
+  destinations: F013T071Row[];
+  settings: F013T071Row[];
+};
+export const prepareF013T071Run = () => f013M1Json("--prepare-f013-t071-run") as unknown as F013T071Run;
+/** Creates one LOCAL-only, approval-gated historical order from Buyer A's active default destination. */
+export const prepareF013T071SnapshotOrder = () =>
+  f013M1Json("--prepare-f013-t071-snapshot-order") as { orderId: string; destinationId: string };
+export const inspectF013T071State = () => f013M1Json("--inspect-f013-t071-state") as unknown as F013T071State;
 export const setupF013T031 = () => f013M1Json("--f013-t031-setup");
 export const cleanupF013T031 = () => f013M1Json("--f013-t031-cleanup");
 export const verifyF013T031Cleanup = () => f013M1Json("--f013-t031-verify");

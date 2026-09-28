@@ -1,3 +1,4 @@
+import { readProductionEnvLocal } from "../../scripts/f013-production-env.mjs";
 // Feature 008 T034 — real Chrome + axe proof of the T023 additions: the Documents (proforma +
 // tax-invoice) and Payout sections on `/dashboard/payments/[orderId]`, and the new
 // `/dashboard/payouts` list — across EN/AR × light/dark × 390/1366.
@@ -26,7 +27,7 @@ import { randomUUID } from "node:crypto";
 
 import { assert, goto, launchBrowser, viewport } from "./cdp-harness.mjs";
 
-for (const raw of readFileSync(".env.local", "utf8").split(/\r?\n/)) {
+for (const raw of readProductionEnvLocal().split(/\r?\n/)) {
   const match = raw.match(/^([A-Z_]+)=(.*)$/);
   if (match && process.env[match[1]] === undefined) process.env[match[1]] = match[2].replace(/^['"]|['"]$/g, "");
 }

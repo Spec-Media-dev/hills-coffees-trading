@@ -1,3 +1,4 @@
+import { readProductionEnvLocal } from "../../scripts/f013-production-env.mjs";
 // Feature 008 T022 — real Chrome + axe proof of the two new private payment-state routes
 // (`/dashboard/payments`, `/dashboard/payments/[orderId]`) across EN/AR × light/dark × 390/1366.
 // Builds a genuine checked-out order through the SAME production database contract Feature 007's own
@@ -15,7 +16,7 @@ import { randomUUID } from "node:crypto";
 import { assert, goto, launchBrowser, viewport } from "./cdp-harness.mjs";
 
 function loadEnv() {
-  for (const raw of readFileSync(".env.local", "utf8").split(/\r?\n/)) {
+  for (const raw of readProductionEnvLocal().split(/\r?\n/)) {
     const match = raw.match(/^([A-Z_]+)=(.*)$/);
     if (match && process.env[match[1]] === undefined) process.env[match[1]] = match[2].replace(/^['"]|['"]$/g, "");
   }
