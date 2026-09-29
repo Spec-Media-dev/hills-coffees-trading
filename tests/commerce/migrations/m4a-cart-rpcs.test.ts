@@ -352,7 +352,24 @@ describe("T067 — A1 rollout invariant: global checkout stays OFF until T235", 
     } catch {
       hits = ""; // git grep exits 1 when nothing matches
     }
-    expect(hits.split(/\r?\n/).filter(Boolean)).toEqual([]);
+    const authorizedCaller = "src/app/dashboard-admin/(system)/commerce-settings/actions.ts";
+    const settingsPage = "src/app/dashboard-admin/(system)/commerce-settings/page.tsx";
+    const settingsLibrary = "lib/admin/commerce-settings.ts";
+    const paths = hits.split(/\r?\n/).filter(Boolean);
+    expect(paths.filter((f) => ![authorizedCaller, settingsPage, settingsLibrary].includes(f))).toEqual([]);
+    if (paths.includes(authorizedCaller)) {
+      const caller = readFileSync(authorizedCaller, "utf8");
+      expect(caller).toContain('checkAreaAccess("commerceSettings")');
+      expect(caller).toMatch(/if \(!access\.ok\) return/);
+    }
+    if (paths.includes(settingsPage)) {
+      const page = readFileSync(settingsPage, "utf8");
+      expect(page).toContain('checkAreaAccess("commerceSettings")');
+      expect(page).toMatch(/if \(!access\.ok\) return/);
+    }
+    if (paths.includes(settingsLibrary)) {
+      expect(readFileSync(settingsLibrary, "utf8")).toContain('supabase.rpc("update_commerce_settings"');
+    }
   });
 });
 
@@ -384,7 +401,9 @@ describe("T067 — rollback symmetry and history", () => {
       // The current, unapplied M4b change set may supersede M4a's replay ordering and its financial-read contract.
       .filter((f) => !/^(?:supabase\/(?:migrations|rollback)\/20260926103000_feature_013_quote_and_proforma_issuance|supabase\/maintenance\/20260926_feature_013_quote_and_proforma_issuance_postflight|specs\/013-bank-transfer-commerce-core\/(?:contracts\/(?:database-rpc|rls-storage)\.md|tasks\.md))/.test(f))
       // The current, unapplied M4c-reduced (stock/inventory reservation only) change set — owner scope reduction, 2026-09-28.
-      .filter((f) => !/^(?:supabase\/(?:migrations|rollback)\/20260928120000_feature_013_stock_reservation|supabase\/maintenance\/20260928_feature_013_stock_reservation_postflight|specs\/013-bank-transfer-commerce-core\/(?:spec|plan)\.md)/.test(f));
+      .filter((f) => !/^(?:supabase\/(?:migrations|rollback)\/20260928120000_feature_013_stock_reservation|supabase\/maintenance\/20260928_feature_013_stock_reservation_postflight|specs\/013-bank-transfer-commerce-core\/(?:spec|plan)\.md)/.test(f))
+      // Feature 014 (Sprint 2) active implementation.
+      .filter((f) => !/^(?:specs\/014-notifications-messaging-seo|supabase\/(?:migrations|rollback)\/20260929\d+_feature_014|supabase\/maintenance\/20260929_feature_014)/.test(f));
     expect(changed).toEqual([]);
   });
 });

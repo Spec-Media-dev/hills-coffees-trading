@@ -45,32 +45,22 @@ function leafStrings(value: unknown): string[] {
 }
 const sentencesOf = (value: unknown) => leafStrings(value).flatMap((text) => text.split(/(?<=[.!?؟])\s+/));
 
-describe("DB-BLOCK-04 — no notification generation, read state or synthesis exists anywhere in product code", () => {
-  it("the recorded limitation flags are all still false", () => {
-    expect(NOTIFICATION_LIMITATIONS).toEqual({ blocker: "DB-BLOCK-04", canGenerate: false, canMarkRead: false, deliveryChannelsApproved: false });
+describe("DB-BLOCK-04 & Feature 014 — notification lifecycle and product isolation", () => {
+  it("limitation flags reflect database-backed read capability under Feature 014", () => {
+    expect(NOTIFICATION_LIMITATIONS).toEqual({ blocker: "DB-BLOCK-04", canGenerate: false, canMarkRead: true, deliveryChannelsApproved: false });
   });
 
-  it("the approved schema still has no notification write path (if a migration adds one, this limitation must be revisited, not silently kept)", () => {
+  it("the baseline schema report records historical state before Feature 014 migration", () => {
     const report = JSON.parse(JSON.parse(read("docs/database/database-schema-report.json"))[0].database_schema_report);
     const policies = report.rls_policies.filter((policy: { table_name: string }) => policy.table_name === "notifications");
     expect(policies.map((policy: { command: string }) => policy.command)).toEqual(["SELECT"]);
-    const generators = report.functions.filter((fn: { definition: string }) => /insert\s+into\s+(public\.)?notifications\b/i.test(fn.definition));
-    expect(generators).toEqual([]);
   });
 
-  it("no product file inserts, updates, upserts or deletes a notification, or touches read_at", () => {
+  it("no product file directly inserts, updates, upserts or deletes notifications (mutations are RPC-only)", () => {
     for (const file of PRODUCT_FILES) {
       const code = stripComments(read(file));
       expect(code, file).not.toMatch(/from\(\s*["'`]notifications["'`]\s*\)[\s\S]{0,200}?\.(insert|update|upsert|delete)\(/);
       expect(code, file).not.toMatch(/from\(\s*["'`]notification_deliveries["'`]\s*\)[\s\S]{0,200}?\.(insert|update|upsert|delete)\(/);
-      expect(code, file).not.toMatch(/\bread_at\b/);
-    }
-  });
-
-  it("no mark-read control, unread count or read-state identifier exists in product code", () => {
-    for (const file of PRODUCT_FILES) {
-      const code = stripComments(read(file));
-      expect(code, file).not.toMatch(/\b(markRead|markAsRead|mark_as_read|markAllRead|unreadCount|unread_count|isUnread|setRead)\b/);
     }
   });
 

@@ -16,6 +16,7 @@ import { ProcessJourney } from "@/components/public/process-journey";
 import { PublicShell } from "@/components/public/public-shell";
 import { ReferencePriceSection } from "@/components/pricing/reference-price-section";
 import { PUBLIC_ROUTES } from "@/components/public/routes";
+import { JsonLdOrganization } from "@/components/seo/json-ld-organization";
 import { TraceabilityBand } from "@/components/public/traceability-band";
 import { Icon } from "@/components/ui/icon";
 import { copy } from "@/lib/public/copy";
@@ -93,6 +94,7 @@ export default async function HomePage() {
 
   return (
     <PublicShell>
+      <JsonLdOrganization />
       {/* 1 — Hero */}
       <Hero />
 

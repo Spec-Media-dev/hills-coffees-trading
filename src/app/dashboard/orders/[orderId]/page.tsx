@@ -15,6 +15,7 @@ import { OrderStatusBadge } from "@/components/orders/order-status-badge";
 import { PaymentStatusBadge } from "@/components/finance/payment-status-badge";
 import { ShipmentPlanner } from "@/components/orders/shipment-planner";
 import { Button } from "@/components/ui/button";
+import { Icon } from "@/components/ui/icon";
 import { Separator } from "@/components/ui/separator";
 import { appCopy } from "@/lib/app/copy";
 import { getRequestIdentity } from "@/lib/auth/dal";
@@ -108,6 +109,15 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ or
         actions={
           <div className="flex flex-wrap items-center gap-3">
             <OrderStatusBadge status={order.status} />
+            <Link
+              href={`/dashboard/messages?new=1&orderId=${order.id}&orderCode=${encodeURIComponent(order.orderCode)}`}
+              className="inline-flex min-h-11 items-center gap-1.5 rounded-[var(--radius-sm)] border border-[var(--border-strong)] bg-background px-3 py-1.5 text-xs font-semibold text-foreground transition-colors hover:bg-[color-mix(in_srgb,transparent,var(--forest-700)_8%)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus-ring)]"
+            >
+              <Icon name="message-circle" className="size-4" />
+              <span>
+                <AppBilingual pick={(c) => c.supportMessaging.needHelpWithOrder} />
+              </span>
+            </Link>
             {canCheckout ? (
               <Button nativeButton={false} render={<Link href={`/dashboard/orders/${order.id}/checkout`} />}>
                 <AppBilingual pick={(c) => c.orders.detail.checkoutAction} />

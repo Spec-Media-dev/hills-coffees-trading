@@ -18,12 +18,20 @@ import { createClient } from "@/lib/supabase/server";
  * like a nonexistent id (no existence signal).
  */
 
-const NOTIFICATION_SELECT = "id, user_id, notification_type, title, body, created_at";
+const NOTIFICATION_SELECT = "id, user_id, notification_type, title, body, created_at, read_at";
 const DEFAULT_PAGE_SIZE = 25;
 const MAX_PAGE_SIZE = 100;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-type NotificationRow = { id: string; user_id: string; notification_type: string; title: string; body: string; created_at: string };
+type NotificationRow = {
+  id: string;
+  user_id: string;
+  notification_type: string;
+  title: string;
+  body: string;
+  created_at: string;
+  read_at: string | null;
+};
 
 export class NotificationReadError extends Error {
   constructor() {
@@ -33,7 +41,14 @@ export class NotificationReadError extends Error {
 }
 
 function toDTO(row: NotificationRow): OwnNotificationDTO {
-  return { id: row.id, notificationType: row.notification_type, title: row.title, body: row.body, createdAt: row.created_at };
+  return {
+    id: row.id,
+    notificationType: row.notification_type,
+    title: row.title,
+    body: row.body,
+    createdAt: row.created_at,
+    readAt: row.read_at ?? null,
+  };
 }
 
 async function verifiedUserId(): Promise<string | null> {
@@ -72,4 +87,14 @@ export async function getOwnNotification(notificationId: string): Promise<OwnNot
   if (error) throw new NotificationReadError();
   const row = data as NotificationRow | null;
   return row && row.user_id === userId ? toDTO(row) : null;
+}
+
+/** Returns the unread notification count for the signed-in user, or 0 when not authenticated or on error. */
+export async function getUnreadNotificationCount(): Promise<number> {
+  const userId = await verifiedUserId();
+  if (!userId) return 0;
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("get_unread_notification_count");
+  if (error) return 0;
+  return typeof data === "number" ? data : 0;
 }

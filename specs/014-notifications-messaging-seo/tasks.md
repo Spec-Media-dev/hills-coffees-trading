@@ -37,7 +37,7 @@
 
 **Purpose**: Execute read-only verification of existing database objects, access control, routing, and environment configuration before introducing any code modifications.
 
-- [ ] T001 Baseline verification of notifications schema, RLS, read layer, and limitation state
+- [X] T001 Baseline verification of notifications schema, RLS, read layer, and limitation state
   - **Exact Goal**: Verify the exact existing state of `public.notifications`, its active RLS policies (`notifications_own`), the read implementation in `lib/notifications/read.ts`, and the limitation statement in `lib/notifications/limitations.ts`.
   - **Likely Files**: `lib/notifications/read.ts`, `lib/notifications/limitations.ts`, `src/app/dashboard/notifications/page.tsx`, `supabase/trading_schema.sql`
   - **Dependency**: None (first task).
@@ -47,7 +47,7 @@
     - Recorded baseline findings in development log without modifying any files.
   - **Validation / Test Expectation**: `npx vitest run tests/disputes/honest-limitations.test.ts` passes.
 
-- [ ] T002 Baseline verification of support_tickets and support_messages schema, RLS, triggers, and foreign keys
+- [X] T002 Baseline verification of support_tickets and support_messages schema, RLS, triggers, and foreign keys
   - **Exact Goal**: Verify the exact existing state of `public.support_tickets` and `public.support_messages`, sequence `public.support_ticket_code_seq`, generator `public.next_support_ticket_code()`, triggers (`trg_support_updated_at`, `trg_support_ticket_validate`), and active RLS policies.
   - **Likely Files**: `supabase/trading_schema.sql`, `tests/public/dto-structure.test.ts`
   - **Dependency**: None (parallel with T001).
@@ -58,7 +58,7 @@
     - Verified that no peer-to-peer or buyer-to-seller messaging tables exist or are referenced.
   - **Validation / Test Expectation**: Schema inspection query returns exact expected columns and policies matching `data-model.md §3`.
 
-- [ ] T003 Baseline verification of SEO metadata, robots, sitemap, indexing boundaries, and authoritative Production canonical domain resolution
+- [X] T003 Baseline verification of SEO metadata, robots, sitemap, indexing boundaries, and authoritative Production canonical domain resolution
   - **Exact Goal**: Inspect current SEO foundation in `src/app/layout.tsx`, `src/app/robots.ts`, `src/app/sitemap.ts`, and `lib/public/site.ts`; resolve authoritative Production domain from application configuration without exposing secrets.
   - **Likely Files**: `src/app/layout.tsx`, `src/app/robots.ts`, `src/app/sitemap.ts`, `lib/public/site.ts`, `tests/public/seo-boundary.test.ts`
   - **Dependency**: None (parallel with T001).
@@ -77,7 +77,7 @@
 
 **CRITICAL**: CODEX REVIEW RECOMMENDED. Do NOT perform Production apply during normal implementation.
 
-- [ ] T004 [P] Author static security tests for notification migration in tests/commerce/migrations/f014-notifications.test.ts
+- [X] T004 [P] Author static security tests for notification migration in tests/commerce/migrations/f014-notifications.test.ts
   - **Exact Goal**: Create static test suite verifying that the migration adheres to all security and architecture invariants before applying or executing SQL.
   - **Likely Files**: `tests/commerce/migrations/f014-notifications.test.ts`
   - **Dependency**: T001.
@@ -90,7 +90,7 @@
     - Asserts that order status change trigger emits events ONLY for active commercial flows (`PROFORMA_ISSUED`, `HOLD`, `EXPIRED`), with no cancelled workflows.
   - **Validation / Test Expectation**: `npx vitest run tests/commerce/migrations/f014-notifications.test.ts` will fail until T005 artifacts are written, then pass 100%.
 
-- [ ] T005 Author forward migration, rollback, and postflight scripts for notification lifecycle in supabase/
+- [X] T005 Author forward migration, rollback, and postflight scripts for notification lifecycle in supabase/
   - **Exact Goal**: Write `20260929100000_feature_014_notifications_lifecycle.sql`, rollback script, and postflight verification script.
   - **Likely Files**:
     - `supabase/migrations/20260929100000_feature_014_notifications_lifecycle.sql`
@@ -109,7 +109,7 @@
   - **Validation / Test Expectation**: `npx vitest run tests/commerce/migrations/f014-notifications.test.ts` passes 100%.
   - **CODEX REVIEW RECOMMENDED**.
 
-- [ ] T006 Execute functional LOCAL proof for notification RPCs and triggers in scripts/test-notifications-local.ts
+- [X] T006 Execute functional LOCAL proof for notification RPCs and triggers in scripts/test-notifications-local.ts
   - **Exact Goal**: Run a functional verification script against a local/ephemeral Supabase instance proving read marking, bulk read marking, unread count accuracy, and order trigger emission without touching Production.
   - **Likely Files**: `scripts/test-notifications-local.ts` (or integration test)
   - **Dependency**: T005.
@@ -127,7 +127,7 @@
 
 **Purpose**: Wire the verified database read lifecycle into the application layer, provide Server Actions, display dynamic unread badge in navigation, render responsive notification feed with mark-as-read controls, and ensure full bilingual EN/AR parity.
 
-- [ ] T007 [P] [US1] Extend notification read layer and DTOs in lib/notifications/read.ts and lib/notifications/types.ts
+- [X] T007 [P] [US1] Extend notification read layer and DTOs in lib/notifications/read.ts and lib/notifications/types.ts
   - **Exact Goal**: Update notification read functions to include `read_at`, expose `getUnreadNotificationCount()`, update DTOs, and update limitation flags in `lib/notifications/limitations.ts`.
   - **Likely Files**:
     - `lib/notifications/read.ts`
@@ -143,7 +143,7 @@
     - Unit test `tests/notifications/notifications-read.test.ts` validates DTO mapping and error handling.
   - **Validation / Test Expectation**: `npx vitest run tests/notifications/notifications-read.test.ts` passes.
 
-- [ ] T008 [US1] Implement notification Server Actions in src/app/dashboard/notifications/actions.ts
+- [X] T008 [US1] Implement notification Server Actions in src/app/dashboard/notifications/actions.ts
   - **Exact Goal**: Create safe Server Actions `markNotificationReadAction` and `markAllNotificationsReadAction` calling database RPCs and revalidating cache paths.
   - **Likely Files**: `src/app/dashboard/notifications/actions.ts`
   - **Dependency**: T007.
@@ -155,7 +155,7 @@
     - Never catches and hides critical errors; returns typed `{ ok: true } | { ok: false; error: string }`.
   - **Validation / Test Expectation**: Action contract tests pass in `tests/notifications/notifications-lifecycle.test.ts`.
 
-- [ ] T009 [P] [US1] Wire bilingual EN/AR copy for notifications in lib/app/copy/en.ts and lib/app/copy/ar.ts
+- [X] T009 [P] [US1] Wire bilingual EN/AR copy for notifications in lib/app/copy/en.ts and lib/app/copy/ar.ts
   - **Exact Goal**: Add localized copy strings for mark-read button, mark-all-read action, unread badge aria-label, filter tabs, and order notification titles.
   - **Likely Files**: `lib/app/copy/en.ts`, `lib/app/copy/ar.ts`
   - **Dependency**: T001.
@@ -164,7 +164,7 @@
     - Zero missing translation keys or raw fallback strings.
   - **Validation / Test Expectation**: Bilingual completeness test passes without key discrepancies.
 
-- [ ] T010 [US1] Update notification list page, read/unread styling, and mark-as-read controls in src/app/dashboard/notifications/page.tsx
+- [X] T010 [US1] Update notification list page, read/unread styling, and mark-as-read controls in src/app/dashboard/notifications/page.tsx
   - **Exact Goal**: Enhance the notification list to visually distinguish unread from read rows, provide single-click "Mark as read", a "Mark all as read" button in header, and branded empty/loading states.
   - **Likely Files**:
     - `src/app/dashboard/notifications/page.tsx`
@@ -180,7 +180,7 @@
     - Displays responsive empty state when 0 notifications exist.
   - **Validation / Test Expectation**: Interactive component tests in `tests/notifications/notifications-lifecycle.test.ts` pass.
 
-- [ ] T011 [US1] Integrate dynamic unread notification badge in dashboard topbar and navigation in components/dashboard/topbar.tsx and src/app/dashboard/layout.tsx
+- [X] T011 [US1] Integrate dynamic unread notification badge in dashboard topbar and navigation in components/dashboard/topbar.tsx and src/app/dashboard/layout.tsx
   - **Exact Goal**: Wire server-side unread count retrieval into `DashboardNotificationsButton` in `components/dashboard/topbar.tsx` and layout header.
   - **Likely Files**:
     - `components/dashboard/topbar.tsx`
@@ -201,7 +201,7 @@
 
 **CRITICAL**: CODEX REVIEW RECOMMENDED for T013 and T015. No Supabase Realtime tasks.
 
-- [ ] T012 [P] [US2] Author automated messaging security, ticket reference, and multi-tenant isolation tests in tests/support/support-messaging.test.ts
+- [X] T012 [P] [US2] Author automated messaging security, ticket reference, and multi-tenant isolation tests in tests/support/support-messaging.test.ts
   - **Exact Goal**: Create automated test harness asserting that Server Actions, database triggers, and RLS enforce ticket reference uniqueness, immutability, server-side generation, and anti-spoofing guards.
   - **Likely Files**: `tests/support/support-messaging.test.ts`
   - **Dependency**: T002.
@@ -218,7 +218,7 @@
     - Asserts that database errors are sanitized and never exposed to the client.
   - **Validation / Test Expectation**: `npx vitest run tests/support/support-messaging.test.ts` passes 100% after T013–T016.
 
-- [ ] T013 [US2] Author forward migration, rollback, and postflight scripts for support ticket reference immutability in supabase/
+- [X] T013 [US2] Author forward migration, rollback, and postflight scripts for support ticket reference immutability in supabase/
   - **Exact Goal**: Write forward migration `20260929110000_feature_014_support_ticket_reference.sql`, rollback, and postflight scripts to harden sequence generation and update trigger `validate_support_ticket()` to strictly forbid `ticket_code` mutation.
   - **Likely Files**:
     - `supabase/migrations/20260929110000_feature_014_support_ticket_reference.sql`
@@ -237,7 +237,7 @@
   - **Validation / Test Expectation**: `npx vitest run tests/support/support-messaging.test.ts` passes database tests; postflight script exits 0.
   - **CODEX REVIEW RECOMMENDED**.
 
-- [ ] T014 [US2] Implement support messaging data access and DTO mappers in lib/messaging/tickets.ts
+- [X] T014 [US2] Implement support messaging data access and DTO mappers in lib/messaging/tickets.ts
   - **Exact Goal**: Create server-only data access functions for listing member tickets, reading ticket detail with conversation messages, and listing admin operational tickets, selecting and mapping `ticket_code` into DTOs.
   - **Likely Files**: `lib/messaging/tickets.ts`, `lib/messaging/types.ts`
   - **Dependency**: T002, T013.
@@ -248,7 +248,7 @@
     - Normal app reads/writes use user session client, never `service_role` bypass.
   - **Validation / Test Expectation**: Data access unit tests pass in `tests/support/support-messaging.test.ts`.
 
-- [ ] T015 [US2] Implement member support ticket Server Actions in src/app/dashboard/messages/actions.ts
+- [X] T015 [US2] Implement member support ticket Server Actions in src/app/dashboard/messages/actions.ts
   - **Exact Goal**: Create `createSupportTicketAction` and `sendSupportMessageAction` with strict server identity derivation, validation schemas, and path revalidation, returning generated `ticketCode`.
   - **Likely Files**: `src/app/dashboard/messages/actions.ts`
   - **Dependency**: T014.
@@ -270,7 +270,7 @@
   - **Validation / Test Expectation**: Action contract tests pass in `tests/support/support-messaging.test.ts`.
   - **CODEX REVIEW RECOMMENDED**.
 
-- [ ] T016 [US2] Implement platform admin support Server Actions in src/app/dashboard-admin/(system)/messages/actions.ts
+- [X] T016 [US2] Implement platform admin support Server Actions in src/app/dashboard-admin/(system)/messages/actions.ts
   - **Exact Goal**: Create `adminUpdateTicketStatusAction` and `adminSendSupportReplyAction` restricted to platform administrators.
   - **Likely Files**: `src/app/dashboard-admin/(system)/messages/actions.ts`
   - **Dependency**: T014.
@@ -287,7 +287,7 @@
 
 **Purpose**: Build the user-facing support interfaces: Member support portal (`/dashboard/messages`), Admin support console (`/dashboard-admin/messages`), ticket creation modal, message thread with staff distinction, order link badges, displaying `ticket_code` as the primary human-readable reference, and bilingual EN/AR parity.
 
-- [ ] T017 [P] [US2] Add bilingual EN/AR copy for support messaging in lib/app/copy/en.ts and lib/app/copy/ar.ts
+- [X] T017 [P] [US2] Add bilingual EN/AR copy for support messaging in lib/app/copy/en.ts and lib/app/copy/ar.ts
   - **Exact Goal**: Provide localized copy for ticket statuses (`Open`, `In Progress`, `Resolved`, `Closed`), priorities, ticket reference labels, form labels, compose placeholder, empty states, and error alerts.
   - **Likely Files**: `lib/app/copy/en.ts`, `lib/app/copy/ar.ts`
   - **Dependency**: T002.
@@ -297,7 +297,7 @@
     - Clear, professional B2B tone adhering to Hills Green Coffee standards.
   - **Validation / Test Expectation**: Copy keys typecheck cleanly under `AppCopy` interface.
 
-- [ ] T018 [US2] Implement Member Support UI in src/app/dashboard/messages/page.tsx, thread detail, and components/messaging/
+- [X] T018 [US2] Implement Member Support UI in src/app/dashboard/messages/page.tsx, thread detail, and components/messaging/
   - **Exact Goal**: Build member conversation list, ticket detail view with threaded messages, reply compose box, and "New Inquiry" modal, displaying `ticket_code` (`HLP-YYYYMMDD-XXXXXXX`) prominently and concealing raw UUIDs.
   - **Likely Files**:
     - `src/app/dashboard/messages/page.tsx`
@@ -318,7 +318,7 @@
     - Branded empty state when organization has 0 tickets.
   - **Validation / Test Expectation**: Component renders correctly in Vitest component tests; no layout shift; `ticket_code` present in DOM.
 
-- [ ] T019 [US2] Implement Admin Support Console in src/app/dashboard-admin/(system)/messages/
+- [X] T019 [US2] Implement Admin Support Console in src/app/dashboard-admin/(system)/messages/
   - **Exact Goal**: Build platform admin operational support queue and thread response interface, displaying `ticket_code` prominently.
   - **Likely Files**:
     - `src/app/dashboard-admin/(system)/messages/page.tsx`
@@ -333,7 +333,7 @@
     - Route guarded strictly by `isPlatformAdmin`.
   - **Validation / Test Expectation**: Admin page renders under test mock; unauthorized users receive forbidden state.
 
-- [ ] T020 [US2] Wire support inquiry entry point from Member Order detail page and register messages in dashboard navigation
+- [X] T020 [US2] Wire support inquiry entry point from Member Order detail page and register messages in dashboard navigation
   - **Exact Goal**: Add "Need Help with this Order?" button on order detail page pre-linking the ticket to `order_id`, and register `messages` in `lib/dashboard/registry.tsx`.
   - **Likely Files**:
     - `src/app/dashboard/orders/[orderId]/page.tsx`
@@ -353,7 +353,7 @@
 
 **Purpose**: Replace placeholder metadata with production-ready root metadata, OpenGraph/Twitter cards, valid `schema.org` JSON-LD (`Organization`, `WebSite`, `Product`), and defense-in-depth `noindex` protection on all private routes.
 
-- [ ] T021 [P] [US3] Author automated SEO metadata, structured data, and boundary tests in tests/public/seo-structured-data.test.ts and extend tests/public/seo-boundary.test.ts
+- [X] T021 [P] [US3] Author automated SEO metadata, structured data, and boundary tests in tests/public/seo-structured-data.test.ts and extend tests/public/seo-boundary.test.ts
   - **Exact Goal**: Create test suite asserting root metadata tags, valid schema.org JSON-LD structure, canonical trailing-slash consistency, no invented /en or /ar paths, and strict noindex on private routes.
   - **Likely Files**:
     - `tests/public/seo-structured-data.test.ts`
@@ -367,7 +367,7 @@
     - Asserts that all private routes (`/dashboard/**`, `/dashboard-admin/**`, `/(auth)/**`, `/continue`, `/portal-entry`) carry `robots: { index: false, follow: false }`.
   - **Validation / Test Expectation**: `npx vitest run tests/public/seo-boundary.test.ts tests/public/seo-structured-data.test.ts` passes 100%.
 
-- [ ] T022 [US3] Configure production root metadata in src/app/layout.tsx
+- [X] T022 [US3] Configure production root metadata in src/app/layout.tsx
   - **Exact Goal**: Update `src/app/layout.tsx` metadata replacing "Create Next App" placeholder with verified `metadataBase`, title template `%s | Hills Coffee`, global description, OpenGraph, and Twitter cards.
   - **Likely Files**: `src/app/layout.tsx`
   - **Dependency**: T003, T021.
@@ -380,7 +380,7 @@
     - Root `robots` allows public indexing (`{ index: true, follow: true }`).
   - **Validation / Test Expectation**: HTML render test confirms presence of meta tags in `<head>`.
 
-- [ ] T023 [P] [US3] Implement structured data JSON-LD components src/components/seo/json-ld-organization.tsx and src/components/seo/json-ld-coffee.tsx
+- [X] T023 [P] [US3] Implement structured data JSON-LD components src/components/seo/json-ld-organization.tsx and src/components/seo/json-ld-coffee.tsx
   - **Exact Goal**: Create and embed valid `schema.org` JSON-LD script components for the homepage (`Organization` + `WebSite`) and public coffee detail pages (`Product`).
   - **Likely Files**:
     - `src/components/seo/json-ld-organization.tsx`
@@ -394,7 +394,7 @@
     - Injected via `<script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(data) }} />`.
   - **Validation / Test Expectation**: JSON-LD parses with `JSON.parse()` without error and satisfies schema validators.
 
-- [ ] T024 [US3] Enforce route-level defense-in-depth noindex, nofollow metadata across all private, dashboard, admin, and authentication routes
+- [X] T024 [US3] Enforce route-level defense-in-depth noindex, nofollow metadata across all private, dashboard, admin, and authentication routes
   - **Exact Goal**: Audit and enforce explicit `robots: { index: false, follow: false, nocache: true }` exports across every private route layout.
   - **Likely Files**:
     - `src/app/dashboard/layout.tsx`
@@ -417,7 +417,7 @@
 
 **CRITICAL**: CODEX REVIEW RECOMMENDED for T025.
 
-- [ ] T025 [US4] Author and execute full-system integration test suite in tests/integration/full-system.test.ts
+- [X] T025 [US4] Author and execute full-system integration test suite in tests/integration/full-system.test.ts
   - **Exact Goal**: Create comprehensive automated integration test suite validating the complete active lifecycle across all Sprint 1 and Sprint 2 features including support ticket reference presentation and immutability.
   - **Likely Files**: `tests/integration/full-system.test.ts`
   - **Dependency**: T010, T011, T018, T019, T022, T023, T024.
@@ -435,7 +435,7 @@
   - **Validation / Test Expectation**: `npx vitest run tests/integration/full-system.test.ts` passes 100%.
   - **CODEX REVIEW RECOMMENDED**.
 
-- [ ] T026 [US4] Execute database regression suites verifying M4b proforma checks (9/9) and M4c stock reservation checks (7/7)
+- [X] T026 [US4] Execute database regression suites verifying M4b proforma checks (9/9) and M4c stock reservation checks (7/7)
   - **Exact Goal**: Run the existing committed regression test suites against the database schema to ensure zero regression in financial calculations, proforma freezing, or inventory reservation invariants.
   - **Likely Files**:
     - `tests/commerce/postflight-m4b.live.test.ts`
@@ -455,7 +455,7 @@
 
 **Purpose**: Execute bounded polish across responsive viewports, RTL Arabic parity, touch targets, and loading/empty states for newly introduced UI components.
 
-- [ ] T027 Audit and ensure mobile responsive behavior and touch target compliance (< 640px)
+- [X] T027 Audit and ensure mobile responsive behavior and touch target compliance (< 640px)
   - **Exact Goal**: Verify that notification feeds, message threads, ticket reference badges, compose inputs, and dialogs adapt cleanly to mobile screens (375px–640px) with touch targets ≥ 44px.
   - **Likely Files**:
     - `components/messaging/ticket-list.tsx`
@@ -469,7 +469,7 @@
     - Modal dialogs render as responsive sheets or centered drawers on narrow viewports.
   - **Validation / Test Expectation**: Responsive viewport tests pass without layout overflow.
 
-- [ ] T028 Audit and ensure RTL Arabic visual parity and directionality across messaging and notifications
+- [X] T028 Audit and ensure RTL Arabic visual parity and directionality across messaging and notifications
   - **Exact Goal**: Verify message bubble alignment, input directionality, icon placements, ticket reference number presentation (`dir="ltr"` on code numbers), and typography in Arabic mode (`dir="rtl"`).
   - **Likely Files**:
     - `components/messaging/message-thread.tsx`
@@ -483,7 +483,7 @@
     - Input text fields respect natural Arabic text direction.
   - **Validation / Test Expectation**: Visual test confirms correct RTL classes and layout alignment.
 
-- [ ] T029 Resolve bounded defects, copy wiring gaps, and small UI inconsistencies discovered during testing
+- [X] T029 Resolve bounded defects, copy wiring gaps, and small UI inconsistencies discovered during testing
   - **Exact Goal**: Fix any small defects, missing copy keys, or UI inconsistencies discovered during integration runs without expanding scope or touching closed Sprint 1 files.
   - **Likely Files**: Scoped strictly to defect locations in `src/components/`, `src/app/`, or `lib/app/copy/`
   - **Dependency**: T025, T027, T028.
@@ -500,7 +500,7 @@
 
 **CRITICAL**: CODEX REVIEW RECOMMENDED.
 
-- [ ] T030 Execute full repository preflight verification matrix (typecheck, lint, build, test, git diff)
+- [X] T030 Execute full repository preflight verification matrix (typecheck, lint, build, test, git diff)
   - **Exact Goal**: Perform comprehensive preflight validation ensuring zero TypeScript errors, zero ESLint warnings, 100% passing tests, successful Next.js production build, and clean git diff.
   - **Likely Files**: Entire workspace
   - **Dependency**: T025, T026, T029.

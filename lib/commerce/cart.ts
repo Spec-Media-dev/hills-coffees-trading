@@ -1,3 +1,4 @@
+import type { FillProjection } from "@/lib/listings/types";
 import { getRequestIdentity } from "@/lib/auth/dal";
 import { createClient } from "@/lib/supabase/server";
 import { mapCommerceError, type CommerceErrorCode } from "./errors";
@@ -9,6 +10,23 @@ import { mapCommerceError, type CommerceErrorCode } from "./errors";
 export async function getBuyerOrganizationId(): Promise<string | null> {
   const identity = await getRequestIdentity();
   return identity.kind === "authenticated" && identity.organization?.canBuy ? identity.organization.organizationId : null;
+}
+
+export type CartDisabledReason = "own" | "unavailable" | undefined;
+
+/**
+ * Server-authoritative eligibility logic shared between listing card and detail page.
+ * Prevents duplicated or inconsistent frontend eligibility conditions.
+ */
+export function getCartDisabledReason(
+  buyerOrganizationId: string | null | undefined,
+  sellerOrganizationId: string,
+  projection: FillProjection
+): CartDisabledReason {
+  if (!buyerOrganizationId) return "unavailable";
+  if (buyerOrganizationId === sellerOrganizationId) return "own";
+  if (!projection.ok || projection.remainingQuantityKg <= 0) return "unavailable";
+  return undefined;
 }
 
 export type CartResult<T = undefined> =

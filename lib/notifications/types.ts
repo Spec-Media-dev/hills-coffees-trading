@@ -48,9 +48,9 @@ export type NotificationPreferenceCell = {
 };
 
 /**
- * A notification record that genuinely exists in `notifications` for the signed-in user. `read_at`
- * is deliberately not represented: nothing can ever set it (DB-BLOCK-04), so showing a read/unread
- * state would be meaningless. `title`/`body` are untrusted text (rendered as text nodes only).
+ * A notification record that genuinely exists in `notifications` for the signed-in user.
+ * Feature 014 adds database-backed `read_at` tracking via narrow RPCs.
+ * `title`/`body` are untrusted text (rendered as text nodes only).
  */
 export type OwnNotificationDTO = {
   id: string;
@@ -58,6 +58,18 @@ export type OwnNotificationDTO = {
   title: string;
   body: string;
   createdAt: string;
+  readAt: string | null;
 };
 
-export type OwnNotificationPage = { rows: readonly OwnNotificationDTO[]; hasMore: boolean; page: number; pageSize: number };
+export type OwnNotificationPage = { rows: readonly OwnNotificationDTO[]; hasMore: boolean; page: number; pageSize: number; unreadCount?: number };
+
+/** Active in-app notification types supported in Sprint 2 / Feature 014 */
+export const ACTIVE_NOTIFICATION_TYPES = [
+  "ORDER_PROFORMA_ISSUED",
+  "ORDER_PAYMENT_PENDING",
+  "RESERVATION_CONFIRMED",
+  "RESERVATION_EXPIRING",
+  "RESERVATION_EXPIRED",
+  "SUPPORT_REPLY",
+] as const;
+export type ActiveNotificationType = (typeof ACTIVE_NOTIFICATION_TYPES)[number];

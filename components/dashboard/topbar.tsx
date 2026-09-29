@@ -83,29 +83,37 @@ export function DashboardAccountMenu({
 }
 
 /**
- * Notification entry (Feature 004 FR-016, wired by Feature 012 RUN B T012). It is now a plain link to
- * the honest notification surface (`/dashboard/notifications`) — and still carries:
- *
- * - no unread count or badge (nothing can mark a notification read, and nothing generates one —
- *   DB-BLOCK-04; any number here would be invented)
- * - no dropdown preview, no "needs action" items, no mark-read action
- * - no polling and no client-side notification state
- *
- * It renders only inside the member `AppShell`, which `src/app/dashboard/layout.tsx` reaches solely
- * for an authorized member — the existing dashboard access contract; the target page re-verifies.
+ * Notification entry (Feature 004 FR-016, updated by Feature 014 T011).
+ * Displays bell icon with dynamic unread count badge when unreadCount > 0.
+ * Respects LTR/RTL layout via logical start/end positioning.
  */
-export function DashboardNotificationsButton() {
+export function DashboardNotificationsButton({ unreadCount = 0 }: { unreadCount?: number }) {
   const { tApp } = useLocale();
+
+  const countDisplay = unreadCount > 99 ? "99+" : String(unreadCount);
+  const ariaLabel =
+    unreadCount > 0
+      ? tApp.notifications.unreadCountAria.replace("{count}", String(unreadCount))
+      : tApp.notifications.label;
 
   return (
     // A real link (not a Button rendered as `<a role="button">`), styled like the outline icon button.
     <Link
       href="/dashboard/notifications/"
-      aria-label={tApp.notifications.label}
+      aria-label={ariaLabel}
       data-slot="notifications-entry"
-      className="grid size-11 shrink-0 place-items-center rounded-[var(--radius-sm)] border border-[var(--border-strong)] text-foreground transition-[background-color] duration-[var(--dur-fast)] hover:bg-[color-mix(in_srgb,transparent,var(--forest-700)_8%)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus-ring)]"
+      className="relative grid size-11 shrink-0 place-items-center rounded-[var(--radius-sm)] border border-[var(--border-strong)] text-foreground transition-[background-color] duration-[var(--dur-fast)] hover:bg-[color-mix(in_srgb,transparent,var(--forest-700)_8%)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus-ring)]"
     >
       <Icon name="bell" className="size-[18px]" />
+      {unreadCount > 0 && (
+        <span
+          data-slot="unread-badge"
+          aria-hidden="true"
+          className="absolute -top-1.5 -end-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--brand-primary)] px-1 text-[10px] font-bold text-white shadow-sm"
+        >
+          {countDisplay}
+        </span>
+      )}
     </Link>
   );
 }
@@ -114,14 +122,16 @@ export function DashboardTopbarActions({
   displayName,
   avatarPath,
   organizationName,
+  unreadCount = 0,
 }: {
   displayName: string | null;
   avatarPath?: string | null;
   organizationName: string | null;
+  unreadCount?: number;
 }) {
   return (
     <>
-      <DashboardNotificationsButton />
+      <DashboardNotificationsButton unreadCount={unreadCount} />
       <DashboardAccountMenu displayName={displayName} avatarPath={avatarPath} organizationName={organizationName} />
     </>
   );

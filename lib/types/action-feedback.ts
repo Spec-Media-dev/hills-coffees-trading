@@ -293,6 +293,10 @@ export const ACTION_FEEDBACK = {
   NOTIFICATION_PREFERENCES_SAVED: "notification_preferences_saved",
   NOTIFICATION_PREFERENCES_FAILED: "notification_preferences_failed",
   NOTIFICATION_PREFERENCES_NOT_CAPABLE: "notification_preferences_not_capable",
+  /** Feature 014 — notification lifecycle. */
+  NOTIFICATION_MARKED_READ: "notification_marked_read",
+  NOTIFICATION_ALL_MARKED_READ: "notification_all_marked_read",
+  NOTIFICATION_ACTION_FAILED: "notification_action_failed",
 } as const;
 
 export type ActionFeedbackCode = (typeof ACTION_FEEDBACK)[keyof typeof ACTION_FEEDBACK];

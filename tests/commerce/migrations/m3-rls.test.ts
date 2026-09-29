@@ -351,7 +351,9 @@ describe("T058 — rollback and history", () => {
       // The current, unapplied M4b change set may supersede M4a's replay ordering and its financial-read contract.
       .filter((f) => !/^(?:supabase\/(?:migrations|rollback)\/20260926103000_feature_013_quote_and_proforma_issuance|supabase\/maintenance\/20260926_feature_013_quote_and_proforma_issuance_postflight|specs\/013-bank-transfer-commerce-core\/(?:contracts\/(?:database-rpc|rls-storage)\.md|tasks\.md))/.test(f))
       // The current, unapplied M4c-reduced (stock/inventory reservation only) change set — owner scope reduction, 2026-09-28.
-      .filter((f) => !/^(?:supabase\/(?:migrations|rollback)\/20260928120000_feature_013_stock_reservation|supabase\/maintenance\/20260928_feature_013_stock_reservation_postflight|specs\/013-bank-transfer-commerce-core\/(?:spec|plan)\.md)/.test(f));
+      .filter((f) => !/^(?:supabase\/(?:migrations|rollback)\/20260928120000_feature_013_stock_reservation|supabase\/maintenance\/20260928_feature_013_stock_reservation_postflight|specs\/013-bank-transfer-commerce-core\/(?:spec|plan)\.md)/.test(f))
+      // Feature 014 (Sprint 2) active implementation.
+      .filter((f) => !/^(?:specs\/014-notifications-messaging-seo|supabase\/(?:migrations|rollback)\/20260929\d+_feature_014|supabase\/maintenance\/20260929_feature_014)/.test(f));
     expect(changed).toEqual([]);
   });
 });

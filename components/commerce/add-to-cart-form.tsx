@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { startTransition, useActionState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -45,7 +46,14 @@ export function AddToCartForm({ offerId, disabledReason }: { offerId: string; di
       </div>
       {errors.quantityKg ? <p role="alert" className="text-[length:var(--text-small)] text-destructive">{copy.validation}</p> : null}
       {refusal ? <p className="text-[length:var(--text-small)] text-muted-foreground">{refusal}</p> : null}
-      {state?.ok ? <p role="status" className="text-[length:var(--text-small)] text-foreground">{copy.added}</p> : null}
+      {state?.ok ? (
+        <div role="status" className="flex items-center justify-between gap-2 text-[length:var(--text-small)] text-foreground">
+          <span>{copy.added}</span>
+          <Link href="/dashboard/cart" className="font-medium underline underline-offset-4 hover:text-primary">
+            {copy.nav}
+          </Link>
+        </div>
+      ) : null}
       {errorMessage ? <p role="alert" className="text-[length:var(--text-small)] text-destructive">{errorMessage}</p> : null}
       <p className="text-[length:var(--text-micro)] text-muted-foreground">{copy.notReserved}</p>
     </form>

@@ -10,7 +10,7 @@ import { MediaGallery } from "@/components/media/media-gallery";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { getBrowseListingById } from "@/lib/listings/browse";
-import { getBuyerOrganizationId } from "@/lib/commerce/cart";
+import { getBuyerOrganizationId, getCartDisabledReason } from "@/lib/commerce/cart";
 import { projectFillState } from "@/lib/listings/fills";
 import { getOfferMedia } from "@/lib/listings/media";
 
@@ -186,7 +186,7 @@ export default async function MarketplaceListingDetailPage({
                 <AppBilingual pick={(c) => c.marketplace.card.priceUnit} />
               </span>
             </span>
-            <AddToCartForm offerId={listing.id} disabledReason={!buyerOrganizationId ? "unavailable" : buyerOrganizationId === listing.sellerOrganizationId ? "own" : !projection.ok || projection.remainingQuantityKg <= 0 ? "unavailable" : undefined} />
+            <AddToCartForm offerId={listing.id} disabledReason={getCartDisabledReason(buyerOrganizationId, listing.sellerOrganizationId, projection)} />
           </div>
         </section>
       </div>

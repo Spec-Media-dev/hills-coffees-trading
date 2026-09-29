@@ -14,6 +14,7 @@ import { StateScreen } from "@/components/layout/state-screen";
 import { getRequestIdentity } from "@/lib/auth/dal";
 import { setActingOrganization } from "@/lib/auth/eligibility";
 import { DASHBOARD_MODULES } from "@/lib/dashboard/registry";
+import { getUnreadNotificationCount } from "@/lib/notifications/read";
 
 /**
  * Member Portal (`/dashboard`) — server-side authorization guard (unchanged) + application shell
@@ -169,6 +170,8 @@ export default async function DashboardLayout({
     );
   }
 
+  const unreadCount = await getUnreadNotificationCount();
+
   return (
     <AppShell
       navGroups={buildDashboardNavGroups({ modules: DASHBOARD_MODULES, organization: identity.organization })}
@@ -187,6 +190,7 @@ export default async function DashboardLayout({
           displayName={identity.profile.fullName ?? identity.profile.companyName ?? null}
           avatarPath={identity.profile.avatarPath}
           organizationName={identity.organization.displayName}
+          unreadCount={unreadCount}
         />
       }
     >

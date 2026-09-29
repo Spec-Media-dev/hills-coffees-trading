@@ -3,6 +3,7 @@ import Link from "next/link";
 
 import { ListingStatusBadge } from "@/components/listings/listing-status-badge";
 import { AddToCartForm } from "@/components/commerce/add-to-cart-form";
+import { getCartDisabledReason } from "@/lib/commerce/cart";
 import { AppBilingual } from "@/components/locale/app-bilingual";
 import { Icon } from "@/components/ui/icon";
 import { appCopy } from "@/lib/app/copy";
@@ -89,7 +90,7 @@ export function ListingCard({ listing, projection, imageUrl = null, buyerOrganiz
       </div>
     </Link>
     <div className="border-t border-border p-5">
-      <AddToCartForm offerId={listing.id} disabledReason={!buyerOrganizationId ? "unavailable" : buyerOrganizationId === listing.sellerOrganizationId ? "own" : !projection.ok || projection.remainingQuantityKg <= 0 ? "unavailable" : undefined} />
+      <AddToCartForm offerId={listing.id} disabledReason={getCartDisabledReason(buyerOrganizationId, listing.sellerOrganizationId, projection)} />
     </div>
     </article>
   );

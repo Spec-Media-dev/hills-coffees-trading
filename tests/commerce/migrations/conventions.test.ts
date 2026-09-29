@@ -49,7 +49,10 @@ describe("T019 — Feature 013 migration inventory", () => {
     const all = readdirSync(MIGRATIONS).sort();
     // No pre-013 file may appear after a Feature 013 file (Feature 013 only appends).
     const firstF013 = all.findIndex((file) => file.includes("_feature_013_"));
-    if (firstF013 !== -1) for (const file of all.slice(firstF013)) expect(file.includes("_feature_013_"), file).toBe(true);
+    if (firstF013 !== -1) for (const file of all.slice(firstF013)) {
+      expect(file.slice(0, 14) >= LAST_PRE_013_VERSION, file).toBe(true);
+      expect(file, file).toMatch(/_feature_01[34]_/);
+    }
   });
 
   it("every Feature 013 migration has its paired rollback and read-only postflight", () => {

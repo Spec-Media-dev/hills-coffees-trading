@@ -10,10 +10,10 @@
  * - No email/SMS/WhatsApp delivery provider is approved (SRS §12), and `notification_deliveries` is
  *   writable only by `is_platform_admin()`.
  *
- * CONSEQUENCE — WHAT THIS FEATURE MUST NOT DO: generate notifications (from orders, disputes,
- * payments or anything else), keep a client-side/local-storage "read" state, show an unread count, or
- * offer a "mark as read" control. Each would simulate a capability the approved system does not have.
- * The notification page reads what genuinely exists (usually nothing) and states this limitation.
+ * CONSEQUENCE — WHAT THIS FEATURE MUST NOT DO:
+ * Feature 014 adds database-backed read/unread lifecycle RPCs (canMarkRead: true).
+ * What remains unapproved: external delivery channels (email/SMS/WhatsApp), client-side/local-storage
+ * synthetic state, or direct table writes bypassing RPCs.
  *
  * `tests/disputes/honest-limitations.test.ts` fails if any of the flags below turns `true` without
  * the corresponding database capability being recorded.
@@ -21,6 +21,6 @@
 export const NOTIFICATION_LIMITATIONS = Object.freeze({
   blocker: "DB-BLOCK-04",
   canGenerate: false,
-  canMarkRead: false,
+  canMarkRead: true,
   deliveryChannelsApproved: false,
 } as const);

@@ -457,4 +457,27 @@ export const DASHBOARD_MODULES: readonly DashboardModule[] = [
       },
     ],
   },
+  /**
+   * Feature 014 (T020) — Support & Messaging (live at `/dashboard/messages`).
+   * Member organization communication channel with Hills Operations.
+   */
+  {
+    id: "messages",
+    requiredCapability: "member",
+    navGroups: [
+      {
+        key: "account",
+        label: <AppBilingual pick={(c) => c.account} />,
+        entries: [
+          {
+            id: "messages",
+            label: <AppBilingual pick={(c) => c.supportMessaging.breadcrumb} />,
+            href: "/dashboard/messages",
+            icon: <Icon name="message-circle" className="size-[18px]" />,
+            requiredCapability: "member",
+          },
+        ],
+      },
+    ],
+  },
 ];
