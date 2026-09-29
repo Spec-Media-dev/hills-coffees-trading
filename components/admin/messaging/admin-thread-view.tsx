@@ -27,7 +27,7 @@ export function AdminThreadView({ ticket }: { ticket: SupportTicketDetailDTO }) 
         status: newStatus,
       });
       if (!res.ok) {
-        setErrorMsg(res.message || "Failed to update status.");
+        setErrorMsg(tApp.supportMessaging.errors.updateFailed);
       }
     });
   };
@@ -43,7 +43,7 @@ export function AdminThreadView({ ticket }: { ticket: SupportTicketDetailDTO }) 
         body: replyBody.trim(),
       });
       if (!res.ok) {
-        setErrorMsg(res.message || "Failed to send staff reply.");
+        setErrorMsg(res.error === "VALIDATION_FAILED" ? tApp.supportMessaging.errors.reopenFirst : tApp.supportMessaging.errors.replyFailed);
       } else {
         setReplyBody("");
       }
@@ -54,7 +54,7 @@ export function AdminThreadView({ ticket }: { ticket: SupportTicketDetailDTO }) 
     <div className="flex flex-col gap-6">
       {/* Ticket Meta & Status Controls Card */}
       <div className="flex flex-wrap items-center justify-between gap-4 rounded-[var(--radius-lg)] border border-border bg-card p-4 shadow-xs">
-        <div className="flex flex-col gap-1.5">
+        <div className="flex min-w-0 flex-col gap-1.5">
           <div className="flex flex-wrap items-center gap-2.5">
             <span dir="ltr" className="font-mono text-lg font-bold text-foreground">
               {ticket.ticketCode}
@@ -69,7 +69,7 @@ export function AdminThreadView({ ticket }: { ticket: SupportTicketDetailDTO }) 
               </span>
             )}
           </div>
-          <p className="text-sm font-semibold text-foreground">{ticket.subject}</p>
+          <p className="break-words text-sm font-semibold text-foreground">{ticket.subject}</p>
           <div className="text-xs text-muted-foreground">
             <AdminDateTime value={ticket.createdAt} fallback="—" />
           </div>
@@ -82,7 +82,7 @@ export function AdminThreadView({ ticket }: { ticket: SupportTicketDetailDTO }) 
               type="button"
               disabled={isPending}
               onClick={() => handleStatusChange("RESOLVED")}
-              className="inline-flex min-h-9 items-center gap-1.5 rounded-[var(--radius-sm)] border border-[var(--success)]/40 bg-[var(--success-surface)] px-3 py-1 text-xs font-semibold text-[var(--success)] hover:bg-[var(--success-surface)]/80 disabled:opacity-50"
+              className="inline-flex min-h-11 items-center gap-1.5 rounded-[var(--radius-sm)] border border-[var(--success)]/40 bg-[var(--success-surface)] px-3 py-1 text-xs font-semibold text-[var(--success)] hover:bg-[var(--success-surface)]/80 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus-ring)] disabled:opacity-50"
             >
               <Icon name="badge-check" className="size-3.5" />
               <AppBilingual pick={(c) => c.supportMessaging.markResolved} />
@@ -94,7 +94,7 @@ export function AdminThreadView({ ticket }: { ticket: SupportTicketDetailDTO }) 
               type="button"
               disabled={isPending}
               onClick={() => handleStatusChange("CLOSED")}
-              className="inline-flex min-h-9 items-center gap-1.5 rounded-[var(--radius-sm)] border border-border bg-muted px-3 py-1 text-xs font-semibold text-muted-foreground hover:text-foreground disabled:opacity-50"
+              className="inline-flex min-h-11 items-center gap-1.5 rounded-[var(--radius-sm)] border border-border bg-muted px-3 py-1 text-xs font-semibold text-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus-ring)] disabled:opacity-50"
             >
               <Icon name="circle-x" className="size-3.5" />
               <AppBilingual pick={(c) => c.supportMessaging.closeTicket} />
@@ -104,7 +104,7 @@ export function AdminThreadView({ ticket }: { ticket: SupportTicketDetailDTO }) 
               type="button"
               disabled={isPending}
               onClick={() => handleStatusChange("IN_PROGRESS")}
-              className="inline-flex min-h-9 items-center gap-1.5 rounded-[var(--radius-sm)] border border-[var(--warning)]/40 bg-[var(--warning-surface)] px-3 py-1 text-xs font-semibold text-[var(--warning)] hover:bg-[var(--warning-surface)]/80 disabled:opacity-50"
+              className="inline-flex min-h-11 items-center gap-1.5 rounded-[var(--radius-sm)] border border-[var(--warning)]/40 bg-[var(--warning-surface)] px-3 py-1 text-xs font-semibold text-[var(--warning)] hover:bg-[var(--warning-surface)]/80 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus-ring)] disabled:opacity-50"
             >
               <Icon name="clock" className="size-3.5" />
               <AppBilingual pick={(c) => c.supportMessaging.reopenTicket} />
@@ -114,7 +114,7 @@ export function AdminThreadView({ ticket }: { ticket: SupportTicketDetailDTO }) 
       </div>
 
       {errorMsg && (
-        <div className="rounded-[var(--radius-md)] border border-destructive/30 bg-destructive/10 p-3 text-xs font-medium text-destructive">
+        <div role="alert" className="rounded-[var(--radius-md)] border border-destructive/30 bg-destructive/10 p-3 text-xs font-medium text-destructive">
           {errorMsg}
         </div>
       )}
@@ -128,6 +128,11 @@ export function AdminThreadView({ ticket }: { ticket: SupportTicketDetailDTO }) 
       </section>
 
       {/* Staff Reply Composer */}
+      {ticket.status === "CLOSED" ? (
+        <p className="rounded-[var(--radius-lg)] border border-border bg-[var(--surface-subtle)] p-4 text-sm text-muted-foreground">
+          <AppBilingual pick={(c) => c.supportMessaging.ticketClosedNotice} />
+        </p>
+      ) : (
       <form onSubmit={handleSendReply} className="flex flex-col gap-3 rounded-[var(--radius-lg)] border border-border bg-card p-4 shadow-xs">
         <label htmlFor="staff-reply" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
           <AppBilingual pick={(c) => c.supportMessaging.postStaffReply} />
@@ -139,6 +144,7 @@ export function AdminThreadView({ ticket }: { ticket: SupportTicketDetailDTO }) 
           onChange={(e) => setReplyBody(e.target.value)}
           placeholder={tApp.supportMessaging.staffReplyPlaceholder}
           disabled={isPending}
+          maxLength={4000}
           className="w-full resize-y rounded-[var(--radius-md)] border border-input bg-background p-3 text-sm text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus-ring)] disabled:cursor-not-allowed disabled:opacity-50"
         />
 
@@ -149,7 +155,7 @@ export function AdminThreadView({ ticket }: { ticket: SupportTicketDetailDTO }) 
           <button
             type="submit"
             disabled={isPending || !replyBody.trim()}
-            className="inline-flex min-h-10 items-center gap-1.5 rounded-[var(--radius-sm)] bg-[var(--brand-primary)] px-4 text-xs font-semibold text-white hover:bg-[color-mix(in_srgb,var(--brand-primary),black_10%)] disabled:opacity-50"
+            className="inline-flex min-h-11 items-center gap-1.5 rounded-[var(--radius-sm)] bg-[var(--brand-primary)] px-4 text-xs font-semibold text-white hover:bg-[color-mix(in_srgb,var(--brand-primary),black_10%)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus-ring)] disabled:opacity-50"
           >
             <Icon name="check" className="size-4" />
             <span>
@@ -164,6 +170,7 @@ export function AdminThreadView({ ticket }: { ticket: SupportTicketDetailDTO }) 
           </button>
         </div>
       </form>
+      )}
     </div>
   );
 }

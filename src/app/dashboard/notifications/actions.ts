@@ -38,7 +38,7 @@ export async function markNotificationReadAction(
   });
 
   if (error) {
-    return { ok: false, error: error.message || "mark_read_failed", code: "notification_action_failed" };
+    return { ok: false, error: "mark_read_failed", code: "notification_action_failed" };
   }
 
   revalidatePath("/dashboard/notifications");
@@ -61,7 +61,7 @@ export async function markAllNotificationsReadAction(): Promise<
   const { data, error } = await supabase.rpc("mark_all_notifications_read");
 
   if (error) {
-    return { ok: false, error: error.message || "mark_all_read_failed", code: "notification_action_failed" };
+    return { ok: false, error: "mark_all_read_failed", code: "notification_action_failed" };
   }
 
   revalidatePath("/dashboard/notifications");

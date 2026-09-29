@@ -88,10 +88,9 @@ describe("T025 — Full-System Integration: Step 2 — Authentication Boundary G
 describe("T025 — Full-System Integration: Step 3 & 4 — Cart, Proforma & Notification Trigger", () => {
   it("defines active order notification types for proforma and holds", () => {
     expect(ACTIVE_NOTIFICATION_TYPES).toContain("ORDER_PROFORMA_ISSUED");
-    expect(ACTIVE_NOTIFICATION_TYPES).toContain("ORDER_PAYMENT_PENDING");
     expect(ACTIVE_NOTIFICATION_TYPES).toContain("RESERVATION_CONFIRMED");
-    expect(ACTIVE_NOTIFICATION_TYPES).toContain("RESERVATION_EXPIRING");
     expect(ACTIVE_NOTIFICATION_TYPES).toContain("RESERVATION_EXPIRED");
+    expect(ACTIVE_NOTIFICATION_TYPES).toHaveLength(3);
   });
 
   it("verifies order transition to PROFORMA_ISSUED generates in-app notification row payload", () => {

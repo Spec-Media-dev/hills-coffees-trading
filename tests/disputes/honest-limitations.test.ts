@@ -47,7 +47,7 @@ const sentencesOf = (value: unknown) => leafStrings(value).flatMap((text) => tex
 
 describe("DB-BLOCK-04 & Feature 014 — notification lifecycle and product isolation", () => {
   it("limitation flags reflect database-backed read capability under Feature 014", () => {
-    expect(NOTIFICATION_LIMITATIONS).toEqual({ blocker: "DB-BLOCK-04", canGenerate: false, canMarkRead: true, deliveryChannelsApproved: false });
+    expect(NOTIFICATION_LIMITATIONS).toEqual({ blocker: "DB-BLOCK-04", canGenerate: true, canMarkRead: true, deliveryChannelsApproved: false });
   });
 
   it("the baseline schema report records historical state before Feature 014 migration", () => {
@@ -88,8 +88,8 @@ describe("DB-BLOCK-04 & Feature 014 — notification lifecycle and product isola
   it("the notification copy states the limitation in EN and AR and never promises delivery", () => {
     const en = getAppCopy("en");
     const ar = getAppCopy("ar");
-    expect(en.notificationCenter.limitation.generate).toMatch(/does not create notifications/);
-    expect(en.notificationCenter.limitation.readState).toMatch(/cannot be marked as read/);
+    expect(en.notificationCenter.limitation.generate).toMatch(/proforma issuance and stock reservation/);
+    expect(en.notificationCenter.limitation.readState).toMatch(/mark your own notifications as read/);
     expect(en.notificationPreferences.honesty).toMatch(/does not send notifications/);
     for (const key of ["generate", "readState", "delivery"] as const) expect(ar.notificationCenter.limitation[key]).not.toBe(en.notificationCenter.limitation[key]);
     for (const sentence of sentencesOf([en.notificationCenter, en.notificationPreferences])) {

@@ -32,7 +32,7 @@ export function TicketList({ tickets }: { tickets: SupportTicketListItemDTO[] })
             className="flex flex-col gap-2 rounded-[var(--radius-lg)] border border-border bg-card p-4 transition-colors hover:border-[var(--brand-primary)]/40 hover:bg-[color-mix(in_srgb,var(--card),var(--brand-primary)_2%)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus-ring)]"
           >
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="flex items-center gap-2.5">
+              <div className="flex min-w-0 flex-wrap items-center gap-2.5">
                 <span
                   data-slot="ticket-code-badge"
                   dir="ltr"
@@ -54,7 +54,7 @@ export function TicketList({ tickets }: { tickets: SupportTicketListItemDTO[] })
               </span>
             </div>
 
-            <p className="text-sm font-medium text-foreground line-clamp-1">
+            <p className="min-w-0 break-words text-sm font-medium text-foreground line-clamp-1">
               {ticket.subject}
             </p>
           </Link>

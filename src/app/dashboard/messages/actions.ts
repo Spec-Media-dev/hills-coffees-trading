@@ -36,11 +36,10 @@ export async function createSupportTicketAction(input: CreateTicketInput): Promi
   const supabase = await createClient();
 
   // If orderId is linked, verify caller belongs to buyer or seller organization of this order
-  let orderCodeSnapshot: string | null = null;
   if (parsed.data.orderId) {
     const { data: order, error: orderErr } = await supabase
       .from("orders")
-      .select("id, order_code, buyer_organization_id, seller_organization_id")
+      .select("id, buyer_organization_id, seller_organization_id")
       .eq("id", parsed.data.orderId)
       .maybeSingle();
 
@@ -52,43 +51,24 @@ export async function createSupportTicketAction(input: CreateTicketInput): Promi
     if (order.buyer_organization_id !== orgId && order.seller_organization_id !== orgId) {
       return { ok: false, error: "ORDER_NOT_FOUND" };
     }
-
-    orderCodeSnapshot = order.order_code;
   }
 
-  // Insert ticket (trigger generates ticket_code automatically)
-  const { data: ticket, error: ticketErr } = await supabase
-    .from("support_tickets")
-    .insert({
-      requester_user_id: identity.userId,
-      requester_organization_id: identity.organization.organizationId,
-      subject: parsed.data.subject,
-      priority: parsed.data.priority ?? "NORMAL",
-      status: "OPEN",
-      order_id: parsed.data.orderId ?? null,
-      order_code_snapshot: orderCodeSnapshot,
-    })
-    .select("id, ticket_code")
-    .single();
+  // One RPC inserts the ticket and initial message atomically. The database
+  // derives requester/author IDs and verifies the acting organization again.
+  const { data: ticket, error: ticketErr } = await supabase.rpc("create_member_support_ticket", {
+    p_subject: parsed.data.subject,
+    p_body: parsed.data.initialMessage,
+    p_priority: parsed.data.priority ?? "NORMAL",
+    p_order_id: parsed.data.orderId ?? null,
+    p_org_id: identity.organization.organizationId,
+  });
 
-  if (ticketErr || !ticket) {
+  if (ticketErr || !ticket || typeof ticket.ticket_id !== "string" || typeof ticket.ticket_code !== "string") {
     return { ok: false, error: "INTERNAL_ERROR", message: "Failed to create support ticket." };
   }
 
-  // Insert initial message
-  const { error: messageErr } = await supabase.from("support_messages").insert({
-    ticket_id: ticket.id,
-    author_user_id: identity.userId,
-    is_staff_reply: false,
-    body: parsed.data.initialMessage,
-  });
-
-  if (messageErr) {
-    return { ok: false, error: "INTERNAL_ERROR", message: "Ticket created but initial message failed." };
-  }
-
   revalidatePath("/dashboard/messages");
-  return { ok: true, ticketId: ticket.id, ticketCode: ticket.ticket_code };
+  return { ok: true, ticketId: ticket.ticket_id, ticketCode: ticket.ticket_code };
 }
 
 /**
@@ -143,14 +123,6 @@ export async function sendSupportMessageAction(input: SendMessageInput): Promise
   if (messageErr || !message) {
     return { ok: false, error: "INTERNAL_ERROR" };
   }
-
-  // If status was RESOLVED, reopen to IN_PROGRESS upon member reply
-  const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
-  if (ticket.status === "RESOLVED") {
-    updates.status = "IN_PROGRESS";
-  }
-
-  await supabase.from("support_tickets").update(updates).eq("id", parsed.data.ticketId);
 
   revalidatePath("/dashboard/messages");
   revalidatePath(`/dashboard/messages/${parsed.data.ticketId}`);

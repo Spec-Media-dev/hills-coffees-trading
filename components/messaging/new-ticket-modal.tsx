@@ -30,7 +30,7 @@ export function NewTicketModal({
   const { tApp } = useLocale();
   const [open, setOpen] = useState(initialOpen);
   const [subject, setSubject] = useState(
-    initialOrderCode ? `Inquiry regarding order ${initialOrderCode}` : ""
+    initialOrderCode ? tApp.supportMessaging.subjectForOrder.replace("{code}", initialOrderCode) : ""
   );
   const [priority, setPriority] = useState<SupportTicketPriority>("NORMAL");
   const [initialMessage, setInitialMessage] = useState("");
@@ -58,7 +58,7 @@ export function NewTicketModal({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!subject.trim() || !initialMessage.trim()) {
-      setErrorMessage("Please complete all required fields.");
+      setErrorMessage(tApp.supportMessaging.errors.required);
       return;
     }
 
@@ -72,7 +72,7 @@ export function NewTicketModal({
       });
 
       if (!res.ok) {
-        setErrorMessage(res.message || "Failed to create ticket. Please try again.");
+        setErrorMessage(tApp.supportMessaging.errors.createFailed);
       } else {
         setCreatedTicket({
           ticketId: res.ticketId,
@@ -121,7 +121,7 @@ export function NewTicketModal({
               </p>
             </div>
 
-            <DialogFooter className="mt-4 flex flex-row items-center justify-end gap-3">
+            <DialogFooter className="mt-4 flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-end">
               <DialogClose className="inline-flex min-h-11 items-center rounded-[var(--radius-sm)] border border-input px-4 text-sm font-medium hover:bg-muted">
                 <AppBilingual pick={(c) => c.supportMessaging.cancel} />
               </DialogClose>
@@ -208,10 +208,10 @@ export function NewTicketModal({
             </div>
 
             {errorMessage && (
-              <p className="text-xs font-medium text-destructive">{errorMessage}</p>
+              <p role="alert" className="text-xs font-medium text-destructive">{errorMessage}</p>
             )}
 
-            <DialogFooter className="mt-2 flex flex-row items-center justify-end gap-3">
+            <DialogFooter className="mt-2 flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-end">
               <DialogClose className="inline-flex min-h-11 items-center rounded-[var(--radius-sm)] border border-input px-4 text-sm font-medium hover:bg-muted">
                 <AppBilingual pick={(c) => c.supportMessaging.cancel} />
               </DialogClose>

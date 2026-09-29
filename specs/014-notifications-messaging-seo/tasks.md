@@ -523,7 +523,7 @@
 
 **CRITICAL**: CODEX REVIEW RECOMMENDED for T031. Never apply during normal implementation.
 
-- [ ] T031 Execute operator-gated Production dry-run, migration apply, and postflight verification for feature migrations in supabase/
+- [ ] T031 [READY FOR OWNER PUSH / FINAL LIVE VERIFY] Execute operator-gated Production dry-run, migration apply, and postflight verification for feature migrations in supabase/
   - **Exact Goal**: Operator executes dry-run against linked Production project (`mxejnutukgxyccnohglo`), verifies only the approved forward migrations will apply, executes apply, and runs postflight query verifications.
   - **Likely Files**:
     - `supabase/migrations/20260929100000_feature_014_notifications_lifecycle.sql`
@@ -542,7 +542,7 @@
   - **Validation / Test Expectation**: All postflight checks pass on Production; 9/9 M4b pass; 7/7 M4c pass.
   - **CODEX REVIEW RECOMMENDED**.
 
-- [ ] T032 Execute live production smoke test on Vercel deployment (https://hills-coffees-trading.vercel.app)
+- [ ] T032 [READY FOR OWNER PUSH / FINAL LIVE VERIFY] Execute live production smoke test on Vercel deployment (https://hills-coffees-trading.vercel.app)
   - **Exact Goal**: Verify live production deployment across public SEO tags, sitemap, notification feed badge, support ticket thread with `ticket_code` display, and admin console.
   - **Likely Files**: Live URLs on `https://hills-coffees-trading.vercel.app`
   - **Dependency**: T031.

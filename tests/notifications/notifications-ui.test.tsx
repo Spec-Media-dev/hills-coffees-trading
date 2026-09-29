@@ -5,6 +5,7 @@ import { DashboardNotificationsButton } from "@/components/dashboard/topbar";
 import { NotificationItem } from "@/components/notifications/notification-item";
 import { MarkAllReadButton } from "@/components/notifications/mark-all-read-button";
 import type { OwnNotificationDTO } from "@/lib/notifications/types";
+import { getAppCopy } from "@/lib/app/copy";
 
 vi.mock("@/components/locale/locale-provider", () => ({
   useLocale: () => ({
@@ -17,6 +18,7 @@ vi.mock("@/components/locale/locale-provider", () => ({
       },
     },
     tApp: {
+      notificationCenter: getAppCopy("en").notificationCenter,
       notifications: {
         label: "Notifications",
         unavailable: "Notifications aren't available yet.",
@@ -91,7 +93,7 @@ describe("Feature 014 — Notification UI Components (T010 & T011)", () => {
       render(<NotificationItem notification={unreadNotification} />);
       expect(screen.getByText("Proforma Invoice Ready")).toBeTruthy();
       expect(screen.getByText("Please review your proforma invoice.")).toBeTruthy();
-      expect(screen.getByRole("button", { name: /mark notification as read/i })).toBeTruthy();
+      expect(screen.getByRole("button", { name: /mark as read/i })).toBeTruthy();
       const item = screen.getByRole("listitem");
       expect(item.getAttribute("data-unread")).toBe("true");
     });
@@ -99,7 +101,7 @@ describe("Feature 014 — Notification UI Components (T010 & T011)", () => {
     it("renders read state without mark-as-read button", () => {
       render(<NotificationItem notification={readNotification} />);
       expect(screen.getByText("Order Placed on Hold")).toBeTruthy();
-      expect(screen.queryByRole("button", { name: /mark notification as read/i })).toBeNull();
+      expect(screen.queryByRole("button", { name: /mark as read/i })).toBeNull();
       const item = screen.getByRole("listitem");
       expect(item.getAttribute("data-unread")).toBe("false");
     });
@@ -113,7 +115,7 @@ describe("Feature 014 — Notification UI Components (T010 & T011)", () => {
 
     it("renders button when unreadCount > 0", () => {
       render(<MarkAllReadButton unreadCount={5} />);
-      const button = screen.getByRole("button", { name: /mark all notifications as read/i });
+      const button = screen.getByRole("button", { name: /mark all as read/i });
       expect(button).toBeTruthy();
     });
   });

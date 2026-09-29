@@ -66,10 +66,7 @@ export type OwnNotificationPage = { rows: readonly OwnNotificationDTO[]; hasMore
 /** Active in-app notification types supported in Sprint 2 / Feature 014 */
 export const ACTIVE_NOTIFICATION_TYPES = [
   "ORDER_PROFORMA_ISSUED",
-  "ORDER_PAYMENT_PENDING",
   "RESERVATION_CONFIRMED",
-  "RESERVATION_EXPIRING",
   "RESERVATION_EXPIRED",
-  "SUPPORT_REPLY",
 ] as const;
 export type ActiveNotificationType = (typeof ACTIVE_NOTIFICATION_TYPES)[number];

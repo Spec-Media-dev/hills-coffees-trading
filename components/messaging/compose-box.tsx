@@ -41,7 +41,7 @@ export function ComposeBox({
       });
 
       if (!res.ok) {
-        setErrorMsg(res.error === "TICKET_CLOSED" ? tApp.supportMessaging.ticketClosedNotice : "Failed to send message. Please try again.");
+        setErrorMsg(res.error === "TICKET_CLOSED" ? tApp.supportMessaging.ticketClosedNotice : tApp.supportMessaging.errors.replyFailed);
       } else {
         setBody("");
       }
@@ -66,7 +66,7 @@ export function ComposeBox({
       />
 
       {errorMsg && (
-        <p className="text-xs font-medium text-destructive">{errorMsg}</p>
+        <p role="alert" className="text-xs font-medium text-destructive">{errorMsg}</p>
       )}
 
       <div className="flex items-center justify-between gap-4 pt-1">

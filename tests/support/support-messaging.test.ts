@@ -53,6 +53,11 @@ vi.mock("next/cache", () => ({
   revalidatePath: vi.fn(),
 }));
 
+const migrationSql = readFileSync(
+  path.join(process.cwd(), "supabase/migrations/20260929110000_feature_014_support_ticket_reference.sql"),
+  "utf8"
+);
+
 describe("Feature 014 — Support Messaging Security & Ticket Reference (T012)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -78,10 +83,6 @@ describe("Feature 014 — Support Messaging Security & Ticket Reference (T012)",
   });
 
   describe("Database Migration Static Verification", () => {
-    const migrationSql = readFileSync(
-      path.join(process.cwd(), "supabase/migrations/20260929110000_feature_014_support_ticket_reference.sql"),
-      "utf8"
-    );
 
     it("declares HLP-YYYYMMDD-XXXXXXX reference code format", () => {
       expect(migrationSql).toMatch(/'HLP-' \|\| to_char\(clock_timestamp\(\), 'YYYYMMDD'\) \|\| '-' \|\| lpad\(nextval\('public\.support_ticket_code_seq'\)::text, 7, '0'\)/);
@@ -110,6 +111,9 @@ describe("Feature 014 — Support Messaging Security & Ticket Reference (T012)",
       expect(migrationSql).toContain("for update");
       expect(migrationSql).toContain("drop policy if exists tickets_view_own_or_admin");
       expect(migrationSql).toContain("drop policy if exists messages_insert_access");
+      expect(migrationSql).toContain("revoke all on function public.next_support_ticket_code() from public, anon, authenticated, service_role");
+      expect(migrationSql).toContain("grant execute on function public.create_member_support_ticket(text,text,text,uuid,uuid) to authenticated");
+      expect(migrationSql).toContain("length(btrim(new.body)) not between 1 and 4000");
     });
   });
 
@@ -125,31 +129,13 @@ describe("Feature 014 — Support Messaging Security & Ticket Reference (T012)",
       if (!res.ok) expect(res.error).toBe("UNAUTHORIZED");
     });
 
-    it("derives requester_user_id and requester_organization_id strictly from session", async () => {
+    it("uses the atomic RPC with the server-resolved acting organization", async () => {
       const insertedTicket = {
-        id: "ticket-1111-uuid",
+        ticket_id: "ticket-1111-uuid",
         ticket_code: "HLP-20260928-0001001",
       };
-
-      const ticketInsertMock = vi.fn(() => ({
-        select: vi.fn(() => ({
-          single: vi.fn(async () => ({ data: insertedTicket, error: null })),
-        })),
-      }));
-
-      const messageInsertMock = vi.fn(async () => ({ data: { id: "msg-1" }, error: null }));
-
-      mockSupabase.client = {
-        from: vi.fn((table: string) => {
-          if (table === "support_tickets") {
-            return { insert: ticketInsertMock };
-          }
-          if (table === "support_messages") {
-            return { insert: messageInsertMock };
-          }
-          return {};
-        }),
-      } as unknown as SupabaseClient;
+      const rpcMock = vi.fn(async () => ({ data: insertedTicket, error: null }));
+      mockSupabase.client = { rpc: rpcMock } as unknown as SupabaseClient;
 
       const res = await createSupportTicketAction({
         subject: "Need help with shipment",
@@ -163,26 +149,17 @@ describe("Feature 014 — Support Messaging Security & Ticket Reference (T012)",
         expect(res.ticketCode).toBe("HLP-20260928-0001001");
       }
 
-      // Assert that inserted ticket used session identity
-      expect(ticketInsertMock).toHaveBeenCalledWith(
+      expect(rpcMock).toHaveBeenCalledWith(
+        "create_member_support_ticket",
         expect.objectContaining({
-          requester_user_id: "usr-org-a-member-1",
-          requester_organization_id: "org-aaa-1111",
-          subject: "Need help with shipment",
-          priority: "HIGH",
-          status: "OPEN",
+          p_org_id: "org-aaa-1111",
+          p_subject: "Need help with shipment",
+          p_body: "Where is my lot?",
+          p_priority: "HIGH",
         })
       );
-
-      // Assert initial message used session author
-      expect(messageInsertMock).toHaveBeenCalledWith(
-        expect.objectContaining({
-          ticket_id: "ticket-1111-uuid",
-          author_user_id: "usr-org-a-member-1",
-          is_staff_reply: false,
-          body: "Where is my lot?",
-        })
-      );
+      expect(migrationSql).toContain("values (auth.uid(), p_org_id, btrim(p_subject), p_priority, p_order_id)");
+      expect(migrationSql).toContain("values (v_ticket.id, auth.uid(), btrim(p_body))");
     });
 
     it("rejects linking an order that does not belong to caller's organization", async () => {
@@ -286,7 +263,7 @@ describe("Feature 014 — Support Messaging Security & Ticket Reference (T012)",
       if (!res.ok) expect(res.error).toBe("TICKET_CLOSED");
     });
 
-    it("reopens a RESOLVED ticket to IN_PROGRESS upon member reply", async () => {
+    it("lets the database reopen a RESOLVED ticket atomically on member reply", async () => {
       const updateMock = vi.fn(() => ({
         eq: vi.fn(async () => ({ error: null })),
       }));
@@ -330,11 +307,8 @@ describe("Feature 014 — Support Messaging Security & Ticket Reference (T012)",
       });
 
       expect(res.ok).toBe(true);
-      expect(updateMock).toHaveBeenCalledWith(
-        expect.objectContaining({
-          status: "IN_PROGRESS",
-        })
-      );
+      expect(updateMock).not.toHaveBeenCalled();
+      expect(migrationSql).toContain("when v_ticket.status in ('RESOLVED', 'WAITING_FOR_CUSTOMER') and not new.is_staff_reply then 'IN_PROGRESS'");
     });
   });
 
@@ -352,7 +326,7 @@ describe("Feature 014 — Support Messaging Security & Ticket Reference (T012)",
     it("allows platform admin to close a ticket and marks closed_at", async () => {
       mockIdentity.value.operationalRoles = ["ADMIN"];
       const updateMock = vi.fn(() => ({
-        eq: vi.fn(async () => ({ error: null })),
+        eq: vi.fn(() => ({ select: vi.fn(() => ({ maybeSingle: vi.fn(async () => ({ data: { id: "b0000000-0000-4000-8000-000000000001" }, error: null })) })) })),
       }));
 
       mockSupabase.client = {
@@ -374,6 +348,21 @@ describe("Feature 014 — Support Messaging Security & Ticket Reference (T012)",
           closed_at: expect.any(String),
         })
       );
+    });
+
+    it("does not report success when a ticket update matched no visible row", async () => {
+      mockIdentity.value.operationalRoles = ["ADMIN"];
+      mockSupabase.client = {
+        from: vi.fn(() => ({ update: vi.fn(() => ({
+          eq: vi.fn(() => ({ select: vi.fn(() => ({ maybeSingle: vi.fn(async () => ({ data: null, error: null })) })) })),
+        })) })),
+      } as unknown as SupabaseClient;
+
+      const res = await adminUpdateTicketStatusAction({
+        ticketId: "b0000000-0000-4000-8000-000000000001",
+        status: "CLOSED",
+      });
+      expect(res).toEqual({ ok: false, error: "NOT_FOUND" });
     });
 
     it("sets is_staff_reply: true when platform admin replies", async () => {

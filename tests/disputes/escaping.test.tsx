@@ -41,7 +41,7 @@ vi.mock("@/lib/disputes/read", () => ({
   getDisputeForMember: vi.fn(async () => mocks.dispute),
   getDisputeEvidenceForMember: vi.fn(async () => mocks.evidence),
 }));
-vi.mock("@/lib/notifications/read", () => ({ listOwnNotifications: vi.fn(async () => mocks.notifications) }));
+vi.mock("@/lib/notifications/read", () => ({ listOwnNotifications: vi.fn(async () => mocks.notifications), getUnreadNotificationCount: vi.fn(async () => 0) }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));
 vi.mock("next/navigation", () => ({ notFound: () => { throw new Error("NEXT_NOT_FOUND"); }, useRouter: () => ({ push: vi.fn() }) }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
@@ -100,15 +100,15 @@ describe("Member surface — /dashboard/disputes/[disputeId]", () => {
 });
 
 describe("Member surface — /dashboard/notifications", () => {
-  it("a notification's title and body render as literal text; no read/unread control exists", async () => {
+  it("a notification's title and body render as literal text alongside its read control", async () => {
     mocks.identity = identity;
     mocks.notifications = { rows: [{ id: "n1", notificationType: "ORDER_UPDATES", title: PAYLOADS.title, body: PAYLOADS.body, createdAt: "2026-09-19T00:00:00Z" }], hasMore: false, page: 0, pageSize: 25 };
     const { default: Page } = await import("@/src/app/dashboard/notifications/page");
-    const { container } = render(<LocaleProvider>{await Page()}</LocaleProvider>);
+    const { container } = render(<LocaleProvider>{await Page({})}</LocaleProvider>);
     assertInert(container);
     expect(container.querySelector('[data-slot="notification-title"]')?.textContent).toBe(PAYLOADS.title);
     expect(container.querySelector('[data-slot="notification-body"]')?.textContent).toBe(PAYLOADS.body);
-    expect(container.querySelector("button")).toBeNull();
+    expect(container.querySelector('[data-slot="mark-read-button"]')).not.toBeNull();
   });
 });
 

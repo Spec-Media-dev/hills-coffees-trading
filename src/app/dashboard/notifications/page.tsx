@@ -9,7 +9,7 @@ import { NotificationItem } from "@/components/notifications/notification-item";
 import { NotificationLimitationNotice } from "@/components/notifications/notification-limitation-notice";
 import { Icon } from "@/components/ui/icon";
 import { getRequestIdentity } from "@/lib/auth/dal";
-import { listOwnNotifications } from "@/lib/notifications/read";
+import { getUnreadNotificationCount, listOwnNotifications } from "@/lib/notifications/read";
 
 export const metadata: Metadata = {
   title: "Notifications",
@@ -26,7 +26,7 @@ export const metadata: Metadata = {
  *
  * AUTH CONTRACT: identical to every other `/dashboard/*` page.
  */
-export default async function NotificationsPage() {
+export default async function NotificationsPage({ searchParams }: { searchParams?: Promise<{ page?: string }> }) {
   const identity = await getRequestIdentity();
   if (identity.kind !== "authenticated" || identity.organization === null) {
     return <StateScreen kind="unauthorized" />;
@@ -35,10 +35,12 @@ export default async function NotificationsPage() {
     return <StateScreen kind="forbidden" />;
   }
 
-  const result = await listOwnNotifications();
+  const requestedPage = Number((await searchParams)?.page ?? 0);
+  const page = Number.isSafeInteger(requestedPage) && requestedPage >= 0 ? Math.min(requestedPage, 10000) : 0;
+  const result = await listOwnNotifications({ page });
   if (!result) return <StateScreen kind="unauthorized" />;
-  const { rows } = result;
-  const unreadCount = rows.filter((r) => !r.readAt).length;
+  const { rows, hasMore } = result;
+  const unreadCount = await getUnreadNotificationCount();
 
   return (
     <div className="flex flex-col gap-8">
@@ -93,6 +95,12 @@ export default async function NotificationsPage() {
             ))}
           </ol>
         )}
+        {(page > 0 || hasMore) ? (
+          <nav className="flex flex-wrap items-center justify-between gap-3">
+            {page > 0 ? <Link href={`/dashboard/notifications/?page=${page - 1}`} className="min-h-11 rounded-[var(--radius-sm)] px-3 py-2 text-sm underline focus-visible:outline-2 focus-visible:outline-[var(--focus-ring)]"><AppBilingual pick={(c) => c.notificationCenter.previousPage} /></Link> : <span />}
+            {hasMore ? <Link href={`/dashboard/notifications/?page=${page + 1}`} className="min-h-11 rounded-[var(--radius-sm)] px-3 py-2 text-sm underline focus-visible:outline-2 focus-visible:outline-[var(--focus-ring)]"><AppBilingual pick={(c) => c.notificationCenter.nextPage} /></Link> : null}
+          </nav>
+        ) : null}
       </section>
     </div>
   );

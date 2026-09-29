@@ -14,6 +14,7 @@ import type {
   SupportMessageDTO,
 } from "@/lib/messaging/types";
 import type { OwnNotificationDTO } from "@/lib/notifications/types";
+import { getAppCopy } from "@/lib/app/copy";
 
 /**
  * Feature 014 — Mandatory UI/UX Quality Gate Verification (T027, T028, T029).
@@ -94,15 +95,7 @@ const mockLocaleVal = {
         open: "فتح",
       },
     },
-    notificationCenter: {
-      unreadStatus: "غير مقروء",
-      readStatus: "مقروء",
-      markAsRead: "تحديد كمقروء",
-      markingAsRead: "جارٍ التحديد…",
-      markAllAsRead: "تحديد الكل كمقروء",
-      receivedLabel: "تاريخ الاستلام",
-      typeLabel: "النوع",
-    },
+    notificationCenter: getAppCopy("ar").notificationCenter,
   },
 };
 
@@ -140,6 +133,17 @@ describe("Feature 014 — Responsive & Touch Target Gate (T027)", () => {
     // Class min-h-11 is Tailwind 44px (11 * 0.25rem = 2.75rem = 44px)
     expect(button?.className).toContain("min-h-11");
     expect(button?.className).toContain("min-w-11");
+  });
+
+  it("shows generated order notifications in Arabic while isolating the order code", () => {
+    render(<NotificationItem notification={{
+      id: "n-ar", notificationType: "RESERVATION_CONFIRMED",
+      title: "Stock Reservation Confirmed",
+      body: "Inventory reserved for 20 minutes for order ORD-20260929-0001000",
+      createdAt: "2026-09-29T10:00:00Z", readAt: null,
+    }} />);
+    expect(document.querySelector('[data-slot="notification-title"]')?.textContent).toBe("تأكد حجز المخزون");
+    expect(document.querySelector('bdi[dir="ltr"]')?.textContent).toBe("ORD-20260929-0001000");
   });
 
   it("Notification mark-all-read button meets minimum 44px touch target requirement", () => {

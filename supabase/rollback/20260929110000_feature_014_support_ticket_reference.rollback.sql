@@ -1,8 +1,21 @@
 -- Rollback: 20260929110000_feature_014_support_ticket_reference.rollback.sql
 -- Restores baseline validate_support_ticket() definition
 
+begin;
+
 drop trigger if exists trg_support_message_validate on public.support_messages;
 drop function if exists public.validate_support_message();
+drop function if exists public.create_member_support_ticket(text,text,text,uuid,uuid);
+
+-- The baseline ticket default invokes this as the inserting role. Restore its
+-- invoker privilege and grant so direct baseline inserts work after rollback.
+create or replace function public.next_support_ticket_code()
+returns text language sql security invoker
+set search_path = pg_catalog, public
+as $$
+  select 'HLP-' || to_char(clock_timestamp(), 'YYYYMMDD') || '-' || lpad(nextval('public.support_ticket_code_seq')::text, 7, '0');
+$$;
+grant execute on function public.next_support_ticket_code() to public;
 
 drop policy if exists messages_insert_access on public.support_messages;
 create policy messages_insert_access on public.support_messages for insert to public
@@ -47,3 +60,5 @@ begin
   return new;
 end;
 $$;
+
+commit;

@@ -8,7 +8,6 @@ declare
   v_fn_def text;
   v_trg_def text;
   v_idx_exists boolean;
-  v_code_sample text;
 begin
   -- 1. Check sequence exists
   select exists (
@@ -20,16 +19,25 @@ begin
     raise exception 'POSTFLIGHT FAILED: public.support_ticket_code_seq missing';
   end if;
 
-  -- 2. Check next_support_ticket_code() exists and produces valid HLP format
-  select public.next_support_ticket_code() into v_code_sample;
-  if v_code_sample !~ '^HLP-[0-9]{8}-[0-9]{7}$' then
-    raise exception 'POSTFLIGHT FAILED: next_support_ticket_code format invalid: %', v_code_sample;
+  -- 2. Inspect the generator without advancing the production sequence.
+  select pg_get_functiondef(p.oid) into v_fn_def from pg_proc p
+  join pg_namespace n on n.oid = p.pronamespace
+  where n.nspname = 'public' and p.proname = 'next_support_ticket_code';
+  if v_fn_def is null or v_fn_def not like '%HLP-%'
+     or v_fn_def not like '%nextval%'
+     or v_fn_def not like '%lpad%' then
+    raise exception 'POSTFLIGHT FAILED: next_support_ticket_code definition invalid';
+  end if;
+  if has_function_privilege('anon', 'public.next_support_ticket_code()', 'EXECUTE')
+     or has_function_privilege('authenticated', 'public.next_support_ticket_code()', 'EXECUTE') then
+    raise exception 'POSTFLIGHT FAILED: HLP generator callable by client roles';
   end if;
 
   -- 3. Check unique index on support_tickets(ticket_code)
   select exists (
     select 1 from pg_indexes
     where schemaname = 'public' and tablename = 'support_tickets' and indexname = 'idx_support_tickets_ticket_code'
+      and indexdef like 'CREATE UNIQUE INDEX%'
   ) into v_idx_exists;
 
   if not v_idx_exists then
@@ -52,17 +60,34 @@ begin
 
   -- 5. Check trigger is attached to support_tickets
   if not exists (
-    select 1 from pg_trigger
-    where tgname = 'trg_support_ticket_validate'
+    select 1 from pg_trigger t join pg_class c on c.oid = t.tgrelid
+    join pg_namespace n on n.oid = c.relnamespace
+    where n.nspname = 'public' and c.relname = 'support_tickets'
+      and t.tgname = 'trg_support_ticket_validate' and t.tgenabled <> 'D'
   ) then
     raise exception 'POSTFLIGHT FAILED: trg_support_ticket_validate trigger not attached';
   end if;
 
   if not exists (
-    select 1 from pg_trigger
-    where tgname = 'trg_support_message_validate' and not tgisinternal
+    select 1 from pg_trigger t join pg_class c on c.oid = t.tgrelid
+    join pg_namespace n on n.oid = c.relnamespace
+    where n.nspname = 'public' and c.relname = 'support_messages'
+      and t.tgname = 'trg_support_message_validate' and not t.tgisinternal and t.tgenabled <> 'D'
   ) then
     raise exception 'POSTFLIGHT FAILED: support message authorization trigger missing';
+  end if;
+
+  if not exists (
+    select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.proname = 'create_member_support_ticket'
+      and p.prosecdef and p.proconfig @> array['search_path=pg_catalog, public, auth']
+  ) then
+    raise exception 'POSTFLIGHT FAILED: atomic member ticket RPC missing or unhardened';
+  end if;
+  if has_function_privilege('anon', 'public.create_member_support_ticket(text,text,text,uuid,uuid)', 'EXECUTE')
+     or has_function_privilege('service_role', 'public.create_member_support_ticket(text,text,text,uuid,uuid)', 'EXECUTE')
+     or not has_function_privilege('authenticated', 'public.create_member_support_ticket(text,text,text,uuid,uuid)', 'EXECUTE') then
+    raise exception 'POSTFLIGHT FAILED: member ticket RPC execution grants incorrect';
   end if;
 
   if not exists (

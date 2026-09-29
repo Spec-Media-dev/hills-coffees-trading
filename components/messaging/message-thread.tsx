@@ -32,7 +32,7 @@ export function MessageThread({ messages }: { messages: SupportMessageDTO[] }) {
                 </span>
               ) : (
                 <span className="text-xs font-semibold text-foreground">
-                  {message.authorName}
+                  <AppBilingual pick={(c) => message.authorName === "You" ? c.supportMessaging.youBadge : c.supportMessaging.memberBadge} />
                 </span>
               )}
             </div>

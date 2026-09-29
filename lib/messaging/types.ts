@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const SUPPORT_TICKET_STATUSES = ["OPEN", "IN_PROGRESS", "RESOLVED", "CLOSED"] as const;
+export const SUPPORT_TICKET_STATUSES = ["OPEN", "IN_PROGRESS", "WAITING_FOR_CUSTOMER", "RESOLVED", "CLOSED"] as const;
 export type SupportTicketStatus = (typeof SUPPORT_TICKET_STATUSES)[number];
 
 export const SUPPORT_TICKET_PRIORITIES = ["LOW", "NORMAL", "HIGH", "URGENT"] as const;

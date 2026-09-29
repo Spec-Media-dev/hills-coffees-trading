@@ -21,6 +21,7 @@ export function AdminTicketQueue({
     { value: "ALL", label: tApp.supportMessaging.filterAll },
     { value: "OPEN", label: tApp.supportMessaging.status.OPEN },
     { value: "IN_PROGRESS", label: tApp.supportMessaging.status.IN_PROGRESS },
+    { value: "WAITING_FOR_CUSTOMER", label: tApp.supportMessaging.status.WAITING_FOR_CUSTOMER },
     { value: "RESOLVED", label: tApp.supportMessaging.status.RESOLVED },
     { value: "CLOSED", label: tApp.supportMessaging.status.CLOSED },
   ];
@@ -36,7 +37,7 @@ export function AdminTicketQueue({
             <Link
               key={tab.value}
               href={href}
-              className={`inline-flex min-h-9 items-center rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
+              className={`inline-flex min-h-11 items-center rounded-full px-3 py-1 text-xs font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus-ring)] ${
                 isActive
                   ? "bg-[var(--brand-primary)] text-white shadow-xs"
                   : "bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground"
@@ -109,7 +110,7 @@ export function AdminTicketQueue({
                   <td className="px-4 py-3 text-end">
                     <Link
                       href={`/dashboard-admin/messages/${ticket.id}/`}
-                      className="inline-flex min-h-8 items-center rounded-[var(--radius-sm)] border border-[var(--border-strong)] px-2.5 py-1 text-xs font-semibold text-foreground hover:bg-muted"
+                      className="inline-flex min-h-11 items-center rounded-[var(--radius-sm)] border border-[var(--border-strong)] px-2.5 py-1 text-xs font-semibold text-foreground hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus-ring)]"
                     >
                       <AppBilingual pick={(c) => c.supportMessaging.queueColumns.open} />
                     </Link>

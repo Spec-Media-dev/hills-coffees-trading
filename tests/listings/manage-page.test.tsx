@@ -2,7 +2,6 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { LocaleProvider } from "@/components/locale/locale-provider";
 import { INVENTORY_FIXTURES, signInAsFixture } from "@/tests/auth/fixture-session";
 
 afterEach(cleanup);

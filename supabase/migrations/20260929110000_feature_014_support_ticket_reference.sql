@@ -36,8 +36,13 @@ as $$
 begin
   if tg_op = 'INSERT' then
     if auth.uid() is null or public.is_blocked_user() then raise exception 'forbidden'; end if;
+    if new.subject is null or length(btrim(new.subject)) not between 3 and 200 then
+      raise exception 'invalid_ticket_subject';
+    end if;
+    new.subject := btrim(new.subject);
     new.requester_user_id := auth.uid();
-    if new.requester_organization_id is null or not public.is_org_member(new.requester_organization_id) then
+    if new.requester_organization_id is null or not public.is_org_member(new.requester_organization_id)
+       or not public.is_authorized_member() then
       raise exception 'ticket_organization_not_accessible';
     end if;
     new.status := 'OPEN';
@@ -94,8 +99,9 @@ create trigger trg_support_ticket_validate
   for each row execute function public.validate_support_ticket();
 
 -- 6. Grants
-revoke all on function public.next_support_ticket_code() from public, anon;
-grant execute on function public.next_support_ticket_code() to authenticated, service_role;
+-- Only the owner-executed ticket trigger needs this generator. Direct callers
+-- must not be able to advance the sequence or obtain unused references.
+revoke all on function public.next_support_ticket_code() from public, anon, authenticated, service_role;
 
 -- Replace baseline requester-only visibility and message write policies.
 drop policy if exists tickets_insert_own on public.support_tickets;
@@ -127,6 +133,10 @@ declare
   v_ticket public.support_tickets%rowtype;
 begin
   if auth.uid() is null or public.is_blocked_user() then raise exception 'forbidden'; end if;
+  if new.body is null or length(btrim(new.body)) not between 1 and 4000 then
+    raise exception 'invalid_message_body';
+  end if;
+  new.body := btrim(new.body);
   select * into v_ticket from public.support_tickets where id = new.ticket_id for update;
   if not found or v_ticket.status = 'CLOSED' then raise exception 'ticket_unavailable'; end if;
   if not (public.is_platform_admin() or public.is_org_member(v_ticket.requester_organization_id)) then
@@ -134,9 +144,50 @@ begin
   end if;
   new.author_user_id := auth.uid();
   new.is_staff_reply := public.is_platform_admin();
+  update public.support_tickets
+  set status = case
+      when v_ticket.status in ('RESOLVED', 'WAITING_FOR_CUSTOMER') and not new.is_staff_reply then 'IN_PROGRESS'
+      when v_ticket.status = 'OPEN' and new.is_staff_reply then 'IN_PROGRESS'
+      else v_ticket.status end,
+    first_response_at = case
+      when new.is_staff_reply then coalesce(first_response_at, clock_timestamp())
+      else first_response_at end
+  where id = v_ticket.id;
   return new;
 end;
 $$;
+
+-- Ticket and first message succeed or fail together in one database transaction.
+create or replace function public.create_member_support_ticket(
+  p_subject text, p_body text, p_priority text, p_order_id uuid, p_org_id uuid
+)
+returns jsonb language plpgsql security definer
+set search_path = pg_catalog, public, auth
+as $$
+declare
+  v_ticket public.support_tickets%rowtype;
+begin
+  if auth.uid() is null or not public.is_authorized_member()
+     or p_org_id is null or not public.is_org_member(p_org_id) then
+    raise exception 'forbidden';
+  end if;
+  if length(btrim(p_subject)) not between 3 and 200
+     or length(btrim(p_body)) not between 1 and 4000
+     or p_priority not in ('LOW', 'NORMAL', 'HIGH', 'URGENT') then
+    raise exception 'invalid_ticket_input';
+  end if;
+  insert into public.support_tickets
+    (requester_user_id, requester_organization_id, subject, priority, order_id)
+  values (auth.uid(), p_org_id, btrim(p_subject), p_priority, p_order_id)
+  returning * into v_ticket;
+  insert into public.support_messages (ticket_id, author_user_id, body)
+  values (v_ticket.id, auth.uid(), btrim(p_body));
+  return jsonb_build_object('ticket_id', v_ticket.id, 'ticket_code', v_ticket.ticket_code);
+end;
+$$;
+
+revoke all on function public.create_member_support_ticket(text,text,text,uuid,uuid) from public, anon, service_role;
+grant execute on function public.create_member_support_ticket(text,text,text,uuid,uuid) to authenticated;
 
 drop trigger if exists trg_support_message_validate on public.support_messages;
 create trigger trg_support_message_validate before insert on public.support_messages

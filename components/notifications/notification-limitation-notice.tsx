@@ -3,10 +3,8 @@ import { Icon } from "@/components/ui/icon";
 import { NOTIFICATION_LIMITATIONS } from "@/lib/notifications/limitations";
 
 /**
- * Feature 012 RUN B (T010) — the in-product DB-BLOCK-04 statement. A static note (not an alert):
- * the platform cannot generate notifications, cannot mark them read, and sends nothing by any
- * channel. Each sentence is driven by `NOTIFICATION_LIMITATIONS`, so the statement cannot silently
- * outlive the limitation it describes.
+ * In-product delivery limitation: in-app order events and read state work,
+ * while external channels remain unavailable.
  */
 export function NotificationLimitationNotice() {
   const { canGenerate, canMarkRead, deliveryChannelsApproved, blocker } = NOTIFICATION_LIMITATIONS;

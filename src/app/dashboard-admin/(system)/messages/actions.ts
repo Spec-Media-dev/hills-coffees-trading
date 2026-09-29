@@ -45,11 +45,13 @@ export async function adminUpdateTicketStatusAction(input: AdminUpdateTicketInpu
     updates.closed_at = new Date().toISOString();
   }
 
-  const { error } = await supabase.from("support_tickets").update(updates).eq("id", parsed.data.ticketId);
+  const { data: updated, error } = await supabase.from("support_tickets")
+    .update(updates).eq("id", parsed.data.ticketId).select("id").maybeSingle();
 
   if (error) {
-    return { ok: false, error: "INTERNAL_ERROR", message: error.message };
+    return { ok: false, error: "INTERNAL_ERROR" };
   }
+  if (!updated) return { ok: false, error: "NOT_FOUND" };
 
   revalidatePath("/dashboard-admin/messages");
   revalidatePath(`/dashboard-admin/messages/${parsed.data.ticketId}`);
@@ -78,7 +80,7 @@ export async function adminSendSupportReplyAction(input: SendMessageInput): Prom
   // Verify ticket exists
   const { data: ticket, error: ticketErr } = await supabase
     .from("support_tickets")
-    .select("id, status, first_response_at")
+    .select("id, status")
     .eq("id", parsed.data.ticketId)
     .maybeSingle();
 
@@ -103,22 +105,8 @@ export async function adminSendSupportReplyAction(input: SendMessageInput): Prom
     .single();
 
   if (messageErr || !message) {
-    return { ok: false, error: "INTERNAL_ERROR", message: messageErr?.message };
+    return { ok: false, error: "INTERNAL_ERROR" };
   }
-
-  // Update ticket timestamps and status
-  const updates: Record<string, unknown> = {
-    updated_at: new Date().toISOString(),
-  };
-
-  if (!ticket.first_response_at) {
-    updates.first_response_at = new Date().toISOString();
-  }
-  if (ticket.status === "OPEN") {
-    updates.status = "IN_PROGRESS";
-  }
-
-  await supabase.from("support_tickets").update(updates).eq("id", parsed.data.ticketId);
 
   revalidatePath("/dashboard-admin/messages");
   revalidatePath(`/dashboard-admin/messages/${parsed.data.ticketId}`);

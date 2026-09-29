@@ -2936,9 +2936,8 @@ export const en = {
 
     /**
      * Feature 012 RUN B (T010/T011) — the honest notification surfaces. DB-BLOCK-04: notifications
-     * can be neither generated nor marked read by the approved system, and no delivery channel is
-     * approved. Nothing here implies otherwise — no unread count, no "mark as read", no promise that a
-     * saved preference makes anything arrive.
+     * Feature 014 generates three in-app order events and supports own-user read state.
+     * External delivery channels remain unapproved.
      */
     notificationCenter: {
       title: "Notifications",
@@ -2946,8 +2945,8 @@ export const en = {
       description: "Notifications that exist for your account appear here.",
       limitation: {
         heading: "How notifications work today",
-        generate: "The platform does not create notifications yet, so this list is normally empty. Check each area — orders, deliveries, disputes — for current status.",
-        readState: "Notifications cannot be marked as read yet, so there is no read or unread state.",
+        generate: "In-app notifications are created for proforma issuance and stock reservation updates.",
+        readState: "You can mark your own notifications as read.",
         delivery: "Nothing is sent by email, SMS or WhatsApp yet.",
       },
       empty: {
@@ -2967,6 +2966,13 @@ export const en = {
       allMarkedSuccess: "All notifications marked as read.",
       markedSuccess: "Notification marked as read.",
       actionFailed: "Could not update notification. Please try again.",
+      events: {
+        ORDER_PROFORMA_ISSUED: { title: "Proforma invoice issued", body: "A proforma invoice has been generated for order {code}." },
+        RESERVATION_CONFIRMED: { title: "Stock reservation confirmed", body: "Inventory reserved for 20 minutes for order {code}." },
+        RESERVATION_EXPIRED: { title: "Stock reservation expired", body: "The reservation window for order {code} has expired." },
+      },
+      previousPage: "Previous page",
+      nextPage: "Next page",
       filterAll: "All",
       filterUnread: "Unread",
     },
@@ -3313,6 +3319,7 @@ export const en = {
       orderReference: "Order Reference",
       subject: "Subject",
       subjectPlaceholder: "Brief summary of your inquiry",
+      subjectForOrder: "Inquiry about order {code}",
       initialMessage: "Message",
       initialMessagePlaceholder: "Describe your question or issue in detail…",
       priority: "Priority",
@@ -3325,6 +3332,7 @@ export const en = {
       status: {
         OPEN: "Open",
         IN_PROGRESS: "In Progress",
+        WAITING_FOR_CUSTOMER: "Waiting for Customer",
         RESOLVED: "Resolved",
         CLOSED: "Closed",
       },
@@ -3342,6 +3350,16 @@ export const en = {
       },
       staffBadge: "Hills Staff",
       youBadge: "You",
+      memberBadge: "Member",
+      previousPage: "Previous page",
+      nextPage: "Next page",
+      errors: {
+        required: "Complete the subject and message to submit your inquiry.",
+        createFailed: "We couldn't create the inquiry. Please try again.",
+        replyFailed: "We couldn't post your reply. Please try again.",
+        updateFailed: "We couldn't update the ticket. Please try again.",
+        reopenFirst: "Reopen this ticket before posting a reply.",
+      },
       ticketCreatedSuccess: "Inquiry submitted successfully: {code}",
       messageSentSuccess: "Reply posted successfully.",
       needHelpWithOrder: "Need Help with this Order?",

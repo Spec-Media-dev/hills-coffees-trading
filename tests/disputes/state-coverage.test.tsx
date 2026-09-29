@@ -36,7 +36,7 @@ vi.mock("@/lib/disputes/read", () => ({
   getDisputeEvidenceForMember: vi.fn(async () => mocks.evidence),
 }));
 vi.mock("@/lib/orders/read", () => ({ getOrdersForOrganization: vi.fn(async () => mocks.orders) }));
-vi.mock("@/lib/notifications/read", () => ({ listOwnNotifications: vi.fn(async () => mocks.notifications) }));
+vi.mock("@/lib/notifications/read", () => ({ listOwnNotifications: vi.fn(async () => mocks.notifications), getUnreadNotificationCount: vi.fn(async () => 0) }));
 vi.mock("@/lib/notifications/preferences", () => ({ readOwnNotificationPreferences: vi.fn(async () => mocks.preferences), saveOwnNotificationPreferences: vi.fn() }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
@@ -204,7 +204,7 @@ describe("Dispute detail — /dashboard/disputes/[disputeId]", () => {
 });
 
 describe("Notifications — /dashboard/notifications", () => {
-  const load = async () => (await import("@/src/app/dashboard/notifications/page")).default();
+  const load = async () => (await import("@/src/app/dashboard/notifications/page")).default({});
 
   it("unauthorized / forbidden are explicit; the empty state is honest and carries the DB-BLOCK-04 limitation", async () => {
     mocks.identity = noOrganization;
@@ -217,18 +217,15 @@ describe("Notifications — /dashboard/notifications", () => {
     const { container } = await renderServer(load());
     expect(container.querySelector('[data-slot="notifications-empty"]')?.textContent).toContain(en.notificationCenter.empty.title);
     expect(container.querySelector('[data-slot="notification-limitation"]')?.getAttribute("data-blocker")).toBe("DB-BLOCK-04");
-    expect(container.textContent).toContain(en.notificationCenter.limitation.readState);
+    expect(container.textContent).toContain(en.notificationCenter.limitation.delivery);
   });
 
-  it("real rows render as they are — no read/unread styling, no count, no mark-read control", async () => {
+  it("real rows render with their read state and a scoped mark-read control", async () => {
     mocks.notifications = { rows: [{ id: "n1", notificationType: "ORDER_UPDATES", title: "Order confirmed", body: "Your order was confirmed.", createdAt: "2026-09-19T00:00:00Z" }], hasMore: false, page: 0, pageSize: 25 };
     const { container } = await renderServer(load());
     expect(container.querySelectorAll('[data-slot="notification-item"]')).toHaveLength(1);
-    expect(container.querySelector("button")).toBeNull();
-    // The limitation notice itself SAYS there is no read/unread state; the list must not HAVE one.
-    const list = container.querySelector('[data-slot="notification-list"]')!;
-    expect(list.textContent).not.toMatch(/unread|mark (all )?as read/i);
-    expect(list.querySelector("[data-read], [data-unread], [aria-current]")).toBeNull();
+    expect(container.querySelector('[data-slot="notification-item"]')?.getAttribute("data-unread")).toBe("true");
+    expect(container.querySelector('[data-slot="mark-read-button"]')).not.toBeNull();
   });
 });
 

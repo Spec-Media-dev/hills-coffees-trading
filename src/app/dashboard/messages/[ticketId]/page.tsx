@@ -97,7 +97,7 @@ export default async function TicketDetailPage({ params }: TicketDetailPageProps
 
       <section aria-labelledby="thread-heading" className="flex flex-col gap-6">
         <h2 id="thread-heading" className="sr-only">
-          Conversation
+          <AppBilingual pick={(c) => c.supportMessaging.conversationHistory} />
         </h2>
         <MessageThread messages={ticket.messages} />
         <ComposeBox ticketId={ticket.id} isClosed={isClosed} />

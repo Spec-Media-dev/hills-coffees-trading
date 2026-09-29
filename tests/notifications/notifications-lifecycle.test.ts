@@ -108,7 +108,7 @@ describe("Feature 014 — Notification Lifecycle Actions (T008)", () => {
         notificationId: "d0000000-0000-4000-8000-000000000001",
       });
       expect(res.ok).toBe(false);
-      if (!res.ok) expect(res.error).toBe("database timeout");
+      if (!res.ok) expect(res.error).toBe("mark_read_failed");
     });
   });
 
@@ -148,7 +148,7 @@ describe("Feature 014 — Notification Lifecycle Actions (T008)", () => {
 
       const res = await markAllNotificationsReadAction();
       expect(res.ok).toBe(false);
-      if (!res.ok) expect(res.error).toBe("internal error");
+      if (!res.ok) expect(res.error).toBe("mark_all_read_failed");
     });
   });
 });

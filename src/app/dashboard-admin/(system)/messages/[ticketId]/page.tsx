@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { AdminThreadView } from "@/components/admin/messaging/admin-thread-view";
 import { PageHeader } from "@/components/app/page-header";
+import { AppBilingual } from "@/components/locale/app-bilingual";
 import { StateScreen } from "@/components/layout/state-screen";
 import { getRequestIdentity } from "@/lib/auth/dal";
 import { getSupportTicketDetail } from "@/lib/messaging/tickets";
@@ -38,9 +39,9 @@ export default async function AdminTicketDetailPage({ params }: AdminTicketDetai
         title={ticket.ticketCode}
         description={ticket.subject}
         trail={[
-          { label: "Console", href: "/dashboard-admin" },
-          { label: "Support Queue", href: "/dashboard-admin/messages" },
-          { label: ticket.ticketCode },
+          { label: <AppBilingual pick={(c) => c.adminWorkspace} />, href: "/dashboard-admin" },
+          { label: <AppBilingual pick={(c) => c.supportMessaging.adminTitle} />, href: "/dashboard-admin/messages" },
+          { label: <span dir="ltr">{ticket.ticketCode}</span> },
         ]}
       />
 

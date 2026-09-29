@@ -43,8 +43,9 @@ export async function listMemberTickets({
   }
 
   const supabase = await createClient();
-  const from = Math.max(0, page) * Math.min(pageSize, 100);
-  const to = from + pageSize - 1;
+  const size = Math.max(1, Math.min(Math.floor(pageSize), 100));
+  const from = Math.max(0, Math.floor(page)) * size;
+  const to = from + size;
 
   let query = supabase
     .from("support_tickets")
@@ -163,8 +164,9 @@ export async function listAdminTickets({
   }
 
   const supabase = await createClient();
-  const from = Math.max(0, page) * Math.min(pageSize, 100);
-  const to = from + pageSize - 1;
+  const size = Math.max(1, Math.min(Math.floor(pageSize), 100));
+  const from = Math.max(0, Math.floor(page)) * size;
+  const to = from + size;
 
   let query = supabase
     .from("support_tickets")
