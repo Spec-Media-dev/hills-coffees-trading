@@ -523,7 +523,7 @@
 
 **CRITICAL**: CODEX REVIEW RECOMMENDED for T031. Never apply during normal implementation.
 
-- [ ] T031 [READY FOR OWNER PUSH / FINAL LIVE VERIFY] Execute operator-gated Production dry-run, migration apply, and postflight verification for feature migrations in supabase/
+- [X] T031 Execute operator-gated Production dry-run, migration apply, and postflight verification for feature migrations in supabase/
   - **Exact Goal**: Operator executes dry-run against linked Production project (`mxejnutukgxyccnohglo`), verifies only the approved forward migrations will apply, executes apply, and runs postflight query verifications.
   - **Likely Files**:
     - `supabase/migrations/20260929100000_feature_014_notifications_lifecycle.sql`
@@ -531,29 +531,26 @@
     - `supabase/maintenance/20260929_feature_014_notifications_lifecycle_postflight.sql`
     - `supabase/maintenance/20260929_feature_014_support_ticket_reference_postflight.sql`
   - **Dependency**: T030 (requires independent final review GO verdict).
-  - **Cutover Protocol**:
-    1. Verify target project: `npx supabase projects list` (confirms `mxejnutukgxyccnohglo` = `hillscoffees-trading`).
-    2. Dry-run: `npx supabase db push --linked --dry-run` (confirms ONLY expected forward migrations are pending).
-    3. Explicit operator apply: `npx supabase db push --linked`.
-    4. Run postflight verification:
-       - Notifications postflight: `supabase/maintenance/20260929_feature_014_notifications_lifecycle_postflight.sql` (requires 5/5 PASS).
-       - Support ticket reference postflight: `supabase/maintenance/20260929_feature_014_support_ticket_reference_postflight.sql` (requires PASS).
-    5. Run regression checks: M4b (9/9 PASS) and M4c (7/7 PASS).
-  - **Validation / Test Expectation**: All postflight checks pass on Production; 9/9 M4b pass; 7/7 M4c pass.
-  - **CODEX REVIEW RECOMMENDED**.
+  - **Cutover Evidence**:
+    - Target project verified: `mxejnutukgxyccnohglo` (`hillscoffees-trading`).
+    - Migrations applied: `20260929100000_feature_014_notifications_lifecycle.sql` and `20260929110000_feature_014_support_ticket_reference.sql`.
+    - Live postflight verification: RPCs `get_unread_notification_count` and `next_support_ticket_code` verified live on Production with `SECURITY DEFINER` and hardened `authenticated`-only privileges.
+    - Postflight test suites: `tests/commerce/migrations/f014-notifications.test.ts` (8/8 PASS) and `tests/support/support-messaging.test.ts` (17/17 PASS).
+    - Commerce regression suites: M4b (11/11 PASS), M4c (14/14 PASS), M4a (61/61 PASS).
+  - **Validation / Test Expectation**: All postflight checks pass on Production; M4b pass; M4c pass. Completed.
 
-- [ ] T032 [READY FOR OWNER PUSH / FINAL LIVE VERIFY] Execute live production smoke test on Vercel deployment (https://hills-coffees-trading.vercel.app)
+- [X] T032 Execute live production smoke test on Vercel deployment (https://hills-coffees-trading.vercel.app)
   - **Exact Goal**: Verify live production deployment across public SEO tags, sitemap, notification feed badge, support ticket thread with `ticket_code` display, and admin console.
   - **Likely Files**: Live URLs on `https://hills-coffees-trading.vercel.app`
   - **Dependency**: T031.
-  - **Acceptance Criteria**:
-    - Homepage (`/`) and coffee detail (`/coffee/[slug]/`) serve valid title tags, meta description, and valid schema.org JSON-LD.
-    - `/robots.txt` and `/sitemap.xml` resolve cleanly with HTTPS canonicals.
+  - **Cutover Evidence**:
+    - Homepage (`/`) and coffee detail serve valid title tags, meta descriptions, and valid schema.org JSON-LD.
+    - `/robots.txt` and `/sitemap.xml` resolve cleanly with HTTPS canonicals; private route boundaries enforced (`noindex, nofollow`).
     - `/dashboard/notifications` renders with unread badge calculation and mark-as-read functionality.
-    - `/dashboard/messages` allows creating a support ticket, displays generated `ticket_code` (`HLP-YYYYMMDD-XXXXXXX`), and sends replies.
-    - `/dashboard-admin/messages` displays operational ticket queue with `ticket_code`.
-    - Record final Sprint 2 closure.
-  - **Validation / Test Expectation**: All live endpoints return 200 OK with expected DOM structures; Sprint 2 declared COMPLETE.
+    - `/dashboard/messages` supports ticket creation with immutable server-generated `ticket_code` (`HLP-YYYYMMDD-XXXXXXX`).
+    - `/dashboard-admin/messages` operational queue verified with `ticket_code` column and admin status controls.
+    - UI quality gate: Mobile (< 640px) touch targets ≥ 44px, RTL Arabic parity, Light/Dark theme consistency verified.
+    - Final Sprint 2 closure recorded: 0 ACTIVE tasks remain.
 
 ---
 
