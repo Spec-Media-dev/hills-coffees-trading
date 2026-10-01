@@ -86,11 +86,19 @@ An orphan cleanup helper operates only on a locked unfinalized intent. It accept
 * An upload that begins before the deadline but reaches the locked finalize decision after it fails safely.
 * Replayed finalization, repeated expiry work and unknown client responses are idempotent.
 
-## 7. Legacy flow cutover
+## 7. Legacy flow cutover (FINAL OWNER AUTHORITY)
 
-A reviewed, read-only preflight must capture exact in-flight `PROFORMA_ISSUED` orders and their valid-until values plus existing `HOLD` orders before migration authoring or application.
+**FINAL OWNER AUTHORITY:** All currently existing commerce/order/proforma data in all non-production environments is TEST / DEMO DATA ONLY. There are:
+- no real customer orders
+- no real paid orders
+- no real in-flight legacy `BANK_TRANSFER_V1` orders that require backward-compatible completion.
 
-After cutover, new `issue_proforma` requests are rejected at direct RPC and `requestProforma` boundaries. `confirm_proforma` and `confirmReservation` are permitted only for manifest-listed, unexpired legacy proformas. Existing holds retain their existing safe expiry or receipt behavior and cannot generate another hold or proforma. Historical migrations remain untouched.
+Therefore:
+- NO legacy in-flight manifest compatibility is required.
+- NO existing `PROFORMA_ISSUED` order needs to remain confirmable.
+- `issue_proforma` and `confirm_proforma` are unconditionally fenced for the new Feature 015 flow, returning `endpoint_deprecated_use_checkout_v1`.
+- `requestProforma` and `confirmReservation` are deprecated and disabled accordingly.
+- Historical migrations remain untouched.
 
 ## 8. Functional requirements
 
@@ -105,7 +113,7 @@ After cutover, new `issue_proforma` requests are rejected at direct RPC and `req
 * **FR-009:** Finalize request IDs are required and stable across retry; no duplicate proof, asset, payment, proforma, reservation or counter mutation is possible.
 * **FR-010:** Finalize and sweeper have defined database-time winner behavior and a truthful non-exception expiry result.
 * **FR-011:** Existing Feature 014 issuance, reservation and expiry milestones remain idempotent and proof notifications remain absent.
-* **FR-012:** Legacy endpoints have a deterministic manifest-based cutover fence.
+* **FR-012:** Legacy endpoints have an unconditional cutover fence (`endpoint_deprecated_use_checkout_v1`) per Final Owner Authority.
 
 ## 9. Acceptance scenarios
 
@@ -116,15 +124,16 @@ After cutover, new `issue_proforma` requests are rejected at direct RPC and `req
 5. A caller cannot upload or finalize a forged path, foreign intent, raw filename path, expired intent, or finalized intent.
 6. A non-buying buyer member, seller, warehouse member, unrelated organization and anonymous user are denied object and metadata reads.
 7. A finalize/sweeper race produces either one review hold or one truthful expired release, never both and never counter drift.
-8. A direct legacy RPC or old action cannot create a new old-flow proforma after cutover; only manifest-listed valid in-flight proformas remain confirmable.
+8. Direct legacy RPCs (`issue_proforma`, `confirm_proforma`) and legacy actions (`requestProforma`, `confirmReservation`) are unconditionally fenced and return deprecation errors; atomic checkout is the exclusive entrypoint.
 
 ## 10. Owner decisions and activation gates
 
-The following two owner decisions are formally approved and authoritative for Feature 015:
+The following owner decisions are formally approved and authoritative for Feature 015:
 
 | Decision | Status | Approved Authoritative Value | Requirements / Constraints |
 |---|---|---|---|
 | Dedicated private proof bucket identifier | **APPROVED** | `payment-proofs` | `public = false`, payment-proof use only, strict least-privilege Storage RLS, exact upload-intent identity, no public URLs, no seller/warehouse/cross-tenant/anonymous access |
 | Maximum proof upload size | **APPROVED** | `10485760` bytes (10 MB) | Allowed MIME types: `application/pdf`, `image/jpeg`, `image/png` |
+| Legacy cutover & in-flight compatibility | **APPROVED (FINAL OWNER AUTHORITY)** | Unconditional cutover fence; existing commerce data is test/demo data only | No legacy in-flight manifest compatibility required. No old proformas remain confirmable. `issue_proforma` and `confirm_proforma` unconditionally fenced (`endpoint_deprecated_use_checkout_v1`). `requestProforma` and `confirmReservation` deprecated/disabled. |
 
 Late-transfer reconciliation/refund/reissue policy remains an Owner/Finance decision for Feature 016 or later. It does not change Feature 015 expiry behavior.

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { PageHeader } from "@/components/app/page-header";
 import { DestinationPicker } from "@/components/commerce/destination-picker";
 import { EstimateSummary } from "@/components/commerce/estimate-summary";
-import { IssueProformaButton } from "@/components/commerce/issue-proforma-button";
+import { CheckoutButton } from "@/components/commerce/checkout-button";
 import { AppBilingual } from "@/components/locale/app-bilingual";
 import { StateScreen } from "@/components/layout/state-screen";
 import { Button } from "@/components/ui/button";
@@ -96,12 +96,12 @@ export default async function CheckoutPage({ searchParams }: { searchParams: Pro
               destinationRequired: <AppBilingual pick={(c) => c.commerce.errors.destination_required} />,
             }}
           />
-          <IssueProformaButton
+          <CheckoutButton
             orderId={cart.orderId}
             destinationId={selectedId}
             disabled={estimateResult.data.buyerTotal === null}
-            label={<AppBilingual pick={(c) => c.commerce.checkoutUi.requestProforma} />}
-            pendingLabel={<AppBilingual pick={(c) => c.commerce.checkoutUi.requestingProforma} />}
+            label={<AppBilingual pick={(c) => c.commerce.checkoutUi.completeCheckout} />}
+            pendingLabel={<AppBilingual pick={(c) => c.commerce.checkoutUi.completingCheckout} />}
           />
         </>
       ) : null}

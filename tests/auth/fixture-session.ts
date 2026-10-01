@@ -331,8 +331,25 @@ function requireTestEnvironment(name: RequiredTestEnv): string {
   return value;
 }
 
+const F015_REMOTE_PROJECT_REF = "mxejnutukgxyccnohglo";
+
+/** Explicit owner-approved, disposable remote verification target for Feature 015 only. */
+export function requireF015RemoteVerificationTarget(): { apiUrl: string } {
+  if (process.env.F015_REMOTE_LIVE_DB_APPROVED !== "1" || process.env.F013_LIVE !== "1") {
+    throw new Error("Feature 015 remote proof requires F015_REMOTE_LIVE_DB_APPROVED=1 and F013_LIVE=1.");
+  }
+  loadTestEnvironment();
+  const apiUrl = requireTestEnvironment("NEXT_PUBLIC_SUPABASE_URL");
+  if (new URL(apiUrl).hostname !== `${F015_REMOTE_PROJECT_REF}.supabase.co`) {
+    throw new Error(`Feature 015 remote proof refused: expected ${F015_REMOTE_PROJECT_REF}.supabase.co.`);
+  }
+  return { apiUrl };
+}
+
 function newSessionClient(): SupabaseClient {
-  if (resolveF013Mode().kind !== "local") throw new Error("Fixture sessions require verified F013 local mode.");
+  const isLocal = resolveF013Mode().kind === "local";
+  const isApprovedFeature015Remote = process.env.F015_REMOTE_LIVE_DB_APPROVED === "1" && process.env.F013_LIVE === "1";
+  if (!isLocal && !isApprovedFeature015Remote) throw new Error("Fixture sessions require verified F013 local mode.");
   return createClient(
     requireTestEnvironment("NEXT_PUBLIC_SUPABASE_URL"),
     requireTestEnvironment("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY"),

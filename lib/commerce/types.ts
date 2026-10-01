@@ -222,3 +222,73 @@ export type NotificationAggregateType =
   | "shipment"
   | "payout"
   | "campaign";
+
+// ── Feature 015: Manual Bank Transfer & Payment Proof ─────────────────────────────────────────────
+
+/** `payment_proof_upload_intents.status`'s CHECK constraint. */
+export type UploadIntentStatus = "PREPARED" | "FINALIZED" | "EXPIRED" | "CANCELLED";
+
+export interface PaymentProofUploadIntent {
+  id: string;
+  order_id: string;
+  buyer_organization_id: string;
+  created_by: string;
+  bucket_id: string;
+  object_path: string;
+  original_filename: string;
+  content_type: string;
+  max_size_bytes: number;
+  status: UploadIntentStatus;
+  expires_at: string;
+  created_at: string;
+  finalized_at?: string | null;
+}
+
+export interface CheckoutBankTransferPayload {
+  order_id: string;
+  order_code: string;
+  proforma_id: string;
+  proforma_code: string;
+  reservation_id: string;
+  expires_at: string;
+  buyer_total: number;
+  currency: string;
+  idempotent_replay?: boolean;
+}
+
+export interface FinalizePaymentProofPayload {
+  order_id: string;
+  order_code?: string;
+  payment_id: string;
+  proof_id: string;
+  order_status: "PAYMENT_PROOF_SUBMITTED";
+  payment_status: "PROOF_SUBMITTED";
+  reservation_status: "REVIEW_HOLD";
+  submitted_at: string;
+  idempotent_replay?: boolean;
+}
+
+export type FinalizeProofResult =
+  | { ok: true; data: FinalizePaymentProofPayload }
+  | { ok: false; code: "reservation_expired"; released: boolean }
+  | { ok: false; code: "finalized_state_integrity_error" }
+  | { ok: false; code: string; message?: string };
+
+export const FEATURE_015_COMMERCE_ERROR_CODES = [
+  "endpoint_deprecated_use_checkout_v1",
+  "endpoint_deprecated_use_finalize_payment_proof",
+  "intent_not_found",
+  "intent_expired",
+  "intent_already_finalized",
+  "storage_object_not_found",
+  "reservation_expired",
+  "order_not_editable",
+  "destination_tax_unsupported",
+  "requested_quantity_not_available",
+  "listing_inventory_changed",
+  "buyer_not_authorized",
+  "cannot_buy_own_listing",
+  "finalized_state_integrity_error",
+] as const;
+
+export type Feature015CommerceErrorCode = (typeof FEATURE_015_COMMERCE_ERROR_CODES)[number];

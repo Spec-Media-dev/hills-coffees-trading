@@ -3065,6 +3065,8 @@ export const en = {
         destinationHeading: "Choose a delivery destination",
         requestProforma: "Request proforma",
         requestingProforma: "Requesting proforma…",
+        completeCheckout: "Complete checkout & reserve stock",
+        completingCheckout: "Reserving stock & issuing proforma…",
         estimate: {
           lineHeader: "Item",
           quantityHeader: "Quantity",
@@ -3097,6 +3099,16 @@ export const en = {
         confirmAction: "Confirm reservation",
         confirming: "Confirming…",
         terminalNotice: "This order is no longer active. Start a new cart to continue.",
+        uploadProofHeading: "Submit payment proof",
+        uploadProofDescription: "Upload your bank transfer receipt (PDF, PNG, or JPEG, max 10 MB) to secure your reservation.",
+        claimedAmountLabel: "Claimed amount (USD)",
+        transferDateLabel: "Transfer date",
+        bankReferenceLabel: "Bank reference / transaction ID",
+        notesLabel: "Notes (optional)",
+        uploadButton: "Submit payment proof",
+        uploadingButton: "Submitting proof…",
+        pendingVerificationTitle: "Payment pending verification",
+        pendingVerificationDescription: "Your payment proof has been submitted and is currently being verified by our finance team. Your inventory remains reserved while under review.",
       },
       destinationsUi: {
         nav: "Destinations",
@@ -3140,6 +3152,7 @@ export const en = {
         CANCELLED: "Cancelled",
         VOID: "Void",
         SUPERSEDED: "Superseded",
+        PAYMENT_PROOF_SUBMITTED: "Proof submitted",
         PAID: "Paid",
       },
       reservations: {
@@ -3306,6 +3319,9 @@ export const en = {
         invalid_validity_hours: "The proforma validity must be between 1 and 720 hours.",
         payment_account_not_found: "Active USD bank account not found.",
         legacy_draft_not_convertible: "This draft order can't be converted.",
+        finalized_state_integrity_error: "Payment proof verification could not be completed due to inconsistent order state. Please contact Hills Operations.",
+        endpoint_deprecated_use_checkout_v1: "This action is deprecated. Please complete your purchase using the current checkout flow.",
+        endpoint_deprecated_use_finalize_payment_proof: "This legacy endpoint is deprecated. Please submit payment proofs using the secure upload flow.",
       },
     },
 

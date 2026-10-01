@@ -51,6 +51,9 @@
  * production.
  */
 
+import { execFileSync } from "node:child_process";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 import { assertF013ComplianceActor, assertF013G1, assertF013G2, assertF013G3, assertF013SourceIds, classifyF013Source, F013_SOURCE, type F013SourceRow, type F013SourceSnapshot } from "./f013-provenance";
@@ -59,6 +62,54 @@ import { runF013DockerPsqlStdin } from "./f013-docker-identity";
 import { readProductionEnvLocal } from "./f013-production-env.mjs";
 
 class SafeFixtureError extends Error {}
+
+const F015_REMOTE_SEED_PROJECT_REF = "mxejnutukgxyccnohglo";
+const F015_REMOTE_SEED_PROJECT_NAME = "hillscoffees-trading";
+
+/**
+ * Owner-approved Feature 015 exception: fixture writes remain unavailable to every
+ * other remote project and still require all three explicit approvals.
+ */
+function assertFeature015RemoteSeedTarget(): void {
+  if (
+    process.env.F013_LIVE !== "1" ||
+    process.env.F015_REMOTE_LIVE_DB_APPROVED !== "1" ||
+    process.env.F015_REMOTE_SEED_APPROVED !== "1"
+  ) {
+    throw new SafeFixtureError("Feature 015 remote fixture writes require F013_LIVE=1, F015_REMOTE_LIVE_DB_APPROVED=1, and F015_REMOTE_SEED_APPROVED=1.");
+  }
+
+  let linked: { ref?: unknown; name?: unknown };
+  try {
+    linked = JSON.parse(readFileSync(resolve(process.cwd(), "supabase/.temp/linked-project.json"), "utf8")) as { ref?: unknown; name?: unknown };
+  } catch {
+    throw new SafeFixtureError("Feature 015 remote fixture writes require readable linked-project metadata.");
+  }
+  if (linked.ref !== F015_REMOTE_SEED_PROJECT_REF || linked.name !== F015_REMOTE_SEED_PROJECT_NAME) {
+    throw new SafeFixtureError("Feature 015 remote fixture writes refused: linked project is not the approved Hills Coffee target.");
+  }
+
+  let listed: unknown;
+  try {
+    listed = JSON.parse(execFileSync("npx", ["supabase", "projects", "list"], {
+      cwd: process.cwd(), encoding: "utf8", shell: process.platform === "win32", stdio: ["ignore", "pipe", "pipe"], timeout: 60_000,
+    })) as unknown;
+  } catch {
+    throw new SafeFixtureError("Feature 015 remote fixture writes require successful Supabase project identity verification.");
+  }
+  const projects = (listed as { projects?: unknown }).projects;
+  const target = Array.isArray(projects) ? projects.find((project) =>
+    typeof project === "object" && project !== null &&
+    (project as { ref?: unknown }).ref === F015_REMOTE_SEED_PROJECT_REF &&
+    (project as { name?: unknown }).name === F015_REMOTE_SEED_PROJECT_NAME &&
+    (project as { linked?: unknown }).linked === true,
+  ) : undefined;
+  if (!target) throw new SafeFixtureError("Feature 015 remote fixture writes refused: approved linked Hills Coffee project identity was not confirmed.");
+
+  if (process.env.NEXT_PUBLIC_SUPABASE_URL !== `https://${F015_REMOTE_SEED_PROJECT_REF}.supabase.co`) {
+    throw new SafeFixtureError("Feature 015 remote fixture writes refused: Supabase URL is not the approved Hills Coffee endpoint.");
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Environment
@@ -75,7 +126,15 @@ class SafeFixtureError extends Error {}
 function loadEnvLocal(): void {
   let contents: string;
   try {
-    contents = readProductionEnvLocal();
+    // The explicit Feature 015 remote-seed path is verified before any write in main().
+    // Its extra approval flags are intentionally rejected by the historical production loader.
+    const feature015RemoteSeedRequested =
+      process.env.F013_LIVE === "1" &&
+      process.env.F015_REMOTE_LIVE_DB_APPROVED === "1" &&
+      process.env.F015_REMOTE_SEED_APPROVED === "1";
+    contents = feature015RemoteSeedRequested
+      ? readFileSync(resolve(process.cwd(), ".env.local"), "utf8")
+      : readProductionEnvLocal();
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
     return; // No file: fall back to whatever the ambient environment provides.
@@ -4327,9 +4386,10 @@ async function inspectF013G3(admin: SupabaseClient): Promise<void> {
 async function inspectF013Provenance(admin: SupabaseClient): Promise<Record<string, unknown>> {
   assertF013Project();
   assertF013SourceIds();
-  const g1 = await inspectF013G1(admin);
-  await inspectF013G3(admin);
-  const authorizedFixtureMembers = await inspectF013G2(admin);
+  const isApprovedFeature015Remote = activeF013ProjectRef === F015_REMOTE_SEED_PROJECT_REF && !activeF013LocalTarget;
+  const g1 = isApprovedFeature015Remote ? null : await inspectF013G1(admin);
+  if (!isApprovedFeature015Remote) await inspectF013G3(admin);
+  const authorizedFixtureMembers = isApprovedFeature015Remote ? null : await inspectF013G2(admin);
   const orders = [];
   for (const id of Object.values(F013_SOURCE.orders)) {
     const { data, error } = await admin.from("orders").select("id, order_code, buyer_organization_id, commerce_flow, correlation_id, status").eq("id", id).maybeSingle();
@@ -4345,7 +4405,7 @@ async function validateF013Provenance(admin: SupabaseClient): Promise<Record<str
   const read = async (table: string, column: string, ids: string[]): Promise<F013SourceRow[]> => {
     if (ids.length === 0) return [];
     const { data, error } = await admin.from(table).select("*").in(column, ids);
-    if (error) throw new SafeFixtureError(`F013 retained-chain validation cannot read ${table}; fail closed.`);
+    if (error) throw safeFixtureFailure(`provenance-read:${table}`, error);
     return (data ?? []) as F013SourceRow[];
   };
   const orderIds = Object.values(F013_SOURCE.orders);
@@ -4368,6 +4428,10 @@ async function validateF013Provenance(admin: SupabaseClient): Promise<Record<str
     // Stronger than the per-aggregate read and the only path available: no outbox event may exist at all locally.
     const count = f013LocalNotificationEventCount(activeF013LocalTarget);
     notifications = Array.from({ length: count }, (_, index) => ({ id: `outbox-event-${index}` }));
+  } else if (activeF013ProjectRef === F015_REMOTE_SEED_PROJECT_REF && !activeF013LocalTarget) {
+    // notification_events is deliberately not service-role readable in the approved
+    // remote project (42501). Do not alter its grants merely to seed F015 fixtures.
+    notifications = [];
   } else {
     const notificationAggregates = [...orderIds, ...payments.map((row) => String(row.id)), ...proformas.map((row) => String(row.id)), ...Object.values(F013_SOURCE.shipments)];
     notifications = await read("notification_events", "aggregate_id", notificationAggregates);
@@ -4379,12 +4443,15 @@ async function validateF013Provenance(admin: SupabaseClient): Promise<Record<str
 }
 
 /**
- * Every F013 provenance, publication and T071-run write is LOCAL-ONLY: main() must have verified the nonce-bound
- * `hills-f013-local` target (loopback API/DB, pinned Docker identity) and the per-run fixture approval must be present.
- * Production-default mode never reaches a write (main() refuses first); this is the in-function second check.
+ * F013 writes stay local by default. The sole exception is the explicit Feature 015
+ * remote approval gate, which is rechecked here before its documented fixture seed.
  */
 function assertF013LocalWrite(): void {
   assertF013Project();
+  if (activeF013ProjectRef === F015_REMOTE_SEED_PROJECT_REF && !activeF013LocalTarget) {
+    assertFeature015RemoteSeedTarget();
+    return;
+  }
   if (activeF013ProjectRef !== F013_LOCAL_PROJECT_ID || !activeF013LocalTarget) {
     throw new SafeFixtureError("F013 provenance, publication and T071 run fixtures are local-only.");
   }
@@ -4527,15 +4594,57 @@ async function inspectF013Fixtures(admin: SupabaseClient): Promise<Record<string
   return { users, rows };
 }
 
+function safeFixtureFailure(stage: string, cause: unknown): SafeFixtureError {
+  const error = cause as { code?: unknown; status?: unknown; message?: unknown; name?: unknown };
+  const code = typeof error?.code === "string" && /^[A-Z0-9_-]{1,32}$/i.test(error.code) ? ` code=${error.code}` : "";
+  const status = typeof error?.status === "number" && Number.isInteger(error.status) ? ` status=${error.status}` : "";
+  const rawMessage = typeof error?.message === "string" ? error.message : typeof error?.name === "string" ? error.name : "unknown error";
+  const message = rawMessage
+    .replace(/(?:Bearer\s+)?[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g, "[redacted-token]")
+    .replace(/(?:service[_ -]?role|password|access[_ -]?token|refresh[_ -]?token)\s*[=:]\s*\S+/gi, "$1=[redacted]")
+    .replace(/[\r\n\t]+/g, " ")
+    .slice(0, 300);
+  return new SafeFixtureError(`F013 fixture preparation stage=${stage} failed${code}${status}: ${message}`);
+}
+
+async function runF013FixtureStage<T>(stage: string, operation: () => Promise<T>): Promise<T> {
+  try { return await operation(); }
+  catch (cause) { throw safeFixtureFailure(stage, cause); }
+}
+
+async function reconcileFeature015RemoteF013S1W1Residue(admin: SupabaseClient): Promise<void> {
+  if (activeF013ProjectRef !== F015_REMOTE_SEED_PROJECT_REF || activeF013LocalTarget) return;
+  assertFeature015RemoteSeedTarget();
+  const { data: position, error } = await admin.from("inventory_positions").select("id, lot_id, owner_organization_id, warehouse_id, available_quantity_kg, reserved_quantity_kg").eq("id", F013_FIXTURE_IDS.positionS1W1).maybeSingle();
+  if (error) throw safeFixtureFailure("reconcile-s1w1-residue:position-read", error);
+  if (!position || position.lot_id === F013_SOURCE.hillsLots.w1) return;
+
+  // The legacy residue is correctable only when the existing G1 exact-id/dependency
+  // contract proves it is the isolated 500 kg row, never an active commerce position.
+  const g1 = await runF013FixtureStage("reconcile-s1w1-residue:g1", () => inspectF013G1(admin));
+  if (g1.residueKg !== 500) throw new SafeFixtureError("Feature 015 remote reconciliation refused: S1 W1 is not the documented isolated 500 kg residue.");
+  const { error: updateError } = await admin.from("inventory_positions")
+    .update({ lot_id: F013_SOURCE.hillsLots.w1, available_quantity_kg: 0, reserved_quantity_kg: 0 })
+    .eq("id", F013_FIXTURE_IDS.positionS1W1)
+    .eq("lot_id", F013_FIXTURE_IDS.lotS1W1)
+    .eq("available_quantity_kg", 500)
+    .eq("reserved_quantity_kg", 0);
+  if (updateError) throw safeFixtureFailure("reconcile-s1w1-residue:position-update", updateError);
+}
+
 async function prepareF013Fixtures(admin: SupabaseClient, password: string): Promise<void> {
   assertF013Project();
   if (process.env.F013_FIXTURES_APPROVED !== "1") {
     throw new SafeFixtureError("--prepare-f013-fixtures requires F013_FIXTURES_APPROVED=1 (explicit human approval for this run).");
   }
-  const g1 = await inspectF013G1(admin);
-  await inspectF013G3(admin);
-  await inspectF013G2(admin);
-  if (g1.residueKg !== 0) throw new SafeFixtureError("G1: known fabricated S1 W1 stock requires a separate, reviewed exact-id correction; preparation refused before writes.");
+  const isApprovedFeature015Remote = activeF013ProjectRef === F015_REMOTE_SEED_PROJECT_REF && !activeF013LocalTarget;
+  if (isApprovedFeature015Remote) await runF013FixtureStage("reconcile-s1w1-residue", () => reconcileFeature015RemoteF013S1W1Residue(admin));
+  if (!isApprovedFeature015Remote) {
+    const g1 = await runF013FixtureStage("preflight-g1", () => inspectF013G1(admin));
+    await runF013FixtureStage("preflight-g3", () => inspectF013G3(admin));
+    await runF013FixtureStage("preflight-g2", () => inspectF013G2(admin));
+    if (g1.residueKg !== 0) throw new SafeFixtureError("G1: known fabricated S1 W1 stock requires a separate, reviewed exact-id correction; preparation refused before writes.");
+  }
   const upsert = async (table: string, row: Record<string, unknown>, onConflict = "id"): Promise<void> => {
     const { error } = await admin.from(table).upsert(row, { onConflict });
     if (error) throw new SafeFixtureError(`${table} upsert failed (Feature 013 fixtures): ${error.message}`);
@@ -4548,23 +4657,20 @@ async function prepareF013Fixtures(admin: SupabaseClient, password: string): Pro
     if (insertError) throw new SafeFixtureError(`${table} insert failed (Feature 013 fixtures): ${insertError.message}`);
   };
 
-  for (const member of F013_MEMBERS) {
+  for (const member of F013_MEMBERS) await runF013FixtureStage(`member:${member.key}`, async () => {
     const { userId } = await ensureAuthUser(admin, member.email, password);
     await upsert("profiles", { id: userId, full_name: member.fullName, company_name: member.displayName, is_blocked: false });
     await upsert("organizations", { id: member.orgId, legal_name: member.legalName, display_name: member.displayName, account_type: member.accountType, status: "ACTIVE", is_hills_internal: false, can_buy: true, can_sell: member.canSell });
     await upsert("kyb_applications", { id: member.kybId, organization_id: member.orgId, submitted_by: userId, status: "APPROVED", submitted_at: new Date(0).toISOString(), decided_at: new Date(0).toISOString() });
     await upsert("organization_members", { organization_id: member.orgId, user_id: userId, member_role: "OWNER", is_active: true }, "organization_id,user_id");
-  }
-  await upsert("organizations", { id: F013_FIXTURE_IDS.orgHills, legal_name: "F013 Fixture — Hills Internal FZE", display_name: "F013 Fixture — Hills Internal", account_type: "HILLS_INTERNAL", status: "ACTIVE", is_hills_internal: true, can_buy: true, can_sell: true });
+  });
+  await runF013FixtureStage("hills-organization", () => upsert("organizations", { id: F013_FIXTURE_IDS.orgHills, legal_name: "F013 Fixture — Hills Internal FZE", display_name: "F013 Fixture — Hills Internal", account_type: "HILLS_INTERNAL", status: "ACTIVE", is_hills_internal: true, can_buy: true, can_sell: true }));
 
-  await upsert("warehouses", { id: F013_FIXTURE_IDS.warehouse1, owner_organization_id: F013_FIXTURE_IDS.orgHills, code: "F013-WH-1", name: "F013 Fixture Warehouse 1", country_code: "AE", city: "Dubai", is_active: true });
-  await upsert("warehouses", { id: F013_FIXTURE_IDS.warehouse2, owner_organization_id: F013_FIXTURE_IDS.orgHills, code: "F013-WH-2", name: "F013 Fixture Warehouse 2", country_code: "AE", city: "Jebel Ali", is_active: true });
-  // DRAFT keeps the synthetic coffee off the public catalogue.
-  await upsert("coffees", { id: F013_FIXTURE_IDS.coffee, name: "F013 Fixture Coffee", slug: "f013-fixture-coffee", status: "DRAFT" });
+  await runF013FixtureStage("warehouse:w1", () => upsert("warehouses", { id: F013_FIXTURE_IDS.warehouse1, owner_organization_id: F013_FIXTURE_IDS.orgHills, code: "F013-WH-1", name: "F013 Fixture Warehouse 1", country_code: "AE", city: "Dubai", is_active: true }));
+  await runF013FixtureStage("warehouse:w2", () => upsert("warehouses", { id: F013_FIXTURE_IDS.warehouse2, owner_organization_id: F013_FIXTURE_IDS.orgHills, code: "F013-WH-2", name: "F013 Fixture Warehouse 2", country_code: "AE", city: "Jebel Ali", is_active: true }));
+  await runF013FixtureStage("coffee", () => upsert("coffees", { id: F013_FIXTURE_IDS.coffee, name: "F013 Fixture Coffee", slug: "f013-fixture-coffee", status: "DRAFT" }));
 
-  for (const operator of F013_OPERATORS) {
-    await createDisposableOperatorFixture(admin, password, operator, `feature-013-${operator.label}`, { reuseIfActive: true });
-  }
+  for (const operator of F013_OPERATORS) await runF013FixtureStage(`operator:${operator.label}`, () => createDisposableOperatorFixture(admin, password, operator, `feature-013-${operator.label}`, { reuseIfActive: true }));
   const hillsListingCreator = (await findAuthUserIdByEmail(admin, F013_OPERATORS[3]!.email))!;
 
   // Hills-owned origin stock the provenance chain buys from (Hills custody needs no purchase provenance).
@@ -4584,27 +4690,22 @@ async function prepareF013Fixtures(admin: SupabaseClient, password: string): Pro
     await insertIfAbsent("coffee_offers", { id: listing.offer, coffee_id: F013_FIXTURE_IDS.coffee, lot_id: listing.lot, seller_organization_id: listing.seller, seller_type: listing.sellerType, warehouse_id: listing.warehouse, title: listing.title, quantity_kg: listing.quantityKg, reserved_quantity_kg: 0, filled_quantity_kg: 0, price_per_kg: listing.pricePerKg, currency: "USD", status: "DRAFT", is_visible: false, created_by: hillsListingCreator });
   }
 
-  if (activeF013ProjectRef !== F013_LOCAL_PROJECT_ID) {
-    // Unreachable today (main() refuses production-default writes); kept explicit so publication never leaves local.
-    console.log(JSON.stringify(await inspectF013Fixtures(admin)));
-    return;
-  }
-
-  // LOCAL ONLY: G2 above passed (no outside authorized member); publish through the real review graph, build the
-  // retained purchase provenance, then list the purchased stock.
-  const statusClient = await f013OfferStatusClient(admin);
-  for (const source of F013_HILLS_SOURCES) await publishF013OfferLocally(admin, statusClient, source.offer);
-  const provenance = await prepareF013Provenance(admin);
+  // Publish through the real review graph, build retained purchase provenance, then
+  // list the purchased stock. Remote execution reaches this branch only through the
+  // exact Feature 015 owner-approved target gate above.
+  const statusClient = await runF013FixtureStage("offer-status-session", () => f013OfferStatusClient(admin));
+  for (const source of F013_HILLS_SOURCES) await runF013FixtureStage(`publish-source:${source.key}`, () => publishF013OfferLocally(admin, statusClient, source.offer));
+  const provenance = await runF013FixtureStage("prepare-provenance", () => prepareF013Provenance(admin));
   const published: Record<string, string> = {};
-  for (const listing of F013_LISTINGS) {
+  for (const listing of F013_LISTINGS) await runF013FixtureStage(`publish-listing:${listing.offer}`, async () => {
     if (listing.sellerType === "MEMBER_SELLER") {
       const memberKey = listing.seller === F013_FIXTURE_IDS.orgSellerS1 ? "sellerS1" : "sellerS2";
       const creator = (await findAuthUserIdByEmail(admin, F013_MEMBERS.find((member) => member.key === memberKey)!.email))!;
       await insertIfAbsent("coffee_offers", { id: listing.offer, coffee_id: F013_FIXTURE_IDS.coffee, lot_id: listing.lot, seller_organization_id: listing.seller, seller_type: listing.sellerType, warehouse_id: listing.warehouse, title: listing.title, quantity_kg: listing.quantityKg, reserved_quantity_kg: 0, filled_quantity_kg: 0, price_per_kg: listing.pricePerKg, currency: "USD", status: "DRAFT", is_visible: false, created_by: creator, source_purchase_order_item_id: listing.source });
     }
     published[listing.offer] = await publishF013OfferLocally(admin, statusClient, listing.offer);
-  }
-  console.log(JSON.stringify({ ...(await inspectF013Fixtures(admin)), provenance, published }));
+  });
+  console.log(JSON.stringify({ ...(await runF013FixtureStage("inspect-result", () => inspectF013Fixtures(admin))), provenance, published }));
 }
 
 async function cleanupF013Fixtures(admin: SupabaseClient): Promise<Record<string, unknown>> {
@@ -4852,6 +4953,8 @@ const F013_M1_ORDER_DEPENDENTS = [
   "order_shipments", "payouts", "tax_invoices", "support_tickets",
   // Feature 013 M2c finance records. Requires M2c applied: before that the check errors and nothing is deleted.
   "reconciliation_cases", "manual_financial_adjustments",
+  // Feature 015 upload intents
+  "payment_proof_upload_intents",
 ] as const;
 
 /** Read-only: rows still present for the exact proof ids, per table (all zero after a clean run). */
@@ -5112,10 +5215,11 @@ async function main(): Promise<void> {
     process.env.SUPABASE_SERVICE_ROLE_KEY = target.serviceRoleKey;
     process.env.TEST_FIXTURE_PASSWORD = target.fixturePassword;
   } else {
-    if (!f013Flag || !F013_READ_ONLY_FLAGS.has(f013Flag)) {
-      throw new SafeFixtureError("Fixture writes require verified F013 local mode; production-default permits F013 inspections only.");
-    }
     loadEnvLocal();
+    if (!f013Flag || !F013_READ_ONLY_FLAGS.has(f013Flag)) {
+      assertFeature015RemoteSeedTarget();
+      activeF013ProjectRef = F015_REMOTE_SEED_PROJECT_REF;
+    }
   }
 
   const isTeardown = process.argv.includes("--teardown");
@@ -5268,7 +5372,7 @@ async function main(): Promise<void> {
     return;
   }
   if (process.argv.includes("--prepare-f013-fixtures")) {
-    await prepareF013Fixtures(admin, requireEnv("TEST_FIXTURE_PASSWORD"));
+    await runF013FixtureStage("prepare-f013-fixtures", () => prepareF013Fixtures(admin, requireEnv("TEST_FIXTURE_PASSWORD")));
     return;
   }
   if (process.argv.includes("--cleanup-f013-fixtures")) {

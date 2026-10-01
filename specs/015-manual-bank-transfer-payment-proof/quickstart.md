@@ -5,7 +5,7 @@
 ## Prerequisites
 
 1. Owner-approved bucket identifier and max upload size are recorded.
-2. The read-only preflight has been reviewed and its exact cutover manifest is available.
+2. Final Owner Authority is recorded: existing commerce data is test/demo data only; no in-flight manifest compatibility is required.
 3. A disposable local or test Supabase/PostgreSQL environment has the intended forward migration applied by an authorized implementation workflow.
 4. Fixtures include authorized and non-buying buyer members, a seller, warehouse user, finance user, admin, unrelated organization, one shared inventory position backing multiple offers, and an expiring hold.
 
@@ -35,7 +35,7 @@ Attempt cleanup against a raw path, foreign intent and finalized intent; all mus
 
 Probe Storage, `payment_proofs`, and proof-linked `file_assets` directly. Permit only an authorized buying buyer, Finance and Admin according to the contract; deny non-buying buyer members, seller, warehouse, unrelated organization and anonymous users. Verify privileged staff cannot upload.
 
-After cutover, call `issue_proforma`, `requestProforma`, `confirm_proforma` and `confirmReservation` directly where possible. New legacy issuance must fail. Only manifest-listed, unexpired in-flight proformas may confirm. Existing manifest-listed holds may not create another hold or proforma.
+After cutover, call `issue_proforma`, `requestProforma`, `confirm_proforma` and `confirmReservation` directly where possible. All legacy endpoints must fail unconditionally with `endpoint_deprecated_use_checkout_v1` per Final Owner Authority. Existing demo holds may not create another hold or proforma.
 
 ### 5. Notifications and scope
 

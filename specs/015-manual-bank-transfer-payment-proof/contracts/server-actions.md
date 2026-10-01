@@ -58,10 +58,14 @@ FinalizeProofInput = z.object({
 
 `uploadIntentId` and `requestId` are retained unchanged for retry after an unknown response. Filename and object path are deliberately absent. The action invokes `finalize_payment_proof`, maps its structured expired result without throwing, and revalidates only after a committed success.
 
-The customer-facing boundary is the database commit: until it returns success, the countdown continues and the UI does not display Pending Verification. If the locked database deadline has elapsed, the action reports `reservation_expired`; it never reports a successful submission merely because byte upload completed.
+The customer-facing boundary is the database commit: until it returns success, the countdown continues and the UI does not display Pending Verification. The DAL validates all required fields (`order_id`, `proof_id`, `payment_id`, `submitted_at`, `order_status`, `payment_status`, `reservation_status`) authoritatively without synthesis. If any required field is missing or malformed, it fails safely with `commerce_error`. If the locked database deadline has elapsed, the action reports `reservation_expired`; it never reports a successful submission merely because byte upload completed.
 
 ## 4. Orphan cleanup
 
 `compensateOrphanProofUpload` is an internal server-only helper, not an exported callable Server Action. It receives only an upload-intent ID from trusted action control flow. It loads and locks the intent, verifies the currently authenticated authorized buyer or an internal service invocation, and deletes only an intent-owned object whose intent is still `PREPARED` or `EXPIRED`. It must refuse `FINALIZED` intents, cross-order IDs, and cross-tenant paths; then marks the intent `CLEANED` atomically. Cleanup failure is observable and retryable, but cannot change commerce state or delete a committed proof.
+
+## 5. Legacy action deprecation (FINAL OWNER AUTHORITY)
+
+Per Final Owner Authority, all existing commerce data in all non-production environments is test/demo data only. `requestProforma` and `confirmReservation` are deprecated and disabled. Calling `confirmReservation` returns `{ ok: false, code: 'endpoint_deprecated_use_checkout_v1' }`. No legacy manifest compatibility path is maintained.
 
 No action implements review, confirmation, rejection, `PAID`, seller settlement, payout, sold finalization, or delivery.

@@ -239,7 +239,7 @@ describe("Phase 5.5 UIF-036 — member shell applied at /dashboard", () => {
     // Feature 013 Sprint 1 (T074/T075, contracts/app-surfaces.md) adds `dashboard/cart/` and `dashboard/destinations/`,
     // registered with the module contract for can-buy organizations (T076); each page re-verifies authentication,
     // authorized membership, can-buy and MFA server-side before any read.
-    expect(dirs.sort()).toEqual(["cart", "coffee", "deliveries", "destinations", "disputes", "inventory", "kyb", "listings", "notifications", "onboarding", "orders", "payments", "payouts", "sales", "settings", "storage"]);
+    expect(dirs.sort()).toEqual(["cart", "checkout", "coffee", "deliveries", "destinations", "disputes", "inventory", "kyb", "listings", "messages", "notifications", "onboarding", "orders", "payments", "payouts", "sales", "settings", "storage"]);
 
     // Feature 003 T013 added `dashboard/onboarding/` for the controlled-onboarding Server Action
     // only — it carries no `page.tsx`, so Next.js never registers it as a route. The onboarding

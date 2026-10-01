@@ -337,7 +337,7 @@ export function f013LocalChildEnv(target: F013LocalTarget, parent: Environment =
 }
 
 /** Pure CLI command builder; execution remains with the caller. */
-export function supabaseCli(target: Extract<F013Mode, { kind: "production-default" }> | F013LocalTarget, args: readonly string[], env: Environment = process.env): { command: "npx"; args: string[]; cwd: string; env: NodeJS.ProcessEnv } {
+export function supabaseCli(target: Extract<F013Mode, { kind: "production-default" }> | F013LocalTarget, args: readonly string[], env: Environment = process.env): { command: string; args: string[]; cwd: string; env: NodeJS.ProcessEnv } {
   const file = assertQueryFileArgs(args);
   if (target.kind === "local") {
     if (resolveF013Mode(env).kind !== "local") throw new F013TargetError("Local CLI mode not selected.");
@@ -350,8 +350,31 @@ export function supabaseCli(target: Extract<F013Mode, { kind: "production-defaul
     throw new F013TargetError("Production proof CLI refused while F013 local mode is selected.");
   }
   if (env.F013_LIVE !== "1") throw new F013TargetError("Historical production proof CLI requires F013_LIVE=1.");
-  // Historical Batch B production proof only. This is the builder's sole linked branch.
   const child = sanitizedF013Environment(env);
+  // Feature 015's explicitly approved remote proof uses one real PostgreSQL
+  // session per SQL file. Never place credentials in argv or silently fall back.
+  if (env.F015_REMOTE_LIVE_DB_APPROVED === "1") {
+    if (!env.SUPABASE_DB_PASSWORD) throw new F013TargetError("Feature 015 direct SQL requires SUPABASE_DB_PASSWORD in the current process environment.");
+    const linkedRef = readFileSync(resolve(process.cwd(), "supabase/.temp/project-ref"), "utf8").trim();
+    const linked = JSON.parse(readFileSync(resolve(process.cwd(), "supabase/.temp/linked-project.json"), "utf8")) as { ref?: string; name?: string };
+    if (linkedRef !== F013_PRODUCTION_REF || linked.ref !== F013_PRODUCTION_REF || linked.name !== "hillscoffees-trading") {
+      throw new F013TargetError("Feature 015 direct SQL refused: linked Hills Coffee identity mismatch.");
+    }
+    const pooler = new URL(readFileSync(resolve(process.cwd(), "supabase/.temp/pooler-url"), "utf8").trim());
+    if (pooler.protocol !== "postgresql:" || pooler.username !== `postgres.${F013_PRODUCTION_REF}` ||
+        !/^aws-[a-z0-9-]+\.pooler\.supabase\.com$/.test(pooler.hostname) || (pooler.port && pooler.port !== "5432")) {
+      throw new F013TargetError("Feature 015 direct SQL refused: session-pooler identity mismatch.");
+    }
+    child.F013_LIVE = "1";
+    child.F015_REMOTE_LIVE_DB_APPROVED = "1";
+    child.PGHOST = pooler.hostname;
+    child.PGPORT = "5432";
+    child.PGUSER = `postgres.${F013_PRODUCTION_REF}`;
+    child.SUPABASE_DB_PASSWORD = env.SUPABASE_DB_PASSWORD;
+    if (env.NODE_EXTRA_CA_CERTS) child.NODE_EXTRA_CA_CERTS = env.NODE_EXTRA_CA_CERTS;
+    return { command: process.execPath, args: [resolve(process.cwd(), "scripts/pg-simple-exec.mjs"), file], cwd: process.cwd(), env: child };
+  }
+  // Historical Batch B production proof only. This is the builder's sole linked branch.
   if (env.SUPABASE_ACCESS_TOKEN !== undefined) child.SUPABASE_ACCESS_TOKEN = env.SUPABASE_ACCESS_TOKEN;
   return { command: "npx", args: ["supabase", "db", "query", "--linked", "-f", file], cwd: process.cwd(), env: child };
 }

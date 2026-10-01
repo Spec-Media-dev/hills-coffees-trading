@@ -38,13 +38,13 @@ Feature-specific policies cover Storage, `payment_proofs`, proof-linked `file_as
 
 Direct `DRAFT → HOLD` retains the existing reservation-confirmed notification. The checkout transaction also emits exactly one idempotent in-app `ORDER_PROFORMA_ISSUED` notification associated with the created proforma. It emits no proof-submitted notification.
 
-### Cutover
+### Cutover (FINAL OWNER AUTHORITY)
 
-The preflight script is executed and reviewed before the migration is authored. It produces a manifest of exact in-flight `PROFORMA_ISSUED` and `HOLD` identifiers. After cutover, `issue_proforma` and `requestProforma` always reject new issuance; `confirm_proforma` and `confirmReservation` work only for manifest-listed, unexpired proformas. Existing holds continue only through their current expiry/receipt path. Historical migrations remain untouched.
+**FINAL OWNER AUTHORITY:** All currently existing commerce/order/proforma data in all non-production environments is TEST / DEMO DATA ONLY. There are no real customer orders, no real paid orders, and no real in-flight legacy `BANK_TRANSFER_V1` orders requiring completion. Therefore, NO legacy in-flight manifest compatibility is required, and NO existing `PROFORMA_ISSUED` order needs to remain confirmable. `issue_proforma` and `confirm_proforma` are unconditionally fenced for the new Feature 015 flow (raising `endpoint_deprecated_use_checkout_v1`); `requestProforma` and `confirmReservation` are deprecated and disabled accordingly. Existing demo holds continue only through their current expiry/receipt path. Historical migrations remain untouched.
 
 ## Forward migration contents
 
-After the gates and preflight, one forward migration will update current functions and policies, add upload intents, add exact Storage and proof-table access controls, amend the order graph, establish checkout/finalize RPCs, add notification compatibility, and apply the manifest-backed legacy fence. A preflight, postflight and rollback script are authored before migration application. This plan does not create any of those files.
+After the gates, one forward migration will update current functions and policies, add upload intents, add exact Storage and proof-table access controls, amend the order graph, establish checkout/finalize RPCs, add notification compatibility, and apply the unconditional legacy fence. A preflight, postflight and rollback script are authored before migration application. This plan does not create any of those files.
 
 ## Validation strategy
 

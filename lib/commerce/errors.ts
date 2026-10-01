@@ -68,6 +68,9 @@ export const COMMERCE_ERROR_CODES = [
   "invalid_validity_hours",
   "payment_account_not_found",
   "legacy_draft_not_convertible",
+  "finalized_state_integrity_error",
+  "endpoint_deprecated_use_checkout_v1",
+  "endpoint_deprecated_use_finalize_payment_proof",
 ] as const;
 
 export type CommerceErrorCode = (typeof COMMERCE_ERROR_CODES)[number];

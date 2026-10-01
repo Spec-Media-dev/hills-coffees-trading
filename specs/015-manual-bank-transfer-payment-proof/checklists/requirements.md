@@ -13,7 +13,7 @@
 - [x] Storage, `payment_proofs` and proof-linked `file_assets` share the required buying-capability access matrix.
 - [x] Finalize has mandatory stable idempotency, a serialized deadline decision, truthful release reporting and a sweeper-race test.
 - [x] Feature 014 issuance, hold and expiry notifications are preserved without adding a proof notification.
-- [x] Legacy endpoints use a manifest-backed cutover fence for both direct RPC and Server Action callers.
+- [x] Legacy endpoints use an unconditional cutover fence for both direct RPC and Server Action callers per Final Owner Authority.
 - [x] Feature 016 review, paid, inventory-sale, delivery, settlement and payout work is excluded.
 
 ## Approved owner decisions

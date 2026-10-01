@@ -55,11 +55,11 @@
 
 **Rationale:** The old status-trigger path disappears with direct checkout.
 
-### 8. Legacy cutover
+### 8. Legacy cutover (FINAL OWNER AUTHORITY)
 
-**Decision:** Read-only preflight creates a reviewed manifest of exact existing eligible `PROFORMA_ISSUED` and `HOLD` identifiers. The post-cutover functions and Server Actions permit confirmation only for manifest-listed, unexpired proformas; they reject new old-flow issuance universally.
+**Decision:** All currently existing commerce/order/proforma data in all non-production environments is TEST / DEMO DATA ONLY. There are no real customer orders, no real paid orders, and no real in-flight legacy `BANK_TRANSFER_V1` orders requiring completion. Therefore, NO legacy in-flight manifest compatibility is required, and NO existing `PROFORMA_ISSUED` order needs to remain confirmable. `issue_proforma` and `confirm_proforma` are unconditionally fenced for the new Feature 015 flow, returning `endpoint_deprecated_use_checkout_v1`. `requestProforma` and `confirmReservation` are deprecated and disabled accordingly.
 
-**Rationale:** A global status count or timestamp fence cannot distinguish a legitimate in-flight order from a newly created bypass.
+**Rationale:** Per Final Owner Authority, backward-compatible completion for demo data is waived. An unconditional fence is cleaner, safer, eliminates maintenance of an in-flight manifest table or list, and ensures immediate, unambiguous cutover to atomic checkout.
 
 ### 9. Owner decisions
 

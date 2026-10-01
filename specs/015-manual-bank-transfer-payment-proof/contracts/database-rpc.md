@@ -82,19 +82,31 @@ The authoritative decision point is the database `clock_timestamp()` check while
 
 If the deadline has elapsed, call `commerce_release_reservation(p_order_id)` and capture its boolean result. Return a non-exception JSON failure only after verifying the terminal order/reservation state: `{ ok: false, code: 'reservation_expired', released: <actual boolean> }`. No exception handler may re-raise after release. A repeated call returns the persisted terminal result and does not mutate counters again.
 
-On a timely finalize, verify that the exact intent object exists in the approved private bucket and satisfies the owner-approved size and MIME limits. Insert private `file_assets` metadata using the server-derived path and the intent display filename, insert one on-time `payment_proofs` row, set the intent `FINALIZED`, set payment `PROOF_SUBMITTED`, reservation `REVIEW_HOLD`, and order `PAYMENT_PROOF_SUBMITTED`. Complete the idempotency record and return success. A same or different request ID after a finalized intent returns the committed proof only to an still-authorized caller; it never creates duplicate file assets or proof rows.
+On a timely finalize, verify that the exact intent object exists in the approved private bucket and satisfies the owner-approved size and MIME limits. Insert private `file_assets` metadata using the server-derived path and the intent display filename, insert one on-time `payment_proofs` row, set the intent `FINALIZED`, set payment `PROOF_SUBMITTED`, reservation `REVIEW_HOLD`, and order `PAYMENT_PROOF_SUBMITTED`. Complete the idempotency record and return authoritative truthful success payload:
+- `ok`: true
+- `order_id`: UUID
+- `order_code`: text
+- `proof_id`: UUID
+- `payment_id`: UUID
+- `submitted_at`: timestamptz (ISO string)
+- `order_status`: 'PAYMENT_PROOF_SUBMITTED'
+- `payment_status`: 'PROOF_SUBMITTED'
+- `reservation_status`: 'REVIEW_HOLD'
+
+Idempotent replay (same or different request ID) returns this exact same complete server-derived payload using persisted database values with `idempotent_replay: true`. A same or different request ID after a finalized intent returns the committed proof only to a still-authorized caller; it never creates duplicate file assets or proof rows.
 
 No Feature 015 RPC transitions to `PAID`, releases review holds, performs review, creates settlement or payout records, or starts delivery.
 
-## 4. Legacy cutover contract
+## 4. Legacy cutover contract (FINAL OWNER AUTHORITY)
 
-Before migration authoring and application, run the read-only preflight and record a cutover manifest containing the exact IDs of eligible `PROFORMA_ISSUED` orders and their `valid_until` values, plus active `HOLD` order IDs.
+**FINAL OWNER AUTHORITY:** All currently existing commerce/order/proforma data in all non-production environments is TEST / DEMO DATA ONLY. There are no real customer orders, no real paid orders, and no real in-flight legacy `BANK_TRANSFER_V1` orders requiring completion.
 
-After the cutover:
+Therefore:
 
-* `issue_proforma` rejects all new issuance with `endpoint_deprecated_use_checkout_v1`; this applies to direct RPC callers and `requestProforma`.
-* `confirm_proforma` is allowed only for a manifest-listed, still-valid `PROFORMA_ISSUED` proforma. All other calls reject with `endpoint_deprecated_use_checkout_v1`.
+* NO legacy in-flight manifest compatibility is required.
+* NO existing `PROFORMA_ISSUED` order needs to remain confirmable.
+* `issue_proforma` and `confirm_proforma` are unconditionally fenced for the new Feature 015 flow, returning `endpoint_deprecated_use_checkout_v1`.
+* `requestProforma` and `confirmReservation` are deprecated and disabled accordingly.
 * Existing `HOLD` orders retain only their existing expiry and permitted receipt flow; they cannot create a second reservation or proforma.
-* `confirmReservation` checks the same manifest/fence. New UI routes only to atomic checkout.
 
 The forward migration changes current functions and grants only; historical migrations remain untouched.

@@ -2839,6 +2839,8 @@ export const ar: DeepPartial<AppCopy> = {
         destinationHeading: "اختر وجهة التسليم",
         requestProforma: "طلب فاتورة أولية",
         requestingProforma: "جارٍ طلب الفاتورة الأولية…",
+        completeCheckout: "إتمام الطلب وحجز المخزون",
+        completingCheckout: "جارٍ حجز المخزون وإصدار الفاتورة…",
         estimate: {
           lineHeader: "الصنف",
           quantityHeader: "الكمية",
@@ -2871,6 +2873,16 @@ export const ar: DeepPartial<AppCopy> = {
         confirmAction: "تأكيد الحجز",
         confirming: "جارٍ التأكيد…",
         terminalNotice: "لم يعد هذا الطلب نشطًا. ابدأ سلة جديدة للمتابعة.",
+        uploadProofHeading: "إرسال إشعار التحويل البنكي",
+        uploadProofDescription: "حمّل إشعار التحويل البنكي (PDF أو PNG أو JPEG، بحجم أقصاه 10 ميجابايت) لتأكيد حجزك.",
+        claimedAmountLabel: "المبلغ المحوّل (دولار أمريكي)",
+        transferDateLabel: "تاريخ التحويل",
+        bankReferenceLabel: "الرقم المرجعي للتحويل / رقم المعاملة",
+        notesLabel: "ملاحظات (اختياري)",
+        uploadButton: "إرسال إشعار الدفع",
+        uploadingButton: "جارٍ الإرسال…",
+        pendingVerificationTitle: "قيد التحقق من الدفع",
+        pendingVerificationDescription: "تم إرسال إشعار الدفع وهو قيد المراجعة والتحقق من قبل الفريق المالي. يظل المخزون محجوزًا أثناء المراجعة.",
       },
       destinationsUi: {
         nav: "وجهات التسليم",
@@ -2914,6 +2926,7 @@ export const ar: DeepPartial<AppCopy> = {
         CANCELLED: "ملغاة",
         VOID: "لاغية",
         SUPERSEDED: "استُبدلت",
+        PAYMENT_PROOF_SUBMITTED: "تم تقديم الإشعار",
         PAID: "مدفوعة",
       },
       reservations: {
@@ -3080,6 +3093,9 @@ export const ar: DeepPartial<AppCopy> = {
         invalid_validity_hours: "يجب أن تكون مدة صلاحية الفاتورة الأولية بين 1 و720 ساعة.",
         payment_account_not_found: "لم يُعثر على حساب مصرفي نشط بالدولار الأمريكي.",
         legacy_draft_not_convertible: "لا يمكن تحويل مسودة الطلب هذه.",
+        finalized_state_integrity_error: "تعذر إكمال التحقق من إثبات الدفع بسبب حالة غير متسقة للطلب. يرجى التواصل مع عمليات هيلز.",
+        endpoint_deprecated_use_checkout_v1: "تم إيقاف هذا الإجراء. يرجى إتمام عملية الشراء باستخدام مسار الدفع الحالي.",
+        endpoint_deprecated_use_finalize_payment_proof: "تم إيقاف نقطة النهاية السابقة هذه. يرجى إرسال إثباتات الدفع عبر مسار الرفع الآمن.",
       },
     },
 

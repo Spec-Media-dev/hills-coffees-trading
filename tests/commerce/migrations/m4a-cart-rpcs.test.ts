@@ -403,7 +403,9 @@ describe("T067 — rollback symmetry and history", () => {
       // The current, unapplied M4c-reduced (stock/inventory reservation only) change set — owner scope reduction, 2026-09-28.
       .filter((f) => !/^(?:supabase\/(?:migrations|rollback)\/20260928120000_feature_013_stock_reservation|supabase\/maintenance\/20260928_feature_013_stock_reservation_postflight|specs\/013-bank-transfer-commerce-core\/(?:spec|plan)\.md)/.test(f))
       // Feature 014 (Sprint 2) active implementation.
-      .filter((f) => !/^(?:specs\/014-notifications-messaging-seo|supabase\/(?:migrations|rollback)\/20260929\d+_feature_014|supabase\/maintenance\/20260929_feature_014)/.test(f));
+      .filter((f) => !/^(?:specs\/014-notifications-messaging-seo|supabase\/(?:migrations|rollback)\/20260929\d+_feature_014|supabase\/maintenance\/20260929_feature_014)/.test(f))
+      // Feature 015 active implementation.
+      .filter((f) => !/^(?:specs\/015-manual-bank-transfer-payment-proof|supabase\/(?:migrations|rollback)\/20260930\d+_feature_015|supabase\/maintenance\/20260930_feature_015)/.test(f));
     expect(changed).toEqual([]);
   });
 });
