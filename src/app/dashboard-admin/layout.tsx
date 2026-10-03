@@ -100,7 +100,7 @@ export default async function DashboardAdminLayout({
       navGroups={buildAdminNavGroups(identity.operationalRoles)}
       workspaceLabel={<AppBilingual pick={(c) => c.adminWorkspace} />}
       identitySubtitle={<AdminRoleBadges roles={identity.operationalRoles} />}
-      logoHref="/dashboard-admin"
+      logoHref="/"
       footerNote={appCopy.roleVisibilityNote}
       topbarActions={<AdminTopbarActions displayName={identity.profile.fullName} avatarPath={identity.profile.avatarPath} roles={identity.operationalRoles} />}
     >

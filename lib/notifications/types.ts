@@ -63,10 +63,82 @@ export type OwnNotificationDTO = {
 
 export type OwnNotificationPage = { rows: readonly OwnNotificationDTO[]; hasMore: boolean; page: number; pageSize: number; unreadCount?: number };
 
-/** Active in-app notification types supported in Sprint 2 / Feature 014 */
+/** Active in-app notification types supported in Sprint 2 / Feature 014 / Feature 016 */
 export const ACTIVE_NOTIFICATION_TYPES = [
   "ORDER_PROFORMA_ISSUED",
   "RESERVATION_CONFIRMED",
   "RESERVATION_EXPIRED",
+  "PAYMENT_PROOF_SUBMITTED",
+  "PAYMENT_CONFIRMED",
+  "PAYMENT_REJECTED",
+  "DELIVERY_HANDOFF_REQUESTED",
 ] as const;
 export type ActiveNotificationType = (typeof ACTIVE_NOTIFICATION_TYPES)[number];
+
+export type NotificationTypeMetadata = {
+  label: string;
+  category: NotificationPreferenceType;
+  description: string;
+};
+
+export const NOTIFICATION_TYPE_METADATA: Record<ActiveNotificationType, NotificationTypeMetadata> = {
+  ORDER_PROFORMA_ISSUED: {
+    label: "Proforma Invoice Issued",
+    category: "ORDER_UPDATES",
+    description: "Proforma invoice generated and available for order payment.",
+  },
+  RESERVATION_CONFIRMED: {
+    label: "Stock Reservation Confirmed",
+    category: "ORDER_UPDATES",
+    description: "Inventory positions successfully reserved for your order.",
+  },
+  RESERVATION_EXPIRED: {
+    label: "Stock Reservation Expired",
+    category: "ORDER_UPDATES",
+    description: "Stock reservation hold expired and positions were released.",
+  },
+  PAYMENT_PROOF_SUBMITTED: {
+    label: "Payment Proof Submitted",
+    category: "PAYMENT_INVOICES",
+    description: "Bank transfer payment proof received and awaiting finance verification.",
+  },
+  PAYMENT_CONFIRMED: {
+    label: "Payment Confirmed",
+    category: "PAYMENT_INVOICES",
+    description: "Bank transfer payment confirmed by finance; tax invoice issued and delivery dispatched.",
+  },
+  PAYMENT_REJECTED: {
+    label: "Payment Rejected",
+    category: "PAYMENT_INVOICES",
+    description: "Bank transfer payment was rejected by finance team.",
+  },
+  DELIVERY_HANDOFF_REQUESTED: {
+    label: "Delivery Handoff Requested",
+    category: "SHIPMENT_UPDATES",
+    description: "Warehouse handoff requested for confirmed order fulfillment.",
+  },
+};
+
+/**
+ * Feature 016 T035 — Format notification display ensuring reason-safe presentation
+ * without exposing private proof or bank account details.
+ */
+export function formatNotificationDisplay(notification: OwnNotificationDTO): {
+  title: string;
+  body: string;
+} {
+  if (notification.notificationType === "PAYMENT_REJECTED") {
+    // Sanitizes any raw database text; strips out internal bank references or storage paths if present
+    const safeBody = notification.body
+      .replace(/https?:\/\/[^\s]+/g, "[link]")
+      .replace(/[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}/gi, "[ref]");
+    return {
+      title: notification.title || "Payment Proof Rejected",
+      body: safeBody || "Your submitted payment proof could not be verified by our finance team.",
+    };
+  }
+  return {
+    title: notification.title,
+    body: notification.body,
+  };
+}

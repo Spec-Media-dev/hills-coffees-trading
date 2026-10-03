@@ -50,21 +50,41 @@ export async function listAuditAllocations({ page = 0 }: { page?: number } = {})
   return getStorageAllocationsForWarehouseOversight({ page, pageSize: AUDIT_PAGE_SIZE });
 }
 
-export type AuditLogRow = { id: number; actorUserId: string | null; entityType: string; entityId: string | null; action: string; createdAt: string };
+export type AuditLogRow = {
+  id: number;
+  actorUserId: string | null;
+  entityType: string;
+  entityId: string | null;
+  action: string;
+  metadata?: Record<string, unknown> | null;
+  createdAt: string;
+};
 
 export type AuditLogProbe = { readable: true; rows: readonly AuditLogRow[] } | { readable: false; reason: "policy" };
 
 /**
- * T026 — reads `audit_logs` under the caller's own session. Zero rows with no error is treated as
+ * T026/Feature 016 T037 — reads `audit_logs` under the caller's own session. Zero rows with no error is treated as
  * "not readable" for a caller who is NOT a platform admin (RLS filters silently), so the page can state
  * DB-OPEN-06 rather than show an empty table pretending the log is empty; a permission error maps to
- * the same honest state. `old_data`/`new_data`/`metadata` payloads are deliberately not selected.
+ * the same honest state. Includes immutable entity metadata for finance-review visibility.
  */
 export async function probeAuditLog({ isPlatformAdmin }: { isPlatformAdmin: boolean }): Promise<AuditLogProbe> {
   const supabase = await createClient();
-  const { data, error } = await supabase.from("audit_logs").select("id, actor_user_id, entity_type, entity_id, action, created_at").order("created_at", { ascending: false }).limit(50);
+  const { data, error } = await supabase
+    .from("audit_logs")
+    .select("id, actor_user_id, entity_type, entity_id, action, metadata, created_at")
+    .order("created_at", { ascending: false })
+    .limit(50);
   if (error) return { readable: false, reason: "policy" };
-  const rows = (data ?? []).map((row) => ({ id: Number(row.id), actorUserId: row.actor_user_id, entityType: row.entity_type, entityId: row.entity_id, action: row.action, createdAt: row.created_at }));
+  const rows = (data ?? []).map((row) => ({
+    id: Number(row.id),
+    actorUserId: row.actor_user_id,
+    entityType: row.entity_type,
+    entityId: row.entity_id,
+    action: row.action,
+    metadata: row.metadata as Record<string, unknown> | null,
+    createdAt: row.created_at,
+  }));
   if (rows.length === 0 && !isPlatformAdmin) return { readable: false, reason: "policy" };
   return { readable: true, rows };
 }

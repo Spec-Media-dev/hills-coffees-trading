@@ -1,4 +1,5 @@
 import type { ReactNode } from "react"
+import Image from "next/image"
 import Link from "next/link"
 
 import type { AppNavGroup } from "@/components/app/app-navigation"
@@ -65,9 +66,14 @@ export function Sidebar({
           aria-label={logoLabel}
           className="grid h-[60px] place-items-center rounded-[var(--radius-md)] bg-[var(--brand-cream)] px-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--sidebar-ring)]"
         >
-          <span className="font-heading text-[length:var(--text-small)] font-black tracking-[0.04em] text-[var(--brand-forest)]">
-            HILLS
-          </span>
+          <Image
+            src="/images/hills-logo-dark.png"
+            alt=""
+            width={120}
+            height={46}
+            priority
+            className="h-auto max-h-[38px] w-auto max-w-full object-contain"
+          />
         </Link>
       </div>
 

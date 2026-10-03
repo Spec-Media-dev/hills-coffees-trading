@@ -1,4 +1,63 @@
 import { ACTION_FEEDBACK, type ActionFeedbackCode } from "@/lib/types/action-feedback";
+import type { FinanceReviewErrorCode } from "@/lib/finance/types";
+
+/**
+ * Feature 016 Contract (server-actions.md §5) — Canonical Domain Error Messages
+ */
+export const FINANCE_REVIEW_ERROR_MESSAGES: Record<FinanceReviewErrorCode, string> = {
+  unauthenticated: "Authentication required. Please sign in again.",
+  forbidden: "You do not have permission to perform finance reviews.",
+  mfa_required: "Multi-factor authentication step-up required for finance operations.",
+  order_not_found: "The requested order could not be found.",
+  payment_not_found: "The requested payment could not be found.",
+  proforma_not_found: "Authoritative proforma invoice could not be found for this order.",
+  proforma_not_confirmed: "Authoritative proforma invoice is not in CONFIRMED status.",
+  reservation_not_found: "Stock reservation could not be found for this order.",
+  reservation_not_review_hold: "The review is no longer eligible for an initial decision.",
+  authoritative_proforma_mismatch: "Payment, order, and reservation do not identify the same confirmed proforma.",
+  finalized_upload_intent_not_found: "Finalized payment proof upload intent could not be verified.",
+  finalized_proof_not_found: "Finalized payment proof document record could not be found.",
+  proof_payment_mismatch: "The finalized payment proof does not match the payment under review.",
+  rejection_notes_required: "A mandatory rejection reason must be provided to reject payment.",
+  request_id_conflict: "Request ID conflict: previous review was submitted with different parameters.",
+  order_already_finalized: "Order has already been finalized with a different review decision.",
+  persisted_review_integrity_error: "Database integrity error: the replayed review could not be verified against complete persisted terminal truth.",
+  seller_available_insufficient: "Inventory conservation failure: seller available stock is insufficient.",
+  seller_reserved_insufficient: "Inventory conservation failure: seller reserved stock is insufficient.",
+  invalid_decision: "Invalid review decision specified.",
+  invalid_payment_status: "Payment is not in an eligible review state.",
+  invalid_commerce_flow: "Order commerce flow is not eligible for bank transfer review.",
+};
+
+export function extractErrorMessage(error: unknown): string {
+  if (typeof error === "string") return error;
+  if (error && typeof error === "object") {
+    if ("message" in error && typeof (error as { message: unknown }).message === "string") {
+      return (error as { message: string }).message;
+    }
+    if ("details" in error && typeof (error as { details: unknown }).details === "string") {
+      return (error as { details: string }).details;
+    }
+  }
+  return "";
+}
+
+/**
+ * Feature 016 T023 — Maps RPC exceptions, integrity errors, and authorization errors
+ * to contract-safe domain error codes and human-readable feedback.
+ */
+export function mapFinanceReviewError(error: unknown): { code: FinanceReviewErrorCode; message: string } {
+  const rawMsg = extractErrorMessage(error).trim();
+  for (const [code, msg] of Object.entries(FINANCE_REVIEW_ERROR_MESSAGES)) {
+    if (rawMsg.includes(code)) {
+      return { code: code as FinanceReviewErrorCode, message: msg };
+    }
+  }
+  return {
+    code: "persisted_review_integrity_error",
+    message: rawMsg || "An unexpected error occurred while processing the finance review.",
+  };
+}
 
 /**
  * Feature 008 Phase 1 (T002) — the finance domain's safe, explicit mapping from a raised database

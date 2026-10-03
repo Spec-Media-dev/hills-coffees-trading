@@ -1,6 +1,18 @@
 import { parseOrderStatus } from "@/lib/commerce/validation";
+import type { OrderStatus } from "@/lib/commerce/types";
 import { createClient } from "@/lib/supabase/server";
-import type { BuyerOrderFinancialsDTO, OrderFinancialsDTO, PaginatedPayouts, PaymentDTO, PayoutDTO, ProformaDTO, SellerOrderViewDTO, TaxInvoiceDTO } from "@/lib/finance/types";
+import type {
+  BuyerOrderFinancialsDTO,
+  OrderFinancialsDTO,
+  PaginatedPayouts,
+  PaymentDTO,
+  PaymentQueueItemDTO,
+  PaymentReviewDetailDTO,
+  PayoutDTO,
+  ProformaDTO,
+  SellerOrderViewDTO,
+  TaxInvoiceDTO,
+} from "@/lib/finance/types";
 import type { PaymentMethod, PaymentStatus, PayoutStatus, ProformaStatus } from "@/lib/finance/validation";
 
 /**
@@ -362,4 +374,294 @@ export async function getPaymentsForOrders({ orderIds }: { orderIds: readonly st
   const { data: rows } = await supabase.from("payments").select(PAYMENT_SELECT).in("order_id", ids);
   for (const row of rows ?? []) result.set(row.order_id, mapPaymentRow(row));
   return result;
+}
+
+// ── Feature 016 Finance-only exact-proof projection ─────────────────────────
+
+type FinanceProofProjectionRow = {
+  finalized_proof_id: string;
+  payment_id: string;
+  file_asset_id: string;
+  proof_status: "SUBMITTED" | "ACCEPTED" | "REJECTED";
+  claimed_amount: number;
+  claimed_currency: string;
+  transfer_date: string | null;
+  bank_reference: string | null;
+  submitted_at: string;
+};
+
+/** The only DAL path that resolves an upload intent. The SECURITY DEFINER RPC is deliberately
+ * narrower than SELECT access to payment_proof_upload_intents and rechecks Finance/Admin, MFA,
+ * and blocked-user state in the database. */
+async function getFinanceProofProjection(supabase: Awaited<ReturnType<typeof createClient>>, orderId: string) {
+  const { data, error } = await supabase.rpc("finance_payment_proof_projection", { p_order_id: orderId });
+  // An authorization/database failure is distinct from an order with no finalized proof. Never
+  // present an unavailable proof as absent, because that could let an inspector act on stale data.
+  if (error) {
+    throw new Error(`finance_payment_proof_projection_failed:${error.code ?? "unknown"}`);
+  }
+  const rows = (data ?? []) as FinanceProofProjectionRow[];
+  return rows.length === 1 ? rows[0]! : null;
+}
+
+// ── Feature 016 T018: Pending Payments Queue ────────────────────────────────
+
+/**
+ * Feature 016 T018 — Reads pending bank-transfer payments awaiting finance verification.
+ * RLS on `payments` and `orders` requires Finance Operator or Platform Admin role.
+ */
+export async function getPendingPaymentsQueue(): Promise<PaymentQueueItemDTO[]> {
+  const supabase = await createClient();
+
+  const { data: orders, error: ordersError } = await supabase
+    .from("orders")
+    .select("id, order_code, buyer_organization_id, status, current_proforma_id, created_at")
+    .eq("status", "PAYMENT_PROOF_SUBMITTED")
+    .order("created_at", { ascending: false });
+
+  if (ordersError || !orders || orders.length === 0) {
+    return [];
+  }
+
+  const orderIds = orders.map((o) => o.id);
+
+  const [paymentsRes, reservationsRes, proofEntries] = await Promise.all([
+    supabase
+      .from("payments")
+      .select("id, order_id, proforma_id, amount, currency, status")
+      .in("order_id", orderIds),
+    supabase
+      .from("inventory_reservations")
+      .select("id, order_id, proforma_id, status, expires_at")
+      .in("order_id", orderIds),
+    Promise.all(orderIds.map(async (id) => [id, await getFinanceProofProjection(supabase, id)] as const)),
+  ]);
+
+  const buyerOrgIds = [...new Set(orders.map((o) => o.buyer_organization_id))];
+  const orgsRes = buyerOrgIds.length > 0
+    ? await supabase
+        .from("organizations")
+        .select("id, display_name, legal_name")
+        .in("id", buyerOrgIds)
+    : { data: [] };
+
+  const orgMap = new Map((orgsRes.data ?? []).map((o) => [o.id, o.display_name || o.legal_name || "Unknown Organization"]));
+  const paymentMap = new Map((paymentsRes.data ?? []).map((p) => [p.order_id, p]));
+  const proofMap = new Map(proofEntries);
+  const reservationMap = new Map((reservationsRes.data ?? []).map((r) => [r.order_id, r]));
+
+  const items: PaymentQueueItemDTO[] = [];
+  for (const order of orders) {
+    const payment = paymentMap.get(order.id);
+    if (!payment) continue;
+    const proof = proofMap.get(order.id) ?? undefined;
+    const reservation = reservationMap.get(order.id);
+
+    items.push({
+      orderId: order.id,
+      orderCode: order.order_code,
+      paymentId: payment.id,
+      buyerOrganizationId: order.buyer_organization_id,
+      buyerOrganizationName: orgMap.get(order.buyer_organization_id) ?? "Unknown Organization",
+      amount: Number(payment.amount),
+      currency: payment.currency,
+      orderStatus: order.status as OrderStatus,
+      paymentStatus: payment.status as PaymentStatus,
+      submittedAt: proof?.submitted_at ?? order.created_at,
+      claimedAmount: Number(proof?.claimed_amount ?? payment.amount),
+      claimedCurrency: proof?.claimed_currency ?? payment.currency,
+      bankReference: proof?.bank_reference ?? "",
+      fileAssetId: proof?.file_asset_id ?? "",
+      finalizedProofId: proof?.finalized_proof_id ?? "",
+      reservationStatus: reservation?.status ?? "UNKNOWN",
+      expiresAt: reservation?.expires_at ?? null,
+    });
+  }
+
+  return items;
+}
+
+// ── Feature 016 T019: Payment Review Detail ─────────────────────────────────
+
+/**
+ * Feature 016 T019 — Loads complete authoritative proforma snapshot, exact finalized
+ * proof, reservation lines, and display-safe commercial context for inspector review.
+ * Does NOT expose private bucket or storage object paths.
+ */
+export async function getPaymentReviewDetail(orderId: string): Promise<PaymentReviewDetailDTO | null> {
+  const supabase = await createClient();
+
+  const { data: order } = await supabase
+    .from("orders")
+    .select("id, order_code, buyer_organization_id, current_proforma_id, commerce_flow, status")
+    .eq("id", orderId)
+    .maybeSingle();
+
+  if (!order) return null;
+
+  const proofProjectionPromise = getFinanceProofProjection(supabase, orderId);
+  const [orgRes, paymentRes, proformaRes, reservationRes] = await Promise.all([
+    supabase
+      .from("organizations")
+      .select("id, display_name, legal_name")
+      .eq("id", order.buyer_organization_id)
+      .maybeSingle(),
+    supabase
+      .from("payments")
+      .select("id, status, amount, currency, proforma_id")
+      .eq("order_id", orderId)
+      .maybeSingle(),
+    order.current_proforma_id
+      ? supabase
+          .from("proforma_invoices")
+          .select("id, proforma_code, status, buyer_total, currency, confirmed_at, destination_snapshot")
+          .eq("id", order.current_proforma_id)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
+    supabase
+      .from("inventory_reservations")
+      .select("id, status, expires_at")
+      .eq("order_id", orderId)
+      .maybeSingle(),
+  ]);
+
+  const proofProjection = await proofProjectionPromise;
+  if (
+    !paymentRes.data ||
+    !proformaRes.data ||
+    proformaRes.data.status !== "CONFIRMED" ||
+    !proofProjection ||
+    proofProjection.payment_id !== paymentRes.data.id ||
+    !reservationRes.data
+  ) {
+    return null;
+  }
+
+  const [itemsRes, groupsRes, resItemsRes] = await Promise.all([
+    supabase
+      .from("proforma_invoice_items")
+      .select("order_item_id, product_name_snapshot, quantity_kg, unit_price, amount, seller_type_snapshot, fulfillment_group_id")
+      .eq("proforma_id", proformaRes.data.id),
+    supabase
+      .from("proforma_fulfillment_groups")
+      .select("id, seller_organization_id, warehouse_id, delivery_method, shipping_amount")
+      .eq("proforma_id", proformaRes.data.id),
+    supabase
+      .from("inventory_reservation_items")
+      .select("offer_id, inventory_position_id, quantity_kg")
+      .eq("reservation_id", reservationRes.data.id),
+  ]);
+
+  const dest = (proformaRes.data.destination_snapshot as Record<string, unknown>) ?? {};
+  const addressLines = Array.isArray(dest.address_lines)
+    ? (dest.address_lines as string[])
+    : typeof dest.address_line === "string"
+      ? [dest.address_line]
+      : [];
+
+  return {
+    orderId: order.id,
+    orderCode: order.order_code,
+    buyerOrganizationId: order.buyer_organization_id,
+    buyerOrganizationName: orgRes.data?.display_name || orgRes.data?.legal_name || "Unknown Organization",
+    paymentId: paymentRes.data.id,
+    paymentStatus: paymentRes.data.status as PaymentStatus,
+    amount: Number(paymentRes.data.amount),
+    currency: paymentRes.data.currency,
+    proforma: {
+      id: proformaRes.data.id,
+      proformaCode: proformaRes.data.proforma_code,
+      status: "CONFIRMED",
+      buyerTotal: Number(proformaRes.data.buyer_total),
+      currency: proformaRes.data.currency,
+      confirmedAt: proformaRes.data.confirmed_at ?? "",
+      items: (itemsRes.data ?? []).map((i) => ({
+        orderItemId: i.order_item_id,
+        productName: i.product_name_snapshot ?? "Coffee Lot",
+        quantityKg: Number(i.quantity_kg),
+        unitPrice: Number(i.unit_price),
+        amount: Number(i.amount),
+        sellerTypeSnapshot: i.seller_type_snapshot ?? "MEMBER_SELLER",
+        fulfillmentGroupId: i.fulfillment_group_id,
+      })),
+      fulfillmentGroups: (groupsRes.data ?? []).map((g) => ({
+        id: g.id,
+        sellerOrganizationId: g.seller_organization_id,
+        warehouseId: g.warehouse_id,
+        deliveryMethod: g.delivery_method,
+        shippingAmount: Number(g.shipping_amount),
+      })),
+      destination: {
+        countryCode: String(dest.country_code ?? "AE"),
+        city: String(dest.city ?? "Dubai"),
+        addressLines,
+        contactName: String(dest.contact_name ?? "Customer"),
+        contactPhone: String(dest.contact_phone ?? "+9710000000"),
+      },
+    },
+    proof: {
+      id: proofProjection.finalized_proof_id,
+      fileAssetId: proofProjection.file_asset_id,
+      status: proofProjection.proof_status,
+      claimedAmount: Number(proofProjection.claimed_amount),
+      claimedCurrency: proofProjection.claimed_currency ?? paymentRes.data.currency,
+      transferDate: proofProjection.transfer_date ?? "",
+      bankReference: proofProjection.bank_reference ?? "",
+      submittedAt: proofProjection.submitted_at,
+    },
+    reservation: {
+      id: reservationRes.data.id,
+      status: reservationRes.data.status as "REVIEW_HOLD" | "CONSUMED" | "RELEASED",
+      expiresAt: reservationRes.data.expires_at,
+      items: (resItemsRes.data ?? []).map((r) => ({
+        offerId: r.offer_id,
+        inventoryPositionId: r.inventory_position_id,
+        quantityKg: Number(r.quantity_kg),
+      })),
+    },
+  };
+}
+
+// ── Feature 016 T020: Signed URL for Payment Proof ──────────────────────────
+
+/**
+ * Feature 016 T020 — Authorizes and generates a short-lived (max 900-second) signed URL
+ * for inspecting payment proofs in the `payment-proofs` private bucket.
+ */
+export async function getPaymentProofSignedUrl(fileAssetId: string): Promise<{
+  signedUrl: string;
+  expiresInSeconds: number;
+  mimeType: string;
+  filename: string;
+} | null> {
+  const supabase = await createClient();
+
+  const { data, error: projectionError } = await supabase.rpc("finance_payment_proof_asset_projection", { p_file_asset_id: fileAssetId });
+  if (projectionError) {
+    throw new Error(`finance_payment_proof_asset_projection_failed:${projectionError.code ?? "unknown"}`);
+  }
+  const rows = (data ?? []) as Array<{
+    file_asset_id: string;
+    bucket_name: string;
+    object_path: string;
+    mime_type: string | null;
+    original_name: string | null;
+  }>;
+  const fileAsset = rows.length === 1 ? rows[0] : null;
+  if (!fileAsset || !fileAsset.object_path || fileAsset.bucket_name !== "payment-proofs") return null;
+
+  const { data: signed, error } = await supabase.storage
+    .from("payment-proofs")
+    .createSignedUrl(fileAsset.object_path, 900);
+
+  if (error || !signed?.signedUrl) {
+    throw new Error(`finance_payment_proof_signed_url_failed:${error?.message ?? "missing_url"}`);
+  }
+
+  return {
+    signedUrl: signed.signedUrl,
+    expiresInSeconds: 900,
+    mimeType: fileAsset.mime_type || "application/octet-stream",
+    filename: fileAsset.original_name || "payment-proof",
+  };
 }

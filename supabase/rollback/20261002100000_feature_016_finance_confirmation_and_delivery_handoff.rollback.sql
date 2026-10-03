@@ -1,0 +1,547 @@
+-- ══════════════════════════════════════════════════════════════════════════════════════════════
+-- Feature 016 Rollback Script
+-- Target migration: supabase/migrations/20261002100000_feature_016_finance_confirmation_and_delivery_handoff.sql
+-- ══════════════════════════════════════════════════════════════════════════════════════════════
+-- WHAT:
+--   1. Drop shipment status notification trigger and function.
+--   2. Drop public.finance_review_bank_transfer_v1(uuid, uuid, text, text, uuid).
+--   3. Restore exact September 22 Feature 008 admin_review_payment(uuid, boolean, text) body and ACLs.
+--   4. Restore exact Feature 014 commerce_notify_order_status_change() trigger and function.
+--   5. Drop uq_inventory_positions_null_safe and restore ordinary uniqueness constraint.
+--   6. Leave Feature 015 validate_order_transition untouched.
+-- ══════════════════════════════════════════════════════════════════════════════════════════════
+
+begin;
+
+-- 1. Drop shipment notification trigger and function
+drop trigger if exists trg_notify_shipment_status_change on public.order_shipments;
+drop function if exists public.commerce_notify_shipment_status_change();
+
+-- 2. Drop Feature 016 finance review RPC and narrow proof-review read seams
+drop function if exists public.finance_review_bank_transfer_v1(uuid, uuid, text, text, uuid);
+drop function if exists public.finance_terminal_review_integrity(uuid, uuid, text);
+drop function if exists public.finance_payment_proof_projection(uuid);
+drop function if exists public.finance_payment_proof_asset_projection(uuid);
+
+-- Feature 016-owned ownership provenance columns are removed with the replay validator.
+alter table public.inventory_ownership_events
+  drop column if exists warehouse_location_id,
+  drop column if exists warehouse_id;
+
+-- 3. Restore exact September 22 Feature 008 admin_review_payment
+create or replace function public.admin_review_payment(p_payment_id uuid, p_approved boolean, p_reason text DEFAULT NULL::text)
+ returns void
+ language plpgsql
+ security definer
+ set search_path to 'pg_catalog', 'public', 'auth'
+as $function$
+declare
+  v_payment public.payments%rowtype;
+  v_order public.orders%rowtype;
+  v_reservation public.inventory_reservations%rowtype;
+
+  v_item record;
+  v_position public.inventory_positions%rowtype;
+
+  v_rate numeric(7,4) := 0;
+  v_line_base numeric(14,2);
+  v_line_commission numeric(14,2);
+
+  v_correlation_id uuid;
+begin
+
+  if not public.is_finance_operator() then
+    raise exception 'forbidden';
+  end if;
+
+  select *
+  into v_payment
+  from public.payments
+  where id = p_payment_id
+  for update;
+
+  if v_payment.id is null then
+    raise exception 'payment_not_found';
+  end if;
+
+  select *
+  into v_order
+  from public.orders
+  where id = v_payment.order_id
+  for update;
+
+  -- Idempotent payment review.
+  if v_payment.status = 'CONFIRMED'
+     and v_order.status in (
+       'PAID',
+       'FULFILLMENT_IN_PROGRESS',
+       'PARTIALLY_DELIVERED',
+       'COMPLETED',
+       'DISPUTED'
+     )
+  then
+    return;
+  end if;
+
+  v_correlation_id :=
+    coalesce(
+      v_payment.correlation_id,
+      v_order.correlation_id,
+      gen_random_uuid()
+    );
+
+  perform set_config(
+    'app.correlation_id',
+    v_correlation_id::text,
+    true
+  );
+
+  insert into public.payment_reviews(
+    payment_id,
+    reviewer_user_id,
+    decision,
+    reason
+  )
+  values (
+    p_payment_id,
+    auth.uid(),
+    case
+      when p_approved
+      then 'CONFIRMED'
+      else 'REJECTED'
+    end,
+    p_reason
+  );
+
+  if not p_approved then
+
+    update public.payments
+    set
+      status = 'REJECTED',
+      rejected_reason = p_reason
+    where id = p_payment_id;
+
+    perform set_config(
+      'app.internal_transition',
+      'true',
+      true
+    );
+
+    update public.orders
+    set status = 'HOLD'
+    where id = v_order.id
+      and status in (
+        'PAYMENT_PROOF_SUBMITTED',
+        'PAYMENT_UNDER_REVIEW'
+      );
+
+    return;
+
+  end if;
+
+  -- ═══ Feature 008 T009/T017 (RUN E — Stripe provider decision) — Option A's trusted-funding gate. ═══
+  -- Applies ONLY to the Stripe/provider path (payment_method = 'PROVIDER'). Every pre-existing and
+  -- currently-live settlement path has payment_method = NULL (nothing has ever set it), so this
+  -- comparison is NULL, not TRUE, under SQL's three-valued logic and the condition never fires for them
+  -- — a complete no-op for every existing caller. `p_approved = true` (the finance operator's own
+  -- "Approve Settlement" decision) remains necessary but is no longer SUFFICIENT on its own for a
+  -- provider-funded payment: verified Stripe funding evidence must already exist.
+  if v_payment.payment_method = 'PROVIDER' and v_payment.trusted_funding_confirmed_at is null then
+    raise exception 'trusted_funding_required';
+  end if;
+
+  select *
+  into v_reservation
+  from public.inventory_reservations
+  where order_id = v_order.id
+    and status = 'ACTIVE'
+  for update;
+
+  if v_reservation.id is null then
+    raise exception 'active_reservation_missing';
+  end if;
+
+  if v_reservation.expires_at <= now() then
+    raise exception 'reservation_expired';
+  end if;
+
+  select coalesce(
+    ofn.commission_percentage_snapshot,
+    0
+  )
+  into v_rate
+  from public.order_financials ofn
+  where ofn.order_id = v_order.id;
+
+  for v_item in
+
+    select
+      oi.*,
+
+      iri.quantity_kg
+        as reserved_quantity,
+
+      iri.inventory_position_id,
+
+      co.seller_type,
+
+      co.seller_organization_id
+        as offer_seller,
+
+      co.warehouse_id
+        as offer_warehouse_id,
+
+      co.warehouse_location_id
+        as offer_warehouse_location_id
+
+    from public.order_items oi
+
+    join public.inventory_reservation_items iri
+      on iri.offer_id = oi.offer_id
+
+    join public.inventory_reservations ir
+      on ir.id = iri.reservation_id
+     and ir.order_id = oi.order_id
+
+    join public.coffee_offers co
+      on co.id = oi.offer_id
+
+    where oi.order_id = v_order.id
+      and ir.id = v_reservation.id
+
+    order by oi.id
+
+  loop
+
+    -- Consistent lock order:
+    -- Offer then inventory.
+    perform 1
+    from public.coffee_offers
+    where id = v_item.offer_id
+    for update;
+
+    if v_item.inventory_position_id
+       is not null
+    then
+
+      select *
+      into v_position
+      from public.inventory_positions
+      where id = v_item.inventory_position_id
+      for update;
+
+    else
+
+      select *
+      into v_position
+      from public.inventory_positions ip
+      where ip.lot_id = v_item.lot_id
+        and ip.owner_organization_id =
+            v_item.offer_seller
+        and ip.warehouse_id =
+            v_item.offer_warehouse_id
+        and ip.warehouse_location_id
+            is not distinct from
+            v_item.offer_warehouse_location_id
+      order by ip.created_at
+      limit 1
+      for update;
+
+    end if;
+
+    if v_position.id is null
+       or v_position.available_quantity_kg
+          < v_item.reserved_quantity
+       or v_position.reserved_quantity_kg
+          < v_item.reserved_quantity
+    then
+      raise exception
+        'seller_inventory_position_invalid';
+    end if;
+
+    -- Seller loses quantity AND active reservation.
+    update public.inventory_positions
+    set
+      available_quantity_kg =
+        available_quantity_kg
+        - v_item.reserved_quantity,
+
+      reserved_quantity_kg =
+        reserved_quantity_kg
+        - v_item.reserved_quantity,
+
+      updated_at = now()
+    where id = v_position.id;
+
+    -- Buyer receives title/custody at same warehouse.
+    insert into public.inventory_positions(
+      lot_id,
+      owner_organization_id,
+      warehouse_id,
+      warehouse_location_id,
+      available_quantity_kg,
+      reserved_quantity_kg
+    )
+    values (
+      v_item.lot_id,
+      v_order.buyer_organization_id,
+      v_position.warehouse_id,
+      v_position.warehouse_location_id,
+      v_item.reserved_quantity,
+      0
+    )
+    on conflict (
+      lot_id,
+      owner_organization_id,
+      warehouse_id,
+      warehouse_location_id
+    )
+    do update set
+      available_quantity_kg =
+        public.inventory_positions.available_quantity_kg
+        + excluded.available_quantity_kg,
+
+      updated_at = now();
+
+    insert into public.inventory_ownership_events(
+      lot_id,
+      from_organization_id,
+      to_organization_id,
+      order_item_id,
+      quantity_kg,
+      event_type,
+      created_by,
+      correlation_id,
+      reason
+    )
+    values (
+      v_item.lot_id,
+      v_item.offer_seller,
+      v_order.buyer_organization_id,
+      v_item.id,
+      v_item.reserved_quantity,
+
+      case
+        when v_item.seller_type_snapshot = 'HILLS'
+        then 'SALE'
+        else 'RESALE'
+      end,
+
+      auth.uid(),
+      v_correlation_id,
+      'SETTLEMENT_CONFIRMED'
+    );
+
+    -- Listing remains available after partial fill.
+    update public.coffee_offers
+    set
+      filled_quantity_kg =
+        filled_quantity_kg
+        + v_item.reserved_quantity,
+
+      reserved_quantity_kg =
+        reserved_quantity_kg
+        - v_item.reserved_quantity,
+
+      status =
+        case
+          when (
+            filled_quantity_kg
+            + v_item.reserved_quantity
+          ) >= quantity_kg
+          then 'SOLD_OUT'
+          else 'PARTIALLY_FILLED'
+        end,
+
+      is_visible =
+        case
+          when (
+            filled_quantity_kg
+            + v_item.reserved_quantity
+          ) >= quantity_kg
+          then false
+          else true
+        end,
+
+      updated_at = now()
+
+    where id = v_item.offer_id;
+
+    -- Purchased inventory remains in Hills-approved custody
+    -- until delivered/released.
+    insert into public.storage_allocations(
+      order_item_id,
+      owner_organization_id,
+      lot_id,
+      warehouse_id,
+      warehouse_location_id,
+      quantity_kg,
+      released_quantity_kg,
+      status
+    )
+    values (
+      v_item.id,
+      v_order.buyer_organization_id,
+      v_item.lot_id,
+      v_position.warehouse_id,
+      v_position.warehouse_location_id,
+      v_item.reserved_quantity,
+      0,
+      'STORED'
+    )
+    on conflict do nothing;
+
+    if v_item.seller_type_snapshot =
+       'MEMBER_SELLER'
+    then
+
+      v_line_base :=
+        round(
+          v_item.reserved_quantity
+          * v_item.unit_price_per_kg,
+          2
+        );
+
+      v_line_commission :=
+        round(
+          v_line_base
+          * v_rate
+          / 100,
+          2
+        );
+
+      insert into public.payouts(
+        order_id,
+        seller_organization_id,
+        amount
+      )
+      values (
+        v_order.id,
+        v_item.seller_organization_id,
+        v_line_base
+        - v_line_commission
+      )
+      on conflict (
+        order_id,
+        seller_organization_id
+      )
+      do update set
+        amount =
+          public.payouts.amount
+          + excluded.amount;
+
+    end if;
+
+  end loop;
+
+  update public.inventory_reservations
+  set
+    status = 'CONSUMED',
+    consumed_at = now()
+  where id = v_reservation.id;
+
+  update public.payments
+  set
+    status = 'CONFIRMED',
+    correlation_id = v_correlation_id,
+    confirmed_by = auth.uid(),
+    confirmed_at = now()
+  where id = p_payment_id;
+
+  update public.proforma_invoices
+  set status = 'PAID'
+  where order_id = v_order.id;
+
+  perform set_config(
+    'app.internal_transition',
+    'true',
+    true
+  );
+
+  update public.orders
+  set
+    status = 'PAID',
+    correlation_id = v_correlation_id
+  where id = v_order.id;
+
+end;
+$function$;
+
+-- Grants unchanged from the live function (reproduced for completeness/clarity, not a behavior change).
+revoke all on function public.admin_review_payment(uuid, boolean, text) from public;
+revoke all on function public.admin_review_payment(uuid, boolean, text) from anon;
+grant execute on function public.admin_review_payment(uuid, boolean, text) to authenticated;
+
+comment on function public.admin_review_payment(uuid, boolean, text) is
+  'Feature 007/008: finance-operator-only settlement decision. Feature 008 T009/T017 (RUN E) added ONE precondition — a PROVIDER-method payment additionally requires trusted_funding_confirmed_at before p_approved=true is honored (Option A: trusted event + human decision, both required). NULL-method (every existing/manual-flow) payment is completely unaffected. Every other line is unchanged from the pre-Feature-008 function body.';
+
+-- 4. Restore exact Feature 014 commerce_notify_order_status_change
+create or replace function public.commerce_notify_order_status_change()
+returns trigger
+language plpgsql
+security definer
+set search_path = pg_catalog, public
+as $$
+declare
+  v_title text;
+  v_body text;
+  v_type text;
+begin
+  if new.status is not distinct from old.status or new.commerce_flow is distinct from 'BANK_TRANSFER_V1' then
+    return new;
+  end if;
+
+  if new.status = 'PROFORMA_ISSUED' then
+    v_type := 'ORDER_PROFORMA_ISSUED';
+    v_title := 'Proforma Invoice Issued';
+    v_body := 'A proforma invoice has been generated for order ' || new.order_code;
+  elsif new.status = 'HOLD' then
+    v_type := 'RESERVATION_CONFIRMED';
+    v_title := 'Stock Reservation Confirmed';
+    v_body := 'Inventory reserved for 20 minutes for order ' || new.order_code;
+  elsif new.status = 'EXPIRED' then
+    v_type := 'RESERVATION_EXPIRED';
+    v_title := 'Stock Reservation Expired';
+    v_body := 'The reservation window for order ' || new.order_code || ' has expired';
+  else
+    return new;
+  end if;
+
+  insert into public.notifications(
+    user_id,
+    organization_id,
+    notification_type,
+    title,
+    body,
+    entity_type,
+    entity_id
+  ) values (
+    new.created_by,
+    new.buyer_organization_id,
+    v_type,
+    v_title,
+    v_body,
+    'orders',
+    new.id
+  );
+
+  return new;
+end;
+$$;
+
+revoke all on function public.commerce_notify_order_status_change() from public, anon, authenticated, service_role;
+
+drop trigger if exists trg_notify_order_status_change on public.orders;
+create trigger trg_notify_order_status_change
+  after update of status on public.orders
+  for each row
+  execute function public.commerce_notify_order_status_change();
+
+-- 5. Restore ordinary uniqueness on inventory_positions
+alter table public.inventory_positions drop constraint if exists uq_inventory_positions_null_safe;
+
+alter table public.inventory_positions
+  add constraint inventory_positions_lot_id_owner_organization_id_warehouse_id_key
+  unique (lot_id, owner_organization_id, warehouse_id, warehouse_location_id);
+
+commit;

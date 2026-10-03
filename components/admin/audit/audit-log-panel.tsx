@@ -34,7 +34,23 @@ export function AuditLogPanel({ probe }: { probe: AuditLogProbe }) {
     { key: "when", primary: true, header: <AppBilingual pick={(c) => c.admin.audit.log.columns.when} />, render: (row: AuditLogRow) => <AdminDateTime value={row.createdAt} fallback="—" /> },
     { key: "actor", header: <AppBilingual pick={(c) => c.admin.audit.log.columns.actor} />, render: (row: AuditLogRow) => <span className="break-all font-mono text-[length:var(--text-micro)]" dir="ltr">{row.actorUserId ?? "—"}</span> },
     { key: "entity", header: <AppBilingual pick={(c) => c.admin.audit.log.columns.entity} />, render: (row: AuditLogRow) => <span className="flex flex-col"><span className="font-mono text-[length:var(--text-micro)]" dir="ltr">{row.entityType}</span><span className="break-all font-mono text-[length:var(--text-micro)] text-muted-foreground" dir="ltr">{row.entityId ?? ""}</span></span> },
-    { key: "action", header: <AppBilingual pick={(c) => c.admin.audit.log.columns.action} />, render: (row: AuditLogRow) => <span className="font-mono text-[length:var(--text-micro)]" dir="ltr">{row.action}</span> },
+    {
+      key: "action",
+      header: <AppBilingual pick={(c) => c.admin.audit.log.columns.action} />,
+      render: (row: AuditLogRow) => (
+        <span className="flex flex-col">
+          <span className="font-mono text-[length:var(--text-micro)]" dir="ltr">
+            {row.action}
+          </span>
+          {row.metadata && typeof row.metadata === "object" && "decision" in row.metadata ? (
+            <span className="text-[11px] font-semibold text-primary" dir="ltr">
+              Decision: {String(row.metadata.decision)}
+              {row.metadata.order_id ? ` (Order: ${String(row.metadata.order_id).slice(0, 8)}...)` : ""}
+            </span>
+          ) : null}
+        </span>
+      ),
+    },
   ];
   return (
     <section data-audit-log className="flex flex-col gap-3 rounded-[var(--radius-lg)] border border-border bg-[var(--surface-card)] p-5">

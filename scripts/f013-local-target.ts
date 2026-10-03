@@ -349,24 +349,30 @@ export function supabaseCli(target: Extract<F013Mode, { kind: "production-defaul
   if (resolveF013Mode(env).kind !== "production-default" || env.F013_FIXTURES_APPROVED !== undefined) {
     throw new F013TargetError("Production proof CLI refused while F013 local mode is selected.");
   }
-  if (env.F013_LIVE !== "1") throw new F013TargetError("Historical production proof CLI requires F013_LIVE=1.");
+  const isF016 = env.F016_REMOTE_LIVE_DB_APPROVED === "1";
+  if (!isF016 && env.F013_LIVE !== "1") throw new F013TargetError("Historical production proof CLI requires F013_LIVE=1.");
   const child = sanitizedF013Environment(env);
-  // Feature 015's explicitly approved remote proof uses one real PostgreSQL
+  // Feature 016 or Feature 015's explicitly approved remote proof uses one real PostgreSQL
   // session per SQL file. Never place credentials in argv or silently fall back.
-  if (env.F015_REMOTE_LIVE_DB_APPROVED === "1") {
-    if (!env.SUPABASE_DB_PASSWORD) throw new F013TargetError("Feature 015 direct SQL requires SUPABASE_DB_PASSWORD in the current process environment.");
+  if (isF016 || env.F015_REMOTE_LIVE_DB_APPROVED === "1") {
+    const featurePrefix = isF016 ? "Feature 016" : "Feature 015";
+    if (!env.SUPABASE_DB_PASSWORD) throw new F013TargetError(`${featurePrefix} direct SQL requires SUPABASE_DB_PASSWORD in the current process environment.`);
     const linkedRef = readFileSync(resolve(process.cwd(), "supabase/.temp/project-ref"), "utf8").trim();
     const linked = JSON.parse(readFileSync(resolve(process.cwd(), "supabase/.temp/linked-project.json"), "utf8")) as { ref?: string; name?: string };
     if (linkedRef !== F013_PRODUCTION_REF || linked.ref !== F013_PRODUCTION_REF || linked.name !== "hillscoffees-trading") {
-      throw new F013TargetError("Feature 015 direct SQL refused: linked Hills Coffee identity mismatch.");
+      throw new F013TargetError(`${featurePrefix} direct SQL refused: linked Hills Coffee identity mismatch.`);
     }
     const pooler = new URL(readFileSync(resolve(process.cwd(), "supabase/.temp/pooler-url"), "utf8").trim());
     if (pooler.protocol !== "postgresql:" || pooler.username !== `postgres.${F013_PRODUCTION_REF}` ||
         !/^aws-[a-z0-9-]+\.pooler\.supabase\.com$/.test(pooler.hostname) || (pooler.port && pooler.port !== "5432")) {
-      throw new F013TargetError("Feature 015 direct SQL refused: session-pooler identity mismatch.");
+      throw new F013TargetError(`${featurePrefix} direct SQL refused: session-pooler identity mismatch.`);
     }
-    child.F013_LIVE = "1";
-    child.F015_REMOTE_LIVE_DB_APPROVED = "1";
+    if (isF016) {
+      child.F016_REMOTE_LIVE_DB_APPROVED = "1";
+    } else {
+      child.F013_LIVE = "1";
+      child.F015_REMOTE_LIVE_DB_APPROVED = "1";
+    }
     child.PGHOST = pooler.hostname;
     child.PGPORT = "5432";
     child.PGUSER = `postgres.${F013_PRODUCTION_REF}`;

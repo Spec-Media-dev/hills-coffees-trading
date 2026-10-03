@@ -46,9 +46,15 @@ export function scramFinal(password, first, bare, nonce) {
 export async function execute(sql, env = process.env) {
   const { PGHOST: host, PGUSER: user, SUPABASE_DB_PASSWORD: password } = env;
   if (!host || !user || !password) throw new Error('PGHOST, PGUSER and SUPABASE_DB_PASSWORD are required');
-  if (env.F013_LIVE !== '1' || env.F015_REMOTE_LIVE_DB_APPROVED !== '1' ||
+  const isF016Approved = env.F016_REMOTE_LIVE_DB_APPROVED === '1';
+  const isF016Timeout = Number(env.F016_SQL_TIMEOUT_MS ?? '30000');
+  if (isF016Approved && (!Number.isInteger(isF016Timeout) || isF016Timeout <= 0 || isF016Timeout > 30000)) {
+    throw new Error('F016_SQL_TIMEOUT_MS must be a positive integer no greater than 30000');
+  }
+  const isF015Approved = env.F013_LIVE === '1' && env.F015_REMOTE_LIVE_DB_APPROVED === '1';
+  if ((!isF016Approved && !isF015Approved) ||
       user !== 'postgres.mxejnutukgxyccnohglo' || !/^aws-[a-z0-9-]+\.pooler\.supabase\.com$/.test(host) || env.PGPORT !== '5432') {
-    throw new Error('Direct PostgreSQL execution requires the approved Feature 015 session-pooler target');
+    throw new Error('Direct PostgreSQL execution requires an approved session-pooler target (F016_REMOTE_LIVE_DB_APPROVED=1 or F013_LIVE=1/F015_REMOTE_LIVE_DB_APPROVED=1)');
   }
   return await new Promise((resolve) => {
     let socket; let done = false; let phase = 'auth'; let hadSqlError = false;
@@ -64,7 +70,10 @@ export async function execute(sql, env = process.env) {
     raw.once('data', reply => {
       if (reply.length !== 1 || reply[0] !== 83) return fail('Server refused TLS');
       socket = tls.connect({ socket: raw, servername: host, rejectUnauthorized: true }, () => {
-        const params = Buffer.from(`user\0${user}\0database\0postgres\0application_name\0pg-simple-exec\0client_encoding\0UTF8\0\0`);
+        // Request the timeout at startup; also issue SET before SQL because poolers can
+        // override startup options. The explicit session limit bounds F016 migration statements.
+        const timeoutOption = isF016Approved ? `options\0-c statement_timeout=${isF016Timeout}\0` : '';
+        const params = Buffer.from(`user\0${user}\0database\0postgres\0application_name\0pg-simple-exec\0${timeoutOption}client_encoding\0UTF8\0\0`);
         socket.write(Buffer.concat([i32(params.length + 8), i32(196608), params]));
       });
       socket.on('error', e => fail(`TLS/connection failed (${e.code ?? 'transport'})`));
@@ -107,7 +116,7 @@ export async function execute(sql, env = process.env) {
                 scramVerified = true;
               } else throw new Error('Unsupported PostgreSQL authentication method');
             } else if (type === 'Z') {
-              if (phase === 'auth') { phase = 'query'; socket.write(packet('Q', Buffer.from(`${sql}\0`))); }
+              if (phase === 'auth') { phase = 'query'; socket.write(packet('Q', Buffer.from(`${isF016Approved ? `set statement_timeout = ${isF016Timeout};\n` : ''}${sql}\0`))); }
               else { socket.write(packet('X', Buffer.alloc(0))); finish(hadSqlError ? 1 : 0); }
             } else if (type === 'C') process.stdout.write(`${body.subarray(0, -1).toString()}\n`);
             else if (type === 'D') {

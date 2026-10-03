@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link"
+import Image from "next/image"
 import { usePathname } from "next/navigation"
 import { useState } from "react"
 
@@ -72,9 +73,14 @@ export function MobileAppNav({ groups, logoHref, logoLabel, footerNote }: Mobile
             onClick={() => setOpen(false)}
             className="grid h-10 shrink-0 place-items-center rounded-[var(--radius-sm)] bg-[var(--brand-cream)] px-3 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--sidebar-ring)]"
           >
-            <span className="font-heading text-[length:var(--text-micro)] font-black tracking-[0.04em] text-[var(--brand-forest)]">
-              HILLS
-            </span>
+            <Image
+              src="/images/hills-logo-dark.png"
+              alt=""
+              width={80}
+              height={30}
+              priority
+              className="h-auto max-h-[26px] w-auto max-w-full object-contain"
+            />
           </Link>
           <div className="min-w-0 flex-1">
             <SheetTitle className="hc-eyebrow text-[var(--gold-on-dark)]">{labels.menuTitle}</SheetTitle>

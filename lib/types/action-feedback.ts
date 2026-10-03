@@ -297,14 +297,20 @@ export const ACTION_FEEDBACK = {
   NOTIFICATION_MARKED_READ: "notification_marked_read",
   NOTIFICATION_ALL_MARKED_READ: "notification_all_marked_read",
   NOTIFICATION_ACTION_FAILED: "notification_action_failed",
+
+  /** Feature 016 — Finance Review & Delivery Handoff. */
+  FINANCE_REVIEW_CONFIRMED: "finance_review_confirmed",
+  FINANCE_REVIEW_REJECTED: "finance_review_rejected",
+  FINANCE_REVIEW_FAILED: "finance_review_failed",
 } as const;
 
 export type ActionFeedbackCode = (typeof ACTION_FEEDBACK)[keyof typeof ACTION_FEEDBACK];
 
 export type ActionFeedbackResult<T = undefined> =
-  | { ok: true; data: T; code?: ActionFeedbackCode }
+  | { ok: true; data: T; code?: ActionFeedbackCode; message?: string }
   | {
       ok: false;
       code: ActionFeedbackCode;
+      message?: string;
       fieldErrors?: Record<string, string[] | undefined>;
     };

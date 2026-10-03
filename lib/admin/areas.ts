@@ -110,7 +110,7 @@ export const ADMIN_AREAS: readonly AdminArea[] = [
   { key: "inventory", group: "warehouse", href: "/dashboard-admin/inventory", roleFunction: "is_warehouse_operator", icon: "package", availability: "live", phase: 6 },
 
   // ── Finance ───────────────────────────────────────────────────────────────────────────────────
-  { key: "payments", group: "finance", href: "/dashboard-admin/payments", roleFunction: "is_finance_operator", icon: "wallet", availability: "blocked", phase: 5, blocker: "feature-008-finance-layer" },
+  { key: "payments", group: "finance", href: "/dashboard-admin/payments", roleFunction: "is_finance_operator", icon: "wallet", availability: "live", phase: 5 },
   { key: "payouts", group: "finance", href: "/dashboard-admin/payouts", roleFunction: "is_finance_operator", icon: "wallet", availability: "blocked", phase: 5, blocker: "feature-008-finance-layer" },
   { key: "invoices", group: "finance", href: "/dashboard-admin/invoices", roleFunction: "is_finance_operator", icon: "file-text", availability: "blocked", phase: 5, blocker: "feature-008-finance-layer" },
 

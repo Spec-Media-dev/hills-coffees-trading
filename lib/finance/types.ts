@@ -149,3 +149,132 @@ export type SellerOrderViewDTO = {
  * `lib/listings/sales.ts` already use: one extra row is fetched to detect `hasMore`, never a full
  * unbounded scan of a seller organization's payout history. */
 export type PaginatedPayouts<T> = { rows: readonly T[]; hasMore: boolean };
+
+// ── Feature 016: Finance Review & Delivery Handoff DTOs ──────────────────────
+
+export type PaymentReviewDecision = "CONFIRMED" | "REJECTED";
+
+/** Operations Console Pending Verification queue item DTO */
+export type PaymentQueueItemDTO = {
+  orderId: string;
+  orderCode: string;
+  paymentId: string;
+  buyerOrganizationId: string;
+  buyerOrganizationName: string;
+  amount: number;
+  currency: string;
+  orderStatus: OrderStatus;
+  paymentStatus: PaymentStatus;
+  submittedAt: string;
+  claimedAmount: number;
+  claimedCurrency: string;
+  bankReference: string;
+  fileAssetId: string;
+  finalizedProofId: string;
+  reservationStatus: string;
+  expiresAt: string | null;
+};
+
+/** Detail inspector view DTO */
+export type PaymentReviewDetailDTO = {
+  orderId: string;
+  orderCode: string;
+  buyerOrganizationId: string;
+  buyerOrganizationName: string;
+  paymentId: string;
+  paymentStatus: PaymentStatus;
+  amount: number;
+  currency: string;
+  proforma: {
+    id: string;
+    proformaCode: string;
+    status: "CONFIRMED";
+    buyerTotal: number;
+    currency: string;
+    confirmedAt: string;
+    items: readonly {
+      orderItemId: string;
+      productName: string;
+      quantityKg: number;
+      unitPrice: number;
+      amount: number;
+      sellerTypeSnapshot: string;
+      fulfillmentGroupId: string;
+    }[];
+    fulfillmentGroups: readonly {
+      id: string;
+      sellerOrganizationId: string;
+      warehouseId: string;
+      deliveryMethod: string;
+      shippingAmount: number;
+    }[];
+    destination: {
+      countryCode: string;
+      city: string;
+      addressLines: string[];
+      contactName: string;
+      contactPhone: string;
+    };
+  };
+  proof: {
+    id: string;
+    fileAssetId: string;
+    status: "SUBMITTED" | "ACCEPTED" | "REJECTED";
+    claimedAmount: number;
+    claimedCurrency: string;
+    transferDate: string;
+    bankReference: string;
+    submittedAt: string;
+  };
+  reservation: {
+    id: string;
+    status: "REVIEW_HOLD" | "CONSUMED" | "RELEASED";
+    expiresAt: string;
+    items: readonly {
+      offerId: string;
+      inventoryPositionId: string;
+      quantityKg: number;
+    }[];
+  };
+};
+
+/** RPC return shape from public.finance_review_bank_transfer_v1 */
+export type FinanceReviewRpcResult = {
+  orderId: string;
+  orderCode: string;
+  paymentId: string;
+  decision: PaymentReviewDecision;
+  orderStatus: "PAID" | "PAYMENT_REJECTED";
+  paymentStatus: "CONFIRMED" | "REJECTED";
+  reservationStatus: "CONSUMED" | "RELEASED";
+  taxInvoiceNumber?: string;
+  shipmentIds?: string[];
+  confirmedAt?: string;
+  rejectedAt?: string;
+  requestId: string;
+};
+
+/** Exact domain error code union matching contracts/server-actions.md §5 */
+export type FinanceReviewErrorCode =
+  | "unauthenticated"
+  | "forbidden"
+  | "mfa_required"
+  | "order_not_found"
+  | "payment_not_found"
+  | "proforma_not_found"
+  | "proforma_not_confirmed"
+  | "reservation_not_found"
+  | "reservation_not_review_hold"
+  | "authoritative_proforma_mismatch"
+  | "finalized_upload_intent_not_found"
+  | "finalized_proof_not_found"
+  | "proof_payment_mismatch"
+  | "rejection_notes_required"
+  | "request_id_conflict"
+  | "order_already_finalized"
+  | "persisted_review_integrity_error"
+  | "seller_available_insufficient"
+  | "seller_reserved_insufficient"
+  | "invalid_decision"
+  | "invalid_payment_status"
+  | "invalid_commerce_flow";

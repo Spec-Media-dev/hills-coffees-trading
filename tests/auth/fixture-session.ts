@@ -5,6 +5,7 @@ import { randomUUID } from "node:crypto";
 import { createClient, type Session, type SupabaseClient } from "@supabase/supabase-js";
 import { f013LocalChildEnv, requireF013LocalTarget, resolveF013Mode, type F013LocalTarget } from "@/scripts/f013-local-target";
 import { readProductionEnvLocal } from "@/scripts/f013-production-env.mjs";
+import { assertF016HttpTarget, assertF016RemoteMode } from "@/scripts/f016-live-target";
 
 const REQUIRED_TEST_ENV = [
   "NEXT_PUBLIC_SUPABASE_URL",
@@ -282,6 +283,7 @@ export type CheckoutMirrorInspection = {
 let localTarget: F013LocalTarget | null = null;
 
 function loadTestEnvironment(): void {
+  assertF016RemoteMode(localTarget !== null);
   const mode = resolveF013Mode();
   if (mode.kind === "local") {
     localTarget ??= requireF013LocalTarget();
@@ -347,11 +349,17 @@ export function requireF015RemoteVerificationTarget(): { apiUrl: string } {
 }
 
 function newSessionClient(): SupabaseClient {
+  assertF016RemoteMode(localTarget !== null);
   const isLocal = resolveF013Mode().kind === "local";
   const isApprovedFeature015Remote = process.env.F015_REMOTE_LIVE_DB_APPROVED === "1" && process.env.F013_LIVE === "1";
-  if (!isLocal && !isApprovedFeature015Remote) throw new Error("Fixture sessions require verified F013 local mode.");
+  // Feature 016 has its own explicit owner gate; it must not inherit F013/F015 approval.
+  const isApprovedFeature016Remote = process.env.F016_REMOTE_LIVE_DB_APPROVED === "1";
+  if (!isLocal && !isApprovedFeature015Remote && !isApprovedFeature016Remote) throw new Error("Fixture sessions require verified F013 local mode or F016_REMOTE_LIVE_DB_APPROVED=1.");
+  const apiUrl = requireTestEnvironment("NEXT_PUBLIC_SUPABASE_URL");
+  // Validate the resolved value, not just the process environment, before createClient can start HTTP work.
+  if (isApprovedFeature016Remote) assertF016HttpTarget(apiUrl);
   return createClient(
-    requireTestEnvironment("NEXT_PUBLIC_SUPABASE_URL"),
+    apiUrl,
     requireTestEnvironment("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY"),
     {
       auth: {
