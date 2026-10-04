@@ -138,6 +138,20 @@ All 94 FRs map individually to a design/delivery phase and acceptance bundle bel
 | SC005–008 | all stories / A–C | Nine stories ENAR, zero public leak, authoritative badges, no duplicate Admin resume |
 | SC009–013 | discovery/Compare/Help/snapshot / B–C | Bounds, support isolation/exact activity, responsive+a11y, performance, unchanged history |
 
+## Owner UX Quality Traceability
+
+| UX requirement | Delivery ownership | Implementing tasks | Verification |
+| --- | --- | --- | --- |
+| UX-001 premium Hills quality | A, B, C | T048–T053, T057–T058, T064–T065, T071–T072, T079–T081, T088, T094–T095, T108, T110, T116–T119 | Visual review of hierarchy, state design, responsive composition and no generic/light-only component treatment |
+| UX-002 public/mobile motion | B owns; C audits | T064–T065, T071, T079, T088, T114, T117 | Installed `motion-design` skill used in Phase B; mobile variants and reduced-motion equivalence verified |
+| UX-003 operational motion | A/B owns; C audits | T048–T053, T057–T058, T079, T094–T095, T108, T110, T118 | Restrained functional feedback without distracting operational workflows |
+| UX-004 responsive composition | A/B owns; C verifies | T050, T058, T065, T071, T079, T081, T088, T108, T110, T114, T116 | 360px/768px/1280px cards/navigation/drawers/forms/stepper/tables/gallery/sticky actions checked without clipping/overflow |
+| UX-005 EN/AR/LTR/RTL | A/B owns; C verifies | T048, T051, T065, T072, T080–T081, T094–T095, T108, T110, T112, T115–T116 | Direction, chevrons/icons, prices/identifiers/tables/dialogs/toasts and field states verified |
+| UX-006 light/dark mode | A/B owns; C verifies | T048–T050, T058, T060, T065, T071, T079, T081, T088, T094, T110, T112–T116 | Existing theme tokens cover surfaces, contrast, overlays, inputs, skeletons, focus and toasts; no second theme system |
+| UX-007 mutation feedback | A/B owns; C verifies | T051, T053, T057, T072, T080, T088, T095, T108, T110, T112, T115 | Localized deduplicated toast plus accessible inline validation, recoverable input and retry/next step |
+| UX-008 async states | A/B owns; C verifies | T049–T050, T061, T065, T071, T079, T095, T112, T115–T116 | Localized theme-aware loading/skeleton, empty, classified error/retry and success states |
+| UX-009 phase ownership | A/B/C | T048–T058, T060–T111, T112–T119 | Phase C tests/audits quality but does not defer work owned by A/B |
+
 ## Validation Result
 
 94/94 FRs and nine/nine stories have design and verification paths across delivery Phases A–C. No phase restores fresh combined checkout or retired provider execution. Historical multi-line, English/HLP/bank/document history remains protected. Owner decisions are unchanged. T011 is remote read-only capture, T012 blocks migration work, and remote mutation remains gated at T129; no product completion is asserted.

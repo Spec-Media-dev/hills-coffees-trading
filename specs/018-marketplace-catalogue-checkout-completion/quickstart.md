@@ -82,6 +82,16 @@ Exercise all nine story acceptance paths in both locales at 360/768/1280px. Chec
 
 Record representative device/network/build/browser conditions and measured LCP/interaction delay/CLS against specified budgets. Lab runs are not field p75 evidence; build success is not measured performance or product readiness.
 
+## UX, Theme and Feedback Validation
+
+Review every changed Feature018 surface in light and dark mode using existing theme tokens. Verify contrast, surfaces, borders, text, overlays, dialogs, dropdowns, inputs, skeletons/indicators, focus states and toast styling preserve Hills identity without light-only hard-coded values or a second theme system. Inspect public/member/Admin composition for intentional hierarchy, spacing, typography, depth and state design; generic dashboard/card/form styling fails UX-001.
+
+At 360px, 768px and 1280px in EN/AR and LTR/RTL, exercise cards, navigation, drawers, forms, stepper, tables/lists, galleries, sticky actions, cart, Compare, product detail, Help and Admin. Verify no clipping/page-wide overflow/inaccessible action; mobile interaction and motion variants are designed for touch rather than merely disabling desktop behavior. Check directional handling for icons/chevrons, alignment, form fields, prices/numbers, identifiers, tables, dialogs, toasts, loading and validation errors. Technical references remain directionally isolated.
+
+During Phase B implementation, use the installed `motion-design` skill for the strongest premium motion on Homepage, Recently Added, Featured, Coffee cards, product detail, Marketplace, Cart and Compare, reusing existing Motion/GSAP/project primitives. During Phase A/Admin and bank, and for checkout/proforma/Help, use restrained functional motion. In every area, test `prefers-reduced-motion` for equivalent feedback and task completion. Phase C audits and polishes this work; it does not defer Phase A/B quality ownership.
+
+For Add/update/remove/checkout/Compare, Admin save/publish/Featured, bank/default and Help create/reply/status actions, assert localized EN/AR success/error feedback through the existing toast system, no retry/render duplicate spam, preserved recoverable input and a useful retry/next action. Assert field-specific validation remains inline and accessibility-associated. Each async surface has localized, theme-aware loading/progress/skeleton, empty, classified error, retry and success states; generic errors fail this gate where an actionable classification exists.
+
 ## Approved Migration Verification and End State
 
 Follow migrations-verification contract: capture/preflight → reviewed forward groups → read-only postflight → real scenarios → rollback compatibility → conditional reapply/postflight → cleanup/retained evidence → final health. Do not run historical Feature016 Scenario28 or Scenario29 unchanged after Feature017. Compatibility wrapper adapts fresh setup and ACL assertions while retaining historical multi-group integrity tests.

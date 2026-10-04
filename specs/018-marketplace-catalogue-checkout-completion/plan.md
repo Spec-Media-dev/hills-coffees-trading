@@ -97,6 +97,14 @@ Expose the existing default USD bank mechanism while preserving Super Admin CRUD
 
 Help extends Feature 014 tickets/messages with category, random HC references and append-only status history. Controlled idempotent create/reply/status operations derive identity, preserve historical HLP references, enforce current organization scope and emit safe transactional in-app notifications. No attachments, private notes, assignment engine or external delivery is added.
 
+### UX quality, theme and feedback ownership
+
+All changed Feature 018 surfaces use the existing Hills visual system and theme mechanism to achieve an intentional, premium composition in light and dark modes. The work includes hierarchy, spacing, typography, depth, interaction and complete state design, not a generic card/form reskin or a rebrand. Components use existing semantic theme tokens for surfaces, borders, contrast, overlays, inputs, skeletons, indicators, focus rings and toasts; they must not introduce a second theming system or hard-code light-only colors.
+
+Phase A applies this standard to the unified Admin and bank surfaces, using restrained functional motion. Phase B owns the strongest motion treatment: Homepage first, then Recently Added, Featured, cards, public/product detail, Marketplace, Cart and Compare. Claude uses the installed `motion-design` skill during those owning implementation tasks and reuses existing Motion/GSAP/project primitives. Mobile receives purpose-designed touch/scroll variants, never a disabled animation experience; reduced-motion retains equivalent feedback and task completion. Checkout, proforma and Help remain polished but restrained.
+
+Every changed mutation uses the existing toast system for localized EN/AR committed success or useful error feedback, while inline field validation remains associated with the relevant field. Stable requests/retries must not produce toast spam; recoverable failures preserve inputs and offer a retry/next step. Every asynchronous surface has deliberate localized loading/progress/skeleton, empty, classified error, retry and success states in both themes. Responsive/RTL composition is owned by each implementation workstream at 360px, 768px and 1280px; Phase C verifies rather than supplies deferred quality work.
+
 ## Migration and Dependency Strategy
 
 Four logical forward groups are proposed; exact timestamp/file count is fixed only after live-definition capture. Never edit historical migrations.

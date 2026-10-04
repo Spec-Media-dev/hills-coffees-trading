@@ -90,12 +90,12 @@
 - [ ] T045 [US3] Add M3 local dry-run/migration contract verification in `tests/admin/f018-m3-migration.test.ts`.
 - [ ] T046 [US3] Reserve approved live M3 preflight/forward/rollback/reapply/postflight scenarios in `tests/admin/f018-live-m3.test.ts`.
 - [ ] T047 [US3] Implement Admin Coffee intent/CAS/readiness DAL in `lib/admin/catalogue.ts` and `lib/admin/catalogue-validation.ts`.
-- [ ] T048 [P] [US3] Implement resumable identity/English, Arabic and taxonomy/origin step forms in `components/admin/catalogue/coffee-stepper.tsx` and `components/admin/catalogue/coffee-content-steps.tsx`.
-- [ ] T049 [P] [US3] Implement media intent/recovery and verified-orphan compensation UI in `components/admin/catalogue/coffee-media-step.tsx`.
-- [ ] T050 [P] [US3] Implement eligible inventory selection and Warehouse handoff state in `components/admin/catalogue/coffee-inventory-step.tsx`.
-- [ ] T051 [P] [US3] Implement explicit offer/price/quantity/Featured step in `components/admin/catalogue/coffee-offer-step.tsx`.
+- [ ] T048 [P] [US3] Implement resumable identity/English, Arabic and taxonomy/origin step forms with intentional light/dark, RTL/LTR, inline validation and restrained functional feedback in `components/admin/catalogue/coffee-stepper.tsx` and `components/admin/catalogue/coffee-content-steps.tsx`.
+- [ ] T049 [P] [US3] Implement media intent/recovery and verified-orphan compensation UI with theme-aware loading/error/retry states in `components/admin/catalogue/coffee-media-step.tsx`.
+- [ ] T050 [P] [US3] Implement eligible inventory selection and Warehouse handoff state with responsive, accessible empty/error guidance in `components/admin/catalogue/coffee-inventory-step.tsx`.
+- [ ] T051 [P] [US3] Implement explicit offer/price/quantity/Featured step with localized committed feedback and restrained motion in `components/admin/catalogue/coffee-offer-step.tsx`.
 - [ ] T052 [US3] Compose protected new/edit stepper routes in `src/app/dashboard-admin/(catalogue)/coffees/new/page.tsx` and `src/app/dashboard-admin/(catalogue)/coffees/[coffeeId]/page.tsx`.
-- [ ] T053 [US3] Implement readiness, separated public/purchase previews and catalogue-only/coordinated publish controls in `components/admin/catalogue/coffee-readiness-panel.tsx`.
+- [ ] T053 [US3] Implement readiness, separated public/purchase previews and catalogue-only/coordinated publish controls with localized toast plus inline validation/error states in `components/admin/catalogue/coffee-readiness-panel.tsx`.
 - [ ] T054 [US3] Wire Compliance approval handoff without role expansion in `src/app/dashboard-admin/(compliance)/listings/actions.ts` and `lib/admin/decisions.ts`.
 
 ### A4: Bank Configuration — US5 (P1) — T055–T059
@@ -106,8 +106,8 @@
 
 - [ ] T055 [P] [US5] Add default selection/role/MFA/masking/snapshot tests in `tests/admin/f018-payment-accounts.test.ts`.
 - [ ] T056 [US5] Extend safe payment-account projections and typed readiness errors in `lib/admin/payment-accounts.ts`.
-- [ ] T057 [US5] Implement default USD control and active/default readiness in `src/app/dashboard-admin/(system)/payment-accounts/page.tsx` and `src/app/dashboard-admin/(system)/payment-accounts/actions.ts`.
-- [ ] T058 [US5] Implement masked account list/detail/default affordances in `components/admin/payment-accounts/payment-account-list.tsx`.
+- [ ] T057 [US5] Implement default USD control and active/default readiness with localized success/error feedback that preserves recoverable input in `src/app/dashboard-admin/(system)/payment-accounts/page.tsx` and `src/app/dashboard-admin/(system)/payment-accounts/actions.ts`.
+- [ ] T058 [US5] Implement masked account list/detail/default affordances with responsive light/dark contrast and restrained functional motion in `components/admin/payment-accounts/payment-account-list.tsx`.
 - [ ] T059 [US5] Add existing-bank RPC integration and future-versus-frozen snapshot regression coverage in `tests/commerce/f018-bank-snapshot.test.ts`.
 
 **Phase A exit gate**: T001–T059 are complete only when the live schema is captured/reconciled; M1/M2/M3 implementation is complete; selected checkout passes real PostgreSQL local/integration tests for exact-once/recovery/empty-DRAFT/historical multi-line compatibility; Admin and bank gates pass; required local postflights pass; and no BLOCKER/HIGH remains. Remote migration execution is not required.
@@ -122,12 +122,12 @@
 
 **Independent test**: Published featured/recent Coffee ordering and invalidation behave deterministically while anonymous delivered representations contain no commercial fields.
 
-- [ ] T060 [P] [US7] Add public DTO/cache/HTML/RSC/metadata privacy tests in `tests/public/f018-public-discovery-security.test.ts`.
-- [ ] T061 [P] [US7] Add Featured/Recent ordering, lifecycle, cap and fallback tests in `tests/public/f018-featured-coffees.test.ts`.
+- [ ] T060 [P] [US7] Add public DTO/cache/HTML/RSC/metadata privacy plus light/dark delivered-state tests in `tests/public/f018-public-discovery-security.test.ts`.
+- [ ] T061 [P] [US7] Add Featured/Recent ordering, lifecycle, cap, fallback and localized loading/empty/error state tests in `tests/public/f018-featured-coffees.test.ts`.
 - [ ] T062 [US7] Implement public Featured/Recent/related allowlist reads and deterministic ordering in `lib/public/coffees.ts`.
 - [ ] T063 [US7] Add public cache tags and committed invalidation helpers in `lib/public/cache.ts`.
-- [ ] T064 [US7] Compose bounded Recent/Featured homepage sections in `src/app/page.tsx` and `components/marketplace/home-marketplace.tsx`.
-- [ ] T065 [US7] Implement public Coffee card/gallery/detail and related-coffee composition in `components/coffee/public-coffee-card.tsx`, `components/coffee/coffee-gallery.tsx` and `src/app/(public)/coffee/[slug]/page.tsx`.
+- [ ] T064 [US7] Use the installed `motion-design` skill to compose bounded Recent/Featured homepage sections with the strongest premium, responsive mobile, reduced-motion-equivalent treatment in `src/app/page.tsx` and `components/marketplace/home-marketplace.tsx`.
+- [ ] T065 [US7] Implement premium public Coffee card/gallery/detail and related-coffee composition with light/dark, EN/AR/RTL, intentional loading/empty/error states and touch-appropriate motion in `components/coffee/public-coffee-card.tsx`, `components/coffee/coffee-gallery.tsx` and `src/app/(public)/coffee/[slug]/page.tsx`.
 - [ ] T066 [US7] Implement allowlisted purchase sign-in return validation in `lib/auth/safe-return.ts` and `src/app/(public)/coffee/[slug]/page.tsx`.
 
 ### B2: Marketplace and Product Details — US7 (P2) — T067–T074
@@ -140,8 +140,8 @@
 - [ ] T068 [P] [US7] Add localized bounded search, SOLD_OUT and buyer-capability state tests in `tests/listings/f018-marketplace-search.test.ts`.
 - [ ] T069 [US7] Implement localized bounded marketplace search and safe failure states in `lib/listings/browse.ts`.
 - [ ] T070 [US7] Implement fresh authorized offer detail projection and explicit selector contract in `lib/listings/offer-detail.ts`.
-- [ ] T071 [US7] Implement responsive marketplace listing cards with visible actions in `components/listings/listing-card.tsx`.
-- [ ] T072 [US7] Implement buyer offer selector, quantity control and safe eligibility presentation in `components/coffee/offer-selector.tsx` and `components/commerce/quantity-control.tsx`.
+- [ ] T071 [US7] Implement premium responsive Marketplace listing cards with light/dark surfaces, visible actions and mobile-appropriate motion in `components/listings/listing-card.tsx`.
+- [ ] T072 [US7] Implement buyer offer selector, quantity control and safe eligibility presentation with localized inline validation plus non-spammy mutation feedback in `components/coffee/offer-selector.tsx` and `components/commerce/quantity-control.tsx`.
 - [ ] T073 [US7] Compose protected marketplace/detail pages in `src/app/dashboard/coffee/page.tsx` and `src/app/dashboard/coffee/[offerId]/page.tsx`.
 - [ ] T074 [US7] Wire stable Add intent and committed action outcome into `components/commerce/add-to-cart-form.tsx` and `src/app/dashboard/coffee/actions.ts`.
 
@@ -155,9 +155,9 @@
 - [ ] T076 [P] [US4] Add cart UI line/update/remove/selected-checkout/no-Checkout-All tests in `tests/commerce/f018-cart-journey.test.tsx`.
 - [ ] T077 [US4] Implement authoritative CartSummary server read and typed state in `lib/commerce/cart.ts`.
 - [ ] T078 [US4] Implement context-epoch provider, invalidation-only BroadcastChannel and focus refresh in `components/commerce/cart-summary-provider.tsx`.
-- [ ] T079 [US4] Implement cart line estimate/unavailable/update/remove/Checkout-this-item UI in `components/commerce/cart-line.tsx` and `src/app/dashboard/cart/page.tsx`.
-- [ ] T080 [US4] Implement committed EN/AR toast and accessible inline Add confirmation in `components/commerce/add-to-cart-form.tsx`.
-- [ ] T081 [US4] Implement shared capability-aware Cart badge in `components/public/site-header.tsx`, `components/dashboard/sidebar.tsx` and `components/dashboard/mobile-nav.tsx`.
+- [ ] T079 [US4] Implement cart line estimate/unavailable/update/remove/Checkout-this-item UI with premium responsive/light-dark state composition and restrained feedback motion in `components/commerce/cart-line.tsx` and `src/app/dashboard/cart/page.tsx`.
+- [ ] T080 [US4] Implement committed EN/AR toast and accessible inline Add confirmation with retry-safe deduplication, preserved input and actionable errors in `components/commerce/add-to-cart-form.tsx`.
+- [ ] T081 [US4] Implement shared capability-aware Cart badge with responsive/RTL/light-dark navigation states in `components/public/site-header.tsx`, `components/dashboard/sidebar.tsx` and `components/dashboard/mobile-nav.tsx`.
 - [ ] T082 [US4] Update member logo destination and retain contact/RFQ while excluding Admin cart in `components/dashboard/sidebar.tsx` and `components/public/site-header.tsx`.
 - [ ] T083 [US4] Wire partial-checkout result/navigation and summary refresh in `src/app/dashboard/cart/actions.ts` and `components/commerce/cart-summary-provider.tsx`.
 
@@ -171,7 +171,7 @@
 - [ ] T085 [US8] Implement separate public/member reference-only Compare stores in `lib/compare/selection.ts`.
 - [ ] T086 [US8] Implement bounded public slug resolver and compare page in `src/app/(public)/coffee/compare/page.tsx`.
 - [ ] T087 [US8] Implement fresh authorized member offer resolver and page in `src/app/dashboard/compare/page.tsx`.
-- [ ] T088 [US8] Implement accessible responsive Compare tray/remove/clear/limit controls in `components/coffee/compare-tray.tsx`.
+- [ ] T088 [US8] Implement accessible responsive Compare tray/remove/clear/limit controls with useful localized feedback, light/dark overlays and mobile-appropriate motion in `components/coffee/compare-tray.tsx`.
 - [ ] T089 [US8] Wire gallery/card selectors to public/member Compare namespaces in `components/coffee/public-coffee-card.tsx` and `components/coffee/offer-selector.tsx`.
 
 ### B5: Proforma and Checkout Recovery — US2 (P1) — T090–T097
@@ -184,8 +184,8 @@
 - [ ] T091 [P] [US2] Add buyer state/recovery/no-duplicate proof-payment navigation tests in `tests/commerce/f018-checkout-recovery.test.tsx`.
 - [ ] T092 [US2] Implement exact pointer/linkage and typed document read outcomes in `lib/commerce/read.ts` and `lib/orders/read.ts`.
 - [ ] T093 [US2] Implement receipt-driven committed/unknown recovery DAL in `lib/commerce/checkout.ts`.
-- [ ] T094 [US2] Implement frozen bank/Arabic/document rendering with honest fallback in `components/commerce/proforma-document.tsx`.
-- [ ] T095 [US2] Implement actual order/proof/rejection/paid/fulfillment/terminal next-action timeline in `components/commerce/order-timeline.tsx`.
+- [ ] T094 [US2] Implement frozen bank/Arabic/document rendering with honest fallback, directional identifier isolation, light/dark table contrast and restrained functional motion in `components/commerce/proforma-document.tsx`.
+- [ ] T095 [US2] Implement actual order/proof/rejection/paid/fulfillment/terminal next-action timeline with localized classified loading/error/retry/success feedback in `components/commerce/order-timeline.tsx`.
 - [ ] T096 [US2] Update buyer proforma/order/payment routes for typed recovery/error states in `src/app/dashboard/orders/[orderId]/proforma/page.tsx` and `src/app/dashboard/payments/[orderId]/page.tsx`.
 - [ ] T097 [US2] Add Feature015/016 exact invoice/title/storage-allocation/fulfillment and rejection-absence compatibility tests in `tests/finance/f018-terminal-compat.live.test.ts`.
 
@@ -207,9 +207,9 @@
 - [ ] T105 [US9] Reserve approved live M4 preflight/forward/rollback/reapply/postflight scenarios in `tests/messaging/f018-live-m4.test.ts`.
 - [ ] T106 [US9] Implement typed current-org Help DAL and idempotent operation results in `lib/messaging/tickets.ts` and `lib/messaging/types.ts`.
 - [ ] T107 [US9] Implement member Help list/new/detail routes in `src/app/dashboard/help/page.tsx`, `src/app/dashboard/help/new/page.tsx` and `src/app/dashboard/help/[ticketRef]/page.tsx`.
-- [ ] T108 [US9] Implement member ticket form/conversation/history/reply controls in `components/messaging/help-ticket-form.tsx` and `components/messaging/help-conversation.tsx`.
+- [ ] T108 [US9] Implement member ticket form/conversation/history/reply controls with inline validation, deduplicated localized toasts, preserved input and restrained theme-aware motion in `components/messaging/help-ticket-form.tsx` and `components/messaging/help-conversation.tsx`.
 - [ ] T109 [US9] Implement Admin Support inbox/detail routes in `src/app/dashboard-admin/support/page.tsx` and `src/app/dashboard-admin/support/[ticketRef]/page.tsx`.
-- [ ] T110 [US9] Implement Admin filters/status graph/reply controls in `components/admin/support/support-inbox.tsx` and `components/admin/support/support-ticket-detail.tsx`.
+- [ ] T110 [US9] Implement Admin filters/status graph/reply controls with responsive light/dark states, localized feedback and restrained functional motion in `components/admin/support/support-inbox.tsx` and `components/admin/support/support-ticket-detail.tsx`.
 - [ ] T111 [US9] Implement authorized old messages-route redirects in `src/app/dashboard/messages/page.tsx` and `src/app/dashboard-admin/(system)/messages/page.tsx`.
 
 **Phase B exit gate**: T060–T111 are complete only when the local flow is demonstrable from anonymous discovery through sign-in, marketplace/product, Add, badge, cart, selected checkout, retained unrelated lines and order/proforma recovery; Help is locally validated; public/member privacy, cart, Compare, recovery and Help/RLS tests pass; and no BLOCKER/HIGH remains. Phase C work is not required for this basic functional claim.
@@ -224,12 +224,12 @@
 
 **Independent test**: Each changed public/member/Admin journey works at 360/768/1280px in EN/AR with keyboard and reduced motion.
 
-- [ ] T112 [P] [US6] Add complete Feature018 EN/AR string inventory and RTL rendering tests in `tests/i18n/f018-localization.test.tsx`.
-- [ ] T113 [P] [US6] Add axe/manual-keyboard regression harness for gallery, quantity, tray, dialog, forms and sticky actions in `tests/a11y/f018-journeys.test.tsx`.
-- [ ] T114 [P] [US6] Add responsive/reduced-motion visual regression harness in `tests/browser/f018-responsive-motion.browser.mjs`.
-- [ ] T115 [US6] Add EN/AR user-facing strings, safe frozen-English fallback and identifier direction isolation in `lib/i18n/locales/en.ts` and `lib/i18n/locales/ar.ts`.
-- [ ] T116 [US6] Apply logical RTL layout, accessible labels/live errors/focus restoration and contained overflow across `components/coffee/`, `components/commerce/`, `components/messaging/` and `components/admin/`.
-- [ ] T117 [US6] Use the installed `motion-design` skill during implementation to refine premium homepage/Featured/product/marketplace/cart/Compare motion through existing primitives documented in `components/motion/ANIMATION-OWNERSHIP.md`.
+- [ ] T112 [P] [US6] Add complete Feature018 EN/AR/LTR/RTL string, directional-isolation, toast, validation and light/dark rendering tests in `tests/i18n/f018-localization.test.tsx`.
+- [ ] T113 [P] [US6] Add axe/manual-keyboard and light/dark contrast regression harness for gallery, quantity, tray, dialog, forms and sticky actions in `tests/a11y/f018-journeys.test.tsx`.
+- [ ] T114 [P] [US6] Add 360px/768px/1280px responsive, mobile-motion and reduced-motion visual regression harness in `tests/browser/f018-responsive-motion.browser.mjs`.
+- [ ] T115 [US6] Add EN/AR user-facing strings for all mutation/async states, safe frozen-English fallback and identifier direction isolation in `lib/i18n/locales/en.ts` and `lib/i18n/locales/ar.ts`.
+- [ ] T116 [US6] Apply existing theme tokens for light/dark plus logical RTL layout, accessible labels/live errors/focus restoration and contained overflow across `components/coffee/`, `components/commerce/`, `components/messaging/` and `components/admin/`.
+- [ ] T117 [US6] Use the installed `motion-design` skill to audit and polish Phase B's premium Homepage/Featured/product/Marketplace/cart/Compare motion through existing primitives documented in `components/motion/ANIMATION-OWNERSHIP.md`; do not defer Phase B implementation to this task.
 - [ ] T118 [US6] Apply restrained functional motion and reduced-motion equivalence to Admin/checkout/proforma/bank/Help in `components/motion/` and affected Feature018 components.
 - [ ] T119 [US6] Measure and record LCP/interaction/CLS under documented representative conditions in `docs/validation/f018-performance.md`.
 
