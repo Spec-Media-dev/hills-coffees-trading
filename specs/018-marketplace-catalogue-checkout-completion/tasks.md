@@ -18,18 +18,18 @@
 
 **Goal**: Capture actual TEST/DEMO definitions read-only, reconcile drift, and freeze the reviewable M1–M4 SQL design before authoring any migration.
 
-- [ ] T001 Create the Feature 018 capture manifest and expected-object inventory in `scripts/f018-capture-schema.ts`.
-- [ ] T002 Implement read-only effective PostgreSQL/HTTP target identity pinning in `scripts/f018-capture-schema.ts`; refuse mixed/local targets and record no secret values.
-- [ ] T003 [P] Capture cart resolver, Add, update/remove, request-log and destination RPC definitions/ACLs in `scripts/f018-capture-schema.ts`.
-- [ ] T004 [P] Capture checkout, quote, order-item validator, order transition and reservation/reclamation definitions/ACLs in `scripts/f018-capture-schema.ts`.
-- [ ] T005 [P] Capture offer/inventory/position constraints, indexes, policies, grants and trigger bindings in `scripts/f018-capture-schema.ts`.
-- [ ] T006 [P] Capture Feature 014 ticket/message functions, policies, history/audit bindings and notifications in `scripts/f018-capture-schema.ts`.
-- [ ] T007 [P] Capture payment-account/default, proforma snapshot/immutability, proof Storage and Feature 016 Finance/handoff definitions in `scripts/f018-capture-schema.ts`.
-- [ ] T008 [P] Capture Feature 017 retired-function definitions, application-role ACL denials and provider runtime/secret presence metadata in `scripts/f018-capture-schema.ts`.
-- [ ] T009 Implement catalog comparison and fail-closed drift report in `scripts/f018-capture-schema.ts` using valid `pg_proc`, `pg_trigger`, `pg_policy`, `pg_constraint` and `pg_index` expressions.
-- [ ] T010 Add capture-script fixture/unit tests in `tests/finance/f018-schema-capture.test.ts`.
-- [ ] T011 **REMOTE READ-ONLY** Run the capture script only against the explicitly approved TEST/DEMO target and save sanitized evidence in `specs/018-marketplace-catalogue-checkout-completion/evidence/schema-capture.md`; make no mutation.
-- [ ] T012 Reconcile captured drift and record signed-off M1–M4 object signatures, lock graph, grants and rollback boundaries in `specs/018-marketplace-catalogue-checkout-completion/contracts/migrations-verification.md`.
+- [X] T001 Create the Feature 018 capture manifest and expected-object inventory in `scripts/f018-capture-schema.ts`.
+- [X] T002 Implement read-only effective PostgreSQL/HTTP target identity pinning in `scripts/f018-capture-schema.ts`; refuse mixed/local targets and record no secret values.
+- [X] T003 [P] Capture cart resolver, Add, update/remove, request-log and destination RPC definitions/ACLs in `scripts/f018-capture-schema.ts`.
+- [X] T004 [P] Capture checkout, quote, order-item validator, order transition and reservation/reclamation definitions/ACLs in `scripts/f018-capture-schema.ts`.
+- [X] T005 [P] Capture offer/inventory/position constraints, indexes, policies, grants and trigger bindings in `scripts/f018-capture-schema.ts`.
+- [X] T006 [P] Capture Feature 014 ticket/message functions, policies, history/audit bindings and notifications in `scripts/f018-capture-schema.ts`.
+- [X] T007 [P] Capture payment-account/default, proforma snapshot/immutability, proof Storage and Feature 016 Finance/handoff definitions in `scripts/f018-capture-schema.ts`.
+- [X] T008 [P] Capture Feature 017 retired-function definitions, application-role ACL denials and provider runtime/secret presence metadata in `scripts/f018-capture-schema.ts`.
+- [X] T009 Implement catalog comparison and fail-closed drift report in `scripts/f018-capture-schema.ts` using valid `pg_proc`, `pg_trigger`, `pg_policy`, `pg_constraint` and `pg_index` expressions.
+- [X] T010 Add capture-script fixture/unit tests in `tests/finance/f018-schema-capture.test.ts`.
+- [X] T011 **REMOTE READ-ONLY** Run the capture script only against the explicitly approved TEST/DEMO target and save sanitized evidence in `specs/018-marketplace-catalogue-checkout-completion/evidence/schema-capture.md`; make no mutation.
+- [X] T012 Reconcile captured drift and record signed-off M1–M4 object signatures, lock graph, grants and rollback boundaries in `specs/018-marketplace-catalogue-checkout-completion/contracts/migrations-verification.md`.
 
 **Critical gate**: T001–T010 are local capture tooling/tests. T011 is REMOTE READ-ONLY, not local/static and not a remote mutation. T012 must reconcile that evidence. No migration SQL authoring or Feature 018 database implementation may proceed to T013+ until T011 and T012 are complete with no unresolved drift.
 
@@ -41,35 +41,35 @@
 
 ### M1 — Featured and Arabic snapshot schema prerequisite
 
-- [ ] T013 [US1] Write M1 preflight checks for Coffee/publication and proforma snapshot shape in `scripts/f018-m1-preflight.ts`.
-- [ ] T014 [US1] Write M1 forward migration for nullable `coffees.featured_at` and immutable nullable Arabic proforma-item snapshots in `supabase/migrations/<timestamp>_feature_018_featured_arabic_snapshots.sql`.
-- [ ] T015 [US1] Write M1 rollback retaining populated history and snapshot protections in `supabase/migrations/<timestamp>_feature_018_featured_arabic_snapshots_rollback.sql`.
-- [ ] T016 [US1] Write read-only M1 postflight for columns/index definitions, public boundaries and immutable bindings in `scripts/f018-m1-postflight.ts`.
-- [ ] T017 [P] [US1] Add M1 schema/contract tests in `tests/commerce/f018-m1-schema.test.ts`.
-- [ ] T018 [US1] Run local PostgreSQL syntax/dry-run verification for M1 in `tests/commerce/f018-m1-migration.test.ts`.
-- [ ] T019 [US1] Reserve approved live M1 preflight/forward/postflight verification in `tests/commerce/f018-live-m1.test.ts` behind the explicit remote approval gate.
+- [X] T013 [US1] Write M1 preflight checks for Coffee/publication and proforma snapshot shape in `scripts/f018-m1-preflight.ts`.
+- [X] T014 [US1] Write M1 forward migration for nullable `coffees.featured_at` and immutable nullable Arabic proforma-item snapshots in `supabase/migrations/<timestamp>_feature_018_featured_arabic_snapshots.sql`.
+- [X] T015 [US1] Write M1 rollback retaining populated history and snapshot protections in `supabase/migrations/<timestamp>_feature_018_featured_arabic_snapshots_rollback.sql`.
+- [X] T016 [US1] Write read-only M1 postflight for columns/index definitions, public boundaries and immutable bindings in `scripts/f018-m1-postflight.ts`.
+- [X] T017 [P] [US1] Add M1 schema/contract tests in `tests/commerce/f018-m1-schema.test.ts`.
+- [X] T018 [US1] Run local PostgreSQL syntax/dry-run verification for M1 in `tests/commerce/f018-m1-migration.test.ts`.
+- [X] T019 [US1] Reserve approved live M1 preflight/forward/postflight verification in `tests/commerce/f018-live-m1.test.ts` behind the explicit remote approval gate.
 
 ### M2 — selected checkout, receipt and legacy fence
 
-- [ ] T020 [US1] Write M2 preflight for current lock graph, direct cart writers, receipt namespace and active V1/017 fences in `scripts/f018-m2-preflight.ts`.
-- [ ] T021 [P] [US1] Add failing atomic split, payload-conflict and replay contract tests in `tests/commerce/f018-cart-line-checkout.test.ts`.
-- [ ] T022 [P] [US1] Add real PostgreSQL A/B/C, final-empty reuse and injected-rollback tests in `tests/commerce/f018-cart-line-checkout.live.test.ts`.
-- [ ] T023 [P] [US1] Add independent-session same-line/different-line/Add-update-remove/reclaim concurrency tests in `tests/commerce/f018-checkout-concurrency.live.test.ts`.
-- [ ] T024 [P] [US1] Add selected-only quote/shipping/commission and inventory-conservation tests in `tests/commerce/f018-selected-quote.live.test.ts`.
-- [ ] T025 [P] [US1] Add fresh legacy multi-line denial and historical committed multi-line replay tests in `tests/commerce/f018-legacy-checkout-compat.live.test.ts`.
-- [ ] T026 [US1] Implement payload-aware protected request begin/complete helpers and receipt/permit tables, RLS, immutability and exact constraints in `supabase/migrations/<timestamp>_feature_018_checkout_foundation.sql`.
-- [ ] T027 [US1] Implement canonical V1 cart mutation guards for Add/update/remove and read-only canonical-cart resolution in `supabase/migrations/<timestamp>_feature_018_checkout_foundation.sql`.
-- [ ] T028 [US1] Implement staged expired-reservation discovery, complete offer/position union locking and reentrant release path in `supabase/migrations/<timestamp>_feature_018_checkout_foundation.sql`.
-- [ ] T029 [US1] Implement the private shared Feature 015 checkout kernel and public `checkout_bank_transfer_v1` permit/history fence in `supabase/migrations/<timestamp>_feature_018_checkout_foundation.sql`.
-- [ ] T030 [US1] Implement selected-line quote/estimate and the atomic child-item/receipt/source-delete sequence in `supabase/migrations/<timestamp>_feature_018_checkout_foundation.sql`.
-- [ ] T031 [US1] Populate frozen nullable Arabic item/origin snapshots only in new kernel issuance in `supabase/migrations/<timestamp>_feature_018_checkout_foundation.sql`.
-- [ ] T032 [US1] Implement receipt integrity/recovery functions with fresh authority and terminal-link validation in `supabase/migrations/<timestamp>_feature_018_checkout_foundation.sql`.
-- [ ] T033 [US1] Implement typed checkout/recovery/summary DAL results in `lib/commerce/cart.ts` and `lib/commerce/checkout.ts`.
-- [ ] T034 [US1] Add guarded selected-checkout Server Actions in `src/app/dashboard/cart/actions.ts`.
-- [ ] T035 [US1] Write M2 rollback that preserves immutable receipts/snapshots and Feature017/V1 fences in `supabase/migrations/<timestamp>_feature_018_checkout_foundation_rollback.sql`.
-- [ ] T036 [US1] Write M2 read-only function/ACL/RLS/lock/uniqueness/fence postflight in `scripts/f018-m2-postflight.ts`.
-- [ ] T037 [US1] Add M2 migration/SQL parser and local dry-run tests in `tests/commerce/f018-m2-migration.test.ts`.
-- [ ] T038 [US1] Reserve approved remote M2 preflight/forward/concurrency/rollback/reapply/postflight test harness in `tests/commerce/f018-live-m2.test.ts`.
+- [X] T020 [US1] Write M2 preflight for current lock graph, direct cart writers, receipt namespace and active V1/017 fences in `scripts/f018-m2-preflight.ts`.
+- [X] T021 [P] [US1] Add failing atomic split, payload-conflict and replay contract tests in `tests/commerce/f018-cart-line-checkout.test.ts`.
+- [X] T022 [P] [US1] Add real PostgreSQL A/B/C, final-empty reuse and injected-rollback tests in `tests/commerce/f018-cart-line-checkout.live.test.ts`.
+- [X] T023 [P] [US1] Add independent-session same-line/different-line/Add-update-remove/reclaim concurrency tests in `tests/commerce/f018-checkout-concurrency.live.test.ts`.
+- [X] T024 [P] [US1] Add selected-only quote/shipping/commission and inventory-conservation tests in `tests/commerce/f018-selected-quote.live.test.ts`.
+- [X] T025 [P] [US1] Add fresh legacy multi-line denial and historical committed multi-line replay tests in `tests/commerce/f018-legacy-checkout-compat.live.test.ts`.
+- [X] T026 [US1] Implement payload-aware protected request begin/complete helpers and receipt/permit tables, RLS, immutability and exact constraints in `supabase/migrations/<timestamp>_feature_018_checkout_foundation.sql`.
+- [X] T027 [US1] Implement canonical V1 cart mutation guards for Add/update/remove and read-only canonical-cart resolution in `supabase/migrations/<timestamp>_feature_018_checkout_foundation.sql`.
+- [X] T028 [US1] Implement staged expired-reservation discovery, complete offer/position union locking and reentrant release path in `supabase/migrations/<timestamp>_feature_018_checkout_foundation.sql`.
+- [X] T029 [US1] Implement the private shared Feature 015 checkout kernel and public `checkout_bank_transfer_v1` permit/history fence in `supabase/migrations/<timestamp>_feature_018_checkout_foundation.sql`.
+- [X] T030 [US1] Implement selected-line quote/estimate and the atomic child-item/receipt/source-delete sequence in `supabase/migrations/<timestamp>_feature_018_checkout_foundation.sql`.
+- [X] T031 [US1] Populate frozen nullable Arabic item/origin snapshots only in new kernel issuance in `supabase/migrations/<timestamp>_feature_018_checkout_foundation.sql`.
+- [X] T032 [US1] Implement receipt integrity/recovery functions with fresh authority and terminal-link validation in `supabase/migrations/<timestamp>_feature_018_checkout_foundation.sql`.
+- [X] T033 [US1] Implement typed checkout/recovery/summary DAL results in `lib/commerce/cart.ts` and `lib/commerce/checkout.ts`.
+- [X] T034 [US1] Add guarded selected-checkout Server Actions in `src/app/dashboard/cart/actions.ts`.
+- [X] T035 [US1] Write M2 rollback that preserves immutable receipts/snapshots and Feature017/V1 fences in `supabase/migrations/<timestamp>_feature_018_checkout_foundation_rollback.sql`.
+- [X] T036 [US1] Write M2 read-only function/ACL/RLS/lock/uniqueness/fence postflight in `scripts/f018-m2-postflight.ts`.
+- [X] T037 [US1] Add M2 migration/SQL parser and local dry-run tests in `tests/commerce/f018-m2-migration.test.ts`.
+- [X] T038 [US1] Reserve approved remote M2 preflight/forward/concurrency/rollback/reapply/postflight test harness in `tests/commerce/f018-live-m2.test.ts`.
 
 **Checkpoint**: US1 is independently demonstrable locally against real PostgreSQL; no remote test is implied.
 
@@ -81,22 +81,22 @@
 
 ### M3 — Admin orchestration
 
-- [ ] T039 [US3] Write M3 preflight for Coffee/offer/media/translation/review policies, revisions and audit guards in `scripts/f018-m3-preflight.ts`.
-- [ ] T040 [P] [US3] Add Admin intent/CAS/readiness/publication contract tests in `tests/admin/f018-catalogue-orchestration.test.ts`.
-- [ ] T041 [P] [US3] Add interrupted media/translation/offer resume and authorization tests in `tests/admin/f018-catalogue-resume.test.tsx`.
-- [ ] T042 [US3] Implement M3 protected creation/step-save payload binding, revision checks and controlled publication routines in `supabase/migrations/<timestamp>_feature_018_admin_orchestration.sql`.
-- [ ] T043 [US3] Implement M3 rollback retaining created Coffee/offer/intents/history and safe publication guards in `supabase/migrations/<timestamp>_feature_018_admin_orchestration_rollback.sql`.
-- [ ] T044 [US3] Implement M3 read-only role/MFA/revision/publication/ACL postflight in `scripts/f018-m3-postflight.ts`.
-- [ ] T045 [US3] Add M3 local dry-run/migration contract verification in `tests/admin/f018-m3-migration.test.ts`.
-- [ ] T046 [US3] Reserve approved live M3 preflight/forward/rollback/reapply/postflight scenarios in `tests/admin/f018-live-m3.test.ts`.
-- [ ] T047 [US3] Implement Admin Coffee intent/CAS/readiness DAL in `lib/admin/catalogue.ts` and `lib/admin/catalogue-validation.ts`.
-- [ ] T048 [P] [US3] Implement resumable identity/English, Arabic and taxonomy/origin step forms with intentional light/dark, RTL/LTR, inline validation and restrained functional feedback in `components/admin/catalogue/coffee-stepper.tsx` and `components/admin/catalogue/coffee-content-steps.tsx`.
-- [ ] T049 [P] [US3] Implement media intent/recovery and verified-orphan compensation UI with theme-aware loading/error/retry states in `components/admin/catalogue/coffee-media-step.tsx`.
-- [ ] T050 [P] [US3] Implement eligible inventory selection and Warehouse handoff state with responsive, accessible empty/error guidance in `components/admin/catalogue/coffee-inventory-step.tsx`.
-- [ ] T051 [P] [US3] Implement explicit offer/price/quantity/Featured step with localized committed feedback and restrained motion in `components/admin/catalogue/coffee-offer-step.tsx`.
-- [ ] T052 [US3] Compose protected new/edit stepper routes in `src/app/dashboard-admin/(catalogue)/coffees/new/page.tsx` and `src/app/dashboard-admin/(catalogue)/coffees/[coffeeId]/page.tsx`.
-- [ ] T053 [US3] Implement readiness, separated public/purchase previews and catalogue-only/coordinated publish controls with localized toast plus inline validation/error states in `components/admin/catalogue/coffee-readiness-panel.tsx`.
-- [ ] T054 [US3] Wire Compliance approval handoff without role expansion in `src/app/dashboard-admin/(compliance)/listings/actions.ts` and `lib/admin/decisions.ts`.
+- [X] T039 [US3] Write M3 preflight for Coffee/offer/media/translation/review policies, revisions and audit guards in `scripts/f018-m3-preflight.ts`.
+- [X] T040 [P] [US3] Add Admin intent/CAS/readiness/publication contract tests in `tests/admin/f018-catalogue-orchestration.test.ts`.
+- [X] T041 [P] [US3] Add interrupted media/translation/offer resume and authorization tests in `tests/admin/f018-catalogue-resume.test.tsx`.
+- [X] T042 [US3] Implement M3 protected creation/step-save payload binding, revision checks and controlled publication routines in `supabase/migrations/<timestamp>_feature_018_admin_orchestration.sql`.
+- [X] T043 [US3] Implement M3 rollback retaining created Coffee/offer/intents/history and safe publication guards in `supabase/migrations/<timestamp>_feature_018_admin_orchestration_rollback.sql`.
+- [X] T044 [US3] Implement M3 read-only role/MFA/revision/publication/ACL postflight in `scripts/f018-m3-postflight.ts`.
+- [X] T045 [US3] Add M3 local dry-run/migration contract verification in `tests/admin/f018-m3-migration.test.ts`.
+- [X] T046 [US3] Reserve approved live M3 preflight/forward/rollback/reapply/postflight scenarios in `tests/admin/f018-live-m3.test.ts`.
+- [X] T047 [US3] Implement Admin Coffee intent/CAS/readiness DAL in `lib/admin/catalogue.ts` and `lib/admin/catalogue-validation.ts`.
+- [X] T048 [P] [US3] Implement resumable identity/English, Arabic and taxonomy/origin step forms with intentional light/dark, RTL/LTR, inline validation and restrained functional feedback in `components/admin/catalogue/coffee-stepper.tsx` and `components/admin/catalogue/coffee-content-steps.tsx`.
+- [X] T049 [P] [US3] Implement media intent/recovery and verified-orphan compensation UI with theme-aware loading/error/retry states in `components/admin/catalogue/coffee-media-step.tsx`.
+- [X] T050 [P] [US3] Implement eligible inventory selection and Warehouse handoff state with responsive, accessible empty/error guidance in `components/admin/catalogue/coffee-inventory-step.tsx`.
+- [X] T051 [P] [US3] Implement explicit offer/price/quantity/Featured step with localized committed feedback and restrained motion in `components/admin/catalogue/coffee-offer-step.tsx`.
+- [X] T052 [US3] Compose protected new/edit stepper routes in `src/app/dashboard-admin/(catalogue)/coffees/new/page.tsx` and `src/app/dashboard-admin/(catalogue)/coffees/[coffeeId]/page.tsx`.
+- [X] T053 [US3] Implement readiness, separated public/purchase previews and catalogue-only/coordinated publish controls with localized toast plus inline validation/error states in `components/admin/catalogue/coffee-readiness-panel.tsx`.
+- [X] T054 [US3] Wire Compliance approval handoff without role expansion in `src/app/dashboard-admin/(compliance)/listings/actions.ts` and `lib/admin/decisions.ts`.
 
 ### A4: Bank Configuration — US5 (P1) — T055–T059
 
@@ -104,11 +104,11 @@
 
 **Independent test**: Change default as authorized operator; old proforma remains frozen and next issuance uses only the valid new default.
 
-- [ ] T055 [P] [US5] Add default selection/role/MFA/masking/snapshot tests in `tests/admin/f018-payment-accounts.test.ts`.
-- [ ] T056 [US5] Extend safe payment-account projections and typed readiness errors in `lib/admin/payment-accounts.ts`.
-- [ ] T057 [US5] Implement default USD control and active/default readiness with localized success/error feedback that preserves recoverable input in `src/app/dashboard-admin/(system)/payment-accounts/page.tsx` and `src/app/dashboard-admin/(system)/payment-accounts/actions.ts`.
-- [ ] T058 [US5] Implement masked account list/detail/default affordances with responsive light/dark contrast and restrained functional motion in `components/admin/payment-accounts/payment-account-list.tsx`.
-- [ ] T059 [US5] Add existing-bank RPC integration and future-versus-frozen snapshot regression coverage in `tests/commerce/f018-bank-snapshot.test.ts`.
+- [X] T055 [P] [US5] Add default selection/role/MFA/masking/snapshot tests in `tests/admin/f018-payment-accounts.test.ts`.
+- [X] T056 [US5] Extend safe payment-account projections and typed readiness errors in `lib/admin/payment-accounts.ts`.
+- [X] T057 [US5] Implement default USD control and active/default readiness with localized success/error feedback that preserves recoverable input in `src/app/dashboard-admin/(system)/payment-accounts/page.tsx` and `src/app/dashboard-admin/(system)/payment-accounts/actions.ts`.
+- [X] T058 [US5] Implement masked account list/detail/default affordances with responsive light/dark contrast and restrained functional motion in `components/admin/payment-accounts/payment-account-list.tsx`.
+- [X] T059 [US5] Add existing-bank RPC integration and future-versus-frozen snapshot regression coverage in `tests/commerce/f018-bank-snapshot.test.ts`.
 
 **Phase A exit gate**: T001–T059 are complete only when the live schema is captured/reconciled; M1/M2/M3 implementation is complete; selected checkout passes real PostgreSQL local/integration tests for exact-once/recovery/empty-DRAFT/historical multi-line compatibility; Admin and bank gates pass; required local postflights pass; and no BLOCKER/HIGH remains. Remote migration execution is not required.
 

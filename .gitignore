@@ -32,7 +32,6 @@ yarn-error.log*
 
 # env files (.env.example is intentionally tracked as the documented template — see
 # specs/001-platform-foundation/research.md §14)
-.env
 .env*.local
 
 # supabase CLI link metadata (project ref / pooler URL written by `supabase link`; machine-local, never committed)
@@ -52,3 +51,4 @@ next-env.d.ts
 /feature013-daily-report-work/
 /*-daily-report-work/
 /outputs/*daily-report*/
+config.bat

@@ -31,6 +31,9 @@ One interaction has one engine, and one rendered property has one owner. Later F
 | CoffeeMarquee (convergence) | continuous strip travel; pause on hover / focus | CSS keyframes | transform (track) |
 | GsapScrollReveal (convergence, island-5 helper) | connector draw + step stagger as one sequence (TraceabilityBand, ProcessJourney) | GSAP | scaleX / scaleY on `[data-draw]`, opacity + y on `[data-step]` |
 | FinalCta (convergence) | quiet entrance | Motion (`Reveal`) | opacity, translate-y |
+| Admin Coffee stepper panel (Feature 018, `components/admin/catalogue/coffee-stepper.tsx`) | step-to-step cross-fade | Motion (`Presence`) | opacity |
+| Admin Coffee stepper progress + rail items (Feature 018) | completion progress fill; hover/current indication | CSS token layer | width (progress), background-color, border-color |
+| Admin payment-account list (Feature 018) | row/button hover and focus feedback | CSS token layer | color, background-color, border-color |
 
 GSAP is only created inside a `gsap.context()` scoped to a mounted element — via `useGsapTimeline`, or
 directly in a component's own `useLayoutEffect` as `AnimatedHero` and `InteractiveStorySection` do.

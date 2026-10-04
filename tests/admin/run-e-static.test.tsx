@@ -99,9 +99,22 @@ describe("T021 — coffee management uses the database's own vocabulary through 
   it("every catalogue write re-verifies is_platform_admin() before touching the database, and every catalogue page guards its own area", () => {
     const catalogue = stripComments(source("lib", "admin", "catalogue.ts"));
     // Hardening run: catalogue image upload/removal and Arabic content saves are writes too.
-    const writes = catalogue.match(/export async function (create|update|transition|set|upload|remove|save)\w+\(/g) ?? [];
+    // Feature 018 T047 adds the revisioned workflow section (from `WorkflowErrorCode` on). The Feature 010 invariant is unchanged
+    // for the original writes; the workflow writes enforce the SAME check through ONE guard (`workflowAccess`) that every
+    // workflow export reaches before any database call.
+    const split = catalogue.indexOf("export type WorkflowErrorCode");
+    expect(split).toBeGreaterThan(0);
+    const legacy = catalogue.slice(0, split);
+    const workflow = catalogue.slice(split);
+    const writes = legacy.match(/export async function (create|update|transition|set|upload|remove|save)\w+\(/g) ?? [];
     expect(writes.length).toBeGreaterThanOrEqual(14);
-    expect((catalogue.match(/await requireCatalogueAdmin\(\)/g) ?? []).length).toBe(writes.length);
+    expect((legacy.match(/await requireCatalogueAdmin\(\)/g) ?? []).length).toBe(writes.length);
+    const workflowBodies = workflow.split(/(?=export async function )/).filter((chunk) => chunk.startsWith("export async function"));
+    const workflowWrites = workflowBodies.filter((chunk) => /^export async function (create|save|set|publish|attach|remove|recover|list|read)\w+\(/.test(chunk));
+    expect(workflowWrites.length).toBeGreaterThanOrEqual(14);
+    for (const body of workflowWrites) expect(body.slice(0, 1800), body.slice(0, 60)).toMatch(/await workflowAccess\(\)|callWorkflow\(|workflowValidation\(/);
+    expect(workflow).toMatch(/async function workflowAccess\(\)[\s\S]{0,200}checkRoleFunctionAccess\("is_platform_admin"\)/);
+    expect(workflow).toMatch(/async function callWorkflow[\s\S]{0,400}await workflowAccess\(\)[\s\S]{0,200}supabase\.rpc\(/);
     expect(catalogue).toContain('checkRoleFunctionAccess("is_platform_admin")');
     for (const area of ADMIN_AREAS.filter((a) => a.group === "catalogue")) {
       expect(area.roleFunction).toBe("is_platform_admin");

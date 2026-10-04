@@ -217,3 +217,87 @@ export const CatalogueTranslationInput = z
   .refine((value) => value.description === "" || TRANSLATION_KINDS_WITH_DESCRIPTION.includes(value.kind), { path: ["description"], message: "DESCRIPTION_NOT_APPLICABLE" })
   .refine((value) => value.description === "" || value.name !== "", { path: ["name"], message: "NAME_REQUIRED" });
 export type CatalogueTranslationInput = z.infer<typeof CatalogueTranslationInput>;
+
+// ── Feature 018 — unified, resumable Coffee workflow ────────────────────────────────────────────
+// One contract per controlled database routine. The server validates every field again; the database is the final
+// authority (lengths, slug shape, revision, role). Validation keys are the same family as the existing catalogue forms.
+
+export const WORKFLOW_STEPS = ["identity", "arabic", "taxonomy", "media", "inventory", "offer", "readiness"] as const;
+export type WorkflowStep = (typeof WORKFLOW_STEPS)[number];
+
+/** Steps persisted by `save_catalogue_step`. */
+export const WORKFLOW_SAVE_STEPS = ["identity", "arabic", "taxonomy"] as const;
+export type WorkflowSaveStep = (typeof WORKFLOW_SAVE_STEPS)[number];
+
+/** Server-side stable intent: the client generates one UUID per user action and reuses it for retries. */
+const requestId = z.string().uuid("INVALID_REFERENCE");
+const revision = z.coerce.number().int("REVISION_INVALID").min(1, "REVISION_INVALID").max(2_147_483_647, "REVISION_INVALID");
+const money = z.coerce.number("PRICE_INVALID").finite("PRICE_INVALID").positive("PRICE_INVALID").max(1_000_000, "PRICE_INVALID");
+const kilograms = z.coerce.number("QUANTITY_INVALID").finite("QUANTITY_INVALID").positive("QUANTITY_INVALID").max(100_000_000, "QUANTITY_INVALID");
+const offerTitle = z
+  .string()
+  .trim()
+  .max(200, "NAME_TOO_LONG")
+  .optional()
+  .transform((value) => (value && value.length > 0 ? value : null));
+
+export const CreateCoffeeIntentInput = z.object({ requestId, name, slug, description });
+export type CreateCoffeeIntentInput = z.infer<typeof CreateCoffeeIntentInput>;
+
+export const IdentityStepInput = z.object({ coffeeId: uuid, revision, requestId, name, slug, description });
+export type IdentityStepInput = z.infer<typeof IdentityStepInput>;
+
+export const ArabicStepInput = z
+  .object({
+    coffeeId: uuid,
+    revision,
+    requestId,
+    name: z.string().trim().max(200, "NAME_TOO_LONG").default(""),
+    description: z.string().trim().max(4000, "DESCRIPTION_TOO_LONG").default(""),
+  })
+  .refine((value) => value.description === "" || value.name !== "", { path: ["name"], message: "NAME_REQUIRED" });
+export type ArabicStepInput = z.infer<typeof ArabicStepInput>;
+
+export const TaxonomyStepInput = z.object({
+  coffeeId: uuid,
+  revision,
+  requestId,
+  originId: optionalUuid,
+  coffeeTypeId: optionalUuid,
+  varietyId: optionalUuid,
+  processingMethodId: optionalUuid,
+  packagingTypeId: optionalUuid,
+});
+export type TaxonomyStepInput = z.infer<typeof TaxonomyStepInput>;
+
+export const MediaAttachInput = z.object({ coffeeId: uuid, revision, requestId });
+export type MediaAttachInput = z.infer<typeof MediaAttachInput>;
+
+export const MediaWorkflowInput = z.object({ coffeeId: uuid, revision, requestId, mediaId: uuid });
+export type MediaWorkflowInput = z.infer<typeof MediaWorkflowInput>;
+
+export const BackedOfferInput = z.object({ coffeeId: uuid, revision, requestId, positionId: uuid, priceUsdPerKg: money, quantityKg: kilograms, title: offerTitle });
+export type BackedOfferInput = z.infer<typeof BackedOfferInput>;
+
+export const OfferCommercialsInput = z.object({ offerId: uuid, coffeeId: uuid, revision, requestId, priceUsdPerKg: money, quantityKg: kilograms, title: offerTitle });
+export type OfferCommercialsInput = z.infer<typeof OfferCommercialsInput>;
+
+export const FeaturedWorkflowInput = z.object({
+  coffeeId: uuid,
+  revision,
+  requestId,
+  enabled: z.enum(["true", "false"], "FEATURED_INVALID").transform((value) => value === "true"),
+});
+export type FeaturedWorkflowInput = z.infer<typeof FeaturedWorkflowInput>;
+
+export const PublishWorkflowInput = z.object({
+  coffeeId: uuid,
+  revision,
+  requestId,
+  offerId: optionalUuid,
+  offerRevision: z.coerce.number().int("REVISION_INVALID").min(1, "REVISION_INVALID").optional(),
+});
+export type PublishWorkflowInput = z.infer<typeof PublishWorkflowInput>;
+
+export const RecoverOperationInput = z.object({ requestId });
+export type RecoverOperationInput = z.infer<typeof RecoverOperationInput>;

@@ -1,3 +1,5 @@
+import { f018AdminEn } from "./f018-admin";
+
 /**
  * The Member/Admin application shell copy dictionary (Phase 5.5, UIF-035/UIF-039/UIF-041).
  *
@@ -951,6 +953,7 @@ export const en = {
        * `lib/admin/catalogue-validation.ts` messages.
        */
       catalogue: {
+        workflow: f018AdminEn.catalogueWorkflow,
         common: {
           nameAr: "Name in Arabic (optional)",
           descriptionAr: "Description in Arabic (optional)",
@@ -1496,6 +1499,7 @@ export const en = {
           },
         },
         paymentAccounts: {
+          defaultControl: f018AdminEn.paymentAccountsDefault,
           title: "Payment accounts",
           description: "Hills' bank accounts for manual/bank-transfer instructions. Platform admins may view; only super administrators may change them (database policy).",
           breadcrumb: "Payment accounts",
