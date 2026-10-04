@@ -1,16 +1,14 @@
 import Link from "next/link";
 
 import { AdminAccessDenied } from "@/components/admin/access-denied";
-import { AdminStateCard } from "@/components/admin/state-card";
-import { ActiveBadge, HighRiskNotice, NoDeleteNote } from "@/components/admin/system/notices";
+import { PaymentAccountList } from "@/components/admin/payment-accounts/payment-account-list";
+import { HighRiskNotice, NoDeleteNote } from "@/components/admin/system/notices";
 import { SystemLoadError, systemTrail } from "@/components/admin/system/page-parts";
 import { PageHeader } from "@/components/app/page-header";
-import { TableCardList } from "@/components/dashboard/responsive/table-card-list";
 import { AppBilingual } from "@/components/locale/app-bilingual";
 import { Button } from "@/components/ui/button";
-import { appCopy } from "@/lib/app/copy";
 import { checkAreaAccess } from "@/lib/admin/guards";
-import { canWritePaymentAccounts, listPaymentAccounts, type PaymentAccountRow } from "@/lib/admin/payment-accounts";
+import { canWritePaymentAccounts, evaluateBankReadiness, listPaymentAccounts } from "@/lib/admin/payment-accounts";
 
 /**
  * Feature 010 RUN F (T029) — Hills' payment accounts. READ area `is_platform_admin()` (the task's
@@ -28,32 +26,6 @@ export default async function PaymentAccountsPage() {
   } catch {
     rows = null;
   }
-
-  const columns = [
-    { key: "account", primary: true, header: <AppBilingual pick={(c) => c.admin.system.paymentAccounts.columns.account} />, render: (row: PaymentAccountRow) => <span className="font-medium text-foreground">{row.accountName}</span> },
-    { key: "bank", header: <AppBilingual pick={(c) => c.admin.system.paymentAccounts.columns.bank} />, render: (row: PaymentAccountRow) => row.bankName },
-    {
-      key: "identifiers",
-      header: <AppBilingual pick={(c) => c.admin.system.paymentAccounts.columns.identifiers} />,
-      render: (row: PaymentAccountRow) => (
-        <span className="flex flex-col font-mono text-[length:var(--text-micro)]" dir="ltr" data-masked-identifiers>
-          <span>{row.ibanMasked ?? "—"}</span>
-          <span className="text-muted-foreground">{row.accountNumberMasked ?? "—"}</span>
-        </span>
-      ),
-    },
-    { key: "currency", header: <AppBilingual pick={(c) => c.admin.system.paymentAccounts.columns.currency} />, render: (row: PaymentAccountRow) => <span className="font-mono" dir="ltr">{row.currency}</span> },
-    { key: "active", header: <AppBilingual pick={(c) => c.admin.system.paymentAccounts.columns.active} />, render: (row: PaymentAccountRow) => <ActiveBadge isActive={row.isActive} /> },
-    {
-      key: "open",
-      header: <AppBilingual pick={(c) => c.admin.system.paymentAccounts.columns.open} />,
-      render: (row: PaymentAccountRow) => (
-        <Button variant="outline" size="sm" nativeButton={false} render={<Link href={`/dashboard-admin/payment-accounts/${row.id}`} />}>
-          <AppBilingual pick={(c) => c.admin.system.paymentAccounts.columns.open} />
-        </Button>
-      ),
-    },
-  ];
 
   return (
     <div className="flex flex-col gap-6">
@@ -78,13 +50,7 @@ export default async function PaymentAccountsPage() {
       {rows === null ? (
         <SystemLoadError />
       ) : (
-        <TableCardList
-          columns={columns}
-          rows={rows}
-          getRowKey={(row) => row.id}
-          caption={appCopy.admin.system.paymentAccounts.caption}
-          emptyState={<AdminStateCard kind="empty" icon="inbox" className="min-h-0 py-4" title={<AppBilingual pick={(c) => c.admin.system.paymentAccounts.empty.title} />} description={<AppBilingual pick={(c) => c.admin.system.paymentAccounts.empty.description} />} />}
-        />
+        <PaymentAccountList rows={rows} readiness={evaluateBankReadiness(rows)} canSetDefault />
       )}
       <p className="text-[length:var(--text-micro)] text-muted-foreground">
         <AppBilingual pick={(c) => c.admin.system.paymentAccounts.masked} /> <AppBilingual pick={(c) => c.admin.system.paymentAccounts.noMemberPath} />

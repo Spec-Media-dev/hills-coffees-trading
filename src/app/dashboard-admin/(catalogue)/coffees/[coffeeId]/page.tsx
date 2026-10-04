@@ -1,21 +1,16 @@
 import Link from "next/link";
 
 import { AdminAccessDenied } from "@/components/admin/access-denied";
-import { BilingualEditor } from "@/components/admin/catalogue/bilingual-editor";
-import { ArabicContentPanel } from "@/components/admin/catalogue/arabic-content-panel";
-import { coffeeFields } from "@/components/admin/catalogue/coffee-fields";
-import { CoffeeMediaPanel } from "@/components/admin/catalogue/coffee-media-panel";
 import { CoffeePublicationPanel } from "@/components/admin/catalogue/coffee-publication-panel";
-import { RecordForm } from "@/components/admin/catalogue/record-form";
+import { CoffeeStepper } from "@/components/admin/catalogue/coffee-stepper";
 import { CoffeeStatusBadge } from "@/components/admin/catalogue/status-badges";
 import { AdminDateTime } from "@/components/admin/compliance/date-time";
 import { AdminStateCard } from "@/components/admin/state-card";
 import { PageHeader } from "@/components/app/page-header";
 import { AppBilingual } from "@/components/locale/app-bilingual";
 import { Button } from "@/components/ui/button";
-import { CATALOGUE_MEDIA_MAX_BYTES, CATALOGUE_MEDIA_MAX_COUNT, CATALOGUE_MEDIA_UPLOAD_AVAILABLE, getArabicTranslation, getCoffee, getCoffeeReferenceOptions, listCoffeeMedia } from "@/lib/admin/catalogue";
+import { readCoffeeWorkflow } from "@/lib/admin/catalogue";
 import { checkAreaAccess } from "@/lib/admin/guards";
-import { saveCoffee } from "@/src/app/dashboard-admin/(catalogue)/actions";
 
 /**
  * Feature 010 RUN E (T021/T023/T024) — one coffee: editable content fields (status excluded), the
@@ -24,18 +19,20 @@ import { saveCoffee } from "@/src/app/dashboard-admin/(catalogue)/actions";
  * The page re-verifies
  * `is_platform_admin()` itself.
  */
-export default async function CoffeeDetailPage({ params }: { params: Promise<{ coffeeId: string }> }) {
+export default async function CoffeeDetailPage({ params, searchParams }: { params: Promise<{ coffeeId: string }>; searchParams?: Promise<{ step?: string }> }) {
   const access = await checkAreaAccess("coffees");
   if (!access.ok) return <AdminAccessDenied denial={access.denial} requiredFunction="is_platform_admin" />;
 
   const { coffeeId } = await params;
-  const coffee = /^[0-9a-f-]{36}$/i.test(coffeeId) ? await getCoffee(coffeeId) : null;
+  const { step } = (await searchParams) ?? {};
+  const workflow = /^[0-9a-f-]{36}$/i.test(coffeeId) ? await readCoffeeWorkflow(coffeeId) : null;
+  const coffee = workflow?.coffee ?? null;
   const trail = [
     { label: <AppBilingual pick={(c) => c.overview} />, href: "/dashboard-admin" },
     { label: <AppBilingual pick={(c) => c.admin.catalogue.coffees.breadcrumb} />, href: "/dashboard-admin/coffees" },
     { label: <AppBilingual pick={(c) => c.admin.catalogue.coffees.form.editTitle} /> },
   ];
-  if (!coffee) {
+  if (!workflow || !coffee) {
     return (
       <div className="flex flex-col gap-6">
         <PageHeader title={<AppBilingual pick={(c) => c.admin.catalogue.coffees.form.editTitle} />} trail={trail} />
@@ -47,8 +44,6 @@ export default async function CoffeeDetailPage({ params }: { params: Promise<{ c
       </div>
     );
   }
-
-  const [options, media, arabic] = await Promise.all([getCoffeeReferenceOptions(), listCoffeeMedia(coffee.id), getArabicTranslation("coffee", coffee.id)]);
 
   return (
     <div className="flex flex-col gap-6">
@@ -72,16 +67,14 @@ export default async function CoffeeDetailPage({ params }: { params: Promise<{ c
         actions={<CoffeeStatusBadge status={coffee.status} />}
       />
 
+      <CoffeeStepper workflow={workflow} initialStep={step} />
+
       <div className="grid gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
         <div className="flex min-w-0 flex-col gap-6">
-          <BilingualEditor
-            english={<RecordForm resource="coffees" mode="edit" contentLanguage="en" formKey="coffee" fields={coffeeFields(options, coffee)} hiddenFields={{ coffeeId: coffee.id }} action={saveCoffee} />}
-            arabic={<ArabicContentPanel kind="coffee" entityId={coffee.id} hasDescription initial={arabic} returnPath={`/dashboard-admin/coffees/${coffee.id}`} />}
-          />
-          <CoffeeMediaPanel coffeeId={coffee.id} media={media} uploadAvailable={CATALOGUE_MEDIA_UPLOAD_AVAILABLE} maxImages={CATALOGUE_MEDIA_MAX_COUNT} maxBytes={CATALOGUE_MEDIA_MAX_BYTES} />
+          {/* Publish is owned by the stepper (readiness-gated, revisioned). Unpublish/archive/restore stay available for live or archived Coffees. */}
+          {coffee.status !== "DRAFT" ? <CoffeePublicationPanel coffeeId={coffee.id} status={coffee.status} /> : null}
         </div>
         <div className="flex min-w-0 flex-col gap-6">
-          <CoffeePublicationPanel coffeeId={coffee.id} status={coffee.status} />
           <section className="rounded-[var(--radius-lg)] border border-border bg-[var(--surface-card)] p-5 text-[length:var(--text-small)]" data-coffee-meta>
             <dl className="divide-y divide-border">
               <div className="flex justify-between gap-4 py-2">

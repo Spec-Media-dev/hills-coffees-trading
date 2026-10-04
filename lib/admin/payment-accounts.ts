@@ -1,3 +1,6 @@
+import { z } from "zod";
+
+import { checkRoleFunctionAccess } from "@/lib/admin/guards";
 import { mapSystemError, requirePlatformAdmin, requireSuperAdmin, saved, validationFailure, type SystemWriteOutcome } from "@/lib/admin/system-errors";
 import { PaymentAccountFieldsInput, PaymentAccountUpdateInput } from "@/lib/admin/system-validation";
 import { createClient } from "@/lib/supabase/server";
@@ -27,11 +30,11 @@ import { ACTION_FEEDBACK, type ActionFeedbackResult } from "@/lib/types/action-f
  * NO HARD DELETE — retirement is `is_active = false`. Identifiers are shown masked in lists.
  */
 
-export type PaymentAccountRow = { id: string; accountName: string; bankName: string; accountNumberMasked: string | null; ibanMasked: string | null; swiftCode: string | null; currency: string; isActive: boolean; createdBy: string; createdAt: string };
+export type PaymentAccountRow = { id: string; accountName: string; bankName: string; accountNumberMasked: string | null; ibanMasked: string | null; swiftCode: string | null; currency: string; isActive: boolean; isDefault: boolean; createdBy: string; createdAt: string };
 export type PaymentAccountDetail = PaymentAccountRow & { accountNumber: string | null; iban: string | null };
 
-const SELECT = "id, account_name, bank_name, account_number, iban, swift_code, currency, is_active, created_by, created_at";
-type Raw = { id: string; account_name: string; bank_name: string; account_number: string | null; iban: string | null; swift_code: string | null; currency: string; is_active: boolean; created_by: string; created_at: string };
+const SELECT = "id, account_name, bank_name, account_number, iban, swift_code, currency, is_active, is_default_for_currency, created_by, created_at";
+type Raw = { id: string; account_name: string; bank_name: string; account_number: string | null; iban: string | null; swift_code: string | null; currency: string; is_active: boolean; is_default_for_currency: boolean; created_by: string; created_at: string };
 
 export function maskIdentifier(value: string | null): string | null {
   if (!value) return null;
@@ -51,6 +54,7 @@ const toDetail = (r: Raw): PaymentAccountDetail => ({
   swiftCode: r.swift_code,
   currency: r.currency.trim(),
   isActive: r.is_active,
+  isDefault: r.is_default_for_currency === true,
   createdBy: r.created_by,
   createdAt: r.created_at,
 });
@@ -114,4 +118,66 @@ export async function updatePaymentAccount(input: unknown): Promise<ActionFeedba
   if (error) return { ok: false, code: mapSystemError(error) };
   if (!data) return { ok: false, code: ACTION_FEEDBACK.SYSTEM_NOT_FOUND };
   return saved(data.id);
+}
+
+/* ═══════════════ Feature 018 — default USD account and checkout readiness ═══════════════ */
+
+/**
+ * Whether checkout can issue bank-transfer instructions. Derived ONLY from the existing `payment_accounts` rows (no second
+ * bank system): exactly one active USD account may be the default, and it must carry an account number or an IBAN.
+ * Already-issued proformas keep the bank snapshot they were issued with; only NEW issuance reads the current default.
+ */
+export type BankReadiness =
+  | { state: "READY"; accountId: string; bankName: string; accountName: string }
+  | { state: "MISSING_DEFAULT" }
+  | { state: "DEFAULT_INACTIVE"; accountId: string }
+  | { state: "INCOMPLETE"; accountId: string; bankName: string };
+
+export function evaluateBankReadiness(rows: readonly PaymentAccountRow[]): BankReadiness {
+  const current = rows.find((row) => row.isDefault && row.currency === "USD");
+  if (!current) return { state: "MISSING_DEFAULT" };
+  if (!current.isActive) return { state: "DEFAULT_INACTIVE", accountId: current.id };
+  if (!current.ibanMasked && !current.accountNumberMasked) return { state: "INCOMPLETE", accountId: current.id, bankName: current.bankName };
+  return { state: "READY", accountId: current.id, bankName: current.bankName, accountName: current.accountName };
+}
+
+export type BankDefaultErrorCode = "AUTH_REQUIRED" | "NOT_CAPABLE" | "MFA_REQUIRED" | "VALIDATION" | "NOT_FOUND" | "REQUEST_CONFLICT" | "CONFLICT" | "FAILED" | "OUTCOME_UNKNOWN";
+export type BankDefaultResult = { ok: true; data: { accountId: string; alreadyDefault: boolean } } | { ok: false; code: BankDefaultErrorCode };
+
+const SetDefaultInput = z.object({ accountId: z.string().uuid(), requestId: z.string().uuid() });
+
+type RpcError = { code?: unknown; message?: unknown } | null | undefined;
+const hasToken = (error: RpcError, token: string) => typeof error?.message === "string" && new RegExp(`(^|[^a-z0-9_])${token}([^a-z0-9_]|$)`).test(error.message);
+
+/** Maps the existing `set_default_payment_account` failures to stable typed codes (never database text). */
+export function classifyBankDefaultError(error: RpcError): BankDefaultErrorCode {
+  if (hasToken(error, "mfa_step_up_required")) return "MFA_REQUIRED";
+  if (hasToken(error, "forbidden")) return "NOT_CAPABLE";
+  if (hasToken(error, "payment_account_not_found")) return "NOT_FOUND";
+  if (hasToken(error, "request_id_conflict") || hasToken(error, "request_payload_conflict")) return "REQUEST_CONFLICT";
+  const state = error && typeof error === "object" && typeof error.code === "string" ? error.code : "";
+  // A concurrent default change racing on the partial unique index (`uq_payment_account_default_currency`).
+  if (state === "23505" || state === "40001" || state === "40P01") return "CONFLICT";
+  return /^[0-9A-Z]{5}$/.test(state) ? "FAILED" : "OUTCOME_UNKNOWN";
+}
+
+/**
+ * Choose the default USD account through the EXISTING Feature 013 routine (Platform Admin + MFA enforced by the database;
+ * Super Admin remains the only role that can create/edit accounts). The routine is request-bound, so a retry with the same
+ * key is a safe replay.
+ */
+export async function setDefaultPaymentAccount(input: unknown): Promise<BankDefaultResult> {
+  const parsed = SetDefaultInput.safeParse(input);
+  if (!parsed.success) return { ok: false, code: "VALIDATION" };
+  const access = await checkRoleFunctionAccess("is_platform_admin");
+  if (!access.ok) return { ok: false, code: access.denial === "anonymous" ? "AUTH_REQUIRED" : access.denial === "mfa-step-up" ? "MFA_REQUIRED" : "NOT_CAPABLE" };
+  try {
+    const supabase = await createClient();
+    const { data: before } = await supabase.from("payment_accounts").select("is_default_for_currency").eq("id", parsed.data.accountId).maybeSingle();
+    const { error } = await supabase.rpc("set_default_payment_account", { p_account_id: parsed.data.accountId, p_request_id: parsed.data.requestId });
+    if (error) return { ok: false, code: classifyBankDefaultError(error) };
+    return { ok: true, data: { accountId: parsed.data.accountId, alreadyDefault: before?.is_default_for_currency === true } };
+  } catch {
+    return { ok: false, code: "OUTCOME_UNKNOWN" };
+  }
 }

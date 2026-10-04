@@ -1,5 +1,7 @@
 import type { DeepPartial } from "@/lib/public/copy/types";
 
+import { f018AdminAr } from "./f018-admin";
+
 import type { AppCopy } from "./types";
 
 /**
@@ -875,6 +877,7 @@ export const ar: DeepPartial<AppCopy> = {
         },
       },
       catalogue: {
+        workflow: f018AdminAr.catalogueWorkflow,
         common: {
           nameAr: "الاسم بالعربية (اختياري)",
           descriptionAr: "الوصف بالعربية (اختياري)",
@@ -1414,6 +1417,7 @@ export const ar: DeepPartial<AppCopy> = {
           },
         },
         paymentAccounts: {
+          defaultControl: f018AdminAr.paymentAccountsDefault,
           title: "حسابات الدفع",
           description: "الحسابات البنكية لهيلز لتعليمات التحويل البنكي اليدوي. يمكن لمشرفي المنصة العرض؛ ويمكن للمشرفين الأعلى فقط التغيير (سياسة قاعدة البيانات).",
           breadcrumb: "حسابات الدفع",

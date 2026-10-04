@@ -103,6 +103,24 @@ export async function readCart(organizationId: string): Promise<Cart> {
   };
 }
 
+/**
+ * Feature 018 — authoritative cart summary for the canonical pending cart. A cart that exists but is empty reports its
+ * ID with zero lines; no cart is `cartId: null`. Distinct pending lines are counted (including unavailable ones), never
+ * reservations or local Add attempts. A failed read is a separate state from a verified zero, and a read never creates a cart.
+ */
+export type CartSummary =
+  | { state: "READY"; cartId: string | null; lineCount: number; verifiedAt: string }
+  | { state: "UNAVAILABLE"; code: "READ_UNAVAILABLE" };
+
+export async function readCartSummary(organizationId: string): Promise<CartSummary> {
+  try {
+    const cart = await readCart(organizationId);
+    return { state: "READY", cartId: cart.orderId, lineCount: cart.lines.length, verifiedAt: new Date().toISOString() };
+  } catch {
+    return { state: "UNAVAILABLE", code: "READ_UNAVAILABLE" };
+  }
+}
+
 /** One M4a RPC is the only write; the database checks seller, stock and membership. */
 export async function addCartLine(organizationId: string, offerId: string, quantityKg: number, requestId: string): Promise<CartResult<{ orderId: string }>> {
   const supabase = await createClient();
