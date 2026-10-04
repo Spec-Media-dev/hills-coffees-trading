@@ -345,40 +345,37 @@ export type ListingDecisionOutcome = {
   toStatus: ListingStatus;
 };
 
-export async function decideListing(input: unknown): Promise<ActionFeedbackResult<ListingDecisionOutcome>> {
+/**
+ * Feature 018 — the review decision is ONE database transaction (`record_listing_review_decision`): status change and
+ * review-history row commit together or not at all, bound to a request key so a retry returns the same result.
+ * Authority (Compliance + MFA) and the from-status are re-checked in the database under a row lock; the former two-write
+ * sequence (status update, then history insert) could leave a decision without its history and is retired.
+ */
+const LISTING_DECISION_ERRORS: ReadonlyArray<readonly [ActionFeedbackCode, string]> = [
+  [ACTION_FEEDBACK.LISTING_DECISION_STALE, "listing_decision_stale"],
+  [ACTION_FEEDBACK.COMPLIANCE_NOT_CAPABLE, "forbidden"],
+  [ACTION_FEEDBACK.MFA_STEP_UP_REQUIRED, "mfa_step_up_required"],
+  [ACTION_FEEDBACK.VALIDATION_ERROR, "listing_decision_invalid"],
+  [ACTION_FEEDBACK.VALIDATION_ERROR, "listing_decision_reason_too_long"],
+];
+
+export async function decideListing(input: unknown, requestId?: string): Promise<ActionFeedbackResult<ListingDecisionOutcome>> {
   const parsed = ListingDecisionInput.safeParse(input);
   if (!parsed.success) return { ok: false, code: ACTION_FEEDBACK.VALIDATION_ERROR, fieldErrors: fieldErrorsOf(parsed.error) };
   const access = await requireCompliance();
   if (!access.ok) return { ok: false, code: access.code };
 
   const { offerId, decision, reason } = parsed.data;
+  const key = requestId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(requestId) ? requestId : globalThis.crypto.randomUUID();
   const supabase = await createClient();
-
-  const { data: before } = await supabase.from("coffee_offers").select("id, status").eq("id", offerId).maybeSingle();
-  if (!before) return { ok: false, code: ACTION_FEEDBACK.LISTING_DECISION_STALE };
-  const sources = LISTING_DECISION_SOURCES[decision];
-  if (!sources.includes(before.status as ListingStatus)) return { ok: false, code: ACTION_FEEDBACK.LISTING_DECISION_STALE };
-
-  // Compare-and-set; `rejection_reason` is what `record_listing_status_history` copies into the
-  // history row's `reason`, so the operator's reason lands in BOTH ledgers. The trigger still
-  // validates the whole transition — a refusal surfaces as a safe code, never its text.
-  const { data: updated, error: updateError } = await supabase
-    .from("coffee_offers")
-    .update({ status: decision, rejection_reason: reason ?? null })
-    .eq("id", offerId)
-    .in("status", [...sources])
-    .select("id, status")
-    .maybeSingle();
-  if (updateError) return { ok: false, code: ACTION_FEEDBACK.LISTING_DECISION_FAILED };
-  if (!updated) return { ok: false, code: ACTION_FEEDBACK.LISTING_DECISION_STALE };
-
-  const { data: review, error: reviewError } = await supabase
-    .from("listing_reviews")
-    .insert({ offer_id: offerId, reviewer_user_id: access.userId, decision, reason: reason ?? null })
-    .select("id")
-    .maybeSingle();
-
-  const outcome: ListingDecisionOutcome = { offerId, decision, reviewId: review?.id ?? null, fromStatus: before.status as ListingStatus, toStatus: updated.status as ListingStatus };
-  if (reviewError || !review) return { ok: true, data: outcome, code: ACTION_FEEDBACK.LISTING_DECISION_HISTORY_INCOMPLETE };
+  const { data, error } = await supabase.rpc("record_listing_review_decision", { p_offer_id: offerId, p_decision: decision, p_reason: reason ?? null, p_request_id: key });
+  if (error) {
+    const text = `${error.message ?? ""} ${error.details ?? ""}`;
+    const known = LISTING_DECISION_ERRORS.find(([, token]) => new RegExp(`(^|[^a-z0-9_])${token}([^a-z0-9_]|$)`).test(text));
+    return { ok: false, code: known ? known[0] : ACTION_FEEDBACK.LISTING_DECISION_FAILED };
+  }
+  const value = data as { review_id?: string; from_status?: string; to_status?: string } | null;
+  if (!value || typeof value.to_status !== "string") return { ok: false, code: ACTION_FEEDBACK.LISTING_DECISION_FAILED };
+  const outcome: ListingDecisionOutcome = { offerId, decision, reviewId: value.review_id ?? null, fromStatus: (value.from_status ?? "") as ListingStatus, toStatus: value.to_status as ListingStatus };
   return { ok: true, data: outcome, code: ACTION_FEEDBACK.LISTING_DECISION_RECORDED };
 }

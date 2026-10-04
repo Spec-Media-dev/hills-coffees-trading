@@ -10,11 +10,12 @@ export async function recordListingDecision(_prev: ActionFeedbackResult<ListingD
   const offerId = formData.get("offerId");
   const decision = formData.get("decision");
   const reason = formData.get("reason");
+  const requestId = formData.get("requestId");
   const result = await decideListing({
     offerId: typeof offerId === "string" ? offerId : undefined,
     decision: typeof decision === "string" ? decision : undefined,
     reason: typeof reason === "string" ? reason : undefined,
-  });
+  }, typeof requestId === "string" ? requestId : undefined);
   if (result.ok) {
     revalidatePath("/dashboard-admin/listings");
     revalidatePath(`/dashboard-admin/listings/${String(offerId)}`);

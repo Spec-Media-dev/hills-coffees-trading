@@ -72,6 +72,8 @@ const CHECK_VALUES = (definition: string) => definition.match(/'[A-Z_]+'::text/g
 const SYSTEM_LIBS = ["lib/admin/system-validation.ts", "lib/admin/system-errors.ts", "lib/admin/roles.ts", "lib/admin/commission.ts", "lib/admin/pricing-rules.ts", "lib/admin/payment-accounts.ts"];
 const SYSTEM_FILES = [...SYSTEM_LIBS, ...walk("src/app/dashboard-admin/(system)"), ...walk("components/admin/system")];
 const BRANDING_RPCS = new Set(["set_platform_logo", "remove_platform_logo"]);
+// Feature 018 T056: the EXISTING Feature 013 default-USD routine, admitted for the payment-account DAL alone, by exact name.
+const BANK_DEFAULT_RPCS = new Set(["set_default_payment_account"]);
 const CONFIG_TABLES = ["platform_admins", "tax_rules", "shipping_rules", "commission_policies", "commission_tiers", "payment_accounts"] as const;
 
 afterEach(cleanup);
@@ -144,9 +146,10 @@ describe("Phase 9 — vocabularies are the schema's own CHECK constraints; polic
       // The T047 branding settings page (a singleton, not a RUN F configuration table) writes ONLY through its own two
       // admin-gated RPCs — admitted for that folder alone, by exact name.
       const branding = /\(system\)[\/]branding[\/]/.test(file);
+      const bankDefault = /lib[\/]admin[\/]payment-accounts\.ts$/.test(file);
       for (const match of src.matchAll(/\.rpc\(\s*([^)]*)\)/g)) {
         const fnName = match[1].match(/^["']([a-z_]+)["']/)?.[1] ?? match[1];
-        expect(match[1] === "fn" || approved.has(fnName) || (branding && BRANDING_RPCS.has(fnName)), `${file}: rpc(${match[1]})`).toBe(true);
+        expect(match[1] === "fn" || approved.has(fnName) || (branding && BRANDING_RPCS.has(fnName)) || (bankDefault && BANK_DEFAULT_RPCS.has(fnName)), `${file}: rpc(${match[1]})`).toBe(true);
       }
       for (const match of src.matchAll(/\.from\(\s*"([a-z_]+)"\s*\)/g)) expect([...CONFIG_TABLES, "profiles"], `${file}: .from("${match[1]}")`).toContain(match[1]);
     }

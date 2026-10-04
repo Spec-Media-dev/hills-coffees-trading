@@ -86,3 +86,61 @@ Before cleanup verify every candidate resource belongs to the manifest and corre
 ## Evidence Required to Close Implementation
 
 Record actual local commands/results, scoped scenario list and executed/skipped counts, schema capture digest, migration/rollback/reapply/postflight outcomes, direct/effective HTTP project identity, exact cleanup manifest and final state. No planning document, mocked test, capability probe, gated skip or build result substitutes for real connect/invoke/persisted assert/cleanup integration evidence.
+
+## T012 Reconciliation Record (2026-10-04) — signed off for Phase A
+
+**Evidence**: `evidence/schema-capture.md|json` (T011, REMOTE READ-ONLY against `mxejnutukgxyccnohglo`, PostgreSQL 17.6, read-only transaction confirmed `on`, 12 sections, 163 public functions, 120 triggers, 194 policies, 108 relations, 637 constraints, 204 indexes, 34 applied migrations, zero Vault secrets) and `evidence/local-baseline-hills_f018_base.json` (the same SELECT-only capture over a repository-derived local PostgreSQL 17 database: production pre-M4a schema dump + every checked-in migration through Feature 017, built by `scripts/f018-local-db.ts`). Reconciled with `npx tsx scripts/f018-capture-schema.ts --reconcile`.
+
+**Result**: zero material drift against the manifest (all 69 manifest functions and every named relation/trigger/policy present). Live vs repository-derived baseline: all 163 function definitions, all triggers, constraints, indexes, enums and every `orders`/`order_items`/`proforma_*`/`inventory_*`/`coffee_*`/`payment_*`/`support_*` relation (columns, defaults, RLS flags, ACLs, owners) are identical. The 14 residual differences are classified as non-material baseline artifacts:
+
+| Difference | Classification |
+| --- | --- |
+| `handle_new_user()` definition | CRLF vs LF only (identical after normalising carriage returns); the local copy comes from the CRLF reviewed Feature 003 SQL |
+| 10 `storage.objects` policies (`kyb_evidence_*`, `listing_media_*`, `public_assets_*`, `mfa_gate_kyb_evidence`) live-only | The local baseline starts from a public-schema dump; these policies come from earlier migrations (F003/F010). No Phase A object depends on them; Feature 015 proof policies are present on both sides |
+| `notification_events` / `storage.buckets` / `storage.objects` ACL | Explicit owner (`postgres`) grants and entry ordering only; no application-role difference |
+
+**Live facts that shape the design (all verified in the capture, not assumed)**
+
+1. Unique `order_items (order_id, offer_id)` exists (merge-on-Add). **No** one-DRAFT-per-organisation index exists, so historical multiple V1 DRAFTs are possible and no index is introduced.
+2. Null-safe inventory-position uniqueness exists twice (`uq_inventory_position_null_safe`, `uq_inventory_positions_null_safe`, both `NULLS NOT DISTINCT`), so at most one position backs any (lot, owner, warehouse, location) tuple; `uq_payment_account_default_currency` enforces one default per currency.
+3. Direct writers: `authenticated` holds INSERT/UPDATE on `orders` and INSERT/UPDATE on `order_items` (RLS: own DRAFT insert; no buyer UPDATE/DELETE policy on items; buyer UPDATE of own DRAFT/CONFIRMED orders). `service_role` holds full table privileges. `commerce_request_log` has no application-role grant (reachable only through SECURITY DEFINER callers). `update_order_item_quantity`, `remove_order_item` and `validate_order_item_offer` are executable by `authenticated` and `service_role`. The legacy `lib/orders/drafts.ts` still inserts DRAFT orders and items directly (`createDraftOrder` / `addOrderItem`).
+4. Retired Feature 017 functions (`record_stripe_payment_intent`, `record_payment_transfer`, `ingest_stripe_event`, `admin_review_payment`) are executable by no application role (`effective_execute` all false). No Vault secrets are present. Edge-function deployment cannot be read through SQL; it stays a T136 check and no Management API credential is used in Phase A.
+5. `validate_support_message()` is executable by `service_role` live but not in the repository-derived baseline. Informational; recorded for the M4 preflight (Phase B), not changed in Phase A.
+6. Five unrelated KYB/inventory SECURITY DEFINER functions are executable by PUBLIC (`apply_kyb_review_item_decision`, `prevent_kyb_review_item_mutation`, `validate_inventory_location`, `validate_kyb_document_lineage`, `validate_review_item_document`). Pre-existing, outside Feature 018; reported, not modified.
+7. `notification_outbox` (historical name) is deployed as `notification_events` + `notification_deliveries`; the capture manifest names the deployed relations.
+8. `coffees` is readable by `anon` for `PUBLISHED` rows through `public_read_coffees`; `featured_at` is therefore an intentionally public editorial timestamp, and the public DTO allowlist (not RLS) is the privacy boundary.
+
+### Signed-off lock graph (M2)
+
+Selected checkout, in acquisition order: authority checks → `pg_advisory_xact_lock(hashtextextended(org::text, 13))` → canonical source order `FOR UPDATE` → selected source item `FOR UPDATE` → protected request claim (`f018_request_begin`) → expired-reservation discovery (no row locks) → candidate expired orders `FOR UPDATE SKIP LOCKED` ascending → their reservations `FOR UPDATE` → **union of the selected offer and released-reservation offers** `FOR UPDATE ORDER BY id` → **union of backing positions** `FOR UPDATE ORDER BY id` → release via `commerce_release_reservation` (its own order/reservation/offer/position locks are reentrant because already held) → new child order (no competing reader before commit) → child item insert (`validate_order_item_offer` re-locks the same offer/position: reentrant) → fenced `checkout_bank_transfer_v1` wrapper → `f018_checkout_kernel` (re-checks under the held locks; **no second reclamation scan**) → receipt → delete the selected source item.
+
+Finance review (`order → payment → buyer advisory keys → offers asc → positions asc`) and expiry release (`order SKIP LOCKED → reservation → offers asc → positions asc`) acquire inventory locks in the same global ascending offer-then-position order and never wait on an order held by the staging step, so no new inversion is introduced. Add/update/remove take the organization advisory lock first, then the canonical order, then the item, and only then the trigger-locked offer/position, so a cart mutation can never wait on inventory while holding a lock a checkout needs.
+
+### Signed-off object signatures
+
+| Group | Object | Kind / access |
+| --- | --- | --- |
+| M1 | `coffees.featured_at timestamptz NULL`; partial index `idx_coffees_featured_published (featured_at DESC, id DESC) WHERE status='PUBLISHED' AND featured_at IS NOT NULL` | Column/index; write authority stays `catalog_admin_coffees` (Platform Admin) |
+| M1 | `proforma_invoice_items.product_name_ar_snapshot text NULL`, `origin_name_ar_snapshot text NULL`; `CHECK (seller_type_snapshot IS NOT NULL OR both Arabic snapshots IS NULL)` | Populated only by the kernel INSERT; existing `trg_proforma_invoice_items_immutable` already refuses UPDATE/DELETE of V1 rows; the CHECK stops legacy rows from carrying Arabic values |
+| M2 | `commerce_request_log.bound_payload jsonb NULL CHECK (jsonb_typeof = 'object')` | Existing protected table; legacy rows unchanged |
+| M2 | `f018_request_begin(uuid,text,uuid,jsonb) → jsonb`, `f018_request_complete(uuid,jsonb) → void` | Private (no application-role EXECUTE) |
+| M2 | `f018_canonical_cart(uuid) → uuid` (read-only; latest V1 DRAFT including empty) | Private, STABLE |
+| M2 | `f018_stage_checkout_locks(uuid) → jsonb` (discovery, union staging, release) | Private |
+| M2 | `f018_compute_quote_core(uuid,uuid,text,uuid[]) → jsonb`; `compute_order_quote(uuid,uuid,text)` retained as a delegating wrapper with unchanged ACL | Private core; existing signature preserved |
+| M2 | `f018_checkout_kernel(uuid,uuid,uuid) → jsonb` (Feature 015 body, staged locks, Arabic snapshots) | Private, owner-only |
+| M2 | `checkout_bank_transfer_v1(uuid,uuid,uuid) → jsonb` (replaced: fresh-DRAFT permit fence, historical replay unchanged) | `authenticated` only, as today |
+| M2 | `checkout_cart_line_bank_transfer_v1(uuid org, uuid cart, uuid item, uuid offer, numeric qty, uuid destination, uuid request) → jsonb`; `estimate_cart_line_bank_transfer_v1(uuid,uuid,uuid,uuid,numeric,uuid) → jsonb`; `recover_cart_line_checkout(uuid,uuid,uuid,uuid,uuid,numeric,uuid) → jsonb` | New, `authenticated` only (PUBLIC/anon/service_role revoked) |
+| M2 | `add_cart_line(uuid,uuid,numeric,uuid)`, `update_order_item_quantity(uuid,numeric)`, `remove_order_item(uuid)` (replaced with canonical-cart guards; signatures and ACLs unchanged) | As today |
+| M2 | `cart_line_checkout_receipts` (data-model contract), `f018_checkout_permits`; `trg_f018_receipt_immutable`, deferred `trg_f018_permit_not_surviving`, `trg_f018_order_item_canonical_cart` (BEFORE INSERT on `order_items` for V1 DRAFT orders; closes the direct-insert writer) | RLS enabled, no application-role privileges on either table |
+| M2 | `f018_receipt_integrity(uuid) → boolean` | Private |
+| M3 | `create_catalogue_coffee_intent`, `save_catalogue_step`, `create_backed_offer_intent`, `set_coffee_featured`, `publish_coffee_catalogue_only`, `publish_coffee_with_approved_offer`, `recover_catalogue_operation`; monotonic `revision` counters on `coffees` and `coffee_offers` (the existing `updated_at` is `now()`-based and not collision-safe) | Argument lists fixed at M3 authoring (T042) from the T039 preflight; `authenticated` only, with in-function Platform Admin/MFA and, for coordinated publication, offer-publication authority |
+| M4 | Category column, HC generator, `support_ticket_status_history`, `create_help_ticket`, `reply_help_ticket`, `transition_help_ticket`, `recover_help_operation` | Phase B (T098+); this record only fixes names |
+
+### Signed-off grants and rollback boundaries
+
+- New public entry points: `REVOKE ALL FROM PUBLIC, anon, service_role`, `GRANT EXECUTE TO authenticated`. Private helpers and both new tables: no application-role privilege; RLS enabled on tables; SECURITY DEFINER bodies use `search_path = pg_catalog, public, auth` with schema-qualified writes.
+- Replaced functions use `CREATE OR REPLACE`, which preserves their existing ACL; the postflight asserts the exact post-state ACL.
+- **M1 rollback**: no column/index is dropped (populated values and snapshot protections are retained); no public wildcard is restored.
+- **M2 rollback** (as implemented): drops only the two new checkout/estimate public RPCs and **retains** `recover_cart_line_checkout` (receipt recovery stays available to committed buyers), plus receipts, the permits table, request payloads, Arabic snapshots, the fenced `checkout_bank_transfer_v1` / `f018_checkout_kernel`, the quote core and the canonical-cart guards. Consequence: after rollback no fresh checkout can run (the fence denies any DRAFT without a permit) — safe, never combined checkout, never Feature 017 execution.
+- **M3 rollback** (authored with T043): drops the new RPCs, retains created Coffee/offer/intents/revisions/history and keeps the raw publication bypass closed.
+- Historical migrations are never edited. Rollback files live in `supabase/rollback/` following the repository convention (`<timestamp>_<name>.rollback.sql`), **not** in `supabase/migrations/` as the task paths literally read, because a `_rollback.sql` file in `supabase/migrations/` would be applied as an ordinary forward migration by `supabase db push`.
