@@ -193,7 +193,7 @@ describe("T005 — payment_accounts boundary audit (static, member/public/financ
 });
 
 describe("T006 — no application source file queries commission_policies/commission_tiers for historical display", () => {
-  const financeFiles = ["lib/finance/types.ts", "lib/finance/validation.ts", "lib/finance/errors.ts", "lib/finance/read.ts", "lib/finance/funding.ts"];
+  const financeFiles = ["lib/finance/types.ts", "lib/finance/validation.ts", "lib/finance/errors.ts", "lib/finance/read.ts"];
 
   it("lib/finance/*.ts never references commission_policies or commission_tiers", () => {
     for (const file of financeFiles) {

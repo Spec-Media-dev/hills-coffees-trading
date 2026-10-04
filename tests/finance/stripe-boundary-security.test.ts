@@ -1,121 +1,102 @@
-import { readFileSync, readdirSync } from "node:fs";
-import path from "node:path";
+import { existsSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
+import { listRuntimeFiles, stripComments } from "./runtime-absence-helpers";
+
 /**
- * Feature 008 RUN E (Stripe provider decision) T016/T032 — cross-cutting security proofs: no secret in
- * a client bundle, no direct client provider call, exactly one settlement caller. Source-level (no live
- * database/Stripe account needed) — mirrors T032's own established audit style (`tests/finance/
- * t023-documents-payouts.test.tsx`'s T032 block) and extends it to this run's new files.
+ * Feature 017: T006 — Retired Provider Boundary Security Tests
+ *
+ * Replaces obsolete Feature 008 boundary security proofs.
+ * Proves that:
+ * 1. Zero Stripe secrets exist in client or server runtime modules.
+ * 2. Zero runtime files import the Stripe SDK.
+ * 3. StripePaymentCollector and settlement.ts are completely removed.
+ * 4. admin_review_payment, record_stripe_payment_intent, record_payment_transfer,
+ *    and ingest_stripe_event have ZERO callers across src/, lib/, and components/.
  */
-function stripComments(source: string): string {
-  return source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
-}
 
-function listFiles(dir: string, exts: string[]): string[] {
-  const out: string[] = [];
-  for (const entry of readdirSync(dir, { withFileTypes: true })) {
-    const full = path.join(dir, entry.name);
-    if (entry.isDirectory()) out.push(...listFiles(full, exts));
-    else if (exts.some((ext) => entry.name.endsWith(ext))) out.push(full);
-  }
-  return out;
-}
+describe("T006 — No Stripe secret ever reaches runtime modules", () => {
+  const runtimeFiles = listRuntimeFiles();
 
-describe("T016 — no Stripe secret ever reaches a client-reachable module", () => {
-  const clientFiles = ["src", "components"].flatMap((root) => listFiles(root, [".ts", ".tsx"])).filter((file) => stripComments(readFileSync(file, "utf8")).match(/^\s*["']use client["'];?/m));
-
-  it("at least one client component exists to actually audit (sanity check the walk itself works)", () => {
-    expect(clientFiles.length).toBeGreaterThan(0);
-  });
-
-  it("no 'use client' file reads STRIPE_SECRET_KEY or STRIPE_WEBHOOK_SECRET", () => {
-    for (const file of clientFiles) {
+  it("no runtime file reads STRIPE_SECRET_KEY or STRIPE_WEBHOOK_SECRET", () => {
+    for (const file of runtimeFiles) {
       const source = stripComments(readFileSync(file, "utf8"));
       expect(source, `${file} must not read STRIPE_SECRET_KEY`).not.toMatch(/STRIPE_SECRET_KEY/);
       expect(source, `${file} must not read STRIPE_WEBHOOK_SECRET`).not.toMatch(/STRIPE_WEBHOOK_SECRET/);
     }
   });
 
-  it("the Stripe payment collector never imports lib/finance/stripe/config.ts or lib/finance/stripe/adapter.ts (the secret-touching modules)", () => {
-    const source = stripComments(readFileSync("components/finance/stripe-payment-collector.tsx", "utf8"));
-    expect(source).not.toMatch(/lib\/finance\/stripe\/config/);
-    expect(source).not.toMatch(/lib\/finance\/stripe\/adapter/);
-    expect(source).not.toMatch(/process\.env/);
-  });
-
-  it("the Stripe payment collector receives its publishable key ONLY as a prop, never computes it itself", () => {
-    const source = stripComments(readFileSync("components/finance/stripe-payment-collector.tsx", "utf8"));
-    expect(source).toMatch(/publishableKey\s*:\s*string/);
-    expect(source).not.toMatch(/stripePublishableKey\s*\(/);
+  it("the Stripe payment collector component is completely absent", () => {
+    expect(existsSync("components/finance/stripe-payment-collector.tsx")).toBe(false);
   });
 });
 
-describe("T012/T016 — no direct client provider call bypasses the Edge/DB boundary", () => {
-  it("no client-reachable file imports the Stripe SDK directly", () => {
-    const clientFiles = ["src", "components"].flatMap((root) => listFiles(root, [".ts", ".tsx"])).filter((file) => stripComments(readFileSync(file, "utf8")).match(/^\s*["']use client["'];?/m));
-    for (const file of clientFiles) {
+describe("T006 — No direct provider call exists in production runtime", () => {
+  it("no runtime file imports the Stripe SDK directly", () => {
+    const runtimeFiles = listRuntimeFiles();
+    for (const file of runtimeFiles) {
       const source = stripComments(readFileSync(file, "utf8"));
-      expect(source, `${file} must not import the stripe SDK`).not.toMatch(/from ["']stripe["']|from ["']@stripe\/react-stripe-js["']/);
+      expect(source, `${file} must not import the stripe SDK`).not.toMatch(
+        /from\s+["'](stripe|@stripe\/stripe-js|@stripe\/react-stripe-js)["']/
+      );
     }
   });
 
-  it("lib/finance/stripe/adapter.ts and webhook.ts are never imported by a 'use client' file", () => {
-    const clientFiles = ["src", "components"].flatMap((root) => listFiles(root, [".ts", ".tsx"])).filter((file) => stripComments(readFileSync(file, "utf8")).match(/^\s*["']use client["'];?/m));
-    for (const file of clientFiles) {
-      const source = stripComments(readFileSync(file, "utf8"));
-      expect(source, `${file} must not import stripe/adapter`).not.toMatch(/lib\/finance\/stripe\/adapter/);
-      expect(source, `${file} must not import stripe/webhook`).not.toMatch(/lib\/finance\/stripe\/webhook/);
-    }
+  it("lib/finance/stripe/ directory is completely absent", () => {
+    expect(existsSync("lib/finance/stripe/config.ts")).toBe(false);
+    expect(existsSync("lib/finance/stripe/adapter.ts")).toBe(false);
+    expect(existsSync("lib/finance/stripe/webhook.ts")).toBe(false);
   });
 });
 
-describe("T018/T032 — admin_review_payment() has exactly one application caller: lib/finance/settlement.ts", () => {
-  const roots = ["src", "lib", "components"];
-  const callSites: string[] = [];
-  for (const root of roots) {
-    for (const file of listFiles(root, [".ts", ".tsx"])) {
+describe("T006 — Retired database RPCs have zero application callers", () => {
+  const runtimeFiles = listRuntimeFiles();
+
+  it("admin_review_payment has zero callers in src/, lib/, and components/", () => {
+    const callSites: string[] = [];
+    for (const file of runtimeFiles) {
       const source = stripComments(readFileSync(file, "utf8"));
-      if (source.includes("admin_review_payment") && file !== path.join("lib", "finance", "settlement.ts")) {
+      if (source.includes("admin_review_payment")) {
         callSites.push(file);
       }
     }
-  }
-
-  it("no file under src/, lib/, or components/ other than lib/finance/settlement.ts references admin_review_payment", () => {
     expect(callSites).toEqual([]);
   });
 
-  it("lib/finance/settlement.ts performs no direct ownership/inventory/reservation/payout/order mutation of its own", () => {
-    const source = stripComments(readFileSync("lib/finance/settlement.ts", "utf8"));
-    expect(source).not.toMatch(/\.from\(["'](inventory_positions|inventory_ownership_events|inventory_reservations|payouts|orders|order_items|coffee_offers|storage_allocations)["']\)/);
-    expect(source).not.toMatch(/\.insert\(|\.update\(|\.upsert\(|\.delete\(/);
-    expect(source).toMatch(/\.rpc\(["']admin_review_payment["']/);
+  it("lib/finance/settlement.ts is completely absent", () => {
+    expect(existsSync("lib/finance/settlement.ts")).toBe(false);
   });
 
-  it("settlement.ts reads no service-role client", () => {
-    const source = stripComments(readFileSync("lib/finance/settlement.ts", "utf8"));
-    expect(source).not.toMatch(/service_role|SERVICE_ROLE/);
-  });
-});
-
-describe("T012 — ingest_stripe_event()/record_payment_transfer() have exactly one application-side caller each", () => {
-  const roots = ["src", "lib", "components"];
-  const ingestCallSites: string[] = [];
-  const transferCallSites: string[] = [];
-  for (const root of roots) {
-    for (const file of listFiles(root, [".ts", ".tsx"])) {
+  it("record_stripe_payment_intent has zero callers in src/, lib/, and components/", () => {
+    const callSites: string[] = [];
+    for (const file of runtimeFiles) {
       const source = stripComments(readFileSync(file, "utf8"));
-      if (source.includes("ingest_stripe_event")) ingestCallSites.push(file);
-      if (source.includes("record_payment_transfer")) transferCallSites.push(file);
+      if (source.includes("record_stripe_payment_intent")) {
+        callSites.push(file);
+      }
     }
-  }
-
-  it("ingest_stripe_event is referenced nowhere under src/lib/components (it is called ONLY from the Deno Edge Function, which lives outside this Node project's tree)", () => {
-    expect(ingestCallSites).toEqual([]);
+    expect(callSites).toEqual([]);
   });
 
-  it("record_payment_transfer is referenced nowhere under src/lib/components (same reason)", () => {
-    expect(transferCallSites).toEqual([]);
+  it("record_payment_transfer has zero callers in src/, lib/, and components/", () => {
+    const callSites: string[] = [];
+    for (const file of runtimeFiles) {
+      const source = stripComments(readFileSync(file, "utf8"));
+      if (source.includes("record_payment_transfer")) {
+        callSites.push(file);
+      }
+    }
+    expect(callSites).toEqual([]);
+  });
+
+  it("ingest_stripe_event has zero callers in src/, lib/, and components/", () => {
+    const callSites: string[] = [];
+    for (const file of runtimeFiles) {
+      const source = stripComments(readFileSync(file, "utf8"));
+      if (source.includes("ingest_stripe_event")) {
+        callSites.push(file);
+      }
+    }
+    expect(callSites).toEqual([]);
   });
 });

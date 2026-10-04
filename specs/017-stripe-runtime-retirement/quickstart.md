@@ -23,6 +23,14 @@ git diff --check
 
 Use targeted Vitest commands during development; the final task plan will name exact new and existing suites. Expected result: no provider runtime/package/Edge source remains, while active bank-transfer and compatibility suites pass.
 
+### Closure evidence — 2026-10-03
+
+- `npx vitest run tests/finance/f017-*.test.ts tests/commerce/migrations/f017-*.test.ts --reporter=dot`: 145 passed, 2 remote-gated skipped.
+- `npx vitest run tests/commerce/f015-*.test.ts tests/finance/rls-policy.test.ts --reporter=dot`: 143 passed, 27 remote-gated skipped.
+- `npx vitest run tests/finance/f016-*.test.ts tests/commerce/migrations/f016-*.test.ts tests/auth/fixture-session-f016-target.test.ts --reporter=dot`: 122 passed, 29 remote-gated skipped.
+- `npm run typecheck`, `npm run lint`, `npm run build`, and `git diff --check`: passed.
+- `npx tsx scripts/f017-operator-recovery.ts --self-check`: passed; no network connection opened.
+
 ## 3. Database Lifecycle Validation (TEST/DEMO Only)
 
 Use only project `mxejnutukgxyccnohglo` and the existing Feature 016 approved runner/target assertions. The lifecycle is:
@@ -53,4 +61,4 @@ After a successful Feature 017 rollback, the target temporarily has pre-retireme
 
 If restoration fails, stop all verification immediately. Report the current migration state, effective grants of `admin_review_payment`, `record_stripe_payment_intent`, `record_payment_transfer`, and `ingest_stripe_event`, the restoration step that failed, and whether application-role execution is exposed. Do not run unrelated suites or claim closure.
 
-The implementation must provide `tests/finance/f017-live-retirement.test.ts` with a named mandatory-restoration path. The safe operator recovery runbook is: confirm the linked target and Feature 016 target guards, set only the approved remote gate (`F016_REMOTE_LIVE_DB_APPROVED=1`) in a credential-bearing operator session, then run `npx vitest run tests/finance/f017-live-retirement.test.ts --testNamePattern "mandatory restoration"`. That path must inspect state, reapply `20261003100000_feature_017_stripe_runtime_retirement.sql` only if needed, run `20261003_feature_017_stripe_runtime_retirement_postflight.sql`, and prove the retired ACL state before returning. If it cannot do so, it must report failure rather than retry unrelated checks.
+The implementation must provide `tests/finance/f017-live-retirement.test.ts` with a named mandatory-restoration path. The safe operator recovery runbook is: confirm the linked target and Feature 016 target guards, set only the approved remote gate (`F016_REMOTE_LIVE_DB_APPROVED=1`) in a credential-bearing operator session, then run `npx tsx scripts/f017-operator-recovery.ts`. That path must inspect state, reapply `20261003100000_feature_017_stripe_runtime_retirement.sql` only if needed, run `20261003_feature_017_stripe_runtime_retirement_postflight.sql`, and prove the retired ACL state before returning. If it cannot do so, it must report failure rather than retry unrelated checks.

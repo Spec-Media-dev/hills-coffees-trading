@@ -2519,16 +2519,7 @@ export const en = {
       errors: {
         readFailed: "We couldn't load that finance information. Please try again.",
       },
-      funding: {
-        unavailable: {
-          title: "Funding isn't available",
-          description: "Funding steps for this order aren't available yet. No payment method has been set up, and nothing has been charged or reserved.",
-        },
-        /** Feature 008 RUN E (Stripe provider decision) T014 — the Payment Element collector's own submit button. */
-        pay: {
-          submit: "Pay now",
-        },
-      },
+
       /**
        * Feature 008 T022 — private payment state routes (`/dashboard/payments`,
        * `/dashboard/payments/[orderId]`). `status` is the full 7-value `payments.status` vocabulary
@@ -2571,7 +2562,6 @@ export const en = {
           notYetAssigned: "Not yet assigned",
           financialsSectionHeading: "Order financial snapshot",
           financialsNotCalculated: "This order's financial snapshot has not been calculated yet.",
-          fundingSectionHeading: "Funding",
           /**
            * Feature 008 T023 — the documents (proforma + tax invoice) and payout sections added to
            * `/dashboard/payments/[orderId]`. A payout row here is always the CALLER'S OWN seller

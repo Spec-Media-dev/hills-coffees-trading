@@ -51,7 +51,7 @@ describe("T019 — Feature 013 migration inventory", () => {
     const firstF013 = all.findIndex((file) => file.includes("_feature_013_"));
     if (firstF013 !== -1) for (const file of all.slice(firstF013)) {
       expect(file.slice(0, 14) >= LAST_PRE_013_VERSION, file).toBe(true);
-      expect(file, file).toMatch(/_feature_01[345]_/);
+      expect(file, file).toMatch(/_feature_01[3-7]_/);
     }
   });
 

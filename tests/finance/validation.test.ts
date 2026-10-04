@@ -9,7 +9,6 @@ import {
   PaymentStatusSchema,
   PayoutStatusSchema,
   ProformaStatusSchema,
-  RequestFundingInput,
   parsePaymentMethod,
   parsePaymentStatus,
   parsePayoutStatus,
@@ -89,32 +88,5 @@ describe("T001 — payment status/method vocabulary mirrors the live CHECK const
     expect(PAYMENT_STATUSES).toContain("PENDING");
     expect(PAYMENT_STATUSES).toContain("CONFIRMED");
     expect(PAYMENT_STATUSES.filter((status) => status.includes("FUND") || status.includes("ESCROW"))).toEqual([]);
-  });
-});
-
-describe("T004 — RequestFundingInput accepts only a minimal identifier", () => {
-  it("accepts a well-formed orderId and nothing else required", () => {
-    const result = RequestFundingInput.safeParse({ orderId: "00000000-0000-4000-8000-000000000000" });
-    expect(result.success).toBe(true);
-    if (result.success) expect(Object.keys(result.data)).toEqual(["orderId"]);
-  });
-
-  it("rejects a malformed orderId", () => {
-    expect(RequestFundingInput.safeParse({ orderId: "not-a-uuid" }).success).toBe(false);
-    expect(RequestFundingInput.safeParse({}).success).toBe(false);
-  });
-
-  it("does not accept client-supplied amount, currency, status, or provider fields as authoritative", () => {
-    // Zod's default (non-strict) object parsing ignores unrecognized keys rather than trusting them —
-    // proving an extra field never becomes part of the validated, typed result a caller can act on.
-    const result = RequestFundingInput.safeParse({
-      orderId: "00000000-0000-4000-8000-000000000000",
-      amount: 999999,
-      currency: "EUR",
-      status: "CONFIRMED",
-      provider: "some-provider",
-    });
-    expect(result.success).toBe(true);
-    if (result.success) expect(result.data).toEqual({ orderId: "00000000-0000-4000-8000-000000000000" });
   });
 });

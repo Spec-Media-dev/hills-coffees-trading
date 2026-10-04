@@ -1,71 +1,57 @@
-import Stripe from "stripe";
+import { existsSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
-import { verifyStripeWebhookSignature } from "@/lib/finance/stripe/webhook";
+import { listRuntimeFiles, stripComments } from "./runtime-absence-helpers";
 
 /**
- * Feature 008 RUN E (Stripe provider decision) T008/T013/T031 — signature-verification proofs. Every
- * case here is genuinely testable WITHOUT a live Stripe account: Stripe's own documented HMAC-SHA256
- * algorithm is fully specified (STRIPE-PREPARATION.md §1), and the SDK ships `Stripe.webhooks.
- * generateTestHeaderString` specifically so integrators can prove their own verifier against a
- * self-signed payload with a FABRICATED secret. Nothing here calls the Stripe API.
+ * Feature 017: T006 — Retired Stripe Webhook Absence & Security Tests
+ *
+ * Replaces obsolete Feature 008 Stripe webhook verification tests.
+ * Proves that:
+ * 1. lib/finance/stripe/webhook.ts is completely removed.
+ * 2. supabase/functions/stripe-webhook Edge Function source is completely removed.
+ * 3. ingest_stripe_event has zero application callers in production runtime.
+ * 4. No Stripe webhook listener or signature verifier exists.
+ * 5. Does not require or import the Stripe npm package.
  */
-const FAKE_SECRET = "whsec_test_fabricated_secret_never_a_real_credential";
-const PAYLOAD = JSON.stringify({ id: "evt_test_123", type: "payment_intent.succeeded", data: { object: { id: "pi_test_123" } } });
 
-function sign(payload: string, secret: string, timestampOverrideSeconds?: number): string {
-  return Stripe.webhooks.generateTestHeaderString({
-    payload,
-    secret,
-    timestamp: timestampOverrideSeconds,
+describe("T006 — Stripe webhook runtime retirement contract", () => {
+  it("lib/finance/stripe/webhook.ts is completely absent", () => {
+    expect(existsSync("lib/finance/stripe/webhook.ts")).toBe(false);
   });
-}
 
-describe("T013/T031 — verifyStripeWebhookSignature", () => {
-  it("accepts a genuinely valid signature and returns the parsed event", () => {
-    const header = sign(PAYLOAD, FAKE_SECRET);
-    const result = verifyStripeWebhookSignature(PAYLOAD, header, FAKE_SECRET);
-    expect(result.ok).toBe(true);
-    if (result.ok) {
-      expect(result.event.id).toBe("evt_test_123");
-      expect(result.event.type).toBe("payment_intent.succeeded");
+  it("supabase/functions/stripe-webhook directory is completely absent", () => {
+    expect(existsSync("supabase/functions/stripe-webhook")).toBe(false);
+  });
+
+  it("ingest_stripe_event has zero callers in src/, lib/, and components/", () => {
+    const runtimeFiles = listRuntimeFiles();
+    const violations: { file: string; line: string }[] = [];
+
+    for (const file of runtimeFiles) {
+      const source = stripComments(readFileSync(file, "utf8"));
+      const lines = source.split("\n");
+      for (const line of lines) {
+        if (/ingest_stripe_event/.test(line)) {
+          violations.push({ file, line: line.trim() });
+        }
+      }
     }
+
+    expect(violations, `ingest_stripe_event callers found: ${JSON.stringify(violations)}`).toEqual([]);
   });
 
-  it("rejects a forged/tampered body (signature no longer matches the bytes actually sent)", () => {
-    const header = sign(PAYLOAD, FAKE_SECRET);
-    const tamperedPayload = PAYLOAD.replace("payment_intent.succeeded", "payment_intent.payment_failed");
-    const result = verifyStripeWebhookSignature(tamperedPayload, header, FAKE_SECRET);
-    expect(result).toEqual({ ok: false, code: "invalid_signature" });
-  });
+  it("no webhook endpoint or verifier is exposed for Stripe events", () => {
+    const runtimeFiles = listRuntimeFiles();
+    const violations: string[] = [];
 
-  it("rejects a signature produced with the WRONG secret", () => {
-    const header = sign(PAYLOAD, "whsec_a_different_fabricated_secret");
-    const result = verifyStripeWebhookSignature(PAYLOAD, header, FAKE_SECRET);
-    expect(result).toEqual({ ok: false, code: "invalid_signature" });
-  });
+    for (const file of runtimeFiles) {
+      const source = stripComments(readFileSync(file, "utf8"));
+      if (/verifyStripeWebhookSignature|stripe\.webhooks\.constructEvent/.test(source)) {
+        violations.push(file);
+      }
+    }
 
-  it("rejects a stale/replayed timestamp outside Stripe's own 5-minute default tolerance", () => {
-    const staleTimestamp = Math.floor(Date.now() / 1000) - 60 * 60; // one hour old
-    const header = sign(PAYLOAD, FAKE_SECRET, staleTimestamp);
-    const result = verifyStripeWebhookSignature(PAYLOAD, header, FAKE_SECRET);
-    expect(result).toEqual({ ok: false, code: "invalid_signature" });
-  });
-
-  it("rejects a missing Stripe-Signature header without throwing", () => {
-    const result = verifyStripeWebhookSignature(PAYLOAD, null, FAKE_SECRET);
-    expect(result).toEqual({ ok: false, code: "missing_signature" });
-  });
-
-  it("refuses to even attempt verification when no webhook secret is configured", () => {
-    const header = sign(PAYLOAD, FAKE_SECRET);
-    const result = verifyStripeWebhookSignature(PAYLOAD, header, null);
-    expect(result).toEqual({ ok: false, code: "not_configured" });
-  });
-
-  it("never throws for any malformed header string", () => {
-    expect(() => verifyStripeWebhookSignature(PAYLOAD, "garbage-not-a-real-header", FAKE_SECRET)).not.toThrow();
-    const result = verifyStripeWebhookSignature(PAYLOAD, "garbage-not-a-real-header", FAKE_SECRET);
-    expect(result.ok).toBe(false);
+    expect(violations, `Stripe webhook verifiers found: ${violations.join(", ")}`).toEqual([]);
   });
 });

@@ -1,4 +1,3 @@
-import { z } from "zod";
 
 /**
  * Feature 008 Phase 1 (T001) — the finance domain's audited status vocabulary and Zod validation.
@@ -63,17 +62,3 @@ export {
   parseProformaStatus,
   parsePayoutStatus,
 };
-
-/**
- * ══════════════════════════════════════════════════════════════════════════════════════════════
- * T004 — the funding seam's own input contract. The browser/React Native client MUST submit only
- * this minimal identifier (FR-004): never amount, currency, payment status, provider status, or
- * settlement eligibility. `lib/finance/funding.ts` is the sole consumer.
- * ══════════════════════════════════════════════════════════════════════════════════════════════
- */
-const uuid = (fieldLabel: string) => z.uuid({ error: `Choose a valid ${fieldLabel}.` });
-
-export const RequestFundingInput = z.object({
-  orderId: uuid("order"),
-});
-export type RequestFundingInput = z.infer<typeof RequestFundingInput>;

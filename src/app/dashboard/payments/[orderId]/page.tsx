@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { FinancialSummary, formatMoney } from "@/components/orders/financial-summary";
-import { FundingUnavailableNotice } from "@/components/finance/funding-unavailable-notice";
 import { PageHeader } from "@/components/app/page-header";
 import { OrderStatusBadge } from "@/components/orders/order-status-badge";
 import { PaymentStatusBadge } from "@/components/finance/payment-status-badge";
@@ -10,11 +9,8 @@ import { PayoutStatusBadge } from "@/components/finance/payout-status-badge";
 import { ProformaStatusBadge } from "@/components/finance/proforma-status-badge";
 import { AppBilingual } from "@/components/locale/app-bilingual";
 import { StateScreen } from "@/components/layout/state-screen";
-import { StripePaymentCollector } from "@/components/finance/stripe-payment-collector";
 import { appCopy } from "@/lib/app/copy";
 import { getRequestIdentity } from "@/lib/auth/dal";
-import { requestFunding } from "@/lib/finance/funding";
-import { stripePublishableKey } from "@/lib/finance/stripe/config";
 import { getOrderFinancials, getPayment, getPayoutsForOrder, getProforma, getSellerOrderLines, getTaxInvoice } from "@/lib/finance/read";
 import type { PayoutDTO, SellerOrderViewDTO } from "@/lib/finance/types";
 
@@ -93,9 +89,8 @@ export default async function PaymentDetailPage({ params }: { params: Promise<{ 
     return <SellerOrderDetail view={sellerView} payouts={sellerPayouts} />;
   }
 
-  const [financials, funding, proforma, taxInvoice, payouts] = await Promise.all([
+  const [financials, proforma, taxInvoice, payouts] = await Promise.all([
     getOrderFinancials({ orderId }),
-    requestFunding({ orderId }),
     getProforma({ orderId }),
     getTaxInvoice({ orderId }),
     getPayoutsForOrder({ orderId }),
@@ -172,21 +167,7 @@ export default async function PaymentDetailPage({ params }: { params: Promise<{ 
         )}
       </section>
 
-      <section aria-labelledby="funding-heading" className="flex flex-col gap-4">
-        <h2 id="funding-heading" className="sr-only">
-          <AppBilingual pick={(c) => c.finance.payments.detail.fundingSectionHeading} />
-        </h2>
-        {!funding.ok ? <FundingUnavailableNotice /> : null}
-        {funding.ok && funding.data.clientSecret ? (
-          // Feature 008 RUN E (Stripe provider decision) T014 — genuinely reachable only once Stripe is
-          // configured AND the create-payment-intent Edge Function is deployed (neither is true today,
-          // so this branch is real code, not yet a live path — see lib/finance/funding.ts's own header).
-          (() => {
-            const publishableKey = stripePublishableKey();
-            return publishableKey ? <StripePaymentCollector clientSecret={funding.data.clientSecret} publishableKey={publishableKey} /> : null;
-          })()
-        ) : null}
-      </section>
+
 
       <section aria-labelledby="documents-heading" className="flex flex-col gap-6 rounded-[var(--radius-xl)] border border-border bg-card p-6 sm:p-7">
         <h2 id="documents-heading" className="text-base font-semibold text-foreground">

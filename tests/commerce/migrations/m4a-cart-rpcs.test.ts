@@ -405,7 +405,10 @@ describe("T067 — rollback symmetry and history", () => {
       // Feature 014 (Sprint 2) active implementation.
       .filter((f) => !/^(?:specs\/014-notifications-messaging-seo|supabase\/(?:migrations|rollback)\/20260929\d+_feature_014|supabase\/maintenance\/20260929_feature_014)/.test(f))
       // Feature 015 active implementation.
-      .filter((f) => !/^(?:specs\/015-manual-bank-transfer-payment-proof|supabase\/(?:migrations|rollback)\/20260930\d+_feature_015|supabase\/maintenance\/20260930_feature_015)/.test(f));
+      .filter((f) => !/^(?:specs\/015-manual-bank-transfer-payment-proof|supabase\/(?:migrations|rollback)\/20260930\d+_feature_015|supabase\/maintenance\/20260930_feature_015)/.test(f))
+      // Feature 017's current planning/evidence documents are mutable. Historical
+      // SQL artifacts and all other feature documents retain the existing guard.
+      .filter((f) => !/^specs\/017-stripe-runtime-retirement\/(?:contracts\/database-acl-retirement\.md|plan\.md|quickstart\.md|tasks\.md)$/.test(f));
     expect(changed).toEqual([]);
   });
 });

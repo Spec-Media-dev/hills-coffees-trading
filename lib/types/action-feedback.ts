@@ -143,35 +143,7 @@ export const ACTION_FEEDBACK = {
    * second one (mirrors Feature 007's own established precedent above).
    */
   FINANCE_READ_FAILED: "finance_read_failed",
-  /**
-   * `lib/finance/funding.ts`'s controlled, honest outcome: no provider is selected and no approved
-   * database trusted-funding gate exists yet (spec.md PS2, FR-003 through FR-007). This code MUST
-   * NEVER be interpreted as, or paired with copy implying, payment success, escrow initiation, a bank
-   * instruction, or a pending provider state.
-   */
-  FINANCE_FUNDING_UNAVAILABLE: "finance_funding_unavailable",
 
-  /**
-   * Feature 008 RUN E (Stripe provider decision) — `lib/finance/settlement.ts` (T018/T019)'s controlled
-   * mapping of every exception `admin_review_payment()` can raise, plus the new provider-boundary codes
-   * `lib/finance/stripe/*` (T012/T013) and `lib/finance/funding.ts`'s now-live PaymentIntent path use.
-   * `FINANCE_SETTLEMENT_TRUSTED_FUNDING_MISSING` is the ONE new database precondition (Option A:
-   * trusted Stripe event + finance-operator approval, both required) — it must never be presented as a
-   * generic failure; it means the operator's "Approve Settlement" decision was honored procedurally but
-   * refused because no verified Stripe webhook event has confirmed funding yet.
-   */
-  FINANCE_SETTLEMENT_FORBIDDEN: "finance_settlement_forbidden",
-  FINANCE_SETTLEMENT_PAYMENT_NOT_FOUND: "finance_settlement_payment_not_found",
-  FINANCE_SETTLEMENT_TRUSTED_FUNDING_MISSING: "finance_settlement_trusted_funding_missing",
-  FINANCE_SETTLEMENT_RESERVATION_MISSING: "finance_settlement_reservation_missing",
-  FINANCE_SETTLEMENT_RESERVATION_EXPIRED: "finance_settlement_reservation_expired",
-  FINANCE_SETTLEMENT_INVENTORY_INVALID: "finance_settlement_inventory_invalid",
-  /** The buyer already has a DIFFERENT Stripe PaymentIntent recorded for this order (race/duplicate-create refusal). */
-  FINANCE_FUNDING_ALREADY_INITIATED: "finance_funding_already_initiated",
-  /** The order is not in a fundable state (already paid, expired hold, cancelled, etc). */
-  FINANCE_FUNDING_ORDER_NOT_FUNDABLE: "finance_funding_order_not_fundable",
-  /** Stripe is not configured (no `STRIPE_SECRET_KEY`) or the live API call itself failed — never fabricated success. */
-  FINANCE_FUNDING_CREATE_FAILED: "finance_funding_create_failed",
 
   /**
    * Feature 009 RUN A1 (T002) — the delivery domain's own safe result codes, reusing the shipment

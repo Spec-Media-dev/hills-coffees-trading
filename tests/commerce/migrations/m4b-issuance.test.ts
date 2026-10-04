@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
 
@@ -90,7 +90,7 @@ describe("Feature 013 M4b issuance static boundaries", () => {
     expect(postflight).toContain("not has_table_privilege('service_role', 'public.proforma_bank_instructions', 'INSERT, UPDATE, DELETE, TRUNCATE')");
     expect(forward).not.toMatch(/grant\s+[^;]*\bon\s+(?:table\s+)?public\.proforma_bank_instructions\b/i);
     const appFiles = (execFileSync("git", ["ls-files", "-co", "--exclude-standard", "--", "lib", "src", "components", "app"], { encoding: "utf8" }))
-      .split(/\r?\n/).filter((file) => /\.(?:ts|tsx|js|mjs)$/.test(file));
+      .split(/\r?\n/).filter((file) => /\.(?:ts|tsx|js|mjs)$/.test(file) && existsSync(file));
     const serviceRole = /SUPABASE_SERVICE_ROLE|service_role_key|serviceRoleKey/i;
     const offenders = appFiles.filter((file) => {
       const text = readFileSync(file, "utf8");

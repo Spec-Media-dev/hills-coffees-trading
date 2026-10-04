@@ -4,6 +4,7 @@ import { cleanup, render } from "@testing-library/react";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { CHECKOUT_FIXTURES, FOUNDATION_FIXTURES, INVENTORY_FIXTURES, createAnonymousFixtureClient, createLegacyFixtureDraftOrder, resetCheckoutFixtures, signInAsFixture } from "@/tests/auth/fixture-session";
+import { resolveF013Mode } from "@/scripts/f013-local-target";
 import { appCopy } from "@/lib/app/copy";
 
 /**
@@ -123,15 +124,18 @@ async function renderDetailPage(client: SupabaseClient, orderId: string) {
   return renderWithLocale(await callDetailPage(client, orderId));
 }
 
+const isLocal = resolveF013Mode().kind === "local";
+
 let orderId: string;
 
 beforeAll(async () => {
+  if (!isLocal) return;
   resetCheckoutFixtures();
   const orgB = await signInAsFixture(INVENTORY_FIXTURES.orgB.email);
   orderId = await buildCheckedOutOrder(orgB, INVENTORY_FIXTURES.orgB.organizationId, 1);
 }, 60_000);
 
-describe("T022 — authorized buyer reads the correct stored payment/order snapshot", () => {
+describe.skipIf(!isLocal)("T022 — authorized buyer reads the correct stored payment/order snapshot", () => {
   it(
     "the list page shows the checked-out order with its real status/amount/currency and a working detail link",
     async () => {
@@ -180,8 +184,8 @@ describe("T022 — authorized buyer reads the correct stored payment/order snaps
   }, 60_000);
 });
 
-describe("T022 — authorization boundary (live)", () => {
-  it("cross-org: an unrelated organization gets an honestly empty payments list and notFound() on the direct detail URL", async () => {
+describe("T022 — authorization boundary", () => {
+  it.skipIf(!isLocal)("cross-org: an unrelated organization gets an honestly empty payments list and notFound() on the direct detail URL", async () => {
     const orgA = await signInAsFixture(INVENTORY_FIXTURES.orgA.email);
     await renderListPage(orgA);
     expect(document.querySelector(`a[href="/dashboard/payments/${orderId}"]`)).toBeNull();
@@ -190,12 +194,12 @@ describe("T022 — authorization boundary (live)", () => {
     await expect(callDetailPage(orgA, orderId)).rejects.toBeTruthy();
   }, 60_000);
 
-  it("a syntactically valid but nonexistent order id also triggers notFound() — identical outcome to cross-org (no existence leak)", async () => {
+  it.skipIf(!isLocal)("a syntactically valid but nonexistent order id also triggers notFound() — identical outcome to cross-org (no existence leak)", async () => {
     const orgB = await signInAsFixture(INVENTORY_FIXTURES.orgB.email);
     await expect(callDetailPage(orgB, "00000000-0000-4000-8000-000000000000")).rejects.toBeTruthy();
   }, 60_000);
 
-  it("anonymous access is denied by the existing dashboard auth boundary — unauthorized state, never a leaked query attempt", async () => {
+  it.skipIf(!isLocal)("anonymous access is denied by the existing dashboard auth boundary — unauthorized state, never a leaked query attempt", async () => {
     const anonymous = createAnonymousFixtureClient();
     await renderListPage(anonymous);
     expect(document.querySelector('[data-state-screen="unauthorized"]')).not.toBeNull();
@@ -233,14 +237,13 @@ describe("T022 — authorization boundary (live)", () => {
   });
 });
 
-describe("T022 — funding is honest while provider selection is pending (PS2)", () => {
-  it("the detail page renders the real requestFunding() outcome as the funding-unavailable notice, never a fabricated success/pending state", async () => {
+describe.skipIf(!isLocal)("T022 — funding is honest while provider selection is pending (PS2) / Feature 017 retired", () => {
+  it("the detail page renders no funding-unavailable notice or card provider collector", async () => {
     const orgB = await signInAsFixture(INVENTORY_FIXTURES.orgB.email);
     await renderDetailPage(orgB, orderId);
 
     const notice = document.querySelector('[data-finance-notice="funding-unavailable"]');
-    expect(notice).not.toBeNull();
-    expect(notice?.textContent).toMatch(/Funding isn't available/i);
+    expect(notice).toBeNull();
   }, 60_000);
 
   it("no fund/pay/provider CTA exists anywhere on either page — the detail page has zero buttons at all; the list page's only button is a disabled Previous pagination control (pure navigation, not a payment action)", async () => {
@@ -283,36 +286,29 @@ const T022_FILES = [
   "src/app/dashboard/payments/page.tsx",
   "src/app/dashboard/payments/[orderId]/page.tsx",
   "components/finance/payment-status-badge.tsx",
-  "components/finance/funding-unavailable-notice.tsx",
 ];
 
 describe("T022 — source-level proofs: no secrets, no network, no service role, no shared cache", () => {
-  // Feature 008 RUN E (Stripe provider decision, 2026-09-22): Stripe is now the formally approved
-  // provider — `src/app/dashboard/payments/[orderId]/page.tsx` legitimately names it (importing
-  // `StripePaymentCollector`/`stripePublishableKey`, NEVER the raw `stripe`/`@stripe/stripe-js` package
-  // or a secret directly — see the dedicated T014 assertions below). Every OTHER provider name remains
-  // forbidden everywhere (no provider but Stripe was ever selected), and no file in this list reads a
-  // secret, makes a raw network call, or imports the SDK/secret-touching modules directly.
-  const STRIPE_APPROVED_FILE = "src/app/dashboard/payments/[orderId]/page.tsx";
+  const DETAIL_PAGE = "src/app/dashboard/payments/[orderId]/page.tsx";
 
   for (const file of T022_FILES) {
     const source = stripComments(readFileSync(file, "utf8"));
-    const otherProviderNames = /tazapay|paytabs|escrow\.com|checkout\.com|adyen|braintree|paypal/i;
+    const otherProviderNames = /tazapay|paytabs|escrow\.com|checkout\.com|adyen|braintree|paypal|stripe/i;
 
-    it(`${file}: no OTHER provider name, no network call, no secret/credential reference`, () => {
+    it(`${file}: no provider name, no network call, no secret/credential reference`, () => {
       expect(source).not.toMatch(otherProviderNames);
-      if (file !== STRIPE_APPROVED_FILE) expect(source).not.toMatch(/stripe/i);
       expect(source).not.toMatch(/\bfetch\(|XMLHttpRequest|axios/);
       expect(source).not.toMatch(/process\.env\.\w*(SECRET|KEY|TOKEN|CREDENTIAL)/);
       expect(source).not.toMatch(/NEXT_PUBLIC_\w*STRIPE|EXPO_PUBLIC_/);
     });
 
-    if (file === STRIPE_APPROVED_FILE) {
-      it(`${file}: names Stripe only through the approved client-safe seam — never the SDK or a secret directly`, () => {
+    if (file === DETAIL_PAGE) {
+      it(`${file}: names no Stripe runtime or SDK directly under Feature 017`, () => {
         expect(source).not.toMatch(/from ["']stripe["']|from ["']@stripe\/stripe-js["']/);
         expect(source).not.toMatch(/STRIPE_SECRET_KEY|STRIPE_WEBHOOK_SECRET/);
-        expect(source).toMatch(/StripePaymentCollector/);
-        expect(source).toMatch(/stripePublishableKey/);
+        expect(source).not.toMatch(/StripePaymentCollector/);
+        expect(source).not.toMatch(/stripePublishableKey/);
+        expect(source).not.toMatch(/stripe/i);
       });
     }
 

@@ -78,29 +78,7 @@ export function mapFinanceReviewError(error: unknown): { code: FinanceReviewErro
  * exception vocabulary, mapped below (T018/T019) — this is the SAME map/function pair Phase 1 always
  * intended to extend, never a second one.
  */
-const FINANCE_ERROR_MAP: Record<string, ActionFeedbackCode> = {
-  // admin_review_payment() — settlement (lib/finance/settlement.ts, T018/T019).
-  forbidden: ACTION_FEEDBACK.FINANCE_SETTLEMENT_FORBIDDEN,
-  payment_not_found: ACTION_FEEDBACK.FINANCE_SETTLEMENT_PAYMENT_NOT_FOUND,
-  trusted_funding_required: ACTION_FEEDBACK.FINANCE_SETTLEMENT_TRUSTED_FUNDING_MISSING,
-  active_reservation_missing: ACTION_FEEDBACK.FINANCE_SETTLEMENT_RESERVATION_MISSING,
-  reservation_expired: ACTION_FEEDBACK.FINANCE_SETTLEMENT_RESERVATION_EXPIRED,
-  seller_inventory_position_invalid: ACTION_FEEDBACK.FINANCE_SETTLEMENT_INVENTORY_INVALID,
-
-  // record_stripe_payment_intent() — funding creation (lib/finance/funding.ts).
-  order_not_found: ACTION_FEEDBACK.FINANCE_SETTLEMENT_PAYMENT_NOT_FOUND,
-  order_not_fundable: ACTION_FEEDBACK.FINANCE_FUNDING_ORDER_NOT_FUNDABLE,
-  stripe_payment_intent_already_recorded: ACTION_FEEDBACK.FINANCE_FUNDING_ALREADY_INITIATED,
-  stripe_payment_intent_required: ACTION_FEEDBACK.VALIDATION_ERROR,
-  stripe_idempotency_key_required: ACTION_FEEDBACK.VALIDATION_ERROR,
-
-  // record_payment_transfer() — reuses the same settlement/funding codes above (payout_not_found,
-  // stripe_transfer_id_required, stripe_transfer_group_required) since they mean the same thing in this
-  // domain — never a third, redundant vocabulary.
-  payout_not_found: ACTION_FEEDBACK.FINANCE_SETTLEMENT_PAYMENT_NOT_FOUND,
-  stripe_transfer_id_required: ACTION_FEEDBACK.VALIDATION_ERROR,
-  stripe_transfer_group_required: ACTION_FEEDBACK.VALIDATION_ERROR,
-};
+const FINANCE_ERROR_MAP: Record<string, ActionFeedbackCode> = {};
 
 /** Minimal shape of what supabase-js's `PostgrestError` (or any thrown value) may carry — never assumed to be an `Error` instance. */
 type RawDatabaseError = { message?: unknown; code?: unknown } | null | undefined;
